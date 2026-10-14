@@ -118,3 +118,7 @@ key/
 android/inkroot-new-release.keystore
 inkroot-new-release.keystore
 android/key.properties
+
+# Local artifacts (decompiled APK / media collections, not project source)
+Ego_v1.2.3_decompiled/
+反编译/

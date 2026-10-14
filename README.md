@@ -1,10 +1,10 @@
-# InkRoot
+# 小纸 (IntPaper)
 
-InkRoot 是一款面向个人知识记录的跨平台笔记应用。它可以本地优先使用，也可以连接官方服务器或自托管 Memos 服务进行同步。应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、导入导出、系统分享、小组件和可选 AI 辅助等能力。
+小纸是一款面向个人知识记录的跨平台笔记应用。它可以本地优先使用，也可以连接官方服务器或自托管 Memos 服务进行同步。应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、导入导出、系统分享、小组件和可选 AI 辅助等能力。
 
-原项目地址 https://github.com/yyyyymmmmm/InkRoot（已停止维护）
+> 本项目是 [InkRoot](https://github.com/yyyyymmmmm/InkRoot)（墨迹）的延续与重命名版本，代码在此基础上继续维护，仓库现托管于 [liudengxing/IntPaper](https://github.com/liudengxing/IntPaper)。
 
-[下载最新版本](https://github.com/yyyyymmmmm/InkRoot/releases/latest) · [问题反馈](https://github.com/yyyyymmmmm/InkRoot/issues) · [English](README.en.md)
+[下载最新版本](https://github.com/liudengxing/IntPaper/releases/latest) · [问题反馈](https://github.com/liudengxing/IntPaper/issues) · [English](README.en.md)
 
 ## 当前版本
 
@@ -17,7 +17,7 @@ InkRoot 是一款面向个人知识记录的跨平台笔记应用。它可以本
 - Android 和 iOS 小组件新增快速记录、随机回顾两个独立入口。
 - 随机回顾小组件支持真实笔记内容选择、刷新配置和随机切换。
 - Android 系统分享统一支持浏览器、阅读器、系统选中文本、相册、文件管理器等入口。
-- iOS 新增系统分享扩展，支持从浏览器、阅读器、相册和文件 App 分享内容到 InkRoot。
+- iOS 新增系统分享扩展，支持从浏览器、阅读器、相册和文件 App 分享内容到小纸。
 - Memos 0.21.0 至 0.29.1 兼容链路继续增强，提升自部署服务器登录、账号读取、资源和同步初始化成功率。
 - 语音识别新增用户自定义讯飞配置入口。
 - 知识图谱优化视觉样式、缩放、节点点击和大数据量渲染性能。
@@ -53,7 +53,7 @@ InkRoot 是一款面向个人知识记录的跨平台笔记应用。它可以本
 
 ## 下载
 
-发布包在 [GitHub Releases](https://github.com/yyyyymmmmm/InkRoot/releases) 页面提供。
+发布包在 [GitHub Releases](https://github.com/liudengxing/IntPaper/releases) 页面提供。
 
 GitHub Releases 的 Android APK 用于手动安装和测试分发；Google Play 上架使用发布流程生成的签名 AAB。
 Windows 用户下载压缩包后运行应用。
@@ -83,7 +83,21 @@ dart tool/inkroot.dart build windows-debug
 dart tool/inkroot.dart build linux-debug
 ```
 
-不同桌面或移动平台需要对应系统环境。例如 iOS 和 macOS 需要 macOS 与 Xcode，Windows 需要 Windows 与 Visual Studio C++ 桌面组件，Linux 需要 GTK、CMake 和 Ninja。
+> 注：项目内部维护脚本仍沿用 `tool/inkroot.dart` 命名，属历史约定，后续可随项目演进重命名。
+
+不同桌面或移动平台需要对应系统环境。例如 iOS 和 macOS 需要 macOS 与 Xcode，Windows 需要 Windows 与 Visual Studio C++ 桌面组件，Linux 需要 GTK、CMake 和 Ninja。Android 构建需要 Android SDK（见下方"Android 环境"）。
+
+### Android 环境
+
+1. 安装 [Android command-line tools](https://developer.android.com/studio#command-tools)，解压后设置 `ANDROID_HOME` 指向 SDK 目录。
+2. 通过 `sdkmanager` 安装：
+
+```bash
+sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+sdkmanager --licenses
+```
+
+3. 确保 `adb`（位于 `$ANDROID_HOME/platform-tools`）可用，连接设备或启动模拟器后即可 `flutter run`。
 
 ## 发布
 
@@ -112,10 +126,8 @@ dart tool/inkroot.dart release v1.1.13
 
 ## 法律与隐私
 
-- [隐私政策](https://inkroot.cn/privacy.html)
-- [用户协议](https://inkroot.cn/agreement.html)
-- [账号与数据删除](https://inkroot.cn/account-deletion.html)
+本项目基于 InkRoot 代码继续维护。隐私、用户协议与账号数据删除等法律条款以仓库内 [SECURITY.md](SECURITY.md) 与 [CONTRIBUTING.md](CONTRIBUTING.md) 为准；原 InkRoot 的在线法律页面（inkroot.cn）不再适用本仓库。
 
 ## 许可证
 
-InkRoot 使用 MIT License。详见 [LICENSE](LICENSE)。
+小纸基于 InkRoot 代码，沿用 MIT License。详见 [LICENSE](LICENSE)。

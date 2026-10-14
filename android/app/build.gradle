@@ -1,0 +1,101 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+def hasReleaseSigning = keystoreProperties['storeFile'] &&
+        keystoreProperties['storePassword'] &&
+        keystoreProperties['keyAlias'] &&
+        keystoreProperties['keyPassword']
+def isReleaseTask = gradle.startParameter.taskNames.any {
+    it.toLowerCase().contains('release')
+}
+def releaseStoreFile = hasReleaseSigning ? file(keystoreProperties['storeFile']) : null
+if (isReleaseTask && !hasReleaseSigning) {
+    throw new GradleException('Release builds require android/key.properties with complete signing credentials.')
+}
+if (isReleaseTask && releaseStoreFile != null && !releaseStoreFile.exists()) {
+    throw new GradleException("Release signing keystore was not found: ${releaseStoreFile}")
+}
+def umengAndroidAppKey = project.findProperty('UMENG_ANDROID_APPKEY') ?:
+        System.getenv('UMENG_ANDROID_APPKEY') ?: ''
+def umengChannel = project.findProperty('UMENG_CHANNEL') ?:
+        System.getenv('UMENG_CHANNEL') ?: 'default'
+
+android {
+    namespace = "com.didichou.inkroot"
+    compileSdk flutter.compileSdkVersion
+    ndkVersion "28.2.13676358"
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+        coreLibraryDesugaringEnabled true
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_11.toString()
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    defaultConfig {
+        applicationId "com.didichou.inkroot"
+        minSdkVersion flutter.minSdkVersion
+        targetSdk flutter.targetSdkVersion
+        versionCode flutter.versionCode
+        versionName flutter.versionName
+        manifestPlaceholders = [
+            applicationName: "android.app.Application",
+            UMENG_ANDROID_APPKEY: umengAndroidAppKey,
+            UMENG_CHANNEL: umengChannel,
+        ]
+    }
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile releaseStoreFile
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+    
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            // 启用代码混淆和压缩
+            minifyEnabled true
+            // 启用资源压缩
+            shrinkResources true
+            // 指定ProGuard规则文件
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+flutter {
+    source "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    
+    // 友盟统计（更新到最新稳定版本）
+    implementation 'com.umeng.umsdk:common:9.6.8'       // 友盟基础组件
+    implementation 'com.umeng.umsdk:asms:1.8.3'         // 友盟统计SDK
+    
+    // 🔥 友盟依赖的必需库（避免初始化失败）
+    implementation 'com.google.code.gson:gson:2.10.1'   // JSON解析
+} 

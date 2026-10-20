@@ -242,16 +242,43 @@ extension AppProviderSyncPart on AppProvider {
       );
       debugPrint('AppProvider: 发现 ${unsyncedNotes.length} 条未同步笔记');
 
+      // 已连续失败太多次的笔记不再重试：内容被服务端拒绝时重试没有意义，
+      // 只会每轮同步都白跑一次。用户再编辑该笔记时会清掉计数。
+      final pendingAttempts = await _databaseService.getPendingUpsertAttempts();
+
       var failedUploads = 0;
+      var blockedUploads = 0;
       for (final note in unsyncedNotes) {
+        final attempts = pendingAttempts[note.id] ?? 0;
+        if (attempts >= AppProvider.maxUploadAttempts) {
+          blockedUploads++;
+          debugPrint(
+            'AppProvider: 跳过上传失败 $attempts 次的笔记 ${note.id}，等待用户编辑后重试',
+          );
+          continue;
+        }
+
         try {
           await _syncUnsyncedNotesSnapshot([note]);
+          if (attempts > 0) {
+            await _databaseService.clearPendingUpsert(note.id);
+          }
         } on Object catch (e) {
           failedUploads++;
+          await _databaseService.markPendingUpsertAttempt(
+            note.id,
+            error: e.toString(),
+          );
           debugPrint('同步笔记到服务器失败: ${note.id} - $e');
         }
       }
-      if (failedUploads > 0) {
+
+      if (blockedUploads > 0) {
+        debugPrint(
+          'AppProvider: $blockedUploads 条笔记多次上传失败，已暂停自动重试',
+        );
+        _setSyncMessage('$blockedUploads 条笔记多次上传失败，编辑后会自动重试');
+      } else if (failedUploads > 0) {
         // 未上传的笔记仍是 is_synced=0，下次同步会自动重试；
         // 这里只让用户知道"还有内容没传上去"，而不是静默。
         debugPrint('AppProvider: $failedUploads 条笔记上传失败，将在下次同步重试');

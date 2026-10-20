@@ -480,6 +480,74 @@ class DatabaseService {
     );
   }
 
+  // ── 待同步的远端操作（上传失败重试） ─────────────────────────────────
+
+  /// 记录一条「上传失败、待重试」的笔记。
+  ///
+  /// 与删除补交共用 `pending_note_operations`，用 `operation = 'upsert'` 区分。
+  /// 表里已有 `attempts` / `last_error`，不需要再改 schema。
+  Future<void> enqueuePendingUpsert(
+    String noteId, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    await db.insert(
+      tablePendingOperations,
+      {
+        'note_id': noteId,
+        'operation': 'upsert',
+        'created_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+  }
+
+  /// 各笔记已累计的上传失败次数。
+  Future<Map<String, int>> getPendingUpsertAttempts({
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    final rows = await db.query(
+      tablePendingOperations,
+      columns: ['note_id', 'attempts'],
+      where: 'operation = ?',
+      whereArgs: ['upsert'],
+    );
+    return {
+      for (final row in rows)
+        row['note_id']! as String: (row['attempts'] as int?) ?? 0,
+    };
+  }
+
+  /// 累加一次上传失败，并记录原因。
+  Future<void> markPendingUpsertAttempt(
+    String noteId, {
+    String? error,
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    await enqueuePendingUpsert(noteId, executor: db);
+    await db.rawUpdate(
+      'UPDATE $tablePendingOperations '
+      'SET attempts = IFNULL(attempts, 0) + 1, last_error = ? '
+      'WHERE note_id = ? AND operation = ?',
+      [error, noteId, 'upsert'],
+    );
+  }
+
+  /// 上传成功后清除失败记录（同时把 attempts 归零）。
+  Future<void> clearPendingUpsert(
+    String noteId, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    await db.delete(
+      tablePendingOperations,
+      where: 'note_id = ? AND operation = ?',
+      whereArgs: [noteId, 'upsert'],
+    );
+  }
+
   /// 清理软删超过 [age] 的笔记（回收站保留期）。返回清理条数。
   Future<int> purgeDeletedNotesOlderThan(
     Duration age, {

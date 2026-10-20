@@ -66,6 +66,12 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       paging.initialNotesPaginationState();
   static const int _pageSize = 50;
 
+  /// 单条笔记连续上传失败达到这个次数后暂停自动重试。
+  ///
+  /// 内容被服务端拒绝（超长、格式不合规、权限不足）时重试多少次都不会成功，
+  /// 继续每轮同步都试一遍只是白白耗电和流量。用户编辑后计数会被重置。
+  static const int maxUploadAttempts = 3;
+
   // 🚀 大厂标准：并发控制（防止重复加载）
   Completer<void>? _loadMoreCompleter;
 
@@ -2387,6 +2393,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 更新本地数据库
       debugPrint('AppProvider: 更新本地数据库');
       await _databaseService.updateNote(noteWithTags);
+
+      // 用户改了内容，之前的上传失败计数作废，让它重新进入重试队列。
+      await _databaseService.clearPendingUpsert(note.id);
 
       // ✅ 立即更新内存中的笔记（包含批注）
       final memIndex = _notes.indexWhere((n) => n.id == note.id);

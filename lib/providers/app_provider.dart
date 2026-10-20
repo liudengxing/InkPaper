@@ -2674,7 +2674,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       } else {
         _notes.removeWhere((note) => note.id == id);
       }
-      await _databaseService.deleteNote(id);
+      // 软删：行保留在库里，撤销窗口外仍可从「最近删除」恢复
+      await _databaseService.softDeleteNote(id);
       await _cleanupReferencesForDeletedNote(id);
       notifyListeners(); // ⚡ UI立即刷新
       _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
@@ -2738,7 +2739,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
           continue;
         }
         try {
-          await _databaseService.deleteNote(id);
+          await _databaseService.softDeleteNote(id);
           await _cleanupReferencesForDeletedNote(id);
         } on Object {
           // 单个失败不影响其他
@@ -2804,8 +2805,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       debugPrint('AppProvider: ⚡ UI已更新（笔记已恢复到列表）');
 
-      // 2. 后台恢复到数据库
-      await _databaseService.saveNote(_lastDeletedNote!);
+      // 2. 后台解除软删标记
+      await _databaseService.restoreDeletedNote(_lastDeletedNote!.id);
 
       // 3. 清理临时变量
       _lastDeletedNote = null;
@@ -2817,13 +2818,56 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
   }
 
+  // ── 最近删除（回收站） ────────────────────────────────────────────────
+
+  /// 「最近删除」列表，按删除时间倒序。
+  Future<List<Note>> loadRecentlyDeletedNotes() async =>
+      _databaseService.getDeletedNotes();
+
+  /// 「最近删除」中的笔记数量。
+  Future<int> countRecentlyDeletedNotes() async =>
+      _databaseService.getDeletedNotesCount();
+
+  /// 从「最近删除」恢复到笔记列表。
+  Future<bool> restoreRecentlyDeletedNote(String id) async {
+    try {
+      await _databaseService.restoreDeletedNote(id);
+      await loadNotesFromLocal(reset: true);
+      return true;
+    } on Object catch (e) {
+      debugPrint('AppProvider: 恢复已删除笔记失败: $e');
+      return false;
+    }
+  }
+
+  /// 彻底删除「最近删除」里的一条笔记。
+  Future<bool> purgeRecentlyDeletedNote(String id) async {
+    try {
+      await _databaseService.purgeDeletedNote(id);
+      return true;
+    } on Object catch (e) {
+      debugPrint('AppProvider: 彻底删除笔记失败: $e');
+      return false;
+    }
+  }
+
+  /// 清空「最近删除」，返回彻底删除的条数。
+  Future<int> purgeAllRecentlyDeletedNotes() async {
+    try {
+      return await _databaseService.purgeAllDeletedNotes();
+    } on Object catch (e) {
+      debugPrint('AppProvider: 清空最近删除失败: $e');
+      return 0;
+    }
+  }
+
   // 仅从本地数据库删除笔记
   Future<bool> deleteNoteLocal(String id) async {
     debugPrint('AppProvider: 从本地数据库删除笔记 ID: $id');
     try {
-      // 删除本地数据库中的笔记
+      // 删除本地数据库中的笔记（软删，可从最近删除恢复）
       _pendingDeleteIds.remove(id);
-      await _databaseService.deleteNote(id);
+      await _databaseService.softDeleteNote(id);
 
       // 从内存中的列表删除
       _notes.removeWhere((note) => note.id == id);

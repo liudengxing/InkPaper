@@ -623,6 +623,9 @@ class MemosApiServiceFixed {
       if (resp.statusCode == 200) {
         return Note.fromJson(json.decode(resp.body) as Map<String, dynamic>);
       }
+      if (resp.statusCode == 404) {
+        return _recreateMissingMemo(id, content: content, visibility: visibility);
+      }
       throw Exception(
         '更新备忘录失败: ${resp.statusCode} – ${_parseError(resp.body)}',
       );
@@ -639,8 +642,31 @@ class MemosApiServiceFixed {
       if (resp.statusCode == 200) {
         return Note.fromJson(json.decode(resp.body) as Map<String, dynamic>);
       }
+      if (resp.statusCode == 404) {
+        return _recreateMissingMemo(id, content: content, visibility: visibility);
+      }
       throw Exception('更新备忘录失败: ${resp.statusCode}');
     }
+  }
+
+  /// 远端 memo 已被删除时重建，返回带新 id 的 [Note]。
+  ///
+  /// 触发场景：另一台设备删掉了这条笔记，或用户从「最近删除」恢复了一条远端已不存在的
+  /// 笔记。此前这里对 404 一律抛异常，导致该笔记每一轮同步都失败，内容停在
+  /// 「本地有、远端无」，且只有日志可见。
+  ///
+  /// 上层 `_syncUnsyncedNoteToMemos` 已经处理 id 变更：会调用
+  /// `_updateReferenceIdsAfterSync` 重写引用关系并删掉旧记录，因此这里只需返回新笔记。
+  Future<Note> _recreateMissingMemo(
+    String id, {
+    required String content,
+    String? visibility,
+  }) async {
+    debugPrint('MemosApi: memo $id 在远端已不存在，改为新建');
+    return createMemo(
+      content: content,
+      visibility: visibility ?? 'PRIVATE',
+    );
   }
 
   Future<Note> updateMemoVisibility(

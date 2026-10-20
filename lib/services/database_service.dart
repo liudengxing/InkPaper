@@ -109,7 +109,29 @@ class DatabaseService {
     await db.execute('''
       CREATE INDEX idx_reminder_note_id ON reminder_notifications(note_id)
     ''');
+
+    // notes 查询索引（v9）：列表按 createdAt 倒序分页、同步按 is_synced 过滤
+    await db.execute('''
+      CREATE INDEX idx_notes_created_at ON notes(createdAt DESC)
+    ''');
+    await db.execute('''
+      CREATE INDEX idx_notes_is_synced ON notes(is_synced)
+    ''');
   }
+
+  /// 按标签精确匹配的 SQL 片段：tags 列存成逗号拼接串，
+  /// 用前后补逗号的方式做整词匹配，避免 `LIKE '%tag%'` 命中同前缀标签。
+  static const String tagMatchWhereClause =
+      r"',' || IFNULL(tags, '') || ',' LIKE ? ESCAPE '\'";
+
+  /// 构造 [tagMatchWhereClause] 所需的 LIKE 模式。
+  static String tagMatchPattern(String tag) =>
+      '%,${_escapeLikeValue(tag.trim())},%';
+
+  static String _escapeLikeValue(String value) => value
+      .replaceAll(r'\', r'\\')
+      .replaceAll('%', r'\%')
+      .replaceAll('_', r'\_');
 
   /// Upgrades an existing DB to the latest schema.
   static Future<void> upgradeSchema(
@@ -141,10 +163,6 @@ class DatabaseService {
     if (oldVersion < 4) {
       await db.execute('ALTER TABLE notes ADD COLUMN reminder_time TEXT');
     }
-    if (oldVersion < 7) {
-      // v7: WebDAV last sync time
-      await db.execute('ALTER TABLE notes ADD COLUMN last_sync_time TEXT');
-    }
     if (oldVersion < 5) {
       // v5: reminder_notifications
       await db.execute('''
@@ -174,11 +192,29 @@ class DatabaseService {
         'ALTER TABLE notes ADD COLUMN rowStatus TEXT DEFAULT "NORMAL"',
       );
     }
+    if (oldVersion < 7) {
+      // v7: WebDAV last sync time
+      await db.execute('ALTER TABLE notes ADD COLUMN last_sync_time TEXT');
+    }
     if (oldVersion < 8) {
       // v8: annotations
       await db.execute(
         'ALTER TABLE notes ADD COLUMN annotations TEXT DEFAULT "[]"',
       );
+    }
+    if (oldVersion < 9) {
+      // v9: notes 查询索引
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(createdAt DESC)',
+      );
+      // is_synced 由 v1 迁移补列；对缺列的历史库做防御性判断，避免升级直接失败
+      final columns = await db.rawQuery('PRAGMA table_info(notes)');
+      final hasIsSynced = columns.any((row) => row['name'] == 'is_synced');
+      if (hasIsSynced) {
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_notes_is_synced ON notes(is_synced)',
+        );
+      }
     }
   }
 
@@ -357,13 +393,17 @@ class DatabaseService {
     );
   }
 
-  // 按标签获取笔记
+  // 按标签获取笔记（整词精确匹配，不会把“工作”匹配到“工作会议”）
   Future<List<Note>> getNotesByTag(String tag) async {
+    final normalized = tag.trim();
+    if (normalized.isEmpty) {
+      return const [];
+    }
+
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'notes',
-      where: 'tags LIKE ?',
-      whereArgs: ['%$tag%'],
+    final List<Map<String, dynamic>> maps = await db.rawQuery(
+      'SELECT * FROM notes WHERE $tagMatchWhereClause ORDER BY createdAt DESC',
+      [tagMatchPattern(normalized)],
     );
 
     return maps.map(Note.fromMap).toList();

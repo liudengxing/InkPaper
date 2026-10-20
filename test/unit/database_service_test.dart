@@ -417,5 +417,44 @@ void main() {
 
       expect(results.map((note) => note.id), ['new-tag', 'old-content']);
     });
+
+    test('DB-22 按标签查询为整词匹配，不命中同前缀标签', () async {
+      await _saveNote(
+        db,
+        _makeNote(id: 'exact', content: '整词命中', tags: const ['工作', '效率']),
+      );
+      await _saveNote(
+        db,
+        _makeNote(id: 'prefix', content: '同前缀不命中', tags: const ['工作会议']),
+      );
+      await _saveNote(
+        db,
+        _makeNote(id: 'suffix', content: '后缀不同不命中', tags: const ['生活']),
+      );
+
+      Future<List<Note>> query(String tag) async {
+        final maps = await db.rawQuery(
+          'SELECT * FROM notes WHERE ${DatabaseService.tagMatchWhereClause}',
+          [DatabaseService.tagMatchPattern(tag)],
+        );
+        return maps.map(Note.fromMap).toList();
+      }
+
+      expect((await query('工作')).map((n) => n.id), ['exact']);
+      expect((await query('工作会议')).map((n) => n.id), ['prefix']);
+      expect(await query('工'), isEmpty);
+    });
+
+    test('DB-23 标签中的 LIKE 通配符不会被当成模式', () async {
+      await _saveNote(db, _makeNote(id: 'pct', content: '含百分号标签', tags: const ['100%_test']));
+      await _saveNote(db, _makeNote(id: 'other', content: '普通标签', tags: const ['100xxtest']));
+
+      final maps = await db.rawQuery(
+        'SELECT * FROM notes WHERE ${DatabaseService.tagMatchWhereClause}',
+        [DatabaseService.tagMatchPattern('100%_test')],
+      );
+
+      expect(maps.map((r) => r['id']), ['pct']);
+    });
   });
 }

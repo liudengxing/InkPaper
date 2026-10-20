@@ -2900,7 +2900,7 @@ class Translations {
     'purgeAllMessage': {
       'zh': '最近删除中的 {count} 条笔记将被永久删除，无法恢复。',
       'en':
-          '{count} notes in Recently Deleted will be permanently deleted. This can\'t be undone.',
+          "{count} notes in Recently Deleted will be permanently deleted. This can't be undone.",
     },
     'purgeAllAction': {'zh': '全部删除', 'en': 'Delete All'},
     'purgeAllSuccess': {

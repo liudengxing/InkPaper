@@ -8,7 +8,7 @@
 - 静态检查基线：`dart analyze lib tool test` 4 条既有 warning（`unawaited_return_in_try_block`）、0 error
 - 测试基线：`flutter test` **392** 项全通过
 - 代码规模：`lib/` 146 个 Dart 文件 / 88,287 行；`test/` 38 个文件
-- 当前版本：`1.0.6+10006`
+- 当前版本：`1.0.7+10007`
 
 ---
 
@@ -37,6 +37,8 @@
 | `11f46f5` | 卡片按压动画 | `AnimatedBuilder` 接上 `child`，缩放不再整卡重建；修掉恒定居中缩小 3% 的曲线错误；`DateFormat` 与预览正则静态化 |
 | `91eb1ab` | P1-1 计数修复 | 删除与撤销删除后重新取 `viewActiveNotes` 的 COUNT |
 | `bd89ba4` | P0-5 重复笔记 | `utils/note_dedupe.dart`：同内容未同步副本合并增强数据后物理删除，两条同步路径都接上 |
+| `a25bd7e` | P0-2 上传退避 | `operation='upsert'` 记录失败次数，连续 3 次后暂停重试，编辑后清零 |
+| `252def0` | P0-2 提示保留 | 同步结束清状态时保留「已暂停重试」文案 |
 
 ### 1.1 已落地的设计约束（改动时不要破坏）
 
@@ -68,7 +70,7 @@
 | # | 问题 | 位置 | 影响 | 建议方案 |
 | --- | --- | --- | --- | --- |
 | ~~P0-1~~ ✅ | 从回收站恢复时若远端已删除，上传会永久失败 | ~~`MemosApiServiceFixed.updateMemo`（非 200 一律 throw，含 404）~~ | 已修复：404 回退 `createMemo`，上层 `_syncUnsyncedNoteToMemos` 已有的 id 变更处理会自动重写引用并物理删除旧记录。待真机验证（见「七」） | — |
-| P0-2 | 上传失败无退避、无上限、无提示 | `AppProvider.syncWithServer` 的上传循环 | 内容被服务端拒绝（超长/违规）时无限重试；仅记录失败条数 | 复用 `pending_note_operations`，增加 `operation='upsert'` 与 `attempts`/`last_error`，超过阈值后提示用户 |
+| ~~P0-2~~ ✅ | 上传失败无退避、无上限、无提示 | ~~`AppProvider.syncWithServer` 的上传循环~~ | 已修复（`a25bd7e` / `252def0`）：复用 `pending_note_operations` 的 `operation='upsert'` + 已有 `attempts`/`last_error`，连续失败 3 次后暂停重试，提示在同步结束后保留；用户编辑笔记时清零。仍缺的是**指数退避**与**设置页可查看失败清单** | 后续可加：失败清单 UI、退避间隔 |
 | P0-3 | 冲突静默 LWW | `SyncStats.conflicts` 从未赋值；`mergeServerNoteWithLocalState` 以时间戳为准 | 双端同时编辑，一侧修改无声丢失 | 同 id 且双方内容与时间戳都变化时记录冲突，至少在设置页/回收站可见并允许重试 |
 | P0-4 | 备份与回收站语义未对齐 | `local_backup_restore_screen.dart` 导出取 `getNotes()`（仅未删）；`Note.toJson` 有 `rowStatus` 但无 `deletedAt`；`replaceAllNotes` 物理清表 | 换机恢复后回收站为空；若导出 DELETED 行则 `deleted_at` 丢失、GC 失效 | 明确「备份不含回收站」并在导出时跳过 `DELETED`；`toJson` 补 `deletedAt` 以备将来 |
 | ~~P0-5~~ ✅ | 远端"删除后重建"产生重复笔记 | ~~`deleteSyncedNotesNotIn` 仅按 id 剪枝~~ | 已修复（`bd89ba4`）：新增 `utils/note_dedupe.dart`，`fetchNotesFromServer` / `syncWithServer` 会把同内容的未同步副本的本地增强数据并到服务端那条，再物理删除旧副本。注意这条风险随 P0-1 的自愈加重 —— 现在 404 会自动重建并换新 id | — |
@@ -161,6 +163,7 @@
 - 未在真机/模拟器验证 UI 链路（删除刷新、分页、回收站、下拉刷新）。
 - **P0-1 只有代码修复，没有集成验证**：需要构造「设备 A 删除 → 设备 B 从回收站恢复 → 同步」的真实链路，确认重建后本地 id 收敛、引用关系不断裂、旧记录不残留。
 - **P0-1 + P0-5 的联合场景未验证**：设备 A 删除 → 设备 B（旧 id 有未上传改动）同步 → 上传 404 重建 → 再同步。要确认最终只剩一条、置顶/批注/引用都还在。`findDuplicateLocalCopies` 只有纯函数单测，没有跑过真实同步链路。
+- **P0-2 的暂停重试未验证**：需要构造一条必定失败的笔记（例如让服务端返回 413/422，或断网后重试），确认第 4 次同步被跳过、提示保留、编辑后重新入队。`pending_note_operations` 的新方法还没有 DB 层单测（sqflite 测试基础设施尚未搭）。
 - 未在真机上采集性能基线（见 §4.1 P-6）：滚动帧耗时、冷启动、`NotePreviewCache.hitRate` 均无实测数据。
 - 未执行 `build android-release-split` 验证拆包产物与 `--split-debug-info` 输出路径。
 - 迁移测试使用手工构造的 schema，未覆盖真实用户库中的脏数据（例如 `rowStatus` 为 NULL、`createdAt` 非 ISO 格式）。

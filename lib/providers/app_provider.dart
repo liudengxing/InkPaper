@@ -1213,11 +1213,13 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     Note serverNote,
     Note localNote, {
     bool preserveLocalTimeline = false,
+    bool keepLocalPendingChanges = false,
   }) =>
       sync_merge.mergeServerNoteWithLocalState(
         serverNote,
         localNote,
         preserveLocalTimeline: preserveLocalTimeline,
+        keepLocalPendingChanges: keepLocalPendingChanges,
       );
 
   Future<Note> _syncUnsyncedNoteToMemos(Note note) async {

@@ -66,7 +66,13 @@ extension AppProviderSyncPart on AppProvider {
 
         if (localNote != null) {
           mergedNotes
-              .add(_mergeServerNoteWithLocalState(serverNote, localNote));
+              .add(
+          _mergeServerNoteWithLocalState(
+            serverNote,
+            localNote,
+            keepLocalPendingChanges: true,
+          ),
+        );
         } else {
           mergedNotes.add(serverNote);
         }
@@ -212,12 +218,20 @@ extension AppProviderSyncPart on AppProvider {
       );
       debugPrint('AppProvider: 发现 ${unsyncedNotes.length} 条未同步笔记');
 
+      var failedUploads = 0;
       for (final note in unsyncedNotes) {
         try {
           await _syncUnsyncedNotesSnapshot([note]);
         } on Object catch (e) {
+          failedUploads++;
           debugPrint('同步笔记到服务器失败: ${note.id} - $e');
         }
+      }
+      if (failedUploads > 0) {
+        // 未上传的笔记仍是 is_synced=0，下次同步会自动重试；
+        // 这里只让用户知道"还有内容没传上去"，而不是静默。
+        debugPrint('AppProvider: $failedUploads 条笔记上传失败，将在下次同步重试');
+        _setSyncMessage('$failedUploads 条笔记未上传，稍后自动重试');
       }
 
       // 2. 从服务器获取最新数据
@@ -253,7 +267,11 @@ extension AppProviderSyncPart on AppProvider {
         final localNote = localNotesById[serverNote.id];
         return localNote == null
             ? serverNote
-            : _mergeServerNoteWithLocalState(serverNote, localNote);
+            : _mergeServerNoteWithLocalState(
+                serverNote,
+                localNote,
+                keepLocalPendingChanges: true,
+              );
       }).toList();
       await _databaseService.saveNotes(mergedServerNotes);
       final syncedServerIds = mergedServerNotes.map((n) => n.id).toList();

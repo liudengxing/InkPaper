@@ -9,6 +9,7 @@ Note _note({
   DateTime? createdAt,
   DateTime? updatedAt,
   List<Annotation>? annotations,
+  bool isSynced = true,
 }) =>
     Note(
       id: id,
@@ -16,50 +17,10 @@ Note _note({
       createdAt: createdAt ?? DateTime(2024),
       updatedAt: updatedAt ?? DateTime(2024),
       annotations: annotations ?? const [],
+      isSynced: isSynced,
     );
 
 void main() {
-  test('SYNC-MERGE-01 inserts new notes and marks as synced', () {
-    final local = <Note>[];
-    final updated = [
-      _note(id: '1', content: 'hello #tag'),
-      _note(id: '2', content: 'world'),
-    ];
-
-    final plan = planSyncMerge(localNotes: local, updatedNotes: updated);
-    expect(plan.newCount, 2);
-    expect(plan.updatedCount, 0);
-    expect(plan.toInsert.every((n) => n.isSynced), isTrue);
-    expect(plan.toInsert.first.tags, contains('tag'));
-  });
-
-  test('SYNC-MERGE-02 updates existing notes and preserves local annotations',
-      () {
-    final localAnnotations = [
-      Annotation(
-        id: 'a1',
-        type: AnnotationType.idea,
-        content: 'keep me',
-        createdAt: DateTime(2024),
-        updatedAt: DateTime(2024),
-      ),
-    ];
-
-    final local = [
-      _note(id: '1', content: 'old', annotations: localAnnotations),
-    ];
-    final updated = [
-      _note(id: '1', content: 'new #x'),
-    ];
-
-    final plan = planSyncMerge(localNotes: local, updatedNotes: updated);
-    expect(plan.newCount, 0);
-    expect(plan.updatedCount, 1);
-    expect(plan.toUpdate.single.annotations, isNotEmpty);
-    expect(plan.toUpdate.single.annotations.first.content, 'keep me');
-    expect(plan.toUpdate.single.tags, contains('x'));
-  });
-
   test('SYNC-MERGE-03 preserves local historical timeline after upload refresh',
       () {
     final local = _note(
@@ -144,6 +105,56 @@ void main() {
 
     expect(merged.createdAt, local.createdAt);
     expect(merged.updatedAt, server.updatedAt);
+    expect(merged.content, server.content);
+  });
+
+  test('SYNC-MERGE-05 拉取时保留本地未上传的改动，不写回服务端旧内容', () {
+    final local = _note(
+      id: 'server-3',
+      content: '本地刚编辑的内容',
+      createdAt: DateTime(2024),
+      updatedAt: DateTime(2024, 3),
+      isSynced: false, // 上传失败，仍在待上传队列
+    );
+    final server = _note(
+      id: 'server-3',
+      content: '服务端旧内容',
+      createdAt: DateTime(2024),
+      updatedAt: DateTime(2024, 2),
+    );
+
+    final merged = mergeServerNoteWithLocalState(
+      server,
+      local,
+      keepLocalPendingChanges: true,
+    );
+
+    expect(merged.content, local.content);
+    expect(merged.isSynced, isFalse, reason: '仍应留在待上传队列，下次继续重试');
+  });
+
+  test('SYNC-MERGE-06 上传成功后的回写不受保护开关影响，标记为已同步', () {
+    final local = _note(
+      id: 'server-4',
+      content: '刚上传成功的内容',
+      createdAt: DateTime(2024),
+      updatedAt: DateTime(2024, 3),
+      isSynced: false,
+    );
+    final server = _note(
+      id: 'server-4',
+      content: '刚上传成功的内容',
+      createdAt: DateTime(2024),
+      updatedAt: DateTime(2024, 3),
+    );
+
+    final merged = mergeServerNoteWithLocalState(
+      server,
+      local,
+      preserveLocalTimeline: true,
+    );
+
+    expect(merged.isSynced, isTrue);
     expect(merged.content, server.content);
   });
 }

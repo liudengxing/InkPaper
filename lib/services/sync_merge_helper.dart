@@ -1,15 +1,5 @@
 import 'package:intpaper/models/note_model.dart';
 
-class SyncMergePlan {
-  SyncMergePlan({required this.toInsert, required this.toUpdate});
-
-  final List<Note> toInsert;
-  final List<Note> toUpdate;
-
-  int get newCount => toInsert.length;
-  int get updatedCount => toUpdate.length;
-}
-
 /// Merge server data into an existing local note without destroying local-only
 /// state. Server timestamps win for normal refreshes so backup/restore mistakes
 /// can be corrected; local timeline is kept only for offline-created notes that
@@ -18,7 +8,16 @@ Note mergeServerNoteWithLocalState(
   Note serverNote,
   Note localNote, {
   bool preserveLocalTimeline = false,
+  bool keepLocalPendingChanges = false,
 }) {
+  // 拉取合并时，本地仍有「未上传成功」的改动 → 服务端拿到的是旧内容。
+  // 此时保留本地版本并继续留在待上传队列，否则「上传失败 + 随后拉取」会把
+  // 本地改动静默覆盖成服务端旧内容（用户表现为编辑丢失）。
+  // 上传成功后的回写不能启用该开关，否则笔记永远不会被标记为已同步。
+  if (keepLocalPendingChanges && !localNote.isSynced) {
+    return localNote;
+  }
+
   final serverHasDifferentContent = serverNote.content != localNote.content;
   final serverCreatedAt = _isValidServerTimestamp(serverNote.createdAt)
       ? serverNote.createdAt
@@ -64,41 +63,3 @@ Note mergeServerNoteWithLocalState(
 
 bool _isValidServerTimestamp(DateTime value) =>
     value.millisecondsSinceEpoch > 0;
-
-/// Pure merge planning logic used by incremental sync.
-///
-/// - Preserves local annotations when updating an existing note.
-/// - Extracts tags from content for both insert/update.
-/// - Marks notes as synced.
-SyncMergePlan planSyncMerge({
-  required List<Note> localNotes,
-  required List<Note> updatedNotes,
-}) {
-  final localById = {for (final n in localNotes) n.id: n};
-
-  final toInsert = <Note>[];
-  final toUpdate = <Note>[];
-
-  for (final note in updatedNotes) {
-    final tags = Note.extractTagsFromContent(note.content);
-    final local = localById[note.id];
-
-    if (local != null) {
-      toUpdate.add(
-        mergeServerNoteWithLocalState(
-          note.copyWith(tags: tags),
-          local,
-        ),
-      );
-    } else {
-      toInsert.add(
-        note.copyWith(
-          tags: tags,
-          isSynced: true,
-        ),
-      );
-    }
-  }
-
-  return SyncMergePlan(toInsert: toInsert, toUpdate: toUpdate);
-}

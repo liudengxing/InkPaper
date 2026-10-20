@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/utils/memos_content_helper.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/utils/memos_content_helper.dart';
 
 void main() {
   group('MemosContentHelper', () {

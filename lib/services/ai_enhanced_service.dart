@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/services/ai_insight_engine.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/services/ai_insight_engine.dart';
 
 /// 🚀 AI 功能增强服务 - 超越大厂版
 ///

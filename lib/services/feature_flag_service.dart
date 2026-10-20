@@ -8,8 +8,8 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/utils/logger.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 功能开关服务

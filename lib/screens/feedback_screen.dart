@@ -4,11 +4,11 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/utils/responsive_utils.dart';
-import 'package:inkroot/utils/snackbar_utils.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/utils/responsive_utils.dart';
+import 'package:intpaper/utils/snackbar_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class FeedbackScreen extends StatefulWidget {
@@ -124,7 +124,7 @@ class _FeedbackScreenState extends State<FeedbackScreen>
       // 构建邮件内容
       final feedbackTypes = _getFeedbackTypes(context);
       final subject = Uri.encodeComponent(
-        'InkRoot 用户反馈 - ${feedbackTypes[_selectedTypeIndex]}',
+        'IntPaper 用户反馈 - ${feedbackTypes[_selectedTypeIndex]}',
       );
       final body = Uri.encodeComponent('''
 亲爱的开发团队，
@@ -136,7 +136,7 @@ class _FeedbackScreenState extends State<FeedbackScreen>
 ${_feedbackController.text}
 
 ---
-来自 InkRoot 应用的用户反馈
+来自 IntPaper 应用的用户反馈
 发送时间：${DateTime.now().toString().split('.')[0]}
 ''');
 

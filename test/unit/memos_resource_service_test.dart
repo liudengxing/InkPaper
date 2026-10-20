@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/services/memos_resource_service.dart';
+import 'package:intpaper/services/memos_resource_service.dart';
 
 void main() {
   group('MemosResourceService.buildResourcePath', () {

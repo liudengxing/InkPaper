@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/services/database_service.dart';
+import 'package:intpaper/services/database_service.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 Future<Database> _openDbAtVersion(int version) async {

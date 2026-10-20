@@ -6,8 +6,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/services/database_service.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/services/database_service.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 // ─── 内存数据库工具 ───────────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ Future<List<Note>> _searchNotes(Database db, String query) async {
   return maps.map(Note.fromMap).toList();
 }
 
-Map<String, dynamic> _parseInkRootMarkdownMetadata(String markdown) {
+Map<String, dynamic> _parseIntPaperMarkdownMetadata(String markdown) {
   final match = RegExp(
     r'^---\r?\n(.*?)\r?\n---\r?\n?',
     dotAll: true,
@@ -296,7 +296,7 @@ void main() {
       );
 
       final markdown = DatabaseService().exportNoteToMarkdown(source);
-      final restored = Note.fromJson(_parseInkRootMarkdownMetadata(markdown));
+      final restored = Note.fromJson(_parseIntPaperMarkdownMetadata(markdown));
 
       expect(restored.content, source.content);
       expect(restored.createdAt, source.createdAt);

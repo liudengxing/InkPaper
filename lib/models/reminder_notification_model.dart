@@ -73,7 +73,7 @@ class ReminderNotification {
       'ReminderNotification(id: $id, noteId: $noteId, title: $noteTitle, reminderTime: $reminderTime, isRead: $isRead)';
 }
 
-/// 统一通知模型 - 整合系统公告和提醒通知
+/// 统一通知模型（笔记提醒）
 class UnifiedNotification {
   UnifiedNotification({
     required this.id,
@@ -84,9 +84,6 @@ class UnifiedNotification {
     required this.isRead,
     this.noteId,
     this.reminderTime,
-    this.announcementType,
-    this.actionUrls,
-    this.imageUrl,
   });
 
   /// 从提醒通知创建
@@ -101,50 +98,19 @@ class UnifiedNotification {
         noteId: reminder.noteId,
         reminderTime: reminder.reminderTime,
       );
-
-  /// 从系统公告创建
-  factory UnifiedNotification.fromAnnouncement(
-    String id,
-    String title,
-    String content,
-    DateTime publishDate,
-    String announcementType,
-    bool isRead, {
-    Map<String, String>? actionUrls,
-    String? imageUrl,
-  }) =>
-      UnifiedNotification(
-        id: id,
-        title: title,
-        content: content,
-        publishDate: publishDate,
-        type: 'system',
-        isRead: isRead,
-        announcementType: announcementType,
-        actionUrls: actionUrls,
-        imageUrl: imageUrl,
-      );
   final String id;
   final String title;
   final String content;
   final DateTime publishDate; // 发布/触发时间
-  final String type; // 'system', 'reminder'
+  final String type; // 'reminder'
   final bool isRead;
 
   // 提醒通知特有字段
   final String? noteId;
   final DateTime? reminderTime;
 
-  // 系统公告特有字段
-  final String? announcementType; // 'update', 'info', 'event', 'warning'
-  final Map<String, String>? actionUrls;
-  final String? imageUrl;
-
   /// 是否是提醒通知
   bool get isReminder => type == 'reminder';
-
-  /// 是否是系统公告
-  bool get isSystemAnnouncement => type == 'system';
 
   @override
   String toString() =>

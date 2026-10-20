@@ -4,12 +4,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/services/memos_resource_service.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/utils/image_cache_manager.dart';
-import 'package:inkroot/utils/memos_markdown_converter.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/services/memos_resource_service.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/utils/image_cache_manager.dart';
+import 'package:intpaper/utils/memos_markdown_converter.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 

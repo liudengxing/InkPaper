@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
 
 /// 侧边栏菜单项枚举
 enum SidebarMenuItem {

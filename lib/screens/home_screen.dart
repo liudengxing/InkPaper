@@ -1,30 +1,31 @@
 import 'dart:async'; // 🚀 用于搜索防抖
 
 import 'dart:io' show Platform;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/models/app_config_model.dart' as models;
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/models/sort_order.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/services/deepseek_api_service.dart';
-import 'package:inkroot/services/preferences_service.dart';
-import 'package:inkroot/services/umeng_analytics_service.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/utils/responsive_utils.dart';
-import 'package:inkroot/utils/snackbar_utils.dart';
-import 'package:inkroot/widgets/note_card.dart';
-import 'package:inkroot/widgets/note_editor.dart';
-import 'package:inkroot/widgets/sidebar.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/models/app_config_model.dart' as models;
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/models/sort_order.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/services/deepseek_api_service.dart';
+import 'package:intpaper/services/preferences_service.dart';
+import 'package:intpaper/services/umeng_analytics_service.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/utils/responsive_utils.dart';
+import 'package:intpaper/utils/snackbar_utils.dart';
+import 'package:intpaper/widgets/note_card.dart';
+import 'package:intpaper/widgets/note_editor.dart';
+import 'package:intpaper/widgets/sidebar.dart';
 import 'package:provider/provider.dart';
 
-const bool _screenshotMode = bool.fromEnvironment('INKROOT_SCREENSHOT_MODE');
+const bool _screenshotMode = bool.fromEnvironment('INTPAPER_SCREENSHOT_MODE');
 
 class HomeScreen extends StatefulWidget {
   // 🔥 接收分享的内容
@@ -61,8 +62,6 @@ class _HomeScreenState extends State<HomeScreen>
   int _searchRequestSeq = 0;
   bool _isSearchLoading = false;
   bool _isRefreshing = false;
-  late AnimationController _fabAnimationController;
-  late Animation<double> _fabScaleAnimation;
   SortOrder _currentSortOrder = SortOrder.newest;
 
   // 🚀 分页加载相关
@@ -82,24 +81,15 @@ class _HomeScreenState extends State<HomeScreen>
       _initializeApp(); // 异步执行，不阻塞首帧
       _startProgressiveRendering();
     });
-    _fabAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    _fabScaleAnimation = Tween<double>(begin: 1, end: 0.9).animate(
-      CurvedAnimation(parent: _fabAnimationController, curve: Curves.easeInOut),
-    );
-
     // 🚀 添加滚动监听，实现分页加载
     _scrollController.addListener(_onScroll);
 
-    // 在页面加载完成后异步检查更新和通知
+    // 在页面加载完成后异步刷新通知
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // 🚀 最优延迟策略：与后台云验证协调（启动后8-10秒）
       // 此时后台已开始云验证，直接使用缓存数据
       Future.delayed(const Duration(seconds: 10), () {
         if (mounted) {
-          _checkForUpdates();
           _refreshNotifications();
         }
       });
@@ -334,23 +324,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // 异步检查更新
-  Future<void> _checkForUpdates() async {
-    if (!mounted) {
-      return;
-    }
-
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    // 异步检查更新，不阻塞UI
-    unawaited(
-      appProvider.checkForUpdatesOnStartup().then((_) {
-        if (mounted) {
-          appProvider.showUpdateDialogIfNeeded(context);
-        }
-      }),
-    );
-  }
-
   // 刷新通知数据
   Future<void> _refreshNotifications() async {
     if (!mounted) {
@@ -415,7 +388,6 @@ class _HomeScreenState extends State<HomeScreen>
     _searchDebounceTimer?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
-    _fabAnimationController.dispose();
     _scrollController.dispose(); // 🚀 释放滚动控制器
     super.dispose();
   }
@@ -826,8 +798,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // 构建通知提示框
-  // 构建通知提示框
+  // 构建通知提示框（仅提醒通知）
   Widget _buildNotificationBanner() {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final appProvider = Provider.of<AppProvider>(context);
@@ -861,8 +832,7 @@ class _HomeScreenState extends State<HomeScreen>
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: (isDarkMode ? Colors.black : Colors.black)
-                      .withValues(alpha: isDarkMode ? 0.3 : 0.05),
+                  color: Colors.black.withValues(alpha: isDarkMode ? 0.3 : 0.05),
                   offset: const Offset(0, 1),
                   blurRadius: 3,
                 ),
@@ -1007,6 +977,8 @@ class _HomeScreenState extends State<HomeScreen>
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: backgroundColor,
+      // 🧊 列表延伸到底部，玻璃输入条才能模糊到下方的笔记内容
+      extendBody: true,
       drawer: isDesktop ? null : const Sidebar(),
       drawerEdgeDragWidth:
           isDesktop ? null : MediaQuery.of(context).size.width * 0.25,
@@ -1335,6 +1307,8 @@ class _HomeScreenState extends State<HomeScreen>
                                     }
 
                                     // 最后一个item是底部间距
+                                    // 🧊 底部玻璃输入条会盖住一段，留足空间让最后一条
+                                    // 笔记能滚到条下方，模糊叠加才看得见
                                     if (index == visibleNotes + 2) {
                                       return const SizedBox(height: 120);
                                     }
@@ -1437,6 +1411,30 @@ class _HomeScreenState extends State<HomeScreen>
                       ), // RefreshIndicator 结束
                     ), // GestureDetector 结束 - 点击空白处退出搜索
 
+                    // 🧊 flomo 同款：底部渐隐层（bg_bottom_gradient），
+                    // 100dp 内从页面背景色渐变到透明，内容滚到底部时渐隐，
+                    // 玻璃按钮浮在其上才会有 flomo 那种质感
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: 100,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [
+                                backgroundColor,
+                                backgroundColor.withValues(alpha: 0),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
                     // 移除全屏同步覆盖层，改为后台静默同步
                   ],
                 ), // Stack 结束
@@ -1445,48 +1443,158 @@ class _HomeScreenState extends State<HomeScreen>
           ); // Column 结束
         }, // Consumer builder 结束
       ), // Consumer 结束
-      floatingActionButton: GestureDetector(
-        onTapDown: (_) => _fabAnimationController.forward(),
-        onTapUp: (_) => _fabAnimationController.reverse(),
-        onTapCancel: () => _fabAnimationController.reverse(),
-        child: ScaleTransition(
-          scale: _fabScaleAnimation,
-          child: Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [
-                  AppTheme.primaryColor,
-                  AppTheme.primaryLightColor,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+      // 🧊 底部通栏输入条（flomo 同款）
+      bottomNavigationBar: _buildBottomComposerBar(context),
+    );
+  }
+
+  /// 🧊 底部通栏输入条（flomo 同款）
+  ///
+  /// 一条横贯底部、悬浮在列表之上的玻璃条，从左到右分三段：
+  /// - 左：加号 → 直接进入新建笔记
+  /// - 中：点击进入编辑（占位文案提示）
+  /// - 右：语音入口（先占位，复用 NoteEditor 的语音启动）
+  ///
+  /// 玻璃参数延续 flomo 的 `FloatingComposerGlass`：
+  /// 模糊 18 / 叠加色 #A6FFFFFF·#A62A2A2A / 0.5dp 描边 / 圆角 24dp。
+  /// 因为 `Scaffold.extendBody = true`，列表会从条的下方穿过，
+  /// BackdropFilter 才真的糊得到东西。
+  Widget _buildBottomComposerBar(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    // floating_composer_blur_overlay（flomo 原值 86%，降到 65% 让浅色背景透出）
+    final glassOverlay =
+        isDarkMode ? const Color(0xA62A2A2A) : const Color(0xA6FFFFFF);
+    // floating_composer_stroke
+    final glassStroke =
+        isDarkMode ? const Color(0x26FFFFFF) : const Color(0x1A000000);
+    // floating_control_icon
+    final iconColor = isDarkMode ? Colors.white : const Color(0xFF2E2E2E);
+    // 占位文案：比图标弱一级，不抢注意力
+    final hintColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.55)
+        : Colors.black.withValues(alpha: 0.38);
+    final radius = BorderRadius.circular(24);
+    const barHeight = 56.0;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        child: Container(
+          height: barHeight,
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            boxShadow: [
+              // floating_control_shadow + floatingComposerShadowLimit
+              BoxShadow(
+                color: isDarkMode
+                    ? const Color(0x66000000)
+                    : const Color(0x12000000),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
               ),
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.3),
-                  spreadRadius: 1,
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: _showAddNoteForm,
-                onLongPress: () => _showAddNoteForm(startWithSpeech: true),
-                borderRadius: BorderRadius.circular(30),
-                splashColor: Colors.white.withValues(alpha: 0.2),
-                child: const Center(
-                  child: Icon(
-                    Icons.add_rounded,
-                    color: Colors.white,
-                    size: 32,
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: radius,
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // 玻璃底：半透明叠加色
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: glassOverlay,
+                      borderRadius: radius,
+                    ),
                   ),
-                ),
+                  // iOS 27 质感：斜向高光（左上受光 → 中部透明 → 右下边缘反光）
+                  // 描边放在这一层，确保 0.5dp 细线压在高光之上不被覆盖
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: radius,
+                      border: Border.all(color: glassStroke, width: 0.5),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: isDarkMode
+                            ? const [
+                                Color(0x1FFFFFFF),
+                                Color(0x00FFFFFF),
+                                Color(0x0DFFFFFF),
+                              ]
+                            : const [
+                                Color(0x40FFFFFF),
+                                Color(0x00FFFFFF),
+                                Color(0x0DFFFFFF),
+                              ],
+                        stops: const [0.0, 0.55, 1.0],
+                      ),
+                    ),
+                  ),
+                  Material(
+                    color: Colors.transparent,
+                    child: Row(
+                      children: [
+                        // 左：加号 → 新建笔记
+                        InkWell(
+                          onTap: _showAddNoteForm,
+                          borderRadius: radius,
+                          splashColor: iconColor.withValues(alpha: 0.12),
+                          highlightColor: iconColor.withValues(alpha: 0.06),
+                          child: SizedBox(
+                            width: barHeight,
+                            height: barHeight,
+                            child: Icon(
+                              Icons.add_rounded,
+                              color: iconColor,
+                              size: 26,
+                            ),
+                          ),
+                        ),
+                        // 中：点击进入编辑
+                        Expanded(
+                          child: InkWell(
+                            onTap: _showAddNoteForm,
+                            splashColor: iconColor.withValues(alpha: 0.10),
+                            highlightColor: iconColor.withValues(alpha: 0.05),
+                            child: Container(
+                              height: barHeight,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '记点什么…',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: hintColor,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        // 右：语音（先占位，点击复用编辑器的语音入口）
+                        InkWell(
+                          onTap: () =>
+                              _showAddNoteForm(startWithSpeech: true),
+                          borderRadius: radius,
+                          splashColor: iconColor.withValues(alpha: 0.12),
+                          highlightColor: iconColor.withValues(alpha: 0.06),
+                          child: SizedBox(
+                            width: barHeight,
+                            height: barHeight,
+                            child: Icon(
+                              Icons.mic_none_rounded,
+                              color: iconColor.withValues(alpha: 0.75),
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

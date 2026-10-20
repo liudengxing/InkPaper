@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/models/sidebar_config.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/themes/app_theme.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/models/sidebar_config.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/themes/app_theme.dart';
 import 'package:provider/provider.dart';
 
 /// 侧边栏自定义设置页面

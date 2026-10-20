@@ -8,13 +8,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/services/database_service.dart';
-import 'package:inkroot/services/preferences_service.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/utils/snackbar_utils.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/services/database_service.dart';
+import 'package:intpaper/services/preferences_service.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/utils/snackbar_utils.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -532,7 +532,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              _buildSupportedFormatItem('JSON', 'InkRoot-墨鸣笔记标准备份格式'),
+              _buildSupportedFormatItem('JSON', 'IntPaper-墨鸣笔记标准备份格式'),
               _buildSupportedFormatItem(
                 'Markdown',
                 AppLocalizationsSimple.of(context)?.markdownBatchImport ??
@@ -1008,7 +1008,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
             buffer.writeln('<!DOCTYPE html>');
             buffer.writeln('<html><head>');
             buffer.writeln('<meta charset="UTF-8">');
-            buffer.writeln('<title>InkRoot-墨鸣笔记备份</title>');
+            buffer.writeln('<title>IntPaper-墨鸣笔记备份</title>');
             buffer.writeln('<style>');
             buffer.writeln(
               'body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }',
@@ -1023,7 +1023,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
             buffer.writeln('.tags { color: #007bff; }');
             buffer.writeln('</style>');
             buffer.writeln('</head><body>');
-            buffer.writeln('<h1>InkRoot-墨鸣笔记备份</h1>');
+            buffer.writeln('<h1>IntPaper-墨鸣笔记备份</h1>');
             buffer.writeln(
               '<p>导出时间: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(now)}</p>',
             );
@@ -1234,7 +1234,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
     );
 
     return jsonEncode({
-      'inkrootEncryptedBackup': true,
+      'IntPaperEncryptedBackup': true,
       'version': '2.0',
       'algorithm': 'AES-256-CBC-HMAC-SHA256',
       'kdf': 'PBKDF2-HMAC-SHA256',
@@ -1256,7 +1256,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
     try {
       final decoded = jsonDecode(content);
       if (decoded is! Map<String, dynamic> ||
-          decoded['inkrootEncryptedBackup'] != true) {
+          decoded['IntPaperEncryptedBackup'] != true) {
         return _DecodedBackupContent(
           bytes: inputBytes,
           originalFormat: null,
@@ -1392,7 +1392,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
     Uint8List iv,
     Uint8List cipherText,
   ) {
-    final header = utf8.encode('InkRootEncryptedBackupV2');
+    final header = utf8.encode('IntPaperEncryptedBackupV2');
     return Uint8List.fromList([
       ...header,
       ...salt,
@@ -2006,7 +2006,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
   // 分享文件到系统文件应用
   Future<void> _shareToFilesApp(String fileName, Uint8List fileBytes) async {
     final l10n = AppLocalizationsSimple.of(context);
-    final backupShareSubject = l10n?.backupShareSubject ?? 'InkRoot-墨鸣笔记备份';
+    final backupShareSubject = l10n?.backupShareSubject ?? 'IntPaper-墨鸣笔记备份';
     final backupShareText =
         l10n?.backupShareText(fileName) ?? '墨鸣笔记导出备份：$fileName';
     final fileSharedToSave =

@@ -3,7 +3,7 @@
 // ============================================================
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/utils/tag_utils.dart';
+import 'package:intpaper/utils/tag_utils.dart';
 
 void main() {
   group('extractTagsFromContent', () {

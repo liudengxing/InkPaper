@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/utils/memos_markdown_converter.dart';
+import 'package:intpaper/utils/memos_markdown_converter.dart';
 
 void main() {
   group('MemosMarkdownConverter', () {

@@ -8,7 +8,7 @@ class Translations {
   /// 格式: {'key': {'zh': '中文', 'en': 'English'}}
   static final Map<String, Map<String, String>> _translations = {
     // ===== 基础UI =====
-    'appTitle': {'zh': 'InkRoot', 'en': 'InkRoot'},
+    'appTitle': {'zh': 'IntPaper', 'en': 'IntPaper'},
     'home': {'zh': '首页', 'en': 'Home'},
     'notes': {'zh': '笔记', 'en': 'Notes'},
     'tags': {'zh': '标签', 'en': 'Tags'},
@@ -211,7 +211,7 @@ class Translations {
     'saveConfiguration': {'zh': 'AI配置已保存', 'en': 'AI Config Saved'},
 
     // ===== 关于和帮助 =====
-    'aboutUs': {'zh': '关于 InkRoot', 'en': 'About InkRoot'},
+    'aboutUs': {'zh': '关于 IntPaper', 'en': 'About IntPaper'},
     'version': {'zh': '版本', 'en': 'Version'},
     'team': {'zh': '团队', 'en': 'Team'},
     'helpCenter': {'zh': '帮助中心', 'en': 'Help Center'},
@@ -371,7 +371,7 @@ class Translations {
       'zh': '退出当前账号并返回登录页',
       'en': 'Logout and return to login page',
     },
-    'welcomeToInkRootShort': {'zh': '欢迎使用 InkRoot', 'en': 'Welcome to InkRoot'},
+    'welcomeToIntPaperShort': {'zh': '欢迎使用 IntPaper', 'en': 'Welcome to IntPaper'},
     'loginToUnlockFeatures': {
       'zh': '登录后解锁更多精彩功能',
       'en': 'Login to unlock more features',
@@ -760,9 +760,9 @@ class Translations {
 
     // ===== 帮助中心 =====
     'quickStartGuide': {'zh': '快速入门指南', 'en': 'Quick Start Guide'},
-    'welcomeToInkRoot': {
-      'zh': '欢迎使用InkRoot-墨鸣笔记',
-      'en': 'Welcome to InkRoot Notes',
+    'welcomeToIntPaper': {
+      'zh': '欢迎使用IntPaper-墨鸣笔记',
+      'en': 'Welcome to IntPaper Notes',
     },
     'coreFeatures': {'zh': '核心特色', 'en': 'Core Features'},
     'minimalistDesign': {'zh': '极简设计', 'en': 'Minimalist Design'},
@@ -780,16 +780,16 @@ class Translations {
     'createFirstNote': {'zh': '创建首条笔记', 'en': 'Create First Note'},
 
     // ===== 关于页面 =====
-    'aboutInkRoot': {'zh': '关于InkRoot', 'en': 'About InkRoot'},
+    'aboutIntPaper': {'zh': '关于IntPaper', 'en': 'About IntPaper'},
     'appTagline': {
       'zh': '静待沉淀，蓄势而鸣。\n你的每一次落笔，都是未来生长的根源。',
       'en':
           'Settle patiently, then speak with force.\nEvery note you take becomes a root for what comes next.',
     },
     'appIntroduction': {
-      'zh': 'InkRoot 是一款面向个人记录和知识整理的笔记应用。你可以本地使用，也可以连接官方服务器或自部署 Memos 服务同步笔记。',
+      'zh': 'IntPaper 是一款面向个人记录和知识整理的笔记应用。你可以本地使用，也可以连接官方服务器或自部署 Memos 服务同步笔记。',
       'en':
-          'InkRoot is a note app for personal capture and knowledge organization. You can use it locally, connect to the official server, or sync with a self-hosted Memos service.',
+          'IntPaper is a note app for personal capture and knowledge organization. You can use it locally, connect to the official server, or sync with a self-hosted Memos service.',
     },
     'appTechDescription': {
       'zh': '这些是当前版本已经开放的主要能力。不同 Memos 服务器版本的接口能力不同，应用会按服务器版本自动适配并尽量降级处理。',
@@ -800,7 +800,7 @@ class Translations {
       'zh':
           '当前支持 Android、iOS、macOS、Windows 和 Linux。应用提供富文本式编辑、Markdown 渲染、图片、标签、搜索、提醒、随机回顾、WebDAV 备份、导入导出和可选 AI 功能。',
       'en':
-          'InkRoot currently supports Android, iOS, macOS, Windows, and Linux. It includes rich-text-style editing, Markdown rendering, images, tags, search, reminders, random review, WebDAV backup, import/export, and optional AI features.',
+          'IntPaper currently supports Android, iOS, macOS, Windows, and Linux. It includes rich-text-style editing, Markdown rendering, images, tags, search, reminders, random review, WebDAV backup, import/export, and optional AI features.',
     },
     'securityCommitment': {
       'zh': '笔记优先保存在本机。登录、同步、WebDAV 和 AI 相关配置由你主动设置；自部署服务中的数据由对应服务器保存和管理。',
@@ -927,9 +927,9 @@ class Translations {
     },
     'termination': {'zh': '终止', 'en': 'Termination'},
     'userTerminationRights': {
-      'zh': '您可以随时停止使用InkRoot并删除应用。\n\n我们也可能在以下情况下终止您的访问权限：',
+      'zh': '您可以随时停止使用IntPaper并删除应用。\n\n我们也可能在以下情况下终止您的访问权限：',
       'en':
-          'You may stop using InkRoot and delete the app at any time.\n\nWe may also terminate your access under the following circumstances:',
+          'You may stop using IntPaper and delete the app at any time.\n\nWe may also terminate your access under the following circumstances:',
     },
     'postTerminationObligations': {
       'zh': '终止后，您应停止使用应用并删除所有副本。',
@@ -1213,7 +1213,7 @@ class Translations {
       'zh': '注册失败，请检查信息后重试',
       'en': 'Registration failed, please check your information and try again',
     },
-    'joinInkRoot': {'zh': '加入 InkRoot', 'en': 'Join InkRoot'},
+    'joinIntPaper': {'zh': '加入 IntPaper', 'en': 'Join IntPaper'},
     'startIntelligentNoteJourney': {
       'zh': '创建你的笔记空间',
       'en': 'Create your note space',
@@ -1223,8 +1223,8 @@ class Translations {
       'en': 'Start Your\nCreative Journey',
     },
     'recordEachMoment': {
-      'zh': '加入 InkRoot，记录每一个值得珍藏的时刻',
-      'en': 'Join InkRoot, record every moment worth treasuring',
+      'zh': '加入 IntPaper，记录每一个值得珍藏的时刻',
+      'en': 'Join IntPaper, record every moment worth treasuring',
     },
     'usernameMinLength3': {
       'zh': '用户名至少需要3个字符',
@@ -1380,8 +1380,8 @@ class Translations {
     // ===== 实验室页面 =====
     'telegramBot': {'zh': 'Telegram 助手', 'en': 'Telegram Bot'},
     'telegramBotDesc': {
-      'zh': '连接 InkRoot_Bot，实现跨平台笔记同步',
-      'en': 'Connect InkRoot_Bot for cross-platform note syncing',
+      'zh': '连接 IntPaper_Bot，实现跨平台笔记同步',
+      'en': 'Connect IntPaper_Bot for cross-platform note syncing',
     },
     'stableRunning': {'zh': '稳定运行', 'en': 'Stable'},
     'voiceToText': {'zh': '语音转文字', 'en': 'Voice to Text'},
@@ -1395,12 +1395,12 @@ class Translations {
       'en': 'Intelligently analyze and optimize your notes',
     },
     'expectedNextRelease': {'zh': '预计下个版本发布', 'en': 'Expected in next release'},
-    'connectInkRootBot': {'zh': '连接 InkRoot_Bot', 'en': 'Connect InkRoot_Bot'},
+    'connectIntPaperBot': {'zh': '连接 IntPaper_Bot', 'en': 'Connect IntPaper_Bot'},
     'telegramBotDialogContent': {
       'zh':
-          '在 Telegram 中搜索 @InkRoot_Bot，连接机器人后即可发送消息自动创建笔记。支持 Markdown 格式，实时同步到 InkRoot 应用。',
+          '在 Telegram 中搜索 @IntPaper_Bot，连接机器人后即可发送消息自动创建笔记。支持 Markdown 格式，实时同步到 IntPaper 应用。',
       'en':
-          'Search @InkRoot_Bot in Telegram, connect the bot to automatically create notes from messages. Supports Markdown format, syncs to InkRoot in real-time.',
+          'Search @IntPaper_Bot in Telegram, connect the bot to automatically create notes from messages. Supports Markdown format, syncs to IntPaper in real-time.',
     },
     'voiceToTextDialogContent': {
       'zh': '在笔记编辑器中点击麦克风按钮即可开始语音识别。支持离线识别，无需联网。识别过程中可随时暂停和继续，文字将自动插入到编辑器中。',
@@ -1731,7 +1731,7 @@ class Translations {
     'updateAvailableMessage': {
       'zh': '墨鸣笔记有新版本可用，建议立即更新以体验新功能！',
       'en':
-          'A new version of InkRoot is available. Update now to experience new features!',
+          'A new version of IntPaper is available. Update now to experience new features!',
     },
     'updateNotes': {'zh': '更新内容：', 'en': "What's New:"},
     'remindMeLater': {'zh': '稍后再说', 'en': 'Remind Me Later'},
@@ -1792,9 +1792,9 @@ class Translations {
       'en': 'Notification Permission Required',
     },
     'permissionInstructions': {
-      'zh': '为了准时提醒您，InkRoot需要发送通知。请在iPhone设置中找到InkRoot，开启"允许通知"，并启用"时间敏感通知"。',
+      'zh': '为了准时提醒您，IntPaper需要发送通知。请在iPhone设置中找到IntPaper，开启"允许通知"，并启用"时间敏感通知"。',
       'en':
-          'To send you timely reminders, InkRoot needs notification permission. Please find InkRoot in iPhone Settings, enable "Allow Notifications" and turn on "Time Sensitive Notifications".',
+          'To send you timely reminders, IntPaper needs notification permission. Please find IntPaper in iPhone Settings, enable "Allow Notifications" and turn on "Time Sensitive Notifications".',
     },
     'operationSteps': {'zh': '操作步骤：', 'en': 'Steps:'},
     'permissionStepGuide': {
@@ -1909,12 +1909,12 @@ class Translations {
       'en': '6️⃣ Return to phone Settings',
     },
     'enableAutoStart': {
-      'zh': '7️⃣ 搜索"自启动" → 找到InkRoot → 开启✅',
-      'en': '7️⃣ Search "Auto-start" → Find InkRoot → Enable✅',
+      'zh': '7️⃣ 搜索"自启动" → 找到IntPaper → 开启✅',
+      'en': '7️⃣ Search "Auto-start" → Find IntPaper → Enable✅',
     },
     'disableBatteryOptimization': {
-      'zh': '8️⃣ 搜索"电池优化" → InkRoot → 不限制✅',
-      'en': '8️⃣ Search "Battery optimization" → InkRoot → No restrictions✅',
+      'zh': '8️⃣ 搜索"电池优化" → IntPaper → 不限制✅',
+      'en': '8️⃣ Search "Battery optimization" → IntPaper → No restrictions✅',
     },
     'autoStartWarning': {
       'zh': '不开启自启动和电池优化，应用关闭后就收不到提醒！',
@@ -2158,12 +2158,12 @@ class Translations {
       'zh': '为了能够导出备份文件，需要授予"所有文件访问权限"。\n\n'
           '请按照以下步骤操作：\n'
           '1. 点击"允许访问所有文件"\n'
-          '2. 找到并允许"InkRoot-墨鸣笔记"的权限',
+          '2. 找到并允许"IntPaper-墨鸣笔记"的权限',
       'en':
           'To export backup files, you need to grant "All Files Access" permission.\n\n'
               'Please follow these steps:\n'
               '1. Tap "Allow access to all files"\n'
-              '2. Find and allow permission for "InkRoot"',
+              '2. Find and allow permission for "IntPaper"',
     },
     'allFilesAccessRequired': {
       'zh': '需要"所有文件访问权限"才能导出文件',
@@ -2623,8 +2623,8 @@ class Translations {
       'en': 'Preparing image...',
     },
     'imageShareText': {
-      'zh': '来自 InkRoot 的图片分享',
-      'en': 'Image shared from InkRoot',
+      'zh': '来自 IntPaper 的图片分享',
+      'en': 'Image shared from IntPaper',
     },
     'cannotGetImageFile': {
       'zh': '无法获取图片文件',
@@ -2785,10 +2785,10 @@ class Translations {
       'zh': '保存到应用目录失败',
       'en': 'Failed to save to app directory',
     },
-    'backupShareSubject': {'zh': 'InkRoot-墨鸣笔记备份', 'en': 'InkRoot Backup'},
+    'backupShareSubject': {'zh': 'IntPaper-墨鸣笔记备份', 'en': 'IntPaper Backup'},
     'backupShareText': {
       'zh': '墨鸣笔记导出备份：{fileName}',
-      'en': 'InkRoot backup export: {fileName}',
+      'en': 'IntPaper backup export: {fileName}',
     },
     'fileSharedToSave': {
       'zh': '文件已通过分享发送，您可以选择保存到文件管理器',

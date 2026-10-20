@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:inkroot/config/app_config.dart' as Config;
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/services/note_actions_service.dart';
-import 'package:inkroot/utils/snackbar_utils.dart';
+import 'package:intpaper/config/app_config.dart' as Config;
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/services/note_actions_service.dart';
+import 'package:intpaper/utils/snackbar_utils.dart';
 import 'package:provider/provider.dart';
 
 /// 🎨 笔记更多选项菜单组件（Popup菜单版）

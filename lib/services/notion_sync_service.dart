@@ -2,10 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/models/notion_field_mapping.dart';
-import 'package:inkroot/services/database_service.dart';
-import 'package:inkroot/services/notion_api_service.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/models/notion_field_mapping.dart';
+import 'package:intpaper/services/database_service.dart';
+import 'package:intpaper/services/notion_api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Notion 同步服务
@@ -16,7 +16,7 @@ class NotionSyncService {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock,
-      accountName: 'com.inkroot.app',
+      accountName: 'com.intpaper.app',
     ),
     aOptions: AndroidOptions(
       encryptedSharedPreferences: true,

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/utils/responsive_utils.dart';
-import 'package:inkroot/widgets/sidebar.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/utils/responsive_utils.dart';
+import 'package:intpaper/widgets/sidebar.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -318,7 +318,7 @@ class _HelpScreenState extends State<HelpScreen> {
           ),
           sections: [
             _HelpSection(
-              title: _helpText(zh: 'InkRoot 是什么', en: 'What InkRoot Is'),
+              title: _helpText(zh: 'IntPaper 是什么', en: 'What IntPaper Is'),
               content: _gettingStartedOverview(),
             ),
             _HelpSection(
@@ -468,7 +468,7 @@ class _HelpScreenState extends State<HelpScreen> {
 
   String _gettingStartedOverview() => _helpText(
         zh: '''
-InkRoot-墨鸣笔记是一款面向 Memos 用户的跨平台笔记应用。它保留 Memos 的开放数据结构，同时强化移动端记录、离线发布、图片查看、标签整理、WebDAV 备份和 AI 辅助能力。
+IntPaper-墨鸣笔记是一款面向 Memos 用户的跨平台笔记应用。它保留 Memos 的开放数据结构，同时强化移动端记录、离线发布、图片查看、标签整理、WebDAV 备份和 AI 辅助能力。
 
 ### 当前核心能力
 - **快速记录**：主页直接创建、编辑、删除和搜索笔记
@@ -481,7 +481,7 @@ InkRoot-墨鸣笔记是一款面向 Memos 用户的跨平台笔记应用。它�
 - **AI 辅助**：可配置兼容 OpenAI 格式的服务，用于点评、续写、洞察和标签推荐
         ''',
         en: '''
-InkRoot is a cross-platform note app for Memos users. It keeps the open Memos data model while improving mobile capture, offline posting, image viewing, tag organization, WebDAV backup, and AI-assisted workflows.
+IntPaper is a cross-platform note app for Memos users. It keeps the open Memos data model while improving mobile capture, offline posting, image viewing, tag organization, WebDAV backup, and AI-assisted workflows.
 
 ### Core capabilities
 - **Fast capture**: create, edit, delete, and search notes from the home screen
@@ -927,7 +927,7 @@ docker run -d \
         zh: '''
 ### 反馈时建议提供
 - 设备型号和系统版本
-- InkRoot 应用版本
+- IntPaper 应用版本
 - Memos 服务器版本
 - 问题截图和复现步骤
 - 是否使用了 WebDAV、AI 或离线发布
@@ -941,7 +941,7 @@ docker run -d \
         en: '''
 ### What to include
 - Device model and system version
-- InkRoot app version
+- IntPaper app version
 - Memos server version
 - Screenshots and reproduction steps
 - Whether WebDAV, AI, or offline posting was involved

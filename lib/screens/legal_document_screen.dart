@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/themes/app_theme.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/themes/app_theme.dart';
 
 enum LegalDocumentType {
   privacy,
@@ -275,8 +275,8 @@ class LegalDocumentScreen extends StatelessWidget {
         _LegalSection(
           title: isZh ? '官方服务器与自部署服务' : 'Official and Self-Hosted Services',
           content: isZh
-              ? '使用官方服务器时，账号资料、笔记、附件和同步记录会保存在官方服务器上，用于提供登录、同步、公告和必要的服务维护。使用自部署 Memos、WebDAV 或第三方 AI 服务时，相关数据由你选择的服务处理，InkRoot 无法直接管理这些服务中的账号和数据。'
-              : 'When you use the official server, account profile, notes, attachments, and sync records are stored on the official server to provide sign-in, sync, notices, and necessary service maintenance. When you use self-hosted Memos, WebDAV, or third-party AI services, the selected service processes the related data, and InkRoot cannot directly manage accounts or data in those services.',
+              ? '使用官方服务器时，账号资料、笔记、附件和同步记录会保存在官方服务器上，用于提供登录、同步、公告和必要的服务维护。使用自部署 Memos、WebDAV 或第三方 AI 服务时，相关数据由你选择的服务处理，IntPaper 无法直接管理这些服务中的账号和数据。'
+              : 'When you use the official server, account profile, notes, attachments, and sync records are stored on the official server to provide sign-in, sync, notices, and necessary service maintenance. When you use self-hosted Memos, WebDAV, or third-party AI services, the selected service processes the related data, and IntPaper cannot directly manage accounts or data in those services.',
         ),
         _LegalSection(
           title: isZh ? '第三方服务' : 'Third-Party Services',

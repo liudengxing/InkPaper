@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/widgets/memo_editing_controller.dart';
+import 'package:intpaper/widgets/memo_editing_controller.dart';
 
 void main() {
   group('MemoEditingController', () {

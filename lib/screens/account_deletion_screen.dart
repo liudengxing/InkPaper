@@ -2,9 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/utils/snackbar_utils.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/utils/snackbar_utils.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -119,8 +119,8 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
                         ? '官方服务器账号删除会进入网页表单完成身份确认和删除申请。申请提交后，我们会按隐私政策处理账号资料、服务端笔记、附件和相关日志。'
                         : 'Official server account deletion opens a web form for identity confirmation and deletion request submission. After submission, account profile, server-side notes, attachments, and related logs will be processed according to the privacy policy.')
                     : (_isZh
-                        ? '当前不是官方服务器。InkRoot 无法直接删除你自部署服务中的账号或数据，请在你的 Memos、WebDAV 或其他服务管理后台处理。你仍可打开说明页查看官方服务器删除流程。'
-                        : 'The current server is not the official server. InkRoot cannot directly delete accounts or data in your self-hosted services. Please manage deletion in your Memos, WebDAV, or other service admin panels. You can still open the information page for the official deletion process.'),
+                        ? '当前不是官方服务器。IntPaper 无法直接删除你自部署服务中的账号或数据，请在你的 Memos、WebDAV 或其他服务管理后台处理。你仍可打开说明页查看官方服务器删除流程。'
+                        : 'The current server is not the official server. IntPaper cannot directly delete accounts or data in your self-hosted services. Please manage deletion in your Memos, WebDAV, or other service admin panels. You can still open the information page for the official deletion process.'),
                 style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
               ),
               const SizedBox(height: 16),

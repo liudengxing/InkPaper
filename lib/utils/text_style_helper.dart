@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:inkroot/utils/responsive_utils.dart';
+import 'package:intpaper/utils/responsive_utils.dart';
 
 /// Helper class for text styles with convenient static methods
 class AppTextStyles {

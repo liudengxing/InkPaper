@@ -1,4 +1,4 @@
-import 'package:inkroot/config/app_identity.dart';
+import 'package:intpaper/config/app_identity.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 /// Single source of truth for app version/build number.
@@ -27,6 +27,6 @@ class AppInfoService {
   /// e.g. "1.0.9+10009"
   static String get fullVersion => '$version+$buildNumber';
 
-  /// e.g. "InkRoot/1.0.9+10009"
+  /// e.g. "IntPaper/1.0.9+10009"
   static String get userAgent => '$appName/$fullVersion';
 }

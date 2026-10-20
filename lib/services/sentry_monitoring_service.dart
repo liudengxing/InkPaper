@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:inkroot/config/app_config.dart';
+import 'package:intpaper/config/app_config.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 /// 🚀 大厂标准：Sentry监控告警服务

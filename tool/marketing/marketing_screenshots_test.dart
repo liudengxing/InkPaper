@@ -8,13 +8,13 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/screens/ai_settings_screen.dart';
-import 'package:inkroot/screens/tags_screen.dart';
-import 'package:inkroot/screens/webdav_settings_screen.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/widgets/note_card.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/screens/ai_settings_screen.dart';
+import 'package:intpaper/screens/tags_screen.dart';
+import 'package:intpaper/screens/webdav_settings_screen.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/widgets/note_card.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,7 +27,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('capture real InkRoot marketing screenshots', (tester) async {
+  testWidgets('capture real IntPaper marketing screenshots', (tester) async {
     await tester.binding.setSurfaceSize(const Size(402, 874));
     tester.view.devicePixelRatio = 3;
     addTearDown(() async {
@@ -176,7 +176,7 @@ class _HomeMarketingScreen extends StatelessWidget {
           elevation: 0,
           centerTitle: true,
           title: const Text(
-            'InkRoot',
+            'IntPaper',
             style: TextStyle(
               color: AppTheme.textPrimaryColor,
               fontWeight: FontWeight.w700,
@@ -487,7 +487,7 @@ final List<Note> _demoNotes = [
   ),
   Note(
     id: 'demo-002',
-    content: '把临时灵感先放进 InkRoot，等晚上统一整理。\n\n'
+    content: '把临时灵感先放进 IntPaper，等晚上统一整理。\n\n'
         '**重点：** 不打断当下工作流。\n\n'
         '#灵感 #效率',
     createdAt: DateTime(2026, 6, 16, 21, 15),

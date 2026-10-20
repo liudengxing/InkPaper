@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/services/user_behavior_service.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/utils/snackbar_utils.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/services/user_behavior_service.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/utils/snackbar_utils.dart';
 
 /// 🧠 用户偏好可视化页面
 class UserPreferencesScreen extends StatefulWidget {

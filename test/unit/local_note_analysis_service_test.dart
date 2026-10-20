@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/services/local_note_analysis_service.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/services/local_note_analysis_service.dart';
 
 void main() {
   group('LocalNoteAnalysisService', () {

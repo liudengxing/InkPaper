@@ -1,4 +1,4 @@
-import 'package:inkroot/models/note_model.dart';
+import 'package:intpaper/models/note_model.dart';
 
 class SyncMergePlan {
   SyncMergePlan({required this.toInsert, required this.toUpdate});

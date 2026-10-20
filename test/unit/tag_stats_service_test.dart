@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/services/tag_stats_service.dart';
+import 'package:intpaper/services/tag_stats_service.dart';
 
 void main() {
   group('buildTagTreePayloadFromNoteJson', () {

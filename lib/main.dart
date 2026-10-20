@@ -1,35 +1,31 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:http/http.dart' as http;
-import 'package:inkroot/config/app_config.dart' as Config;
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/models/app_config_model.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/routes/app_router.dart';
-import 'package:inkroot/services/app_info_service.dart';
-import 'package:inkroot/services/feature_flag_service.dart';
-import 'package:inkroot/services/notification_service.dart';
-import 'package:inkroot/services/observability_service.dart';
-import 'package:inkroot/services/performance_monitor_service.dart';
-import 'package:inkroot/themes/app_theme.dart';
+import 'package:intpaper/config/app_config.dart' as Config;
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/models/app_config_model.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/routes/app_router.dart';
+import 'package:intpaper/services/app_info_service.dart';
+import 'package:intpaper/services/feature_flag_service.dart';
+import 'package:intpaper/services/notification_service.dart';
+import 'package:intpaper/services/observability_service.dart';
+import 'package:intpaper/services/performance_monitor_service.dart';
+import 'package:intpaper/themes/app_theme.dart';
 // 🚀 大厂标准：新增工具
-import 'package:inkroot/utils/error_handler.dart';
-import 'package:inkroot/utils/image_cache_manager.dart';
-import 'package:inkroot/utils/logger.dart';
-import 'package:inkroot/utils/responsive_utils.dart';
-import 'package:inkroot/utils/shared_payload_utils.dart';
-import 'package:inkroot/utils/tag_path_utils.dart';
+import 'package:intpaper/utils/error_handler.dart';
+import 'package:intpaper/utils/image_cache_manager.dart';
+import 'package:intpaper/utils/logger.dart';
+import 'package:intpaper/utils/responsive_utils.dart';
+import 'package:intpaper/utils/shared_payload_utils.dart';
+import 'package:intpaper/utils/tag_path_utils.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
-import 'package:url_launcher/url_launcher.dart';
 
 // 🔥 全局NavigatorKey，用于通知点击跳转
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -145,7 +141,7 @@ Future<void> _initializeApp() async {
 
   // 记录应用启动日志
   StructuredLogger().info(
-    'InkRoot application starting',
+    'IntPaper application starting',
     category: 'startup',
     context: {
       'version': Config.AppConfig.appVersion,
@@ -329,7 +325,7 @@ Future<void> _initializeApp() async {
         return;
       }
       await Future.delayed(const Duration(milliseconds: 250));
-      _handleInkRootDeepLink(appRouter, rawUrl);
+      _handleIntPaperDeepLink(appRouter, rawUrl);
     }
   });
 
@@ -366,7 +362,7 @@ Future<void> _initializeApp() async {
     final initialDeepLink = await platform.invokeMethod('getInitialDeepLink');
     if (initialDeepLink != null && initialDeepLink is String) {
       Future.delayed(const Duration(milliseconds: 700), () {
-        _handleInkRootDeepLink(appRouter, initialDeepLink);
+        _handleIntPaperDeepLink(appRouter, initialDeepLink);
       });
     }
   } on Object catch (_) {
@@ -383,7 +379,7 @@ Future<void> _initializeApp() async {
   PerformanceMonitorService().trackAppLaunch('app_running');
 }
 
-void _handleInkRootDeepLink(AppRouter appRouter, String rawUrl) {
+void _handleIntPaperDeepLink(AppRouter appRouter, String rawUrl) {
   final uri = Uri.tryParse(rawUrl);
   if (uri == null) {
     return;
@@ -492,125 +488,6 @@ class _MyAppState extends State<MyApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FlutterNativeSplash.remove();
     });
-    _checkForUpdates();
-  }
-
-  Future<void> _checkForUpdates() async {
-    try {
-      // 获取当前版本
-      final currentVersion = Config.AppConfig.appVersion;
-
-      // 获取服务器版本
-      final response =
-          await http.get(Uri.parse(Config.AppConfig.getCloudNoticeUrl()));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final versionInfo = data['versionInfo'] as Map<String, dynamic>;
-        final serverVersion = versionInfo['versionName'] as String;
-
-        // 比较版本号
-        if (_shouldUpdate(currentVersion, serverVersion)) {
-          if (mounted) {
-            _showUpdateDialog(versionInfo);
-          }
-        }
-      }
-    } on Object {
-      // 检查更新失败，静默处理
-    }
-  }
-
-  bool _shouldUpdate(String currentVersion, String serverVersion) {
-    try {
-      final current = currentVersion.split('.').map(int.parse).toList();
-      final server = serverVersion.split('.').map(int.parse).toList();
-
-      // 确保两个列表长度相同
-      while (current.length < server.length) {
-        current.add(0);
-      }
-      while (server.length < current.length) {
-        server.add(0);
-      }
-
-      // 比较每个版本号部分
-      for (var i = 0; i < current.length; i++) {
-        if (server[i] > current[i]) {
-          return true;
-        }
-        if (server[i] < current[i]) {
-          return false;
-        }
-      }
-
-      return false;
-    } on Object {
-      return false;
-    }
-  }
-
-  void _showUpdateDialog(Map<String, dynamic> versionInfo) {
-    final forceUpdate = versionInfo['forceUpdate'] as bool? ?? false;
-    final releaseNotes =
-        (versionInfo['releaseNotes'] as List<dynamic>?) ?? <dynamic>[];
-
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: !forceUpdate,
-        builder: (context) {
-          final l10n = AppLocalizationsSimple.of(context);
-          return AlertDialog(
-            title: Text(l10n?.newVersionAvailable ?? 'New Version Available'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n?.updateAvailableMessage ??
-                      'A new version is available. Update now to experience new features!',
-                ),
-                const SizedBox(height: 16),
-                Text(l10n?.updateNotes ?? "What's New:"),
-                ...releaseNotes.map(
-                  (note) => Padding(
-                    padding: const EdgeInsets.only(left: 16, top: 4),
-                    child: Text('• $note'),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              if (!forceUpdate)
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(l10n?.remindMeLater ?? 'Remind Me Later'),
-                ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  final downloadUrls =
-                      versionInfo['downloadUrls'] as Map<String, dynamic>;
-                  final url = downloadUrls['android'] as String;
-                  try {
-                    if (await canLaunchUrl(Uri.parse(url))) {
-                      await launchUrl(
-                        Uri.parse(url),
-                        mode: LaunchMode.externalApplication,
-                      );
-                    }
-                  } on Object {
-                    // 启动下载链接失败，静默处理
-                  }
-                },
-                child: Text(l10n?.updateNow ?? 'Update Now'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
   }
 
   @override
@@ -682,7 +559,7 @@ class _MyAppState extends State<MyApp> {
               key: ValueKey(
                 'app_${themeSelection}_$locale',
               ), // 主题和语言需要重建；字体缩放交给MediaQuery局部生效，避免路由树抖动
-              title: 'InkRoot-墨鸣笔记',
+              title: 'IntPaper-墨鸣笔记',
               themeMode: appThemeMode,
               theme: theme,
               darkTheme: darkTheme,

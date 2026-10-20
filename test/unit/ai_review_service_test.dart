@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/models/app_config_model.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/services/ai_review_service.dart';
+import 'package:intpaper/models/app_config_model.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/services/ai_review_service.dart';
 
 void main() {
   group('AiReviewService', () {

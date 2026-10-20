@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/models/cloud_verification_models.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/models/cloud_verification_models.dart';
 
 /// 星河云验证服务
 class CloudVerificationService {
@@ -45,47 +45,6 @@ class CloudVerificationService {
       }
     } on Object catch (e) {
       debugPrint('获取应用配置异常: $e');
-      return null;
-    }
-  }
-
-  /// 获取应用公告
-  Future<CloudNoticeResponse?> fetchAppNotice() async {
-    try {
-      final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final check = _generateCheck('notice', timestamp);
-
-      final uri = Uri.parse(AppConfig.cloudVerificationUrl).replace(
-        queryParameters: {
-          'api': 'notice',
-          'app': AppConfig.appId,
-          'time': timestamp.toString(),
-          'check': check,
-        },
-      );
-
-      debugPrint('CloudVerification: 请求应用公告 - $uri');
-
-      final response = await http.get(
-        uri,
-        headers: {
-          'User-Agent': AppConfig.userAgent,
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 15));
-
-      debugPrint('CloudVerification: 应用公告响应状态码 - ${response.statusCode}');
-      debugPrint('CloudVerification: 应用公告响应内容 - ${response.body}');
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        return CloudNoticeResponse.fromJson(data);
-      } else {
-        debugPrint('获取应用公告失败，状态码: ${response.statusCode}');
-        return null;
-      }
-    } on Object catch (e) {
-      debugPrint('获取应用公告异常: $e');
       return null;
     }
   }

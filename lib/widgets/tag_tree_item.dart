@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/utils/tag_path_utils.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/utils/tag_path_utils.dart';
 
 /// 标签树节点
 class TagNode {

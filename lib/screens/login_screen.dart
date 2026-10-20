@@ -3,13 +3,12 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/models/announcement_model.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/utils/responsive_utils.dart';
-import 'package:inkroot/utils/snackbar_utils.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/utils/responsive_utils.dart';
+import 'package:intpaper/utils/snackbar_utils.dart';
 import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -32,13 +31,6 @@ class _LoginScreenState extends State<LoginScreen>
   bool _isLoading = false;
   bool _rememberLogin = true;
   bool _obscurePassword = true;
-  bool _useCustomServer = false;
-
-  // 🔔 云通知相关
-  List<Announcement> _announcements = [];
-  bool _isLoadingAnnouncements = true;
-  final ScrollController _announcementScrollController = ScrollController();
-  Timer? _autoScrollTimer;
 
   // 🎬 动画控制器
   late AnimationController _fadeController;
@@ -56,7 +48,6 @@ class _LoginScreenState extends State<LoginScreen>
     super.initState();
     debugPrint('LoginScreen: initState');
     _loadSavedLoginInfo();
-    _loadAnnouncements(); // 加载云通知
     _rememberLogin = true;
 
     // 🎨 初始化动画系统
@@ -132,92 +123,15 @@ class _LoginScreenState extends State<LoginScreen>
     _serverController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
-    _announcementScrollController.dispose();
-    _autoScrollTimer?.cancel();
     super.dispose();
-  }
-
-  /// 加载云通知（使用 AppProvider 的公告数据）
-  Future<void> _loadAnnouncements() async {
-    if (!AppConfig.enableCloudVerification) {
-      if (mounted) {
-        setState(() {
-          _announcements = [];
-          _isLoadingAnnouncements = false;
-        });
-      }
-      return;
-    }
-
-    try {
-      final appProvider = Provider.of<AppProvider>(context, listen: false);
-
-      // 从 AppProvider 获取公告
-      await appProvider.refreshAnnouncements();
-
-      if (mounted) {
-        setState(() {
-          // 获取 AppProvider 的公告列表，只显示非更新类型的通知
-          _announcements = appProvider.announcements
-              .where((a) => a.type != 'update')
-              .toList();
-          _isLoadingAnnouncements = false;
-        });
-
-        if (_announcements.isNotEmpty) {
-          _startAutoScroll();
-        }
-      }
-    } on Object catch (e) {
-      debugPrint('LoginScreen: 加载云通知失败: $e');
-      if (mounted) {
-        setState(() {
-          _announcements = [];
-          _isLoadingAnnouncements = false;
-        });
-      }
-    }
-  }
-
-  /// 启动自动滚动（跑马灯效果）
-  void _startAutoScroll() {
-    _autoScrollTimer?.cancel();
-
-    // 等待布局完成后再开始滚动
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_announcementScrollController.hasClients) {
-        return;
-      }
-
-      _autoScrollTimer =
-          Timer.periodic(const Duration(milliseconds: 50), (timer) {
-        if (!mounted || !_announcementScrollController.hasClients) {
-          timer.cancel();
-          return;
-        }
-
-        final maxScroll =
-            _announcementScrollController.position.maxScrollExtent;
-        final currentScroll = _announcementScrollController.offset;
-
-        // 如果滚动到末尾，重置到开头
-        if (currentScroll >= maxScroll) {
-          _announcementScrollController.jumpTo(0);
-        } else {
-          // 每次滚动 1 像素
-          _announcementScrollController.jumpTo(currentScroll + 1);
-        }
-      });
-    });
   }
 
   Future<void> _loadSavedLoginInfo() async {
     debugPrint('LoginScreen: 加载保存的登录信息');
     final appProvider = Provider.of<AppProvider>(context, listen: false);
 
-    // 🎯 大厂标准：加载服务器选择偏好（跨页面共享）
+    // 🎯 大厂标准：加载服务器地址偏好（跨页面共享）
     final prefsService = appProvider.preferencesService;
-    final useCustomServer = await prefsService.getUseCustomServer();
     final customServerUrl = await prefsService.getCustomServerUrl();
 
     final savedServer = await appProvider.getSavedServer();
@@ -225,14 +139,14 @@ class _LoginScreenState extends State<LoginScreen>
     final savedPassword = await appProvider.getSavedPassword();
     final savedToken = await appProvider.getSavedToken(); // 获取保存的token
 
-    debugPrint('LoginScreen: 使用自定义服务器: $useCustomServer');
-    debugPrint('LoginScreen: 自定义服务器地址: $customServerUrl');
+    debugPrint('LoginScreen: 服务器地址: $customServerUrl');
 
     setState(() {
-      _useCustomServer = useCustomServer;
-      _serverController.text = useCustomServer && customServerUrl != null
+      _serverController.text = (customServerUrl != null &&
+              customServerUrl.isNotEmpty &&
+              customServerUrl != AppConfig.officialMemosServer)
           ? customServerUrl
-          : AppConfig.officialMemosServer;
+          : '';
     });
 
     if (savedUsername != null) {
@@ -253,36 +167,6 @@ class _LoginScreenState extends State<LoginScreen>
     if (savedToken != null && savedServer != null && savedUsername != null) {
       unawaited(_attemptQuickLogin(savedServer, savedToken));
     }
-  }
-
-  // 🎯 大厂标准：处理服务器选择变化（实时同步到SharedPreferences）
-  Future<void> _onServerTypeChanged(bool useCustom) async {
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final prefsService = appProvider.preferencesService;
-
-    if (useCustom) {
-      // 切换到自定义：显示之前保存的自定义地址，如果没有则清空
-      final savedCustomUrl = await prefsService.getCustomServerUrl();
-      setState(() {
-        _useCustomServer = true;
-        _serverController.text = (savedCustomUrl != null &&
-                savedCustomUrl != AppConfig.officialMemosServer)
-            ? savedCustomUrl
-            : ''; // 清空输入框，让用户输入
-      });
-    } else {
-      // 切换到官方：显示官方地址
-      setState(() {
-        _useCustomServer = false;
-        _serverController.text = AppConfig.officialMemosServer;
-      });
-      await prefsService.saveCustomServerUrl(AppConfig.officialMemosServer);
-    }
-
-    // 保存选择到SharedPreferences，实现跨页面同步
-    await prefsService.saveUseCustomServer(useCustom);
-
-    debugPrint('LoginScreen: 服务器选择已更改: ${useCustom ? "自定义" : "官方"}');
   }
 
   // 🎯 大厂标准：处理自定义服务器地址变化
@@ -340,9 +224,7 @@ class _LoginScreenState extends State<LoginScreen>
 
     try {
       final appProvider = Provider.of<AppProvider>(context, listen: false);
-      final serverUrl = _useCustomServer
-          ? _serverController.text.trim()
-          : AppConfig.officialMemosServer;
+      final serverUrl = _serverController.text.trim();
       final username = _usernameController.text.trim();
       final password = _passwordController.text.trim();
 
@@ -1039,164 +921,9 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
 
-              SizedBox(height: ResponsiveUtils.responsiveSpacing(context, 24)),
-
-              // 🔔 云通知展示区域
-              _buildAnnouncementsSection(
-                primaryColor: primaryColor,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-                isDarkMode: isDarkMode,
-              ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  // 🔔 构建云通知展示区域
-  Widget _buildAnnouncementsSection({
-    required Color primaryColor,
-    required Color textPrimary,
-    required Color textSecondary,
-    required bool isDarkMode,
-  }) {
-    // 如果正在加载，显示加载指示器
-    if (_isLoadingAnnouncements) {
-      return Container(
-        padding: ResponsiveUtils.responsivePadding(
-          context,
-          horizontal: 16,
-          vertical: 12,
-        ),
-        decoration: BoxDecoration(
-          color: primaryColor.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: primaryColor.withValues(alpha: 0.1),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-              ),
-            ),
-            SizedBox(width: ResponsiveUtils.responsiveSpacing(context, 12)),
-            Text(
-              '正在获取通知...',
-              style: TextStyle(
-                fontSize: ResponsiveUtils.responsiveFontSize(context, 12),
-                color: textSecondary,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_announcements.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final announcementText = _announcements.map((a) => a.content).join('  •  ');
-
-    return Container(
-      height: ResponsiveUtils.responsive<double>(
-        context,
-        mobile: 48,
-        tablet: 52,
-      ),
-      padding: ResponsiveUtils.responsivePadding(
-        context,
-        horizontal: 16,
-        vertical: 10,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            primaryColor.withValues(alpha: isDarkMode ? 0.12 : 0.08),
-            primaryColor.withValues(alpha: isDarkMode ? 0.08 : 0.04),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: primaryColor.withValues(alpha: isDarkMode ? 0.25 : 0.2),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: primaryColor.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // 图标
-          Container(
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(
-              color: primaryColor.withValues(alpha: isDarkMode ? 0.2 : 0.15),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(
-              Icons.campaign_outlined,
-              size: ResponsiveUtils.responsiveIconSize(context, 16),
-              color: primaryColor,
-            ),
-          ),
-          SizedBox(width: ResponsiveUtils.responsiveSpacing(context, 10)),
-          // 滚动文本区域
-          Expanded(
-            child: ClipRect(
-              child: SingleChildScrollView(
-                controller: _announcementScrollController,
-                scrollDirection: Axis.horizontal,
-                physics: const NeverScrollableScrollPhysics(), // 禁止手动滚动
-                child: Row(
-                  children: [
-                    Text(
-                      announcementText,
-                      style: TextStyle(
-                        fontSize: ResponsiveUtils.responsiveFontSize(
-                          context,
-                          13,
-                        ),
-                        fontWeight: FontWeight.w500,
-                        color: textPrimary,
-                        height: 1.3,
-                      ),
-                    ),
-                    // 为了实现无缝循环，添加一段空白后再重复一次文本
-                    SizedBox(
-                      width: ResponsiveUtils.responsiveSpacing(context, 40),
-                    ),
-                    Text(
-                      announcementText,
-                      style: TextStyle(
-                        fontSize: ResponsiveUtils.responsiveFontSize(
-                          context,
-                          13,
-                        ),
-                        fontWeight: FontWeight.w500,
-                        color: textPrimary,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1360,7 +1087,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
       );
 
-  // 🎯 大厂标准：服务器选择器（下拉框 + 条件显示输入框）
+  // 🎯 大厂标准：服务器地址输入
   Widget _buildServerSection(
     Color textPrimary,
     Color textSecondary,
@@ -1370,217 +1097,103 @@ class _LoginScreenState extends State<LoginScreen>
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 服务器类型选择标题
+          const SizedBox(height: 4),
           Text(
-            AppLocalizationsSimple.of(context)?.server ?? '服务器',
+            AppLocalizationsSimple.of(context)?.serverAddress ?? '服务器地址',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
               color: textPrimary,
-              height: 1.5,
             ),
           ),
           const SizedBox(height: 8),
-
-          // 下拉选择框（官方/自定义）
-          Container(
-            decoration: BoxDecoration(
-              color: isDarkMode
-                  ? Colors.white.withValues(alpha: 0.05)
-                  : Colors.black.withValues(alpha: 0.03),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isDarkMode
-                    ? Colors.white.withValues(alpha: 0.1)
-                    : Colors.black.withValues(alpha: 0.08),
-              ),
+          TextFormField(
+            controller: _serverController,
+            style: TextStyle(
+              fontSize: 16,
+              color: textPrimary,
+              fontWeight: FontWeight.w500,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<bool>(
-                value: _useCustomServer,
-                isExpanded: true,
-                icon: Icon(
-                  Icons.arrow_drop_down,
+            keyboardType: TextInputType.url,
+            onChanged: _onCustomServerUrlChanged,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return '请填写服务器地址，例如：https://demo.memos.app';
+              }
+              if (!value.startsWith('http://') &&
+                  !value.startsWith('https://')) {
+                return '地址格式不对，需要以 https:// 开头\n示例：https://demo.memos.app';
+              }
+              return null;
+            },
+            decoration: InputDecoration(
+              hintText: 'https://your-memos-server.com',
+              hintStyle: TextStyle(
+                color: textSecondary,
+                fontSize: 15,
+                fontWeight: FontWeight.normal,
+              ),
+              prefixIcon: Container(
+                margin: const EdgeInsets.all(12),
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.cloud_outlined,
+                  size: 18,
                   color: primaryColor,
                 ),
-                dropdownColor:
-                    isDarkMode ? AppTheme.darkCardColor : AppTheme.surfaceColor,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: textPrimary,
-                  fontWeight: FontWeight.w500,
+              ),
+              filled: true,
+              fillColor: isDarkMode
+                  ? Colors.white.withValues(alpha: 0.03)
+                  : Colors.black.withValues(alpha: 0.02),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: isDarkMode
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.black.withValues(alpha: 0.08),
                 ),
-                items: [
-                  DropdownMenuItem(
-                    value: false,
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.verified_outlined,
-                          size: 20,
-                          color: primaryColor,
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              AppLocalizationsSimple.of(context)
-                                      ?.officialServer ??
-                                  '官方服务器',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                                color: textPrimary,
-                              ),
-                            ),
-                            Text(
-                              AppLocalizationsSimple.of(context)?.recommended ??
-                                  '推荐使用',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  DropdownMenuItem(
-                    value: true,
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.dns_outlined,
-                          size: 20,
-                          color: textSecondary,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          AppLocalizationsSimple.of(context)?.customServer ??
-                              '自定义服务器',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    _onServerTypeChanged(value);
-                  }
-                },
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: isDarkMode
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.black.withValues(alpha: 0.08),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: primaryColor,
+                  width: 2,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Colors.red,
+                  width: 1.5,
+                ),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Colors.red,
+                  width: 2,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 16,
               ),
             ),
           ),
-
-          // 🎯 自定义服务器地址输入框（仅在选择自定义时显示）
-          if (_useCustomServer) ...[
-            const SizedBox(height: 20),
-            Text(
-              AppLocalizationsSimple.of(context)?.serverAddress ?? '服务器地址',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _serverController,
-              style: TextStyle(
-                fontSize: 16,
-                color: textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-              keyboardType: TextInputType.url,
-              onChanged: _onCustomServerUrlChanged,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return '请填写服务器地址，例如：https://demo.memos.app';
-                }
-                if (!value.startsWith('http://') &&
-                    !value.startsWith('https://')) {
-                  return '地址格式不对，需要以 https:// 开头\n示例：https://demo.memos.app';
-                }
-                return null;
-              },
-              decoration: InputDecoration(
-                hintText: 'https://your-memos-server.com',
-                hintStyle: TextStyle(
-                  color: textSecondary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.normal,
-                ),
-                prefixIcon: Container(
-                  margin: const EdgeInsets.all(12),
-                  width: 20,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.cloud_outlined,
-                    size: 18,
-                    color: primaryColor,
-                  ),
-                ),
-                filled: true,
-                fillColor: isDarkMode
-                    ? Colors.white.withValues(alpha: 0.03)
-                    : Colors.black.withValues(alpha: 0.02),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: isDarkMode
-                        ? Colors.white.withValues(alpha: 0.1)
-                        : Colors.black.withValues(alpha: 0.08),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: isDarkMode
-                        ? Colors.white.withValues(alpha: 0.1)
-                        : Colors.black.withValues(alpha: 0.08),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: primaryColor,
-                    width: 2,
-                  ),
-                ),
-                errorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                    color: Colors.red,
-                    width: 1.5,
-                  ),
-                ),
-                focusedErrorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                    color: Colors.red,
-                    width: 2,
-                  ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-              ),
-            ),
-          ],
         ],
       );
 
@@ -1888,7 +1501,6 @@ class _LoginScreenState extends State<LoginScreen>
                   const SizedBox(height: 12),
                   Text(
                     '✅ 支持常见 Memos 版本，并按检测结果选择接口\n'
-                    '☁️ 支持官方服务器和自建服务器\n'
                     '🔒 建议使用 HTTPS，登录凭证会保存在系统安全存储中\n'
                     '📱 登录并同步成功后，可在多个设备查看笔记',
                     style: TextStyle(
@@ -2053,10 +1665,9 @@ class _LoginScreenState extends State<LoginScreen>
                           icon: Icons.dns_outlined,
                           iconColor: accentColor,
                           question: '服务器地址填什么？',
-                          answer: '有两种选择：\n\n'
-                              '▶ 官方服务器（推荐新手）：选择「官方服务器」，直接注册账号即可使用，无需填写地址。\n\n'
-                              '▶ 自建服务器：如果您或您的团队自己搭建了 Memos 服务，选择「自定义服务器」，填入服务器完整地址，格式如：\nhttps://你的域名.com\n\n'
-                              '不知道填什么？选官方服务器就行了。',
+                          answer: '请填写你的 Memos 服务器完整地址，格式如：\nhttps://你的域名.com\n\n'
+                              '如果服务器使用非标准端口，请一并写上，例如：\nhttps://你的域名.com:5230\n\n'
+                              '不确定地址时，请联系你的服务器管理员获取。',
                           isDarkMode: isDarkMode,
                           textPrimary: textPrimary,
                           textSecondary: textSecondary,
@@ -2068,7 +1679,7 @@ class _LoginScreenState extends State<LoginScreen>
                           question: '还没有账号，怎么注册？',
                           answer: '点击登录页面下方的「立即注册」按钮，填写用户名和密码即可完成注册。\n\n'
                               '注意：用户名注册后不能更改，请提前想好。\n\n'
-                              '注册后可以用该账号登录官方服务器；自部署服务器请以你的服务器规则为准。',
+                              '注册后即可使用该账号登录你的 Memos 服务器。',
                           isDarkMode: isDarkMode,
                           textPrimary: textPrimary,
                           textSecondary: textSecondary,
@@ -2079,8 +1690,7 @@ class _LoginScreenState extends State<LoginScreen>
                           iconColor: Colors.red.shade400,
                           question: '忘记密码怎么找回？',
                           answer: '由于 Memos 目前不支持通过邮件找回密码，请按以下方式处理：\n\n'
-                              '• 使用官方服务器：请联系客服，我们会协助您重置\n'
-                              '• 使用自建服务器：请联系您的服务器管理员，由管理员在后台重置密码\n\n'
+                              '• 请联系你的服务器管理员，由管理员在后台重置密码\n\n'
                               '建议平时开启「记住密码」功能，下次打开 App 会自动登录，不用重新输入。',
                           isDarkMode: isDarkMode,
                           textPrimary: textPrimary,
@@ -2115,7 +1725,7 @@ class _LoginScreenState extends State<LoginScreen>
                           icon: Icons.edit_note_outlined,
                           iconColor: accentColor,
                           question: '这个 App 能做什么？',
-                          answer: 'InkRoot 是一款笔记 App，主要功能包括：\n\n'
+                          answer: 'IntPaper 是一款笔记 App，主要功能包括：\n\n'
                               '📝 随手记录想法，支持文字、图片\n'
                               '#️⃣ 用标签整理笔记，快速分类查找\n'
                               '🔍 全文搜索，按关键词查找内容\n'
@@ -2131,7 +1741,7 @@ class _LoginScreenState extends State<LoginScreen>
                           icon: Icons.security_outlined,
                           iconColor: primaryColor,
                           question: '我的数据安全吗？',
-                          answer: 'InkRoot 会尽量使用系统和服务器提供的安全能力：\n\n'
+                          answer: 'IntPaper 会尽量使用系统和服务器提供的安全能力：\n\n'
                               '🔐 建议使用 HTTPS 服务器地址传输数据\n'
                               '📱 密码在本地安全存储，不会明文保存\n'
                               '🏠 使用自建服务器时，远端数据由你的服务器保存和管理\n\n'

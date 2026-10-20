@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:inkroot/config/app_config.dart' as Config;
-import 'package:inkroot/models/app_config_model.dart';
+import 'package:intpaper/config/app_config.dart' as Config;
+import 'package:intpaper/models/app_config_model.dart';
 
 /// DeepSeek API服务
 /// 负责与DeepSeek API进行通信

@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/services/database_service.dart';
-import 'package:inkroot/services/memos_api_service_fixed.dart';
-import 'package:inkroot/services/sync_merge_helper.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/services/database_service.dart';
+import 'package:intpaper/services/memos_api_service_fixed.dart';
+import 'package:intpaper/services/sync_merge_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 增量同步服务

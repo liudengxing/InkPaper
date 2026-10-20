@@ -3,9 +3,8 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/screens/feedback_screen.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutScreen extends StatelessWidget {
@@ -34,7 +33,7 @@ class AboutScreen extends StatelessWidget {
                 onPressed: () => context.pop(),
               ),
         title: Text(
-          AppLocalizationsSimple.of(context)?.aboutUs ?? '关于 InkRoot',
+          AppLocalizationsSimple.of(context)?.aboutUs ?? '关于 IntPaper',
           style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
         ),
         centerTitle: true,
@@ -168,8 +167,8 @@ class AboutScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        AppLocalizationsSimple.of(context)?.aboutInkRoot ??
-                            '关于InkRoot',
+                        AppLocalizationsSimple.of(context)?.aboutIntPaper ??
+                            '关于IntPaper',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -181,7 +180,7 @@ class AboutScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     AppLocalizationsSimple.of(context)?.appIntroduction ??
-                        'InkRoot-墨鸣笔记是一款面向个人记录与知识沉淀的跨平台笔记应用。它保留轻量记录的速度，也提供标签、搜索、回顾、备份和同步能力，让零散内容逐步沉淀成可回看的资料库。',
+                        'IntPaper-墨鸣笔记是一款面向个人记录与知识沉淀的跨平台笔记应用。它保留轻量记录的速度，也提供标签、搜索、回顾、备份和同步能力，让零散内容逐步沉淀成可回看的资料库。',
                     style: const TextStyle(
                       fontSize: 15,
                       height: 1.6,
@@ -410,23 +409,6 @@ class AboutScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   _buildContactItem(
                     context,
-                    icon: Icons.feedback_outlined,
-                    label: AppLocalizationsSimple.of(context)
-                            ?.feedbackSuggestions ??
-                        '反馈建议',
-                    value: AppLocalizationsSimple.of(context)
-                            ?.clickToSubmitFeedback ??
-                        '点击提交反馈建议',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const FeedbackScreen(),
-                      ),
-                    ),
-                  ),
-                  const Divider(height: 24),
-                  _buildContactItem(
-                    context,
                     icon: Icons.email_outlined,
                     label: AppLocalizationsSimple.of(context)?.emailAddress ??
                         '电子邮件',
@@ -436,56 +418,10 @@ class AboutScreen extends StatelessWidget {
                   const Divider(height: 24),
                   _buildContactItem(
                     context,
-                    icon: Icons.language_outlined,
-                    label:
-                        AppLocalizationsSimple.of(context)?.officialWebsite ??
-                            '官方网站',
-                    value: AppConfig.officialWebsite,
-                    onTap: () => _launchURL(AppConfig.officialWebsite),
-                  ),
-                  const Divider(height: 24),
-                  _buildContactItem(
-                    context,
-                    icon: Icons.privacy_tip_outlined,
-                    label: AppLocalizationsSimple.of(context)?.privacyPolicy ??
-                        '隐私政策',
-                    value: AppConfig.privacyPolicyUrl,
-                    onTap: () => _launchURL(AppConfig.privacyPolicyUrl),
-                  ),
-                  const Divider(height: 24),
-                  _buildContactItem(
-                    context,
-                    icon: Icons.description_outlined,
-                    label: AppLocalizationsSimple.of(context)?.userAgreement ??
-                        '用户协议',
-                    value: AppConfig.userAgreementUrl,
-                    onTap: () => _launchURL(AppConfig.userAgreementUrl),
-                  ),
-                  const Divider(height: 24),
-                  _buildContactItem(
-                    context,
-                    icon: Icons.delete_outline,
-                    label: '账号与数据删除',
-                    value: AppConfig.accountDeletionUrl,
-                    onTap: () => _launchURL(AppConfig.accountDeletionUrl),
-                  ),
-                  const Divider(height: 24),
-                  _buildContactItem(
-                    context,
                     icon: Icons.code_outlined,
                     label: '开源仓库',
                     value: AppConfig.githubRepo,
                     onTap: () => _launchURL(AppConfig.githubRepo),
-                  ),
-                  const Divider(height: 24),
-                  _buildContactItem(
-                    context,
-                    icon: Icons.location_on_outlined,
-                    label: AppLocalizationsSimple.of(context)
-                            ?.communicationAddress ??
-                        '联系地址',
-                    value: AppConfig.companyAddress,
-                    onTap: () {},
                   ),
                 ],
               ),
@@ -511,16 +447,6 @@ class AboutScreen extends StatelessWidget {
                       color: Color(0xFF999999),
                     ),
                   ),
-                  if (AppConfig.icpLicense.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    const Text(
-                      AppConfig.icpLicense,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF999999),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 4),
                   Text(
                     '版本 ${AppConfig.getFullVersionInfo()}',

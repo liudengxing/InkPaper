@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/widgets/note_card.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/widgets/note_card.dart';
 import 'package:provider/provider.dart';
 
 Widget _wrap(Widget child) => ChangeNotifierProvider(

@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/services/note_sorting_helper.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/themes/app_typography.dart';
-import 'package:inkroot/utils/responsive_utils.dart';
-import 'package:inkroot/utils/snackbar_utils.dart';
-import 'package:inkroot/utils/tag_path_utils.dart';
-import 'package:inkroot/widgets/note_card.dart';
-import 'package:inkroot/widgets/note_editor.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/services/note_sorting_helper.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/themes/app_typography.dart';
+import 'package:intpaper/utils/responsive_utils.dart';
+import 'package:intpaper/utils/snackbar_utils.dart';
+import 'package:intpaper/utils/tag_path_utils.dart';
+import 'package:intpaper/widgets/note_card.dart';
+import 'package:intpaper/widgets/note_editor.dart';
 import 'package:provider/provider.dart';
 
 /// 标签笔记详情页 - 显示某个标签下的所有笔记

@@ -3,17 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/models/announcement_model.dart';
-import 'package:inkroot/models/reminder_notification_model.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/services/reminder_notification_service.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/themes/app_typography.dart';
-import 'package:inkroot/utils/responsive_utils.dart';
-import 'package:inkroot/utils/snackbar_utils.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/models/reminder_notification_model.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/services/reminder_notification_service.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/utils/responsive_utils.dart';
+import 'package:intpaper/utils/snackbar_utils.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -28,7 +25,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   final ReminderNotificationService _reminderService =
       ReminderNotificationService();
 
-  // 🔥 统一通知列表（合并系统公告和提醒通知）
+  // 🔥 通知列表
   List<UnifiedNotification> _unifiedNotifications = [];
 
   // 动画控制器
@@ -64,65 +61,29 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     super.dispose();
   }
 
-  /// 🔥 加载所有通知（系统公告 + 提醒通知）
+  /// 🔥 加载所有通知（提醒通知）
   Future<void> _loadAllNotifications() async {
     try {
-      final appProvider = Provider.of<AppProvider>(context, listen: false);
-
-      // 获取系统公告
-      final announcements = appProvider.announcements;
-      final systemNotifications = <UnifiedNotification>[];
-
-      for (final announcement in announcements) {
-        // 🔥 关键修复：使用云公告内容作为ID，与标记已读时保持一致
-        final actualId = appProvider.cloudNotice?.appGg ?? announcement.id;
-        final isRead = await appProvider.isAnnouncementRead(actualId);
-        systemNotifications.add(
-          UnifiedNotification.fromAnnouncement(
-            announcement.id,
-            announcement.title,
-            announcement.content,
-            announcement.publishDate,
-            announcement.type,
-            isRead,
-            actionUrls: announcement.actionUrls,
-            imageUrl: announcement.imageUrl,
-          ),
-        );
-      }
-
       // 获取提醒通知
       final reminderNotifications =
           await _reminderService.getAllReminderNotifications();
       final reminders =
           reminderNotifications.map(UnifiedNotification.fromReminder).toList();
 
-      // 🔥 市场主流做法：系统通知置顶，然后按已读/未读分组，最后按时间排序
-      final combined = [...systemNotifications, ...reminders];
-      combined.sort((a, b) {
-        // 1. 系统通知优先（置顶）
-        if (a.isSystemAnnouncement && !b.isSystemAnnouncement) {
-          return -1;
-        }
-        if (!a.isSystemAnnouncement && b.isSystemAnnouncement) {
-          return 1;
-        }
-
-        // 2. 同类型通知：未读优先
+      // 🔥 市场主流做法：未读优先，然后按时间倒序
+      reminders.sort((a, b) {
         if (!a.isRead && b.isRead) {
           return -1;
         }
         if (a.isRead && !b.isRead) {
           return 1;
         }
-
-        // 3. 相同已读状态：按时间倒序
         return b.publishDate.compareTo(a.publishDate);
       });
 
       if (mounted) {
         setState(() {
-          _unifiedNotifications = combined;
+          _unifiedNotifications = reminders;
         });
         unawaited(_fadeController.forward(from: 0));
       }
@@ -481,7 +442,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           unawaited(HapticFeedback.mediumImpact());
           return true;
         }
-        return false; // 系统公告不允许滑动删除
+        return false; // 非提醒通知不允许滑动删除
       },
       onDismissed: (direction) async {
         if (notification.isReminder) {
@@ -684,40 +645,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     }
   }
 
-  /// 🔥 获取统一通知的图标
-  IconData _getNotificationIcon(UnifiedNotification notification) {
-    if (notification.isReminder) {
-      return Icons.alarm;
-    } else {
-      switch (notification.announcementType) {
-        case 'update':
-          return Icons.system_update_outlined;
-        case 'info':
-          return Icons.info_outline;
-        case 'event':
-          return Icons.event_outlined;
-        case 'warning':
-          return Icons.warning_amber_outlined;
-        default:
-          return Icons.notifications_none;
-      }
-    }
-  }
-
-  IconData _getAnnouncementIcon(String type) {
-    switch (type) {
-      case 'update':
-        return Icons.system_update_outlined;
-      case 'info':
-        return Icons.info_outline;
-      case 'event':
-        return Icons.event_outlined;
-      case 'warning':
-        return Icons.warning_amber_outlined;
-      default:
-        return Icons.notifications_none;
-    }
-  }
+  /// 🔥 获取通知图标（当前仅笔记提醒）
+  IconData _getNotificationIcon(UnifiedNotification notification) =>
+      notification.isReminder ? Icons.alarm : Icons.notifications_none;
 
   /// 🔥 处理通知点击（大厂逻辑：点击后标记已读 + 清除提醒）
   Future<void> _handleNotificationTap(
@@ -755,23 +685,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       if (mounted && context.mounted && notification.noteId != null) {
         unawaited(context.push('/note/${notification.noteId}'));
       }
-    } else {
-      if (!mounted || !context.mounted) {
-        return;
-      }
-      final appProvider = Provider.of<AppProvider>(context, listen: false);
-      final announcement = appProvider.announcements.firstWhere(
-        (a) => a.id == notification.id,
-        orElse: () => Announcement(
-          id: notification.id,
-          title: notification.title,
-          content: notification.content,
-          type: notification.announcementType ?? 'info',
-          publishDate: notification.publishDate,
-        ),
-      );
-      _showAnnouncementDetails(context, announcement);
-      await _loadAllNotifications();
     }
   }
 
@@ -786,8 +699,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     });
 
     try {
-      final appProvider = Provider.of<AppProvider>(context, listen: false);
-      await appProvider.refreshAnnouncements();
       await _loadAllNotifications();
     } on Object {
       if (mounted && context.mounted) {
@@ -809,7 +720,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   String _formatDate(DateTime date) =>
       '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
-  /// 🔥 标记所有通知为已读（包括系统公告和提醒通知）
+  /// 🔥 标记所有通知为已读
   Future<void> _markAllAsRead(BuildContext context) async {
     if (_isLoading) {
       return;
@@ -821,7 +732,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
     try {
       final appProvider = Provider.of<AppProvider>(context, listen: false);
-      await appProvider.markAllAnnouncementsAsRead();
       await _reminderService.markAllAsRead();
       await appProvider.refreshUnreadAnnouncementsCount();
       await _loadAllNotifications();
@@ -975,238 +885,4 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     }
   }
 
-  void _showAnnouncementDetails(
-    BuildContext context,
-    Announcement announcement,
-  ) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final dialogColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
-    final textColor =
-        isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
-    final accentColor =
-        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
-
-    final dialogWidth = ResponsiveUtils.responsive<double>(
-      context,
-      mobile: MediaQuery.of(context).size.width * 0.9,
-      tablet: 500,
-      desktop: 600,
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: dialogColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(
-            ResponsiveUtils.responsiveSpacing(context, 14),
-          ),
-        ),
-        child: Container(
-          width: dialogWidth,
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.8,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 标题区域
-              Container(
-                padding: ResponsiveUtils.responsivePadding(
-                  context,
-                  horizontal: 24,
-                  vertical: 20,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _getAnnouncementIcon(announcement.type),
-                      color: accentColor,
-                      size: ResponsiveUtils.responsiveIconSize(context, 24),
-                    ),
-                    SizedBox(
-                      width: ResponsiveUtils.responsiveSpacing(context, 12),
-                    ),
-                    Expanded(
-                      child: Text(
-                        announcement.title,
-                        style: AppTypography.getTitleStyle(
-                          context,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                          color: textColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 分割线
-              Container(
-                height: 1,
-                color: isDarkMode
-                    ? AppTheme.darkDividerColor
-                    : AppTheme.dividerColor,
-                margin: ResponsiveUtils.responsivePadding(
-                  context,
-                  horizontal: 24,
-                ),
-              ),
-
-              // 内容区域
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: ResponsiveUtils.responsivePadding(
-                    context,
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 发布日期
-                      Text(
-                        _formatDate(announcement.publishDate),
-                        style: AppTypography.getCaptionStyle(
-                          context,
-                          color: isDarkMode
-                              ? AppTheme.darkTextSecondaryColor
-                              : AppTheme.textSecondaryColor,
-                        ),
-                      ),
-
-                      SizedBox(
-                        height: ResponsiveUtils.responsiveSpacing(context, 12),
-                      ),
-
-                      // 内容
-                      Text(
-                        announcement.content,
-                        style: AppTypography.getBodyStyle(
-                          context,
-                          fontSize: 14,
-                          color: isDarkMode
-                              ? AppTheme.darkTextPrimaryColor
-                              : AppTheme.textPrimaryColor,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // 按钮区域
-              Container(
-                padding: ResponsiveUtils.responsivePadding(
-                  context,
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                child: Row(
-                  children: [
-                    if (announcement.actionUrls != null &&
-                        announcement.actionUrls!.isNotEmpty)
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () {
-                            final isAndroid = Theme.of(context).platform ==
-                                TargetPlatform.android;
-                            final url = isAndroid
-                                ? announcement.actionUrls!['android']
-                                : announcement.actionUrls!['ios'];
-
-                            if (url != null) {
-                              launchUrl(Uri.parse(url));
-                            }
-                            Navigator.pop(context);
-                          },
-                          style: TextButton.styleFrom(
-                            padding: ResponsiveUtils.responsivePadding(
-                              context,
-                              vertical: 12,
-                            ),
-                            minimumSize: Size(
-                              0,
-                              ResponsiveUtils.responsiveSpacing(context, 44),
-                            ),
-                          ),
-                          child: Text(
-                            announcement.type == 'update'
-                                ? (AppLocalizationsSimple.of(context)
-                                        ?.updateNow ??
-                                    '立即更新')
-                                : (AppLocalizationsSimple.of(context)
-                                        ?.viewDetails ??
-                                    '查看详情'),
-                            style: AppTypography.getButtonStyle(
-                              context,
-                              color: accentColor,
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (announcement.actionUrls != null &&
-                        announcement.actionUrls!.isNotEmpty)
-                      Container(
-                        width: 1,
-                        height: ResponsiveUtils.responsiveSpacing(context, 20),
-                        color: isDarkMode
-                            ? AppTheme.darkDividerColor
-                            : AppTheme.dividerColor,
-                        margin: ResponsiveUtils.responsivePadding(
-                          context,
-                          horizontal: 8,
-                        ),
-                      ),
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () async {
-                          // 🔥 关闭对话框
-                          Navigator.pop(context);
-
-                          // 🔥 标记为已读
-                          final appProvider =
-                              Provider.of<AppProvider>(context, listen: false);
-                          final actualId =
-                              appProvider.cloudNotice?.appGg ?? announcement.id;
-                          await appProvider.markAnnouncementAsRead(actualId);
-
-                          // 🎯 刷新未读数量
-                          await appProvider.refreshUnreadAnnouncementsCount();
-
-                          // 🔥 重新加载通知列表（刷新UI显示已读状态）
-                          await _loadAllNotifications();
-                        },
-                        style: TextButton.styleFrom(
-                          padding: ResponsiveUtils.responsivePadding(
-                            context,
-                            vertical: 12,
-                          ),
-                          minimumSize: Size(
-                            0,
-                            ResponsiveUtils.responsiveSpacing(context, 44),
-                          ),
-                        ),
-                        child: Text(
-                          '确定',
-                          style: AppTypography.getButtonStyle(
-                            context,
-                            color: accentColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    // 🔥 标记为已读逻辑已移到确定按钮的 onPressed 中
-  }
 }

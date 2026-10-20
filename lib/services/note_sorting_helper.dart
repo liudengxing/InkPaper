@@ -1,5 +1,5 @@
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/models/sort_order.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/models/sort_order.dart';
 
 int Function(Note a, Note b) noteComparator(SortOrder order) => (a, b) {
       // pinned first

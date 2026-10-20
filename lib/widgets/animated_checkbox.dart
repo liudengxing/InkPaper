@@ -1,6 +1,6 @@
 // 🎯 优雅的动画复选框（参考 Things 3 / Todoist / Microsoft To Do）
 import 'package:flutter/material.dart';
-import 'package:inkroot/themes/app_theme.dart';
+import 'package:intpaper/themes/app_theme.dart';
 
 class AnimatedCheckbox extends StatefulWidget {
   const AnimatedCheckbox({

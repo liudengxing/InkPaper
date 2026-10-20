@@ -1,8 +1,8 @@
 // ignore_for_file: avoid_classes_with_only_static_members
 
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/services/memos_resource_service.dart';
-import 'package:inkroot/utils/memos_markdown_converter.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/services/memos_resource_service.dart';
+import 'package:intpaper/utils/memos_markdown_converter.dart';
 import 'package:markdown/markdown.dart' as md;
 
 abstract final class MemosContentHelper {

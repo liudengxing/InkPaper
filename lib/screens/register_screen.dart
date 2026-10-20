@@ -2,12 +2,12 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/utils/responsive_utils.dart';
-import 'package:inkroot/utils/snackbar_utils.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/utils/responsive_utils.dart';
+import 'package:intpaper/utils/snackbar_utils.dart';
 import 'package:provider/provider.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -551,8 +551,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        AppLocalizationsSimple.of(context)?.joinInkRoot ??
-                            '加入 InkRoot',
+                        AppLocalizationsSimple.of(context)?.joinIntPaper ??
+                            '加入 IntPaper',
                         style: TextStyle(
                           fontSize: 48,
                           fontWeight: FontWeight.bold,
@@ -799,7 +799,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                 // 副标题
                 Text(
                   AppLocalizationsSimple.of(context)?.recordEachMoment ??
-                      '加入 InkRoot，记录每一个值得珍藏的时刻',
+                      '加入 IntPaper，记录每一个值得珍藏的时刻',
                   style: TextStyle(
                     fontSize: 16,
                     color: textSecondary,

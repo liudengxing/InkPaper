@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/models/annotation_model.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/services/sync_merge_helper.dart';
+import 'package:intpaper/models/annotation_model.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/services/sync_merge_helper.dart';
 
 Note _note({
   required String id,

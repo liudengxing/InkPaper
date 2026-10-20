@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/widgets/tag_tree_item.dart';
+import 'package:intpaper/widgets/tag_tree_item.dart';
 
 void main() {
   group('TagNode', () {

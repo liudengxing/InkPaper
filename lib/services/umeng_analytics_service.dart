@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:inkroot/config/app_config.dart';
+import 'package:intpaper/config/app_config.dart';
 
 /// 友盟统计服务
 /// ⚠️ 注意：仅在Android平台启用，iOS平台已禁用（符合App Store审核要求）

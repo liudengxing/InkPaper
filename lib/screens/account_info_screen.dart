@@ -4,13 +4,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/models/user_model.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/services/memos_resource_service.dart';
-import 'package:inkroot/services/preferences_service.dart';
-import 'package:inkroot/utils/snackbar_utils.dart';
-import 'package:inkroot/widgets/cached_avatar.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/models/user_model.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/services/memos_resource_service.dart';
+import 'package:intpaper/services/preferences_service.dart';
+import 'package:intpaper/utils/snackbar_utils.dart';
+import 'package:intpaper/widgets/cached_avatar.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -886,8 +886,8 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
 
               // 欢迎信息
               Text(
-                AppLocalizationsSimple.of(context)?.welcomeToInkRootShort ??
-                    '欢迎使用 InkRoot',
+                AppLocalizationsSimple.of(context)?.welcomeToIntPaperShort ??
+                    '欢迎使用 IntPaper',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/widgets/memos_markdown_renderer.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/widgets/memos_markdown_renderer.dart';
 import 'package:provider/provider.dart';
 
 Widget _wrap(Widget child) => ChangeNotifierProvider(
@@ -129,7 +129,7 @@ https://gpt-agent.cc/v1
         const content = '''
 1.同步到webdav能否同步图片？或者增加一个选项让用户选择？
 - [x] 2.首页现在长按是没有功能的，能否可以考虑直接长按复制？
-3.同步到memos后，再同步到思源笔记，通过inkroot发布的图片不显示
+3.同步到memos后，再同步到思源笔记，通过IntPaper发布的图片不显示
 ''';
 
         await tester.pumpWidget(

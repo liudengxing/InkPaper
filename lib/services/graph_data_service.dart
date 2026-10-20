@@ -1,4 +1,4 @@
-import 'package:inkroot/models/note_model.dart';
+import 'package:intpaper/models/note_model.dart';
 
 /// 知识图谱数据服务
 /// 处理笔记关系数据，转换为图谱可视化所需的节点和边数据

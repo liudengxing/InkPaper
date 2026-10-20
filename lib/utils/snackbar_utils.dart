@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:inkroot/themes/app_theme.dart';
+import 'package:intpaper/themes/app_theme.dart';
 
 class SnackBarUtils {
   static void showSuccess(BuildContext context, String message) {

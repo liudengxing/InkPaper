@@ -3,22 +3,22 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/screens/about_screen.dart';
-import 'package:inkroot/screens/account_deletion_screen.dart';
-import 'package:inkroot/screens/account_info_screen.dart';
-import 'package:inkroot/screens/ai_settings_screen.dart';
-import 'package:inkroot/screens/data_cleanup_screen.dart';
-import 'package:inkroot/screens/feedback_screen.dart';
-import 'package:inkroot/screens/help_screen.dart';
-import 'package:inkroot/screens/import_export_main_screen.dart';
-import 'package:inkroot/screens/laboratory_screen.dart';
-import 'package:inkroot/screens/legal_document_screen.dart';
-import 'package:inkroot/screens/preferences_screen.dart';
-import 'package:inkroot/screens/server_info_screen.dart';
-import 'package:inkroot/screens/webdav_settings_screen.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/utils/responsive_utils.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/screens/about_screen.dart';
+import 'package:intpaper/screens/account_deletion_screen.dart';
+import 'package:intpaper/screens/account_info_screen.dart';
+import 'package:intpaper/screens/ai_settings_screen.dart';
+import 'package:intpaper/screens/data_cleanup_screen.dart';
+import 'package:intpaper/screens/feedback_screen.dart';
+import 'package:intpaper/screens/help_screen.dart';
+import 'package:intpaper/screens/import_export_main_screen.dart';
+import 'package:intpaper/screens/laboratory_screen.dart';
+import 'package:intpaper/screens/legal_document_screen.dart';
+import 'package:intpaper/screens/preferences_screen.dart';
+import 'package:intpaper/screens/server_info_screen.dart';
+import 'package:intpaper/screens/webdav_settings_screen.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/utils/responsive_utils.dart';
 
 enum SettingsPage {
   none,

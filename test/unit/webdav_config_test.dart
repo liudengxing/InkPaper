@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/models/webdav_config.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/models/webdav_config.dart';
 
 void main() {
   group('WebDavConfig.backupImages', () {

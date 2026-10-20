@@ -1,13 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/models/app_config_model.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/services/database_service.dart';
-import 'package:inkroot/services/preferences_service.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/utils/snackbar_utils.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/models/app_config_model.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/services/database_service.dart';
+import 'package:intpaper/services/preferences_service.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/utils/snackbar_utils.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkroot/utils/shared_payload_utils.dart';
+import 'package:intpaper/utils/shared_payload_utils.dart';
 
 void main() {
   group('sharedPayloadToContent', () {

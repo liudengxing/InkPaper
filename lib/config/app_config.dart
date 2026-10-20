@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:inkroot/config/app_identity.dart';
-import 'package:inkroot/services/app_info_service.dart';
+import 'package:intpaper/config/app_identity.dart';
+import 'package:intpaper/services/app_info_service.dart';
 
 /// 🚀 大厂标准：应用配置中心
 /// 统一管理所有配置常量，便于维护和切换环境
@@ -67,12 +67,6 @@ class AppConfig {
 
   /// 云验证API地址
   static const String cloudVerificationUrl = '$apiBaseUrl/api.php';
-
-  /// 应用更新检查地址
-  static const String appUpdateUrl = '$apiBaseUrl/admin/applist.php';
-
-  /// 云公告URL
-  static String getCloudNoticeUrl() => '$apiBaseUrl/notice.php';
 
   // ==================== 🚀 Sentry监控配置 ====================
 
@@ -198,10 +192,10 @@ class AppConfig {
   // ==================== 🚀 Native通信配置 ====================
 
   /// MethodChannel名称 - 通知/闹钟
-  static const String channelNativeAlarm = 'com.didichou.inkroot/native_alarm';
+  static const String channelNativeAlarm = 'com.didichou.intpaper/native_alarm';
 
   /// MethodChannel名称 - 友盟统计
-  static const String channelUmeng = 'com.didichou.inkroot/umeng';
+  static const String channelUmeng = 'com.didichou.intpaper/umeng';
 
   // ==================== 🚀 同步配置 ====================
 
@@ -371,7 +365,7 @@ class AppConfig {
   static const int aiRelatedNotesCacheHours = 6;
 
   /// 缓存键前缀
-  static const String cacheKeyPrefix = 'inkroot_';
+  static const String cacheKeyPrefix = 'intpaper_';
 
   /// 笔记相关缓存前缀
   static const String noteCachePrefix = 'note_related_';
@@ -433,7 +427,7 @@ class AppConfig {
   // ==================== 反馈与支持 ====================
 
   /// 反馈邮箱
-  static const String supportEmail = 'inkroot2025@gmail.com';
+  static const String supportEmail = 'rsbgbn@126.com';
 
   /// 官方网站
   static const String officialWebsite = 'https://inkroot.cn/';
@@ -445,7 +439,7 @@ class AppConfig {
   static const String helpDocUrl = '$officialWebsite/help';
 
   /// GitHub仓库地址
-  static const String githubRepo = 'https://github.com/yyyyymmmmm/InkRoot';
+  static const String githubRepo = 'https://github.com/yyyyymmmmm/IntPaper';
 
   // ==================== 法律文档 ====================
 
@@ -490,9 +484,6 @@ class AppConfig {
   /// 公司地址
   static const String companyAddress = '陕西省西安市雁塔区';
 
-  /// ICP备案号
-  static const String icpLicense = '陕ICP备 20002445号-7A';
-
   /// 版权年份
   static const String copyrightYear = '2025';
 
@@ -514,10 +505,6 @@ class AppConfig {
   /// iOS 仍不使用自有更新检查，但可以读取后端公告。
   static bool get enableCloudVerification =>
       appId.isNotEmpty && appKey.isNotEmpty;
-
-  /// 是否启用自动更新检查
-  /// ⚠️ iOS平台禁用（Apple要求更新必须通过App Store）
-  static bool get enableAutoUpdate => Platform.isAndroid;
 
   /// 是否启用崩溃报告（Sentry）
   /// ⚠️ iOS平台禁用，Android平台可用
@@ -548,8 +535,7 @@ class AppConfig {
   static String get userAgent => AppInfoService.userAgent;
 
   /// 获取完整的版权信息
-  static String getFullCopyrightInfo() =>
-      '$copyrightText\n$companyFullName\n$icpLicense';
+  static String getFullCopyrightInfo() => '$copyrightText\n$companyFullName';
 
   /// 获取应用信息映射
   static Map<String, dynamic> getAppInfo() => {

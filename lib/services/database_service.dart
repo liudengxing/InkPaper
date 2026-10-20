@@ -2,8 +2,8 @@ import 'dart:convert'; // Added for jsonEncode and jsonDecode
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/models/note_model.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/models/note_model.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -64,6 +64,16 @@ class DatabaseService {
 
   static const int schemaVersion = AppConfig.databaseVersion;
 
+  /// 仅包含「未软删」笔记的视图。
+  ///
+  /// 软删（`rowStatus = 'DELETED'`）的行仍留在 `notes` 表里以便撤销与同步，
+  /// 所有列表、分页、搜索、统计查询都必须走这个视图，避免漏加过滤条件。
+  static const String viewActiveNotes = 'active_notes';
+
+  static const String createActiveNotesViewSql =
+      'CREATE VIEW IF NOT EXISTS $viewActiveNotes AS '
+      "SELECT * FROM notes WHERE IFNULL(rowStatus, 'NORMAL') <> 'DELETED'";
+
   /// Creates all tables/indexes for the latest schema.
   static Future<void> createSchema(Database db) async {
     // notes
@@ -84,7 +94,8 @@ class DatabaseService {
         relations TEXT DEFAULT '[]',
         annotations TEXT DEFAULT '[]',
         reminder_time TEXT,
-        last_sync_time TEXT
+        last_sync_time TEXT,
+        deleted_at TEXT
       )
     ''');
 
@@ -117,6 +128,9 @@ class DatabaseService {
     await db.execute('''
       CREATE INDEX idx_notes_is_synced ON notes(is_synced)
     ''');
+
+    // 软删过滤视图（v10）
+    await db.execute(createActiveNotesViewSql);
   }
 
   /// 按标签精确匹配的 SQL 片段：tags 列存成逗号拼接串，
@@ -216,6 +230,22 @@ class DatabaseService {
         );
       }
     }
+    if (oldVersion < 10) {
+      // v10: 软删除
+      if (!await _hasColumn(db, 'notes', 'deleted_at')) {
+        await db.execute('ALTER TABLE notes ADD COLUMN deleted_at TEXT');
+      }
+      await db.execute(createActiveNotesViewSql);
+    }
+  }
+
+  static Future<bool> _hasColumn(
+    Database db,
+    String table,
+    String column,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    return columns.any((row) => row['name'] == column);
   }
 
   // 保存笔记到数据库
@@ -452,7 +482,7 @@ class DatabaseService {
   /// 创建时间、更新时间、标签、提醒、批注等本地字段。
   String exportNoteToMarkdown(Note note) {
     final metadata = <String, dynamic>{
-      'inkrootNote': true,
+      'IntPaperNote': true,
       'id': note.id,
       'createdAt': note.createdAt.toIso8601String(),
       'updatedAt': note.updatedAt.toIso8601String(),
@@ -627,7 +657,7 @@ class DatabaseService {
       }
     }
 
-    if (metadata['inkrootNote'] != true) {
+    if (metadata['IntPaperNote'] != true) {
       return null;
     }
 

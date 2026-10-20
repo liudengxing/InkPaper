@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/utils/logger.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/utils/logger.dart';
 
 /// 批注类型枚举
 enum AnnotationType {

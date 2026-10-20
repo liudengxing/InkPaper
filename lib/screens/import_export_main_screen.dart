@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/themes/app_theme.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/themes/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// 导入导出主页面

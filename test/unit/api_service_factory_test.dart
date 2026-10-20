@@ -6,8 +6,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:inkroot/services/api_service_factory.dart';
-import 'package:inkroot/services/memos_api_service_fixed.dart';
+import 'package:intpaper/services/api_service_factory.dart';
+import 'package:intpaper/services/memos_api_service_fixed.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

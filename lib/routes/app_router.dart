@@ -4,49 +4,49 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/screens/about_screen.dart';
-import 'package:inkroot/screens/account_deletion_screen.dart';
-import 'package:inkroot/screens/account_info_screen.dart';
-import 'package:inkroot/screens/ai_settings_screen.dart';
-import 'package:inkroot/screens/data_cleanup_screen.dart';
-import 'package:inkroot/screens/feedback_screen.dart';
-import 'package:inkroot/screens/flomo_import_screen.dart';
-import 'package:inkroot/screens/forgot_password_screen.dart';
-import 'package:inkroot/screens/help_screen.dart';
-import 'package:inkroot/screens/home_screen.dart';
-import 'package:inkroot/screens/import_export_main_screen.dart';
-import 'package:inkroot/screens/knowledge_graph_screen_custom.dart';
-import 'package:inkroot/screens/laboratory_screen.dart';
-import 'package:inkroot/screens/legal_document_screen.dart';
-import 'package:inkroot/screens/local_backup_restore_screen.dart';
-import 'package:inkroot/screens/login_screen.dart';
-import 'package:inkroot/screens/note_detail_screen.dart';
-import 'package:inkroot/screens/notifications_screen.dart';
-import 'package:inkroot/screens/notion_settings_screen.dart';
-import 'package:inkroot/screens/onboarding_screen.dart';
-import 'package:inkroot/screens/performance_dashboard_screen.dart';
-import 'package:inkroot/screens/preferences_screen.dart';
-import 'package:inkroot/screens/privacy_policy_screen.dart';
-import 'package:inkroot/screens/random_review_screen.dart';
-import 'package:inkroot/screens/register_screen.dart';
-import 'package:inkroot/screens/server_info_screen.dart';
-import 'package:inkroot/screens/settings_screen.dart';
-import 'package:inkroot/screens/sidebar_customization_screen.dart';
-import 'package:inkroot/screens/tag_notes_screen.dart';
-// import 'package:inkroot/screens/splash_screen.dart'; // 🚀 大厂标准：不需要自定义启动页，只用Native Splash
-import 'package:inkroot/screens/tags_screen.dart';
-import 'package:inkroot/screens/user_preferences_screen.dart'; // 🧠 用户偏好可视化
-import 'package:inkroot/screens/webdav_settings_screen.dart';
-import 'package:inkroot/screens/weread_import_screen.dart';
-import 'package:inkroot/services/preferences_service.dart';
-import 'package:inkroot/utils/tag_path_utils.dart';
-import 'package:inkroot/widgets/desktop_layout.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/screens/about_screen.dart';
+import 'package:intpaper/screens/account_deletion_screen.dart';
+import 'package:intpaper/screens/account_info_screen.dart';
+import 'package:intpaper/screens/ai_settings_screen.dart';
+import 'package:intpaper/screens/data_cleanup_screen.dart';
+import 'package:intpaper/screens/feedback_screen.dart';
+import 'package:intpaper/screens/flomo_import_screen.dart';
+import 'package:intpaper/screens/forgot_password_screen.dart';
+import 'package:intpaper/screens/help_screen.dart';
+import 'package:intpaper/screens/home_screen.dart';
+import 'package:intpaper/screens/import_export_main_screen.dart';
+import 'package:intpaper/screens/knowledge_graph_screen_custom.dart';
+import 'package:intpaper/screens/laboratory_screen.dart';
+import 'package:intpaper/screens/legal_document_screen.dart';
+import 'package:intpaper/screens/local_backup_restore_screen.dart';
+import 'package:intpaper/screens/login_screen.dart';
+import 'package:intpaper/screens/note_detail_screen.dart';
+import 'package:intpaper/screens/notifications_screen.dart';
+import 'package:intpaper/screens/notion_settings_screen.dart';
+import 'package:intpaper/screens/onboarding_screen.dart';
+import 'package:intpaper/screens/performance_dashboard_screen.dart';
+import 'package:intpaper/screens/preferences_screen.dart';
+import 'package:intpaper/screens/privacy_policy_screen.dart';
+import 'package:intpaper/screens/random_review_screen.dart';
+import 'package:intpaper/screens/register_screen.dart';
+import 'package:intpaper/screens/server_info_screen.dart';
+import 'package:intpaper/screens/settings_screen.dart';
+import 'package:intpaper/screens/sidebar_customization_screen.dart';
+import 'package:intpaper/screens/tag_notes_screen.dart';
+// import 'package:intpaper/screens/splash_screen.dart'; // 🚀 大厂标准：不需要自定义启动页，只用Native Splash
+import 'package:intpaper/screens/tags_screen.dart';
+import 'package:intpaper/screens/user_preferences_screen.dart'; // 🧠 用户偏好可视化
+import 'package:intpaper/screens/webdav_settings_screen.dart';
+import 'package:intpaper/screens/weread_import_screen.dart';
+import 'package:intpaper/services/preferences_service.dart';
+import 'package:intpaper/utils/tag_path_utils.dart';
+import 'package:intpaper/widgets/desktop_layout.dart';
 
-const bool _screenshotMode = bool.fromEnvironment('INKROOT_SCREENSHOT_MODE');
+const bool _screenshotMode = bool.fromEnvironment('INTPAPER_SCREENSHOT_MODE');
 const String _screenshotInitialLocation = String.fromEnvironment(
-  'INKROOT_INITIAL_LOCATION',
+  'INTPAPER_INITIAL_LOCATION',
   defaultValue: '/',
 );
 

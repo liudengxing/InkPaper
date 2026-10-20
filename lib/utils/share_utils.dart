@@ -6,11 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/services/memos_resource_service.dart';
-import 'package:inkroot/utils/share_image_widget.dart';
-import 'package:inkroot/utils/tag_utils.dart' as tag_utils;
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/services/memos_resource_service.dart';
+import 'package:intpaper/utils/share_image_widget.dart';
+import 'package:intpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -1410,7 +1410,7 @@ class ShareUtils {
 
     final y = size.height - 60;
 
-    // 应用标识 - 复古字体，右下角显示InkRoot
+    // 应用标识 - 复古字体，右下角显示IntPaper
     final brandStyle = ui.TextStyle(
       color: const Color(0xFF8B4513).withValues(alpha: 0.6),
       fontSize: 14,
@@ -1421,7 +1421,7 @@ class ShareUtils {
     final brandParagraph =
         ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.right))
           ..pushStyle(brandStyle)
-          ..addText('✒️ InkRoot');
+          ..addText('✒️ IntPaper');
     final brandText = brandParagraph.build()
       ..layout(ui.ParagraphConstraints(width: size.width - margin * 2));
     canvas.drawParagraph(brandText, Offset(margin, y));
@@ -1772,7 +1772,7 @@ class ShareUtils {
 
     final colors = themeColors ?? ShareThemeColors(isDarkMode: false);
 
-    // 品牌标识 - 右下角显示InkRoot
+    // 品牌标识 - 右下角显示IntPaper
     final brandStyle = ui.TextStyle(
       color: colors.secondaryTextColor,
       fontSize: 12,
@@ -2354,7 +2354,7 @@ class ShareUtils {
     String content,
   ) async {
     try {
-      final fileName = 'inkroot_note_${DateTime.now().millisecondsSinceEpoch}';
+      final fileName = 'intpaper_note_${DateTime.now().millisecondsSinceEpoch}';
 
       // 🍎 iOS权限检查和保存
       if (Platform.isIOS) {
@@ -2381,7 +2381,7 @@ class ShareUtils {
 
           // iOS特殊错误处理
           if (errorMsg.contains('permission') || errorMsg.contains('denied')) {
-            throw Exception('需要相册写入权限，请在设置中允许InkRoot访问照片');
+            throw Exception('需要相册写入权限，请在设置中允许IntPaper访问照片');
           }
           return false;
         }
@@ -2413,7 +2413,7 @@ class ShareUtils {
           // Android特殊错误处理
           if (errorMsg.contains('permission') ||
               errorMsg.contains('PERMISSION')) {
-            throw Exception('需要存储权限，请在设置中允许InkRoot访问存储空间');
+            throw Exception('需要存储权限，请在设置中允许IntPaper访问存储空间');
           }
           return false;
         }

@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/models/user_model.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/models/user_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Token过期异常类

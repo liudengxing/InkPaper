@@ -5,14 +5,14 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:inkroot/config/app_config.dart' as Config;
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/services/random_review_selector_service.dart';
-import 'package:inkroot/utils/memos_content_helper.dart';
-import 'package:inkroot/utils/todo_parser.dart';
+import 'package:intpaper/config/app_config.dart' as Config;
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/services/random_review_selector_service.dart';
+import 'package:intpaper/utils/memos_content_helper.dart';
+import 'package:intpaper/utils/todo_parser.dart';
 
 abstract final class WidgetSnapshotService {
-  static const String _snapshotPrefsKey = 'inkroot_widget_snapshot';
+  static const String _snapshotPrefsKey = 'intpaper_widget_snapshot';
   static const String _channelName = Config.AppConfig.channelNativeAlarm;
   static const MethodChannel _channel = MethodChannel(_channelName);
   static Timer? _debounceTimer;

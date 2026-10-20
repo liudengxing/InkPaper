@@ -1,7 +1,7 @@
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/utils/memos_content_helper.dart';
-import 'package:inkroot/utils/text_analysis_utils.dart';
-import 'package:inkroot/utils/todo_parser.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/utils/memos_content_helper.dart';
+import 'package:intpaper/utils/text_analysis_utils.dart';
+import 'package:intpaper/utils/todo_parser.dart';
 
 class LocalNoteAnalysisService {
   const LocalNoteAnalysisService();

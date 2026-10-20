@@ -5,13 +5,13 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/providers/app_provider.dart';
-import 'package:inkroot/screens/note_detail_screen.dart';
-import 'package:inkroot/services/graph_data_service.dart';
-import 'package:inkroot/services/graph_isolate_service.dart';
-import 'package:inkroot/themes/app_theme.dart';
-import 'package:inkroot/widgets/sidebar.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/providers/app_provider.dart';
+import 'package:intpaper/screens/note_detail_screen.dart';
+import 'package:intpaper/services/graph_data_service.dart';
+import 'package:intpaper/services/graph_isolate_service.dart';
+import 'package:intpaper/themes/app_theme.dart';
+import 'package:intpaper/widgets/sidebar.dart';
 import 'package:provider/provider.dart';
 
 class KnowledgeGraphScreenCustom extends StatefulWidget {

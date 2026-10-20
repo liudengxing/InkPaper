@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkroot/config/app_config.dart';
-import 'package:inkroot/l10n/app_localizations_simple.dart';
-import 'package:inkroot/services/preferences_service.dart';
-import 'package:inkroot/services/umeng_analytics_service.dart';
-import 'package:inkroot/themes/app_theme.dart';
+import 'package:intpaper/config/app_config.dart';
+import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:intpaper/services/preferences_service.dart';
+import 'package:intpaper/services/umeng_analytics_service.dart';
+import 'package:intpaper/themes/app_theme.dart';
 
 /// 首次启动服务与隐私确认页。
 class PrivacyPolicyScreen extends StatelessWidget {

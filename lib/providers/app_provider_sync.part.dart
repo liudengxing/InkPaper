@@ -200,6 +200,10 @@ extension AppProviderSyncPart on AppProvider {
     _setSyncUi(syncing: true, message: '准备同步...');
 
     try {
+      // 0. 先补交之前失败的远端删除，避免已删笔记在下次拉取时被服务端"还回来"
+      _setSyncMessage('同步删除记录...');
+      await flushPendingNoteDeletes();
+
       // 1. 先将本地未同步的笔记上传到服务器
       _setSyncMessage('上传本地笔记...');
 

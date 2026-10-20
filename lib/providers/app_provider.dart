@@ -2699,6 +2699,31 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
   }
 
+  /// 补交「本地已删除、服务端还没删成功」的操作。
+  ///
+  /// 失败不抛出：操作留在队列表里，下次同步或删除批处理时继续重试，
+  /// 避免离线、Token 过期时把删除请求静默丢掉。
+  Future<void> flushPendingNoteDeletes() async {
+    if (_appConfig.isLocalMode || !isLoggedIn || _memosApiService == null) {
+      return;
+    }
+
+    final pendingIds = await _databaseService.getPendingDeleteNoteIds();
+    if (pendingIds.isEmpty) {
+      return;
+    }
+
+    for (final noteId in pendingIds) {
+      try {
+        await _memosApiService!.deleteMemo(noteId);
+        await _databaseService.clearPendingDelete(noteId);
+      } on Object catch (e) {
+        await _databaseService.markPendingDeleteAttempt(noteId, error: '$e');
+        debugPrint('AppProvider: 补交远端删除失败 $noteId: $e');
+      }
+    }
+  }
+
   // 🔄 后台执行删除操作（大厂级批量处理）
   Future<void> _performBackgroundDelete(String id) async {
     // 添加到删除队列
@@ -2745,22 +2770,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         }
       }
 
-      // 3. 🌐 批量同步到服务器（并发请求）
-      if (!_appConfig.isLocalMode && isLoggedIn && _memosApiService != null) {
-        final deleteFutures = idsToDelete.map((id) async {
-          try {
-            await _memosApiService!.deleteMemo(id);
-          } on Object {
-            // 服务器删除失败不影响用户体验
-          }
-        });
-
-        // 并发执行，但有超时保护
-        await Future.wait(deleteFutures).timeout(
-          const Duration(seconds: 10),
-          onTimeout: () => [],
-        );
-      }
+      // 3. 🌐 补交远端删除（失败的操作留在队列里，下次同步继续重试）
+      await flushPendingNoteDeletes();
       _pendingDeleteIds.removeAll(idsToDelete);
     } on Object {
       // 批量处理失败，记录但不影响UI

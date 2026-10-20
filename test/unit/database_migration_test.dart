@@ -219,4 +219,46 @@ void main() {
     expect(views, contains(DatabaseService.viewActiveNotes));
     await db.close();
   });
+
+  test('DB-MIG-08 createSchema 建立待同步操作队列表', () async {
+    final db = await _openDbAtVersion(DatabaseService.schemaVersion);
+    final tables = await db
+        .rawQuery("SELECT name FROM sqlite_master WHERE type='table'")
+        .then((rows) => rows.map((r) => r['name']! as String).toList());
+    expect(tables, contains(DatabaseService.tablePendingOperations));
+    await db.close();
+  });
+
+  test('DB-MIG-09 upgradeSchema (10 -> 11) 补建待同步操作队列表', () async {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+
+    final db = await databaseFactory.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 10,
+        singleInstance: false,
+        onCreate: (db, _) async {
+          await db.execute('''
+            CREATE TABLE notes(
+              id TEXT PRIMARY KEY,
+              content TEXT NOT NULL,
+              createdAt TEXT NOT NULL,
+              updatedAt TEXT NOT NULL,
+              rowStatus TEXT DEFAULT 'NORMAL',
+              deleted_at TEXT
+            )
+          ''');
+        },
+      ),
+    );
+
+    await DatabaseService.upgradeSchema(db, oldVersion: 10, newVersion: 11);
+
+    final tables = await db
+        .rawQuery("SELECT name FROM sqlite_master WHERE type='table'")
+        .then((rows) => rows.map((r) => r['name']! as String).toList());
+    expect(tables, contains(DatabaseService.tablePendingOperations));
+    await db.close();
+  });
 }

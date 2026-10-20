@@ -64,6 +64,9 @@ class DatabaseService {
 
   static const int schemaVersion = AppConfig.databaseVersion;
 
+  /// 待同步的远端操作队列（目前只有删除）。
+  static const String tablePendingOperations = 'pending_note_operations';
+
   /// 仅包含「未软删」笔记的视图。
   ///
   /// 软删（`rowStatus = 'DELETED'`）的行仍留在 `notes` 表里以便撤销与同步，
@@ -131,7 +134,21 @@ class DatabaseService {
 
     // 软删过滤视图（v10）
     await db.execute(createActiveNotesViewSql);
+
+    // 待同步的远端操作队列（v11）
+    await db.execute(createPendingOperationsSql);
   }
+
+  static const String createPendingOperationsSql = '''
+    CREATE TABLE IF NOT EXISTS $tablePendingOperations(
+      note_id TEXT NOT NULL,
+      operation TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      attempts INTEGER DEFAULT 0,
+      last_error TEXT,
+      PRIMARY KEY (note_id, operation)
+    )
+  ''';
 
   /// 按标签精确匹配的 SQL 片段：tags 列存成逗号拼接串，
   /// 用前后补逗号的方式做整词匹配，避免 `LIKE '%tag%'` 命中同前缀标签。
@@ -237,6 +254,10 @@ class DatabaseService {
       }
       await db.execute(createActiveNotesViewSql);
     }
+    if (oldVersion < 11) {
+      // v11: 待同步的远端操作队列
+      await db.execute(createPendingOperationsSql);
+    }
   }
 
   static Future<bool> _hasColumn(
@@ -318,6 +339,11 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+
+    // 服务端笔记需要删除远端数据：先入队，删除失败时由同步补交
+    if (!Note.isLocalId(id)) {
+      await enqueuePendingDelete(id, executor: db);
+    }
   }
 
   /// 从「最近删除」恢复为正常笔记。
@@ -378,6 +404,79 @@ class DatabaseService {
     return db.delete(
       'notes',
       where: "IFNULL(rowStatus, 'NORMAL') = 'DELETED'",
+    );
+  }
+
+  // ── 待同步的远端操作（删除补交） ─────────────────────────────────────
+
+  /// 记录一条「服务端还没删成功」的删除操作，供下次同步补交。
+  Future<void> enqueuePendingDelete(
+    String noteId, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    await db.insert(
+      tablePendingOperations,
+      {
+        'note_id': noteId,
+        'operation': 'delete',
+        'created_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+  }
+
+  /// 待补交的删除操作（按加入顺序）。
+  Future<List<String>> getPendingDeleteNoteIds({
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    final rows = await db.query(
+      tablePendingOperations,
+      columns: ['note_id'],
+      where: 'operation = ?',
+      whereArgs: ['delete'],
+      orderBy: 'created_at ASC',
+    );
+    return rows.map((row) => row['note_id']! as String).toList();
+  }
+
+  /// 待补交的删除条数。
+  Future<int> getPendingDeleteCount({DatabaseExecutor? executor}) async {
+    final db = executor ?? await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM $tablePendingOperations '
+      'WHERE operation = ?',
+      ['delete'],
+    );
+    return result.isNotEmpty ? (result.first['count'] as int? ?? 0) : 0;
+  }
+
+  /// 服务端删除成功后移除该条待补交记录。
+  Future<void> clearPendingDelete(
+    String noteId, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    await db.delete(
+      tablePendingOperations,
+      where: 'note_id = ? AND operation = ?',
+      whereArgs: [noteId, 'delete'],
+    );
+  }
+
+  /// 补交失败时累加重试次数并记录原因（不阻塞后续同步）。
+  Future<void> markPendingDeleteAttempt(
+    String noteId, {
+    String? error,
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    await db.rawUpdate(
+      'UPDATE $tablePendingOperations '
+      'SET attempts = IFNULL(attempts, 0) + 1, last_error = ? '
+      'WHERE note_id = ? AND operation = ?',
+      [error, noteId, 'delete'],
     );
   }
 

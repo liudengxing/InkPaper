@@ -511,4 +511,62 @@ void main() {
       expect(rows, hasLength(1));
     });
   });
+
+  // ─────────────────────────────────────────────────────────
+  // 待同步删除队列
+  // ─────────────────────────────────────────────────────────
+  group('DatabaseService — 待同步删除队列', () {
+    test('DB-29 只有服务端笔记的删除会入队', () async {
+      await _saveNote(db, _makeNote(id: 'server-note-1', content: '服务端笔记'));
+      await _saveNote(
+        db,
+        _makeNote(id: 'local_1700000000000_1', content: '本地笔记'),
+      );
+
+      await DatabaseService().softDeleteNote('server-note-1', executor: db);
+      await DatabaseService()
+          .softDeleteNote('local_1700000000000_1', executor: db);
+
+      final pending =
+          await DatabaseService().getPendingDeleteNoteIds(executor: db);
+      expect(pending, ['server-note-1']);
+    });
+
+    test('DB-30 重复入队不会产生重复记录', () async {
+      await DatabaseService().enqueuePendingDelete('x1', executor: db);
+      await DatabaseService().enqueuePendingDelete('x1', executor: db);
+
+      expect(await DatabaseService().getPendingDeleteCount(executor: db), 1);
+    });
+
+    test('DB-31 失败累加 attempts，成功后清除队列', () async {
+      await DatabaseService().enqueuePendingDelete('x2', executor: db);
+      await DatabaseService()
+          .markPendingDeleteAttempt('x2', error: '网络错误', executor: db);
+
+      final rows = await db.query(
+        DatabaseService.tablePendingOperations,
+        where: 'note_id = ?',
+        whereArgs: ['x2'],
+      );
+      expect(rows.single['attempts'], 1);
+      expect(rows.single['last_error'], '网络错误');
+
+      await DatabaseService().clearPendingDelete('x2', executor: db);
+      expect(
+        await DatabaseService().getPendingDeleteNoteIds(executor: db),
+        isEmpty,
+      );
+    });
+
+    test('DB-32 队列按入队顺序返回', () async {
+      await DatabaseService().enqueuePendingDelete('b', executor: db);
+      await DatabaseService().enqueuePendingDelete('a', executor: db);
+      await DatabaseService().enqueuePendingDelete('c', executor: db);
+
+      final pending =
+          await DatabaseService().getPendingDeleteNoteIds(executor: db);
+      expect(pending, ['b', 'a', 'c']);
+    });
+  });
 }

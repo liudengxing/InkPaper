@@ -107,7 +107,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
     _syncMessage = message;
     if (notify) {
-      notifyListeners();
+      notifyUiStateChanged();
     }
     _scheduleWidgetSnapshotUpdate();
   }
@@ -115,7 +115,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   void _setSyncMessage(String? message, {bool notify = true}) {
     _syncMessage = message;
     if (notify) {
-      notifyListeners();
+      notifyUiStateChanged();
     }
     _scheduleWidgetSnapshotUpdate();
   }
@@ -218,6 +218,16 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     _clearNotesCache();
     super.notifyListeners();
   }
+
+  /// 只通知 UI 状态变化（同步进度、加载指示、未读数），不动笔记数据。
+  ///
+  /// 与 [notifyListeners] 的区别是不清 `notes` 缓存，因此 `notes` getter 继续返回
+  /// 同一个 List 实例。用 `Selector<AppProvider, ...>` 订阅列表的页面不会因为
+  /// 「同步到第 3/50 条」这类高频文案变化而重新排序、重新构建整个列表。
+  ///
+  /// 新增调用点前先判断：这次变化会不会让 [notes]、[rawNotes] 的内容或顺序变。
+  /// 会变就用 [notifyListeners]，只有 UI 指示类的才用这里。
+  void notifyUiStateChanged() => super.notifyListeners();
 
   // 设置排序方式
   void setSortOrder(SortOrder sortOrder) {
@@ -740,7 +750,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   // 设置加载状态
   void _setLoading(bool loading) {
     _isLoading = loading;
-    notifyListeners();
+    notifyUiStateChanged();
   }
 
   // 从本地数据库加载笔记
@@ -3313,7 +3323,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       // 🔄 使用新的状态管理机制更新通知数量
       await _updateUnreadCount();
-      notifyListeners();
+      notifyUiStateChanged();
     } on Object catch (e) {
       debugPrint('刷新未读通知数量异常: $e');
     }

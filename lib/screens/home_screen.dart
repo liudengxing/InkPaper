@@ -27,6 +27,20 @@ import 'package:provider/provider.dart';
 
 const bool _screenshotMode = bool.fromEnvironment('INKPAPER_SCREENSHOT_MODE');
 
+/// 主页 feed 需要订阅的最小状态集。
+///
+/// 记录类型有结构相等：`notes` 未被清缓存时是同一个 List 实例，配合
+/// `AppProvider.notifyUiStateChanged()`，同步进度、登录态这类高频变化
+/// 不会再把整个列表重建一遍。
+typedef _FeedSnapshot = ({
+  List<Note> notes,
+  bool hasMoreData,
+  bool isLoadingMore,
+  int loadedCount,
+  int totalCount,
+  String loadMoreStage,
+});
+
 class HomeScreen extends StatefulWidget {
   // 🔥 接收分享的内容
 
@@ -773,14 +787,21 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // 构建通知提示框（仅提醒通知）
-  Widget _buildNotificationBanner() {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final appProvider = Provider.of<AppProvider>(context);
+  //
+  // 用 Selector 只订阅未读数：原先的 Provider.of(context) 会在订阅者列表里
+  // 挂上整个 HomeScreen，任何 provider 通知都会让 AppBar 和列表一起重建。
+  Widget _buildNotificationBanner() => Selector<AppProvider, int>(
+        selector: (_, provider) => provider.unreadAnnouncementsCount,
+        builder: (context, unreadCount, child) {
+          if (unreadCount <= 0) {
+            return const SizedBox.shrink();
+          }
+          return _buildNotificationBannerBody(context, unreadCount);
+        },
+      );
 
-    // 如果没有未读通知，则不显示通知栏
-    if (appProvider.unreadAnnouncementsCount <= 0) {
-      return const SizedBox.shrink();
-    }
+  Widget _buildNotificationBannerBody(BuildContext context, int unreadCount) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     // 设置颜色 - 使用卡片背景色和应用主题强调色
     final backgroundColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
@@ -828,10 +849,8 @@ class _HomeScreenState extends State<HomeScreen>
                   const SizedBox(width: 8),
                   Text(
                     AppLocalizationsSimple.of(context)
-                            ?.unreadNotificationsCount(
-                          appProvider.unreadAnnouncementsCount,
-                        ) ??
-                        '${appProvider.unreadAnnouncementsCount}条未读信息',
+                            ?.unreadNotificationsCount(unreadCount) ??
+                        '$unreadCount条未读信息',
                     style: TextStyle(
                       color: textColor,
                       fontWeight: FontWeight.w400, // 减轻字重
@@ -1186,12 +1205,21 @@ class _HomeScreenState extends State<HomeScreen>
           SizedBox(width: ResponsiveUtils.fontScaledSpacing(context, 8)),
         ],
       ),
-      body: Consumer<AppProvider>(
-        builder: (context, appProvider, child) {
+      body: Selector<AppProvider, _FeedSnapshot>(
+        selector: (_, provider) => (
+          notes: provider.notes,
+          hasMoreData: provider.hasMoreData,
+          isLoadingMore: provider.isLoadingMore,
+          loadedCount: provider.loadedNotesCount,
+          totalCount: provider.totalNotesCount,
+          loadMoreStage: provider.loadMoreState.name,
+        ),
+        builder: (context, feed, child) {
           // 🚀 极速启动：不等loading，立即显示界面
           // 如果没有数据会显示空白状态，数据加载完立即刷新
+          final appProvider = Provider.of<AppProvider>(context, listen: false);
 
-          final allVisibleNotes = appProvider.notes;
+          final allVisibleNotes = feed.notes;
           final notes = _isSearchActive
               ? (_searchController.text.isEmpty
                   ? allVisibleNotes

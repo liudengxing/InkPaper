@@ -183,6 +183,8 @@ class Note {
           _parseTimestamp(json['reminderTime'] ?? json['reminder_time']),
       lastSyncTime:
           _parseTimestamp(json['lastSyncTime'] ?? json['last_sync_time']),
+      deletedAt:
+          _parseTimestamp(json['deletedAt'] ?? json['deleted_at']),
     );
   }
   final String id;
@@ -444,6 +446,9 @@ class Note {
             annotations.map((annotation) => annotation.toJson()).toList(),
         'reminderTime': reminderTime?.toIso8601String(), // ✅ 包含提醒时间
         'lastSyncTime': lastSyncTime?.toIso8601String(), // ✅ 包含同步时间
+        // 软删时间。备份默认不含回收站（导出走 active_notes 视图），这里补上
+        // 是为了将来若要连回收站一起备份，恢复后 GC 仍能按原时间清理。
+        'deletedAt': deletedAt?.toIso8601String(),
       };
 
   /// 本地 id 前缀。本地新建但尚未同步到服务端的笔记使用 `local_<毫秒>_<序号>`。

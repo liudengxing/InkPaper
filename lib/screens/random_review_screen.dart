@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:intpaper/l10n/app_localizations_simple.dart';
 import 'package:intpaper/models/note_model.dart';
 import 'package:intpaper/providers/app_provider.dart';
@@ -18,7 +19,6 @@ import 'package:intpaper/widgets/memos_markdown_renderer.dart';
 import 'package:intpaper/widgets/note_editor.dart';
 import 'package:intpaper/widgets/note_more_options_menu.dart';
 import 'package:intpaper/widgets/sidebar.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 

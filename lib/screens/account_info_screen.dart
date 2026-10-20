@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:intpaper/l10n/app_localizations_simple.dart';
 import 'package:intpaper/models/user_model.dart';
 import 'package:intpaper/providers/app_provider.dart';
@@ -11,7 +12,6 @@ import 'package:intpaper/services/memos_resource_service.dart';
 import 'package:intpaper/services/preferences_service.dart';
 import 'package:intpaper/utils/snackbar_utils.dart';
 import 'package:intpaper/widgets/cached_avatar.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class AccountInfoScreen extends StatefulWidget {

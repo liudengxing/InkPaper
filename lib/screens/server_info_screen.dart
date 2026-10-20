@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:intpaper/l10n/app_localizations_simple.dart';
 import 'package:intpaper/providers/app_provider.dart';
 import 'package:intpaper/services/memos_api_service_fixed.dart';
 import 'package:intpaper/utils/logger.dart';
 import 'package:intpaper/utils/responsive_utils.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class ServerInfoScreen extends StatefulWidget {

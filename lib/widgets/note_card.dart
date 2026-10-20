@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:intpaper/l10n/app_localizations_simple.dart';
 import 'package:intpaper/models/annotation_model.dart';
 import 'package:intpaper/models/note_model.dart';
@@ -29,7 +30,6 @@ import 'package:intpaper/widgets/image_viewer_screen.dart';
 import 'package:intpaper/widgets/memos_markdown_renderer.dart';
 import 'package:intpaper/widgets/note_more_options_menu.dart';
 import 'package:intpaper/widgets/saveable_image.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 

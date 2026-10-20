@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:intpaper/l10n/app_localizations_simple.dart';
 import 'package:intpaper/models/annotation_model.dart';
 import 'package:intpaper/models/note_model.dart';
@@ -17,7 +18,6 @@ import 'package:intpaper/widgets/note_editor.dart';
 import 'package:intpaper/widgets/permission_guide_dialog.dart';
 import 'package:intpaper/widgets/references_sidebar.dart';
 import 'package:intpaper/widgets/share_image_preview_screen.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:intpaper/l10n/app_localizations_simple.dart';
 import 'package:intpaper/models/annotation_model.dart';
 import 'package:intpaper/models/note_model.dart';
 import 'package:intpaper/themes/app_theme.dart';
-import 'package:intl/intl.dart';
 
 /// 批注侧边栏 - 专业版
 ///

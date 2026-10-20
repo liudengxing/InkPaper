@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:intpaper/l10n/app_localizations_simple.dart';
 import 'package:intpaper/models/annotation_model.dart';
 import 'package:intpaper/models/note_model.dart';
@@ -23,7 +24,6 @@ import 'package:intpaper/widgets/intelligent_related_notes_sheet.dart';
 import 'package:intpaper/widgets/memos_markdown_renderer.dart';
 import 'package:intpaper/widgets/note_editor.dart';
 import 'package:intpaper/widgets/note_more_options_menu.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 

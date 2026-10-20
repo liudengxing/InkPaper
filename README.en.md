@@ -99,8 +99,8 @@ The command creates and pushes a version tag. GitHub Actions then verifies, buil
 
 ## Legal and Privacy
 
-IntPaper is maintained on top of the InkRoot codebase. Privacy, user-agreement, and account/data-deletion terms follow the in-repository [SECURITY.md](SECURITY.md) and [CONTRIBUTING.md](CONTRIBUTING.md). The original InkRoot online legal pages (inkroot.cn) no longer apply to this repository.
+Privacy, user-agreement, and account/data-deletion terms follow the in-repository [SECURITY.md](SECURITY.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-IntPaper is based on the InkRoot codebase and is released under the MIT License. See [LICENSE](LICENSE).
+IntPaper is released under the MIT License. See [LICENSE](LICENSE).

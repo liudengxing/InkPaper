@@ -100,8 +100,8 @@ dart tool/inkroot.dart release v1.0.0
 
 ## 法律与隐私
 
-本项目基于 InkRoot 代码继续维护。隐私、用户协议与账号数据删除等法律条款以仓库内 [SECURITY.md](SECURITY.md) 与 [CONTRIBUTING.md](CONTRIBUTING.md) 为准；原 InkRoot 的在线法律页面（inkroot.cn）不再适用本仓库。
+本项目隐私、用户协议与账号数据删除等法律条款以仓库内 [SECURITY.md](SECURITY.md) 与 [CONTRIBUTING.md](CONTRIBUTING.md) 为准。
 
 ## 许可证
 
-小纸基于 InkRoot 代码，沿用 MIT License。详见 [LICENSE](LICENSE)。
+小纸沿用 MIT License。详见 [LICENSE](LICENSE)。

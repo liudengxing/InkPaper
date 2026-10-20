@@ -143,6 +143,12 @@ class _NoteCardState extends State<NoteCard>
         final rowsNeeded = ((imageCount - 1) ~/ 3 + 1).clamp(0, 3);
         final gridHeight = rowsNeeded * imageWidth + (rowsNeeded - 1) * spacing;
 
+        // 解码尺寸按格子实际像素宽度定，不要固定 720：
+        // 三列网格每格约 110dp，固定 720 宽会多解出 4 倍以上的像素，
+        // 十几张图就能把 ImageCache 顶满并触发反复回收。
+        final decodeWidth =
+            (imageWidth * MediaQuery.devicePixelRatioOf(context)).round();
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -235,6 +241,7 @@ class _NoteCardState extends State<NoteCard>
                           imagePaths[index],
                           imagePaths: imagePaths,
                           index: index,
+                          decodeWidth: decodeWidth,
                         ),
                       );
 
@@ -331,6 +338,7 @@ class _NoteCardState extends State<NoteCard>
     String imagePath, {
     List<String>? imagePaths,
     int index = 0,
+    int? decodeWidth,
   }) {
     try {
       return GestureDetector(
@@ -348,7 +356,11 @@ class _NoteCardState extends State<NoteCard>
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: _buildImageWidget(imagePath, context),
+            child: _buildImageWidget(
+              imagePath,
+              context,
+              decodeWidth: decodeWidth,
+            ),
           ),
         ),
       );
@@ -472,7 +484,13 @@ class _NoteCardState extends State<NoteCard>
   }
 
   // 构建图片组件，支持不同类型的图片源，支持长按保存
-  Widget _buildImageWidget(String imagePath, BuildContext context) {
+  Widget _buildImageWidget(
+    String imagePath,
+    BuildContext context, {
+    int? decodeWidth,
+  }) {
+    // 缩略图按卡片格子的实际像素宽度解码；全屏查看由 ImageViewerScreen 自己加载原图。
+    final memWidth = (decodeWidth ?? 720).clamp(160, 720);
     try {
       if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
         // 🚀 网络图片 - 90天长期缓存，支持长按保存
@@ -482,7 +500,7 @@ class _NoteCardState extends State<NoteCard>
             imageUrl: imagePath,
             cacheManager: ImageCacheManager.authImageCache, // 🔥 90天缓存
             fit: BoxFit.cover,
-            memCacheWidth: 720,
+            memCacheWidth: memWidth,
             fadeInDuration: const Duration(milliseconds: 150),
             fadeOutDuration: const Duration(milliseconds: 50),
             placeholder: (context, url) => Container(
@@ -561,7 +579,7 @@ class _NoteCardState extends State<NoteCard>
             cacheManager: ImageCacheManager.authImageCache, // 🔥 90天缓存
             httpHeaders: headers,
             fit: BoxFit.cover,
-            memCacheWidth: 720,
+            memCacheWidth: memWidth,
             fadeInDuration: const Duration(milliseconds: 150),
             fadeOutDuration: const Duration(milliseconds: 50),
             placeholder: (context, url) => Container(

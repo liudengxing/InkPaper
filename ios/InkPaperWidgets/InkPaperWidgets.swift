@@ -1,14 +1,14 @@
 import SwiftUI
 import WidgetKit
 
-private let appGroupIdentifier = "group.com.didichou.intpaper"
-private let snapshotKey = "intpaper_widget_snapshot"
+private let appGroupIdentifier = "group.com.didichou.inkpaper"
+private let snapshotKey = "inkpaper_widget_snapshot"
 private let primary = Color(red: 44 / 255, green: 150 / 255, blue: 120 / 255)
 private let textColor = Color(red: 31 / 255, green: 42 / 255, blue: 39 / 255)
 private let mutedColor = Color(red: 108 / 255, green: 120 / 255, blue: 116 / 255)
 private let surfaceColor = Color(red: 245 / 255, green: 247 / 255, blue: 246 / 255)
 
-struct IntPaperWidgetEntry: TimelineEntry {
+struct InkPaperWidgetEntry: TimelineEntry {
   let date: Date
   let snapshot: WidgetSnapshot
 }
@@ -40,27 +40,27 @@ struct ReviewNote {
   let preview: String
 }
 
-struct IntPaperTimelineProvider: TimelineProvider {
-  func placeholder(in context: Context) -> IntPaperWidgetEntry {
-    IntPaperWidgetEntry(date: Date(), snapshot: .placeholder)
+struct InkPaperTimelineProvider: TimelineProvider {
+  func placeholder(in context: Context) -> InkPaperWidgetEntry {
+    InkPaperWidgetEntry(date: Date(), snapshot: .placeholder)
   }
 
   func getSnapshot(
     in context: Context,
-    completion: @escaping (IntPaperWidgetEntry) -> Void
+    completion: @escaping (InkPaperWidgetEntry) -> Void
   ) {
-    completion(IntPaperWidgetEntry(date: Date(), snapshot: loadSnapshot()))
+    completion(InkPaperWidgetEntry(date: Date(), snapshot: loadSnapshot()))
   }
 
   func getTimeline(
     in context: Context,
-    completion: @escaping (Timeline<IntPaperWidgetEntry>) -> Void
+    completion: @escaping (Timeline<InkPaperWidgetEntry>) -> Void
   ) {
     let snapshot = loadSnapshot()
     let interval = TimeInterval(max(15, min(snapshot.reviewRefreshIntervalMinutes, 1440)) * 60)
     let now = Date()
     let entries = (0..<24).map { offset in
-      IntPaperWidgetEntry(
+      InkPaperWidgetEntry(
         date: now.addingTimeInterval(interval * TimeInterval(offset)),
         snapshot: snapshot
       )
@@ -105,9 +105,9 @@ struct IntPaperTimelineProvider: TimelineProvider {
   }
 }
 
-struct IntPaperQuickNoteView: View {
+struct InkPaperQuickNoteView: View {
   @Environment(\.widgetFamily) private var family
-  let entry: IntPaperWidgetEntry
+  let entry: InkPaperWidgetEntry
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
@@ -121,7 +121,7 @@ struct IntPaperQuickNoteView: View {
           .foregroundColor(mutedColor)
       }
 
-      Link(destination: URL(string: "intpaper://quick-note")!) {
+      Link(destination: URL(string: "inkpaper://quick-note")!) {
         Text("+ 写一条")
           .font(.footnote.weight(.semibold))
           .foregroundColor(.white)
@@ -132,7 +132,7 @@ struct IntPaperQuickNoteView: View {
       if family != .systemSmall {
         HStack(spacing: 6) {
           ForEach(Array(entry.snapshot.quickTags.prefix(3)), id: \.self) { tag in
-            Link(destination: URL(string: "intpaper://quick-note?tag=\(encoded(tag))")!) {
+            Link(destination: URL(string: "inkpaper://quick-note?tag=\(encoded(tag))")!) {
               Text("#\(tag)")
                 .font(.caption2.weight(.medium))
                 .foregroundColor(primary)
@@ -169,9 +169,9 @@ struct IntPaperQuickNoteView: View {
   }
 }
 
-struct IntPaperRandomReviewView: View {
+struct InkPaperRandomReviewView: View {
   @Environment(\.widgetFamily) private var family
-  let entry: IntPaperWidgetEntry
+  let entry: InkPaperWidgetEntry
 
   private var review: ReviewNote? {
     guard !entry.snapshot.reviewNotes.isEmpty else {
@@ -186,8 +186,8 @@ struct IntPaperRandomReviewView: View {
 
   var body: some View {
     let currentReview = review
-    let destination = currentReview?.id.flatMap { URL(string: "intpaper://note/\($0)") }
-      ?? URL(string: "intpaper://random-review")!
+    let destination = currentReview?.id.flatMap { URL(string: "inkpaper://note/\($0)") }
+      ?? URL(string: "inkpaper://random-review")!
 
     Link(destination: destination) {
       VStack(alignment: .leading, spacing: 10) {
@@ -234,7 +234,7 @@ struct IntPaperRandomReviewView: View {
     if entry.snapshot.generatedAt != nil {
       return "暂无可回顾笔记"
     }
-    return "打开 IntPaper 同步小组件"
+    return "打开 InkPaper 同步小组件"
   }
 
   private var rangeText: String {
@@ -255,37 +255,37 @@ struct IntPaperRandomReviewView: View {
   }
 }
 
-struct IntPaperQuickNoteWidget: Widget {
-  let kind = "IntPaperQuickNoteWidget"
+struct InkPaperQuickNoteWidget: Widget {
+  let kind = "InkPaperQuickNoteWidget"
 
   var body: some WidgetConfiguration {
-    StaticConfiguration(kind: kind, provider: IntPaperTimelineProvider()) { entry in
-      IntPaperQuickNoteView(entry: entry)
+    StaticConfiguration(kind: kind, provider: InkPaperTimelineProvider()) { entry in
+      InkPaperQuickNoteView(entry: entry)
     }
-    .configurationDisplayName("IntPaper 快速记录")
+    .configurationDisplayName("InkPaper 快速记录")
     .description("打开快捷编辑器，或从常用标签开始记录。")
     .supportedFamilies([.systemSmall, .systemMedium])
   }
 }
 
-struct IntPaperRandomReviewWidget: Widget {
-  let kind = "IntPaperRandomReviewWidget"
+struct InkPaperRandomReviewWidget: Widget {
+  let kind = "InkPaperRandomReviewWidget"
 
   var body: some WidgetConfiguration {
-    StaticConfiguration(kind: kind, provider: IntPaperTimelineProvider()) { entry in
-      IntPaperRandomReviewView(entry: entry)
+    StaticConfiguration(kind: kind, provider: InkPaperTimelineProvider()) { entry in
+      InkPaperRandomReviewView(entry: entry)
     }
-    .configurationDisplayName("IntPaper 随机回顾")
+    .configurationDisplayName("InkPaper 随机回顾")
     .description("按设置的时间和范围回顾历史笔记。")
     .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
   }
 }
 
 @main
-struct IntPaperWidgets: WidgetBundle {
+struct InkPaperWidgets: WidgetBundle {
   var body: some Widget {
-    IntPaperQuickNoteWidget()
-    IntPaperRandomReviewWidget()
+    InkPaperQuickNoteWidget()
+    InkPaperRandomReviewWidget()
   }
 }
 

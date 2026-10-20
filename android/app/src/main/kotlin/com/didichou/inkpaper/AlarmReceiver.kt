@@ -1,4 +1,4 @@
-package com.didichou.intpaper
+package com.didichou.inkpaper
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -150,7 +150,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 // 使用SINGLE_TOP避免重启应用，如果应用在后台就直接唤起
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 // 添加action确保onNewIntent能收到
-                action = "com.didichou.intpaper.OPEN_NOTE"
+                action = "com.didichou.inkpaper.OPEN_NOTE"
                 putExtra("noteId", noteId)
             }
             
@@ -250,7 +250,7 @@ class AlarmReceiver : BroadcastReceiver() {
             // 使用显式Intent发送广播（Android 8.0+必须）
             try {
                 val saveIntent = Intent(context, MainActivity::class.java)
-                saveIntent.action = "com.didichou.intpaper.SAVE_REMINDER_NOTIFICATION"
+                saveIntent.action = "com.didichou.inkpaper.SAVE_REMINDER_NOTIFICATION"
                 saveIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 saveIntent.putExtra("noteId", noteId)
                 saveIntent.putExtra("title", title)

@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "IntPaper" "\0"
-            VALUE "FileDescription", "IntPaper" "\0"
+            VALUE "CompanyName", "InkPaper" "\0"
+            VALUE "FileDescription", "InkPaper" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "IntPaper" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 IntPaper. All rights reserved." "\0"
-            VALUE "OriginalFilename", "IntPaper.exe" "\0"
-            VALUE "ProductName", "IntPaper" "\0"
+            VALUE "InternalName", "InkPaper" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 InkPaper. All rights reserved." "\0"
+            VALUE "OriginalFilename", "InkPaper.exe" "\0"
+            VALUE "ProductName", "InkPaper" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

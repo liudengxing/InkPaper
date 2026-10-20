@@ -4,7 +4,7 @@
 <dict>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.didichou.intpaper</string>
+		<string>group.com.didichou.inkpaper</string>
 	</array>
 </dict>
 </plist>

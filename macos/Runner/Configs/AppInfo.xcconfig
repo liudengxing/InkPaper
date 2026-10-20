@@ -5,13 +5,13 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = IntPaper
+PRODUCT_NAME = InkPaper
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper
+PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkpaper
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2025 IntPaper. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2025 InkPaper. All rights reserved.
 
 // Minimum macOS deployment target
 MACOSX_DEPLOYMENT_TARGET = 11.0

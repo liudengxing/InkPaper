@@ -10,7 +10,7 @@
 			<string>en</string>
 		</array>
 		<key>CFBundleDisplayName</key>
-					<string>intpaper</string>
+					<string>inkpaper</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -18,15 +18,15 @@
 		<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
 		<key>CFBundleName</key>
-					<string>intpaper</string>
+					<string>inkpaper</string>
 		<key>CFBundleURLTypes</key>
 		<array>
 			<dict>
 				<key>CFBundleURLName</key>
-				<string>com.didichou.intpaper</string>
+				<string>com.didichou.inkpaper</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>intpaper</string>
+					<string>inkpaper</string>
 				</array>
 			</dict>
 		</array>
@@ -109,15 +109,15 @@
 		</dict>
 		<!-- 隐私权限说明 -->
 		<key>NSMicrophoneUsageDescription</key>
-		<string>IntPaper需要访问麦克风以使用语音识别和录制音频笔记</string>
+		<string>InkPaper需要访问麦克风以使用语音识别和录制音频笔记</string>
 		<key>NSSpeechRecognitionUsageDescription</key>
-		<string>IntPaper需要使用语音识别来将您的语音转换为文字</string>
+		<string>InkPaper需要使用语音识别来将您的语音转换为文字</string>
 		<key>NSPhotoLibraryUsageDescription</key>
-		<string>IntPaper需要访问相册以保存和选择图片</string>
+		<string>InkPaper需要访问相册以保存和选择图片</string>
 		<key>NSPhotoLibraryAddUsageDescription</key>
-		<string>IntPaper需要访问相册以保存图片</string>
+		<string>InkPaper需要访问相册以保存图片</string>
 		<key>NSCameraUsageDescription</key>
-		<string>IntPaper需要访问相机以拍摄图片</string>
+		<string>InkPaper需要访问相机以拍摄图片</string>
 		<!-- 支持时间敏感通知 (iOS 15+) -->
 		<key>UIUserNotificationSettings</key>
 		<dict>

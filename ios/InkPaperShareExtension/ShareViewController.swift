@@ -1,8 +1,8 @@
 import UIKit
 import UniformTypeIdentifiers
 
-private let appGroupIdentifier = "group.com.didichou.intpaper"
-private let sharedPayloadKey = "intpaper_pending_share_payload"
+private let appGroupIdentifier = "group.com.didichou.inkpaper"
+private let sharedPayloadKey = "inkpaper_pending_share_payload"
 
 final class ShareViewController: UIViewController {
   override func viewDidAppear(_ animated: Bool) {
@@ -165,7 +165,7 @@ final class ShareViewController: UIViewController {
   }
 
   private func openMainApp() {
-    guard let url = URL(string: "intpaper://share") else {
+    guard let url = URL(string: "inkpaper://share") else {
       return
     }
     extensionContext?.open(url, completionHandler: nil)

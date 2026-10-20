@@ -1,4 +1,4 @@
-package com.didichou.intpaper
+package com.didichou.inkpaper
 
 import android.app.PendingIntent
 import android.app.AlarmManager
@@ -13,7 +13,7 @@ import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONObject
 
-abstract class BaseIntPaperWidgetProvider : AppWidgetProvider() {
+abstract class BaseInkPaperWidgetProvider : AppWidgetProvider() {
     final override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -61,27 +61,27 @@ abstract class BaseIntPaperWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
-        const val PREFS_NAME = "intpaper_widget"
-        const val SNAPSHOT_KEY = "intpaper_widget_snapshot"
+        const val PREFS_NAME = "inkpaper_widget"
+        const val SNAPSHOT_KEY = "inkpaper_widget_snapshot"
     }
 }
 
-class IntPaperQuickNoteWidgetProvider : BaseIntPaperWidgetProvider() {
+class InkPaperQuickNoteWidgetProvider : BaseInkPaperWidgetProvider() {
     override fun updateWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int
     ) {
         val snapshot = snapshot(context)
-        val views = RemoteViews(context.packageName, R.layout.intpaper_quick_note_widget)
+        val views = RemoteViews(context.packageName, R.layout.inkpaper_quick_note_widget)
         val noteCount = snapshot?.optJSONObject("today")?.optInt("notes", 0) ?: 0
         val pendingTodos = snapshot?.optJSONObject("today")?.optInt("pendingTodos", 0) ?: 0
         val unsynced = snapshot?.optJSONObject("sync")?.optInt("unsyncedCount", 0) ?: 0
         val quickTags = snapshot?.optJSONArray("quickTags")
 
-        views.setTextViewText(R.id.intpaper_widget_subtitle, "今日 $noteCount 条")
+        views.setTextViewText(R.id.inkpaper_widget_subtitle, "今日 $noteCount 条")
         views.setTextViewText(
-            R.id.intpaper_widget_status,
+            R.id.inkpaper_widget_status,
             when {
                 unsynced > 0 -> "$unsynced 条待同步"
                 pendingTodos > 0 -> "$pendingTodos 个待办"
@@ -89,14 +89,14 @@ class IntPaperQuickNoteWidgetProvider : BaseIntPaperWidgetProvider() {
             }
         )
         views.setOnClickPendingIntent(
-            R.id.intpaper_widget_quick_note,
-            deepLinkPendingIntent(context, "intpaper://quick-note", 10)
+            R.id.inkpaper_widget_quick_note,
+            deepLinkPendingIntent(context, "inkpaper://quick-note", 10)
         )
 
         val tagIds = intArrayOf(
-            R.id.intpaper_widget_tag_1,
-            R.id.intpaper_widget_tag_2,
-            R.id.intpaper_widget_tag_3
+            R.id.inkpaper_widget_tag_1,
+            R.id.inkpaper_widget_tag_2,
+            R.id.inkpaper_widget_tag_3
         )
         for (index in tagIds.indices) {
             val tag = quickTags?.optString(index).orEmpty()
@@ -109,7 +109,7 @@ class IntPaperQuickNoteWidgetProvider : BaseIntPaperWidgetProvider() {
                     tagIds[index],
                     deepLinkPendingIntent(
                         context,
-                        "intpaper://quick-note?tag=${Uri.encode(tag)}",
+                        "inkpaper://quick-note?tag=${Uri.encode(tag)}",
                         30 + index
                     )
                 )
@@ -120,7 +120,7 @@ class IntPaperQuickNoteWidgetProvider : BaseIntPaperWidgetProvider() {
     }
 }
 
-class IntPaperRandomReviewWidgetProvider : BaseIntPaperWidgetProvider() {
+class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action == ACTION_RANDOM_REVIEW_TICK) {
             updateAllReviewWidgets(context)
@@ -146,7 +146,7 @@ class IntPaperRandomReviewWidgetProvider : BaseIntPaperWidgetProvider() {
         appWidgetId: Int
     ) {
         val snapshot = snapshot(context)
-        val views = RemoteViews(context.packageName, R.layout.intpaper_random_review_widget)
+        val views = RemoteViews(context.packageName, R.layout.inkpaper_random_review_widget)
         val reviewNotes = snapshot?.optJSONArray("reviewNotes")
         val reviewConfig = snapshot?.optJSONObject("reviewConfig")
         val hasSnapshot = snapshot != null && snapshot.optString("generatedAt").isNotBlank()
@@ -161,25 +161,25 @@ class IntPaperRandomReviewWidgetProvider : BaseIntPaperWidgetProvider() {
             null
         }
         val reviewText = review?.optString("preview")?.takeIf { it.isNotBlank() }
-            ?: if (hasSnapshot) "暂无可回顾笔记" else "打开 IntPaper 同步小组件"
+            ?: if (hasSnapshot) "暂无可回顾笔记" else "打开 InkPaper 同步小组件"
         val reviewId = review?.optString("id").orEmpty()
 
-        views.setTextViewText(R.id.intpaper_widget_review, reviewText)
+        views.setTextViewText(R.id.inkpaper_widget_review, reviewText)
         views.setTextViewText(
-            R.id.intpaper_widget_status,
+            R.id.inkpaper_widget_status,
             "${formatRefresh(refreshMinutes)} · ${formatRange(rangeDays)}"
         )
         views.setOnClickPendingIntent(
-            R.id.intpaper_widget_review_container,
+            R.id.inkpaper_widget_review_container,
             deepLinkPendingIntent(
                 context,
-                if (reviewId.isNotBlank()) "intpaper://note/$reviewId" else "intpaper://random-review",
+                if (reviewId.isNotBlank()) "inkpaper://note/$reviewId" else "inkpaper://random-review",
                 50
             )
         )
         views.setOnClickPendingIntent(
-            R.id.intpaper_widget_random,
-            deepLinkPendingIntent(context, "intpaper://random-review", 51)
+            R.id.inkpaper_widget_random,
+            deepLinkPendingIntent(context, "inkpaper://random-review", 51)
         )
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -202,7 +202,7 @@ class IntPaperRandomReviewWidgetProvider : BaseIntPaperWidgetProvider() {
     private fun updateAllReviewWidgets(context: Context) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val widgetIds = appWidgetManager.getAppWidgetIds(
-            ComponentName(context, IntPaperRandomReviewWidgetProvider::class.java)
+            ComponentName(context, InkPaperRandomReviewWidgetProvider::class.java)
         )
         for (appWidgetId in widgetIds) {
             updateWidget(context, appWidgetManager, appWidgetId)
@@ -212,7 +212,7 @@ class IntPaperRandomReviewWidgetProvider : BaseIntPaperWidgetProvider() {
     private fun scheduleReviewUpdate(context: Context, refreshMinutes: Int = currentRefreshMinutes(context)) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val widgetIds = appWidgetManager.getAppWidgetIds(
-            ComponentName(context, IntPaperRandomReviewWidgetProvider::class.java)
+            ComponentName(context, InkPaperRandomReviewWidgetProvider::class.java)
         )
         if (widgetIds.isEmpty()) {
             cancelReviewUpdate(context)
@@ -245,7 +245,7 @@ class IntPaperRandomReviewWidgetProvider : BaseIntPaperWidgetProvider() {
     }
 
     private fun reviewUpdatePendingIntent(context: Context): PendingIntent {
-        val intent = Intent(context, IntPaperRandomReviewWidgetProvider::class.java).apply {
+        val intent = Intent(context, InkPaperRandomReviewWidgetProvider::class.java).apply {
             action = ACTION_RANDOM_REVIEW_TICK
         }
         val immutableFlag =
@@ -264,6 +264,6 @@ class IntPaperRandomReviewWidgetProvider : BaseIntPaperWidgetProvider() {
 
     companion object {
         private const val ACTION_RANDOM_REVIEW_TICK =
-            "com.didichou.intpaper.action.RANDOM_REVIEW_WIDGET_TICK"
+            "com.didichou.inkpaper.action.RANDOM_REVIEW_WIDGET_TICK"
     }
 }

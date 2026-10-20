@@ -1,6 +1,6 @@
 {
-    "name": "IntPaper",
-    "short_name": "IntPaper",
+    "name": "InkPaper",
+    "short_name": "InkPaper",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

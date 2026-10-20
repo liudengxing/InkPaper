@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="intpaper_quick_note_widget_description">IntPaper quick note</string>
-    <string name="intpaper_random_review_widget_description">IntPaper random review</string>
+    <string name="inkpaper_quick_note_widget_description">InkPaper quick note</string>
+    <string name="inkpaper_random_review_widget_description">InkPaper random review</string>
 </resources>

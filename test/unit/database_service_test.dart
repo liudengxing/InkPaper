@@ -21,28 +21,11 @@ Future<Database> _openTestDb() async {
   return databaseFactory.openDatabase(
     inMemoryDatabasePath,
     options: OpenDatabaseOptions(
-      version: 8,
+      version: DatabaseService.schemaVersion,
+      singleInstance: false,
       onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE notes(
-            id TEXT PRIMARY KEY,
-            content TEXT NOT NULL,
-            createdAt TEXT NOT NULL,
-            updatedAt TEXT NOT NULL,
-            displayTime TEXT,
-            tags TEXT,
-            creator TEXT,
-            is_synced INTEGER DEFAULT 0,
-            isPinned INTEGER DEFAULT 0,
-            visibility TEXT DEFAULT 'PRIVATE',
-            rowStatus TEXT DEFAULT 'NORMAL',
-            resourceList TEXT DEFAULT '[]',
-            relations TEXT DEFAULT '[]',
-            annotations TEXT DEFAULT '[]',
-            reminder_time TEXT,
-            last_sync_time TEXT
-          )
-        ''');
+        // 直接用生产建表逻辑，避免测试库结构与线上漂移
+        await DatabaseService.createSchema(db);
       },
     ),
   );
@@ -455,6 +438,77 @@ void main() {
       );
 
       expect(maps.map((r) => r['id']), ['pct']);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // 软删除 / 最近删除
+  // ─────────────────────────────────────────────────────────
+  group('DatabaseService — 软删除', () {
+    test('DB-24 softDeleteNote 后视图查不到，行仍留在 notes 表', () async {
+      await _saveNote(db, _makeNote(id: 'sd1', content: '待删除'));
+      await DatabaseService().softDeleteNote('sd1', executor: db);
+
+      expect(await db.query(DatabaseService.viewActiveNotes), isEmpty);
+
+      final deleted = await db.query(
+        'notes',
+        where: "IFNULL(rowStatus, 'NORMAL') = 'DELETED'",
+      );
+      expect(deleted.map((row) => row['id']), ['sd1']);
+      expect(deleted.single['deleted_at'], isNotNull);
+    });
+
+    test('DB-25 软删后再次 upsert 不会复活笔记', () async {
+      final note = _makeNote(id: 'sd2', content: '原文');
+      await _saveNote(db, note);
+      await DatabaseService().softDeleteNote('sd2', executor: db);
+
+      await DatabaseService.upsertNote(db, note.copyWith(content: '被编辑'));
+
+      final raw = await db.query('notes', where: 'id = ?', whereArgs: ['sd2']);
+      expect(raw.single['rowStatus'], 'DELETED');
+      expect(raw.single['content'], '原文'); // 已删行不接受覆盖
+    });
+
+    test('DB-26 restoreDeletedNote 恢复为正常笔记', () async {
+      await _saveNote(db, _makeNote(id: 'sd3', content: '可恢复'));
+      await DatabaseService().softDeleteNote('sd3', executor: db);
+      await DatabaseService().restoreDeletedNote('sd3', executor: db);
+
+      final active = await db.query(DatabaseService.viewActiveNotes);
+      expect(active.map((row) => row['id']), ['sd3']);
+      expect(active.single['deleted_at'], isNull);
+    });
+
+    test('DB-27 purgeDeletedNotesOlderThan 只清理过期的软删笔记', () async {
+      await _saveNote(db, _makeNote(id: 'old', content: '旧删除'));
+      await _saveNote(db, _makeNote(id: 'fresh', content: '新删除'));
+      await _saveNote(db, _makeNote(id: 'alive', content: '正常'));
+
+      await DatabaseService().softDeleteNote(
+        'old',
+        executor: db,
+        deletedAt: DateTime.now().subtract(const Duration(days: 40)),
+      );
+      await DatabaseService().softDeleteNote('fresh', executor: db);
+
+      final removed = await DatabaseService()
+          .purgeDeletedNotesOlderThan(const Duration(days: 30), executor: db);
+
+      expect(removed, 1);
+      final ids =
+          (await db.query('notes')).map((row) => row['id']).toList();
+      expect(ids, containsAll(<String>['fresh', 'alive']));
+      expect(ids, isNot(contains('old')));
+    });
+
+    test('DB-28 purgeDeletedNote 不会误删未软删的笔记', () async {
+      await _saveNote(db, _makeNote(id: 'keep', content: '正常'));
+      await DatabaseService().purgeDeletedNote('keep', executor: db);
+
+      final rows = await db.query('notes', where: 'id = ?', whereArgs: ['keep']);
+      expect(rows, hasLength(1));
     });
   });
 }

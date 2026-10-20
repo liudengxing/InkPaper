@@ -251,10 +251,30 @@ class DatabaseService {
   // 保存笔记到数据库
   Future<void> saveNote(Note note) async {
     final db = await database;
+    await upsertNote(db, note);
+  }
+
+  /// 写入单条笔记。
+  ///
+  /// 不用 `ConflictAlgorithm.replace`：SQLite 的 REPLACE 是「删旧行 + 插新行」，
+  /// 会把 `deleted_at` 一起丢掉，导致软删的笔记被任意一次保存"复活"。
+  /// 这里先 UPDATE（已软删的行不命中），再 INSERT（行已存在时忽略），
+  /// 因此删除状态是黏性的，只能通过 [restoreDeletedNote] 解除。
+  static Future<void> upsertNote(DatabaseExecutor db, Note note) async {
+    final map = note.toMap();
+    final updated = await db.update(
+      'notes',
+      map,
+      where: "id = ? AND IFNULL(rowStatus, 'NORMAL') <> 'DELETED'",
+      whereArgs: [note.id],
+    );
+    if (updated > 0) {
+      return;
+    }
     await db.insert(
       'notes',
-      note.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      map,
+      conflictAlgorithm: ConflictAlgorithm.ignore,
     );
   }
 
@@ -264,18 +284,115 @@ class DatabaseService {
     await db.update(
       'notes',
       note.toMap(),
-      where: 'id = ?',
+      where: "id = ? AND IFNULL(rowStatus, 'NORMAL') <> 'DELETED'",
       whereArgs: [note.id],
     );
   }
 
-  // 删除笔记
+  // 物理删除笔记（彻底删除，不可恢复）
   Future<void> deleteNote(String id) async {
     final db = await database;
     await db.delete(
       'notes',
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  // ── 软删除 / 最近删除 ─────────────────────────────────────────────────
+
+  /// 软删除：保留行以便撤销与「最近删除」，只打删除标记。
+  Future<void> softDeleteNote(
+    String id, {
+    DatabaseExecutor? executor,
+    DateTime? deletedAt,
+  }) async {
+    final db = executor ?? await database;
+    await db.update(
+      'notes',
+      {
+        'rowStatus': 'DELETED',
+        'deleted_at': (deletedAt ?? DateTime.now()).toIso8601String(),
+        'is_synced': 0,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 从「最近删除」恢复为正常笔记。
+  Future<void> restoreDeletedNote(
+    String id, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    await db.update(
+      'notes',
+      {
+        'rowStatus': 'NORMAL',
+        'deleted_at': null,
+        'is_synced': 0,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 「最近删除」列表，按删除时间倒序。
+  Future<List<Note>> getDeletedNotes({DatabaseExecutor? executor}) async {
+    final db = executor ?? await database;
+    final maps = await db.query(
+      'notes',
+      where: "IFNULL(rowStatus, 'NORMAL') = 'DELETED'",
+      orderBy: 'deleted_at DESC',
+    );
+    return maps.map(Note.fromMap).toList();
+  }
+
+  /// 「最近删除」中的笔记数量。
+  Future<int> getDeletedNotesCount({DatabaseExecutor? executor}) async {
+    final db = executor ?? await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM notes '
+      "WHERE IFNULL(rowStatus, 'NORMAL') = 'DELETED'",
+    );
+    return result.isNotEmpty ? (result.first['count'] as int? ?? 0) : 0;
+  }
+
+  /// 彻底删除一条已软删的笔记（不可恢复）。
+  Future<void> purgeDeletedNote(
+    String id, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    await db.delete(
+      'notes',
+      where: "id = ? AND IFNULL(rowStatus, 'NORMAL') = 'DELETED'",
+      whereArgs: [id],
+    );
+  }
+
+  /// 清空「最近删除」，返回被彻底删除的条数。
+  Future<int> purgeAllDeletedNotes({DatabaseExecutor? executor}) async {
+    final db = executor ?? await database;
+    return db.delete(
+      'notes',
+      where: "IFNULL(rowStatus, 'NORMAL') = 'DELETED'",
+    );
+  }
+
+  /// 清理软删超过 [age] 的笔记（回收站保留期）。返回清理条数。
+  Future<int> purgeDeletedNotesOlderThan(
+    Duration age, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    final threshold = DateTime.now().subtract(age).toIso8601String();
+    return db.delete(
+      'notes',
+      where: "IFNULL(rowStatus, 'NORMAL') = 'DELETED' "
+          'AND IFNULL(deleted_at, ?) < ?',
+      whereArgs: [threshold, threshold],
     );
   }
 
@@ -378,20 +495,14 @@ class DatabaseService {
     });
   }
 
-  // 批量保存笔记（upsert：存在则更新，不存在则插入）
+  // 批量保存笔记（upsert：存在则更新，不存在则插入，已软删的行不会被复活）
   Future<void> saveNotes(List<Note> notes) async {
     final db = await database;
-    final batch = db.batch();
-
-    for (final note in notes) {
-      batch.insert(
-        'notes',
-        note.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }
-
-    await batch.commit();
+    await db.transaction((txn) async {
+      for (final note in notes) {
+        await upsertNote(txn, note);
+      }
+    });
   }
 
   /// 原子替换全部笔记。用于恢复备份，避免先清空后逐条写入导致半恢复状态。
@@ -401,11 +512,7 @@ class DatabaseService {
       await txn.delete('reminder_notifications');
       await txn.delete('notes');
       for (final note in notes) {
-        await txn.insert(
-          'notes',
-          note.toMap(),
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+        await txn.insert('notes', note.toMap());
       }
     });
   }
@@ -750,38 +857,11 @@ class DatabaseService {
               clearLastSyncTime: true,
             );
 
-            await txn.insert(
-              'notes',
-              newNote.toMap(),
-              conflictAlgorithm: ConflictAlgorithm.replace,
-            );
+            await upsertNote(txn, newNote);
             imported++;
           } else if (overwriteExisting) {
-            // 检查是否存在相同ID的笔记
-            final exists = Sqflite.firstIntValue(
-                  await txn.rawQuery(
-                    'SELECT COUNT(*) FROM notes WHERE id = ?',
-                    [note.id],
-                  ),
-                ) ??
-                0;
-
-            if (exists > 0) {
-              // 存在则更新
-              await txn.update(
-                'notes',
-                note.toMap(),
-                where: 'id = ?',
-                whereArgs: [note.id],
-              );
-            } else {
-              // 不存在则插入
-              await txn.insert(
-                'notes',
-                note.toMap(),
-                conflictAlgorithm: ConflictAlgorithm.replace,
-              );
-            }
+            // 存在则更新、不存在则插入（已软删的行保持删除状态）
+            await upsertNote(txn, note);
             imported++;
           } else {
             // 检查是否存在相同ID的笔记
@@ -795,11 +875,7 @@ class DatabaseService {
 
             // 只有不存在时才插入
             if (exists == 0) {
-              await txn.insert(
-                'notes',
-                note.toMap(),
-                conflictAlgorithm: ConflictAlgorithm.replace,
-              );
+              await upsertNote(txn, note);
               imported++;
             }
           }
@@ -825,7 +901,7 @@ class DatabaseService {
         batch.update(
           'notes',
           note.toMap(),
-          where: 'id = ?',
+          where: "id = ? AND IFNULL(rowStatus, 'NORMAL') <> 'DELETED'",
           whereArgs: [note.id],
         );
       }
@@ -846,7 +922,7 @@ class DatabaseService {
         batch.insert(
           'notes',
           note.toMap(),
-          conflictAlgorithm: ConflictAlgorithm.replace,
+          conflictAlgorithm: ConflictAlgorithm.ignore,
         );
       }
       await batch.commit(noResult: true);

@@ -22,6 +22,7 @@ class Note {
     List<Annotation>? annotations,
     this.reminderTime,
     this.lastSyncTime,
+    this.deletedAt,
   })  : displayTime = displayTime ?? updatedAt,
         tags = tags ?? [],
         creator = creator ?? 'local',
@@ -95,6 +96,9 @@ class Note {
           : null,
       lastSyncTime: map['last_sync_time'] != null
           ? DateTime.parse(map['last_sync_time'])
+          : null,
+      deletedAt: map['deleted_at'] != null
+          ? DateTime.tryParse(map['deleted_at'].toString())
           : null,
     );
 
@@ -197,6 +201,7 @@ class Note {
   final List<Annotation> annotations; // 批注列表
   final DateTime? reminderTime;
   final DateTime? lastSyncTime; // WebDAV同步时间戳
+  final DateTime? deletedAt; // 软删时间（仅「最近删除」使用）
 
   static DateTime _parseCreatedAt(Map<String, dynamic> json) {
     final parsed = _parseTimestamp(
@@ -500,4 +505,5 @@ class Note {
   bool get isPublic => visibility == 'PUBLIC';
   bool get isArchived => rowStatus == 'ARCHIVED';
   bool get isNormal => rowStatus == 'NORMAL';
+  bool get isDeleted => rowStatus == 'DELETED';
 }

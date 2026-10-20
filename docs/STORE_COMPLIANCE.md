@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-15
 
-This document tracks the release checks required before submitting InkRoot to app stores. It is written for maintainers and store-review preparation.
+This document tracks the release checks required before submitting IntPaper to app stores. It is written for maintainers and store-review preparation.
 
 ## iOS App Store
 
@@ -21,7 +21,7 @@ Before App Store submission:
 - Confirm App Store Connect privacy answers match `ios/Runner/PrivacyInfo.xcprivacy` and the public privacy policy.
 - Use App Store update delivery only on iOS. Do not show APK or self-update prompts on iOS.
 - Build and archive from a clean non-File-Provider directory or CI runner to avoid extended-attribute code signing failures.
-- Use a real Apple Developer Team, production bundle id `com.didichou.inkroot`, release signing, and an App Store provisioning profile.
+- Use a real Apple Developer Team, production bundle id `com.didichou.intpaper`, release signing, and an App Store provisioning profile.
 
 ## Google Play
 
@@ -45,20 +45,20 @@ Before Google Play submission:
 Run locally or in CI before tagging:
 
 ```bash
-dart tool/inkroot.dart store-check
-dart tool/inkroot.dart verify
-dart tool/inkroot.dart build android-release
-dart tool/inkroot.dart build android-aab
-dart tool/inkroot.dart build ios-sim
-dart tool/inkroot.dart build macos-release
-dart tool/inkroot.dart build windows-release
-dart tool/inkroot.dart build linux-release
+dart tool/intpaper.dart store-check
+dart tool/intpaper.dart verify
+dart tool/intpaper.dart build android-release
+dart tool/intpaper.dart build android-aab
+dart tool/intpaper.dart build ios-sim
+dart tool/intpaper.dart build macos-release
+dart tool/intpaper.dart build windows-release
+dart tool/intpaper.dart build linux-release
 ```
 
 Platform notes:
 
 - Android builds require Android SDK and release signing secrets. Google Play
-  submission should use the signed AAB from `dart tool/inkroot.dart build android-aab`.
+  submission should use the signed AAB from `dart tool/intpaper.dart build android-aab`.
 - iOS simulator builds validate compile/runtime basics. App Store submission
   requires an Xcode archive with Apple signing assets and App Store Connect
   upload.

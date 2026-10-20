@@ -17,16 +17,16 @@ Do not duplicate the app version in platform files or Dart code. Flutter passes 
 Use the project CLI for repeatable local work:
 
 ```bash
-dart tool/inkroot.dart doctor
-dart tool/inkroot.dart verify
-dart tool/inkroot.dart verify --coverage
-dart tool/inkroot.dart store-check
-dart tool/inkroot.dart build android-debug
-dart tool/inkroot.dart build ios-sim
-dart tool/inkroot.dart build macos-debug
-dart tool/inkroot.dart build windows-debug
-dart tool/inkroot.dart build linux-debug
-dart tool/inkroot.dart release v1.1.13
+dart tool/intpaper.dart doctor
+dart tool/intpaper.dart verify
+dart tool/intpaper.dart verify --coverage
+dart tool/intpaper.dart store-check
+dart tool/intpaper.dart build android-debug
+dart tool/intpaper.dart build ios-sim
+dart tool/intpaper.dart build macos-debug
+dart tool/intpaper.dart build windows-debug
+dart tool/intpaper.dart build linux-debug
+dart tool/intpaper.dart release v1.1.13
 ```
 
 Host-specific builds require matching local tools:
@@ -79,9 +79,9 @@ Release flow:
 
 1. Update `pubspec.yaml`.
 2. Update `CHANGELOG.md` and `CHANGELOG.en.md`.
-3. Run `dart tool/inkroot.dart store-check` and `dart tool/inkroot.dart verify`.
+3. Run `dart tool/intpaper.dart store-check` and `dart tool/intpaper.dart verify`.
 4. Commit and push the changes.
-5. Run `dart tool/inkroot.dart release vX.Y.Z`.
+5. Run `dart tool/intpaper.dart release vX.Y.Z`.
 6. Wait for the GitHub Actions Release workflow to finish.
 
 The tag must match the version in `pubspec.yaml`. For `version: 1.1.13+10113`, the release tag is `v1.1.13`.

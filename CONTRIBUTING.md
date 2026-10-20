@@ -1,8 +1,8 @@
-# Contributing to InkRoot
+# Contributing to IntPaper
 
-First off, thank you for considering contributing to InkRoot! 🎉
+First off, thank you for considering contributing to IntPaper! 🎉
 
-It's people like you that make InkRoot such a great tool for everyone.
+It's people like you that make IntPaper such a great tool for everyone.
 
 ---
 
@@ -23,7 +23,7 @@ It's people like you that make InkRoot such a great tool for everyone.
 
 ## 📜 Code of Conduct
 
-This project and everyone participating in it is governed by the [InkRoot Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
+This project and everyone participating in it is governed by the [IntPaper Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
 
 ---
 
@@ -31,11 +31,11 @@ This project and everyone participating in it is governed by the [InkRoot Code o
 
 ### Reporting Bugs
 
-Before creating bug reports, please check the [existing issues](https://github.com/yyyyymmmmm/InkRoot/issues) as you might find that you don't need to create one.
+Before creating bug reports, please check the [existing issues](https://github.com/yyyyymmmmm/IntPaper/issues) as you might find that you don't need to create one.
 
 #### How to Submit a Good Bug Report
 
-Bugs are tracked as [GitHub issues](https://github.com/yyyyymmmmm/InkRoot/issues). When you are creating a bug report, please include as many details as possible:
+Bugs are tracked as [GitHub issues](https://github.com/yyyyymmmmm/IntPaper/issues). When you are creating a bug report, please include as many details as possible:
 
 - **Use a clear and descriptive title**
 - **Describe the exact steps which reproduce the problem**
@@ -43,7 +43,7 @@ Bugs are tracked as [GitHub issues](https://github.com/yyyyymmmmm/InkRoot/issues
 - **Describe the behavior you observed** and explain what you expected to see
 - **Include screenshots** if possible
 - **Include your environment details**:
-  - InkRoot version
+  - IntPaper version
   - OS version (iOS/Android)
   - Device model
   - Whether you're using local mode or server sync
@@ -64,7 +64,7 @@ Bugs are tracked as [GitHub issues](https://github.com/yyyyymmmmm/InkRoot/issues
 **实际行为**: 点击后无反应
 
 **环境**:
-- InkRoot 版本: 1.1.0
+- IntPaper 版本: 1.1.0
 - 设备: iPhone 14 Pro
 - iOS 版本: 17.0
 - 模式: 本地模式
@@ -74,7 +74,7 @@ Bugs are tracked as [GitHub issues](https://github.com/yyyyymmmmm/InkRoot/issues
 
 ### Suggesting Enhancements
 
-Enhancement suggestions are tracked as [GitHub issues](https://github.com/yyyyymmmmm/InkRoot/issues).
+Enhancement suggestions are tracked as [GitHub issues](https://github.com/yyyyymmmmm/IntPaper/issues).
 
 #### How to Submit a Good Enhancement Suggestion
 
@@ -111,7 +111,7 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/yyyyym
 
 #### Before Submitting a Pull Request
 
-1. **Check existing PRs** - Search the [pull requests](https://github.com/yyyyymmmmm/InkRoot/pulls) to see if the enhancement has already been suggested
+1. **Check existing PRs** - Search the [pull requests](https://github.com/yyyyymmmmm/IntPaper/pulls) to see if the enhancement has already been suggested
 2. **Discuss first** - For major changes, please open an issue first to discuss what you would like to change
 3. **Fork the repo** - Create your own fork of the repository
 4. **Create a branch** - Create a new branch for your feature or bugfix
@@ -158,7 +158,7 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/yyyyym
 ## 📱 Test Environment
 - Device: 
 - OS Version: 
-- InkRoot Version: 
+- IntPaper Version: 
 ```
 
 ---
@@ -176,17 +176,17 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/yyyyym
 
 ```bash
 # 1. Fork and clone the repository
-git clone https://github.com/YOUR_USERNAME/InkRoot.git
-cd InkRoot
+git clone https://github.com/YOUR_USERNAME/IntPaper.git
+cd IntPaper
 
 # 2. Install dependencies
-dart tool/inkroot.dart deps
+dart tool/intpaper.dart deps
 
 # 3. Check your setup
-dart tool/inkroot.dart doctor
+dart tool/intpaper.dart doctor
 
 # 4. Run verification
-dart tool/inkroot.dart verify
+dart tool/intpaper.dart verify
 
 # 5. Run the app
 flutter run
@@ -198,12 +198,12 @@ flutter format lib/
 For platform builds, prefer the unified maintenance CLI:
 
 ```bash
-dart tool/inkroot.dart build android-debug
-dart tool/inkroot.dart build ios-sim
-dart tool/inkroot.dart build macos-debug
-dart tool/inkroot.dart build windows-debug
-dart tool/inkroot.dart build linux-debug
-dart tool/inkroot.dart build web-release
+dart tool/intpaper.dart build android-debug
+dart tool/intpaper.dart build ios-sim
+dart tool/intpaper.dart build macos-debug
+dart tool/intpaper.dart build windows-debug
+dart tool/intpaper.dart build linux-debug
+dart tool/intpaper.dart build web-release
 ```
 
 See [docs/MAINTENANCE.md](docs/MAINTENANCE.md) for CI, Android signing, and release workflow.
@@ -345,8 +345,8 @@ import 'package:provider/provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 // 4. Local imports
-import 'package:inkroot/models/note_model.dart';
-import 'package:inkroot/services/database_service.dart';
+import 'package:intpaper/models/note_model.dart';
+import 'package:intpaper/services/database_service.dart';
 ```
 
 #### 5. Code Organization
@@ -405,16 +405,16 @@ class _MyWidgetState extends State<MyWidget> {
 
 ## 🌍 Community
 
-- **GitHub Issues**: [https://github.com/yyyyymmmmm/InkRoot/issues](https://github.com/yyyyymmmmm/InkRoot/issues)
-- **GitHub Discussions**: [https://github.com/yyyyymmmmm/InkRoot/discussions](https://github.com/yyyyymmmmm/InkRoot/discussions)
-- **Email**: [inkroot2025@gmail.com](mailto:inkroot2025@gmail.com)
+- **GitHub Issues**: [https://github.com/yyyyymmmmm/IntPaper/issues](https://github.com/yyyyymmmmm/IntPaper/issues)
+- **GitHub Discussions**: [https://github.com/yyyyymmmmm/IntPaper/discussions](https://github.com/yyyyymmmmm/IntPaper/discussions)
+- **Email**: [IntPaper2025@gmail.com](mailto:IntPaper2025@gmail.com)
 - **Website**: [https://inkroot.cn](https://inkroot.cn)
 
 ---
 
 ## 🙏 Thank You!
 
-Thank you for contributing to InkRoot! Every contribution, no matter how small, helps make InkRoot better for everyone. 💙
+Thank you for contributing to IntPaper! Every contribution, no matter how small, helps make IntPaper better for everyone. 💙
 
 ---
 

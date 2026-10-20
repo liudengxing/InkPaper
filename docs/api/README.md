@@ -1,6 +1,6 @@
-# InkRoot API Documentation
+# IntPaper API Documentation
 
-Complete API reference for InkRoot integration with Memos server.
+Complete API reference for IntPaper integration with Memos server.
 
 ---
 
@@ -18,7 +18,7 @@ Complete API reference for InkRoot integration with Memos server.
 
 ## 🌐 Overview
 
-InkRoot uses the Memos v1 API for server synchronization. This documentation covers all available API endpoints and their usage.
+IntPaper uses the Memos v1 API for server synchronization. This documentation covers all available API endpoints and their usage.
 
 ### Supported Versions
 
@@ -40,7 +40,7 @@ InkRoot uses the Memos v1 API for server synchronization. This documentation cov
 
 ### Authentication Methods
 
-InkRoot uses JWT (JSON Web Token) authentication.
+IntPaper uses JWT (JSON Web Token) authentication.
 
 #### 1. User Login
 
@@ -657,13 +657,13 @@ void main() async {
 
 ## 🤝 Contributing
 
-Found an error in the documentation? Please [open an issue](https://github.com/yyyyymmmmm/InkRoot/issues) or submit a pull request.
+Found an error in the documentation? Please [open an issue](https://github.com/yyyyymmmmm/IntPaper/issues) or submit a pull request.
 
 ---
 
 <div align="center">
 
-**API Documentation** | [InkRoot](https://github.com/yyyyymmmmm/InkRoot)
+**API Documentation** | [IntPaper](https://github.com/yyyyymmmmm/IntPaper)
 
 [Back to Main README](../../README.md)
 

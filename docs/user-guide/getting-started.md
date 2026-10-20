@@ -1,6 +1,6 @@
-# Getting Started with InkRoot
+# Getting Started with IntPaper
 
-Welcome! This guide will help you get up and running with InkRoot in just a few minutes.
+Welcome! This guide will help you get up and running with IntPaper in just a few minutes.
 
 ---
 
@@ -8,15 +8,15 @@ Welcome! This guide will help you get up and running with InkRoot in just a few 
 
 ### iOS
 
-1. Download from [GitHub Releases](https://github.com/yyyyymmmmm/InkRoot/releases)
+1. Download from [GitHub Releases](https://github.com/yyyyymmmmm/IntPaper/releases)
 2. Install via TestFlight or sideload IPA
-3. Launch InkRoot
+3. Launch IntPaper
 
 ### Android
 
-1. Download APK from [GitHub Releases](https://github.com/yyyyymmmmm/InkRoot/releases)
+1. Download APK from [GitHub Releases](https://github.com/yyyyymmmmm/IntPaper/releases)
 2. Enable "Install from Unknown Sources" if prompted
-3. Install and open InkRoot
+3. Install and open IntPaper
 
 ---
 
@@ -24,7 +24,7 @@ Welcome! This guide will help you get up and running with InkRoot in just a few 
 
 ### 1. Welcome Screen
 
-When you first open InkRoot, you'll see the welcome screen with two options:
+When you first open IntPaper, you'll see the welcome screen with two options:
 
 #### Option A: Local Mode (Recommended for Beginners)
 - ✅ No setup required
@@ -52,7 +52,7 @@ Read and accept the privacy policy to continue.
 
 ### 3. Grant Permissions (When Needed)
 
-InkRoot may request permissions for:
+IntPaper may request permissions for:
 - 🎤 **Microphone**: For voice input
 - 📷 **Camera**: For taking photos
 - 🖼️ **Photos**: For uploading images
@@ -73,7 +73,7 @@ Look for the floating **+** button at the bottom of the screen.
 ```markdown
 # My First Note
 
-This is my first note in InkRoot!
+This is my first note in IntPaper!
 
 I can use **bold** and *italic* text.
 
@@ -153,7 +153,7 @@ Organize with tags:
 
 ---
 
-## 🎨 Customizing InkRoot
+## 🎨 Customizing IntPaper
 
 ### Change Theme
 
@@ -209,7 +209,7 @@ docker run -d \
 - Server: `https://memos.didichou.site`
 - *For testing only, data may be cleared*
 
-### Step 2: Configure InkRoot
+### Step 2: Configure IntPaper
 
 1. Open **Settings → Server Info**
 2. Enter server address:
@@ -301,7 +301,7 @@ Now that you're set up, explore these features:
 - Check internet connection
 - Verify server address
 - Check Memos server status
-- Use a supported Memos server; InkRoot detects v0.21.x to v0.28.x API differences
+- Use a supported Memos server; IntPaper detects v0.21.x to v0.28.x API differences
 
 **Images not loading?**
 - Check storage space
@@ -311,8 +311,8 @@ Now that you're set up, explore these features:
 ### Get Help
 - 📖 Read [FAQ](faq.md)
 - 🔧 Check [Troubleshooting](troubleshooting.md)
-- 📧 Email: inkroot2025@gmail.com
-- 💬 GitHub: [Discussions](https://github.com/yyyyymmmmm/InkRoot/discussions)
+- 📧 Email: IntPaper2025@gmail.com
+- 💬 GitHub: [Discussions](https://github.com/yyyyymmmmm/IntPaper/discussions)
 
 ---
 
@@ -331,7 +331,7 @@ Ready to dive deeper? Check out:
 
 **You're all set!** 🎉
 
-Start writing amazing notes with InkRoot.
+Start writing amazing notes with IntPaper.
 
 [View All Features](README.md) | [FAQ](faq.md) | [Get Support](support.md)
 

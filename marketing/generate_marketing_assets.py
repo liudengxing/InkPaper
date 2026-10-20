@@ -161,7 +161,7 @@ def draw_brand_mark(draw: ImageDraw.ImageDraw, x: int, y: int, scale: float = 1.
     size = round(22 * scale)
     draw.rounded_rectangle((x, y, x + size, y + size), radius=round(4 * scale), fill=MOSS)
     draw.rectangle((x + round(7 * scale), y + round(4 * scale), x + round(12 * scale), y + round(18 * scale)), fill=(255, 255, 255))
-    draw.text((x + round(36 * scale), y - round(2 * scale)), "InkRoot", font=sans(round(24 * scale), True), fill=INK)
+    draw.text((x + round(36 * scale), y - round(2 * scale)), "IntPaper", font=sans(round(24 * scale), True), fill=INK)
     draw.text((x + round(36 * scale), y + round(28 * scale)), "静待沉淀，蓄势而鸣", font=sans(round(14 * scale)), fill=MUTED)
 
 
@@ -274,7 +274,7 @@ def make_app_store() -> None:
         draw.rectangle((0, 0, width, 118), fill=(255, 255, 255, 120))
         icon = open_rgb(ICON).resize((86, 86), Image.Resampling.LANCZOS)
         paste_rounded(canvas, icon.convert("RGBA"), (92, 78), 20)
-        draw.text((196, 85), "InkRoot", font=font(38, True), fill=TEXT)
+        draw.text((196, 85), "IntPaper", font=font(38, True), fill=TEXT)
         draw.text((198, 132), "静待沉淀，蓄势而鸣", font=font(24), fill=MUTED)
         draw_release_badge(draw, (92, 228), f"0{index}")
 
@@ -465,7 +465,7 @@ def make_sspai_cover() -> None:
     paste_screenshot_panel(canvas, "01-home.png", (656, 64, 1038, 650), radius=28, crop=True, opacity=26)
     paste_screenshot_panel(canvas, "02-tags.png", (972, 92, 1308, 620), radius=26, crop=True, opacity=18)
     draw.rectangle((0, 0, 1420, 708), outline=LINE, width=2)
-    save_rgb(canvas, OUT_SSPAI / "inkroot-sspai-cover-1420x708.png")
+    save_rgb(canvas, OUT_SSPAI / "IntPaper-sspai-cover-1420x708.png")
 
 
 def make_wide_assets() -> None:
@@ -486,7 +486,7 @@ def make_wide_assets() -> None:
     draw_chip(draw, 282, 602, "数据可控", fill=CLAY)
     paste_screenshot_panel(canvas, "01-home.png", (900, 82, 1310, 1014), radius=32, crop=True, opacity=26)
     paste_screenshot_panel(canvas, "03-ai-settings.png", (1230, 180, 1690, 920), radius=32, crop=True, opacity=20)
-    save_rgb(canvas, OUT_PROMO / "inkroot-hero-1920x1080.png")
+    save_rgb(canvas, OUT_PROMO / "IntPaper-hero-1920x1080.png")
 
     og = new_canvas((1200, 630), PAPER_LIGHT)
     og_draw = ImageDraw.Draw(og)
@@ -502,7 +502,7 @@ def make_wide_assets() -> None:
         subtitle_size=25,
     )
     paste_screenshot_panel(og, "01-home.png", (650, 44, 1050, 588), radius=26, crop=True, opacity=20)
-    save_rgb(og, OUT_PROMO / "inkroot-og-1200x630.png")
+    save_rgb(og, OUT_PROMO / "IntPaper-og-1200x630.png")
 
 
 def make_promo() -> None:

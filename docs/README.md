@@ -1,4 +1,4 @@
-# InkRoot Docs
+# IntPaper Docs
 
 This directory contains project documentation for users and maintainers.
 
@@ -32,6 +32,6 @@ This directory contains project documentation for users and maintainers.
 
 ## Links
 
-- [GitHub](https://github.com/yyyyymmmmm/InkRoot)
-- [Releases](https://github.com/yyyyymmmmm/InkRoot/releases)
-- [Issues](https://github.com/yyyyymmmmm/InkRoot/issues)
+- [GitHub](https://github.com/yyyyymmmmm/IntPaper)
+- [Releases](https://github.com/yyyyymmmmm/IntPaper/releases)
+- [Issues](https://github.com/yyyyymmmmm/IntPaper/issues)

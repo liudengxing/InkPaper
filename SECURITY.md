@@ -2,7 +2,7 @@
 
 ## 🔒 Reporting a Vulnerability
 
-The InkRoot team takes security seriously. We appreciate your efforts to responsibly disclose your findings.
+The IntPaper team takes security seriously. We appreciate your efforts to responsibly disclose your findings.
 
 ### How to Report
 
@@ -10,7 +10,7 @@ The InkRoot team takes security seriously. We appreciate your efforts to respons
 
 Instead, please report security vulnerabilities by emailing:
 
-📧 **[inkroot2025@gmail.com](mailto:inkroot2025@gmail.com)**
+📧 **[IntPaper2025@gmail.com](mailto:IntPaper2025@gmail.com)**
 
 Include the following information in your report:
 
@@ -74,7 +74,7 @@ For more details, see our [Privacy Policy](https://inkroot.cn/privacy.html)
 
 ### Third-Party Services
 
-InkRoot uses the following third-party services:
+IntPaper uses the following third-party services:
 
 1. **Umeng Analytics** (Android only when enabled)
    - Purpose: Usage statistics and crash reporting
@@ -110,18 +110,18 @@ InkRoot uses the following third-party services:
 
 1. **Use HTTPS** - Always use HTTPS for server connections, never HTTP in production
 2. **Strong Passwords** - Use strong, unique passwords for your Memos account
-3. **Keep Updated** - Always use the latest version of InkRoot
+3. **Keep Updated** - Always use the latest version of IntPaper
 4. **Secure Your Device** - Use device lock (PIN/password/biometrics)
 5. **Review Permissions** - Only grant permissions you need
 6. **Backup Data** - Regularly export your notes for backup
 
 ### Secure Development Practices
 
-We follow these practices to ensure InkRoot's security:
+We follow these practices to ensure IntPaper's security:
 
 - ✅ Regular dependency updates
 - ✅ Code review for all changes
-- ✅ Static code analysis (`dart tool/inkroot.dart verify`)
+- ✅ Static code analysis (`dart tool/intpaper.dart verify`)
 - ✅ GitHub Actions secret scanning
 - ✅ Secure storage for sensitive data
 - ✅ Input validation and sanitization
@@ -146,7 +146,7 @@ Android release signing is configured locally through ignored files:
 
 ```text
 android/key.properties
-android/inkroot-new-release.keystore
+android/intpaper-new-release.keystore
 ```
 
 CI release signing uses GitHub Secrets as documented in
@@ -195,18 +195,18 @@ We appreciate the security research community and thank all researchers who resp
 
 ### Hall of Fame
 
-_(We will list security researchers who have helped improve InkRoot's security here)_
+_(We will list security researchers who have helped improve IntPaper's security here)_
 
 ---
 
 ## 📧 Contact
 
 For security-related inquiries:
-- **Email**: [inkroot2025@gmail.com](mailto:inkroot2025@gmail.com)
+- **Email**: [IntPaper2025@gmail.com](mailto:IntPaper2025@gmail.com)
 - **Subject**: `[SECURITY] Your concern here`
 
 For general inquiries:
-- **GitHub Issues**: [https://github.com/yyyyymmmmm/InkRoot/issues](https://github.com/yyyyymmmmm/InkRoot/issues)
+- **GitHub Issues**: [https://github.com/yyyyymmmmm/IntPaper/issues](https://github.com/yyyyymmmmm/IntPaper/issues)
 - **Website**: [https://inkroot.cn](https://inkroot.cn)
 
 ---

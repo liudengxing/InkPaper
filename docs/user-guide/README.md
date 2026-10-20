@@ -1,13 +1,13 @@
-# InkRoot User Guide
+# IntPaper User Guide
 
-Welcome to InkRoot! This guide will help you get started and make the most of all features.
+Welcome to IntPaper! This guide will help you get started and make the most of all features.
 
 ---
 
 ## 📚 Quick Navigation
 
 ### Getting Started
-- [Quick Start Guide](getting-started.md) - First steps with InkRoot
+- [Quick Start Guide](getting-started.md) - First steps with IntPaper
 - [Installation](../installation.md) - How to install on your device
 - [First Note](tutorials/first-note.md) - Create your first note
 
@@ -31,7 +31,7 @@ Welcome to InkRoot! This guide will help you get started and make the most of al
 
 ### Customization
 - [Themes & Fonts](customization/themes.md) - Personalize your experience
-- [Settings](customization/settings.md) - Configure InkRoot
+- [Settings](customization/settings.md) - Configure IntPaper
 - [Language](customization/language.md) - Choose your language
 
 ### Help & Troubleshooting
@@ -41,9 +41,9 @@ Welcome to InkRoot! This guide will help you get started and make the most of al
 
 ---
 
-## 🎯 What is InkRoot?
+## 🎯 What is IntPaper?
 
-InkRoot is a powerful yet simple note-taking app that helps you:
+IntPaper is a powerful yet simple note-taking app that helps you:
 
 - 📝 **Capture Ideas Quickly** - Write notes with full Markdown support
 - ✅ **Manage Tasks** - Interactive todo lists
@@ -153,7 +153,7 @@ InkRoot is a powerful yet simple note-taking app that helps you:
 
 ```
 ┌─────────────────────────────────┐
-│  ☰  InkRoot          🔍  ⚙️     │  Header
+│  ☰  IntPaper          🔍  ⚙️     │  Header
 ├─────────────────────────────────┤
 │                                 │
 │  📝 My First Note      📌       │  Note Card
@@ -225,12 +225,12 @@ InkRoot is a powerful yet simple note-taking app that helps you:
 - [Troubleshooting](troubleshooting.md) - Fix common issues
 
 ### Get Support
-- 📧 Email: [inkroot2025@gmail.com](mailto:inkroot2025@gmail.com)
-- 💬 GitHub: [Discussions](https://github.com/yyyyymmmmm/InkRoot/discussions)
-- 🐛 Report Bug: [Issues](https://github.com/yyyyymmmmm/InkRoot/issues)
+- 📧 Email: [IntPaper2025@gmail.com](mailto:IntPaper2025@gmail.com)
+- 💬 GitHub: [Discussions](https://github.com/yyyyymmmmm/IntPaper/discussions)
+- 🐛 Report Bug: [Issues](https://github.com/yyyyymmmmm/IntPaper/issues)
 
 ### Community
-- ⭐ Star on GitHub: [InkRoot Repository](https://github.com/yyyyymmmmm/InkRoot)
+- ⭐ Star on GitHub: [IntPaper Repository](https://github.com/yyyyymmmmm/IntPaper)
 - 🌐 Website: [inkroot.cn](https://inkroot.cn)
 
 ---

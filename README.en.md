@@ -40,24 +40,22 @@ After installing Flutter:
 
 ```bash
 flutter pub get
-dart tool/inkroot.dart verify
+dart tool/intpaper.dart verify
 ```
 
 Common commands:
 
 ```bash
-dart tool/inkroot.dart doctor
-dart tool/inkroot.dart analyze
-dart tool/inkroot.dart test
-dart tool/inkroot.dart store-check
-dart tool/inkroot.dart build android-debug
-dart tool/inkroot.dart build ios-sim
-dart tool/inkroot.dart build macos-debug
-dart tool/inkroot.dart build windows-debug
-dart tool/inkroot.dart build linux-debug
+dart tool/intpaper.dart doctor
+dart tool/intpaper.dart analyze
+dart tool/intpaper.dart test
+dart tool/intpaper.dart store-check
+dart tool/intpaper.dart build android-debug
+dart tool/intpaper.dart build ios-sim
+dart tool/intpaper.dart build macos-debug
+dart tool/intpaper.dart build windows-debug
+dart tool/intpaper.dart build linux-debug
 ```
-
-> Note: the internal maintenance scripts still use the `tool/inkroot.dart` naming as a historical convention; they may be renamed as the project evolves.
 
 Platform builds require the matching host environment. iOS and macOS require macOS with Xcode, Windows requires Visual Studio C++ desktop components, and Linux requires GTK, CMake, and Ninja. Android builds require the Android SDK (see "Android environment" below).
 
@@ -84,7 +82,7 @@ version: 1.0.0+10000
 Release command:
 
 ```bash
-dart tool/inkroot.dart release v1.0.0
+dart tool/intpaper.dart release v1.0.0
 ```
 
 The command creates and pushes a version tag. GitHub Actions then verifies, builds, and publishes Android APK/AAB, iOS, macOS, Windows, and Linux assets.

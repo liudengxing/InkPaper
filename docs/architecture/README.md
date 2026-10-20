@@ -1,6 +1,10 @@
-# InkRoot Architecture Documentation
+# IntPaper Architecture Documentation
 
-This directory contains the architecture documentation for InkRoot.
+This directory contains the architecture documentation for IntPaper.
+
+> 📌 **最新的完整架构解析与架构图见 [ARCHITECTURE_OVERVIEW.md](ARCHITECTURE_OVERVIEW.md)**（2026-10，含分层总览图、Android 桥接图、启动时序、路由树、同步链路、SQLite ER 图、CI/CD 流水线，以及带 file:line 证据的风险清单）。
+>
+> 本文件中的部分数字已过期，下方已就地更正；文中引用的 `database-schema.md`、`security-design.md`、`performance.md`、`../TESTING.md` 目前**不存在**。
 
 ---
 
@@ -16,13 +20,13 @@ This directory contains the architecture documentation for InkRoot.
 
 ## 🏗️ Architecture Overview
 
-InkRoot follows a **layered architecture** pattern with clear separation of concerns:
+IntPaper follows a **layered architecture** pattern with clear separation of concerns:
 
 ```
 ┌─────────────────────────────────────────────┐
 │         Presentation Layer (UI)              │
-│  • Screens (26 files)                        │
-│  • Widgets (19 files)                        │
+│  • Screens (34 files)                        │
+│  • Widgets (27 files)                        │
 │  • Material Design 3                         │
 └─────────────────────────────────────────────┘
                     ↓↑
@@ -35,7 +39,7 @@ InkRoot follows a **layered architecture** pattern with clear separation of conc
                     ↓↑
 ┌─────────────────────────────────────────────┐
 │       Business Logic Layer (Services)        │
-│  • 35 Service Classes                        │
+│  • 54 Service Classes                        │
 │  • API Integration                           │
 │  • Business Rules                            │
 └─────────────────────────────────────────────┘
@@ -84,7 +88,7 @@ See [ADR Template](adr/template.md) for guidelines on creating new architecture 
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                   InkRoot App                    │
+│                   IntPaper App                    │
 ├─────────────────────────────────────────────────┤
 │                                                  │
 │  ┌──────────────┐  ┌──────────────┐            │
@@ -100,7 +104,7 @@ See [ADR Template](adr/template.md) for guidelines on creating new architecture 
 │  │  • SyncService                    │          │
 │  │  • AIService                      │          │
 │  │  • NotificationService            │          │
-│  │  • ... (35 services total)        │          │
+│  │  • ... (54 services total)        │          │
 │  └──────────────────────────────────┘          │
 │         ↓↑                 ↓↑                    │
 │  ┌─────────────┐    ┌─────────────┐            │
@@ -296,16 +300,17 @@ class NoteCard extends StatelessWidget {
 
 ## 📊 Database Schema
 
-See [database-schema.md](database-schema.md) for complete schema documentation.
+> ⚠️ 更正（2026-10）：`database-schema.md` 不存在。实际数据库为单一 `notes.db`（schema v8），**只有两张表**：
+>
+> - **notes**：笔记主表（内容、时间、标签字符串、`resourceList`/`relations`/`annotations` 三个 JSON 列、`is_synced`、`isPinned`、`visibility`、`rowStatus`、`reminder_time`、`last_sync_time`）
+> - **reminder_notifications**：提醒历史（外键 `note_id` ON DELETE CASCADE，2 个索引）
+>
+> 索引只有 2 个，且都在 `reminder_notifications` 上；`notes` 表没有索引。详见 [ARCHITECTURE_OVERVIEW.md](ARCHITECTURE_OVERVIEW.md) 的 §6「数据层」。
 
-### Main Tables
+### ~~Main Tables~~（已作废，实际不存在的表：tags / note_tags / resources / sync_status）
 
-- **notes**: Store note data
-- **tags**: Tag definitions
-- **note_tags**: Note-tag relationships
-- **resources**: Image and file metadata
-- **reminders**: Scheduled notifications
-- **sync_status**: Track sync state
+- **notes**：Store note data
+- **reminder_notifications**：Reminder history (the only other table)
 
 ---
 
@@ -371,7 +376,7 @@ When making architectural changes:
 
 <div align="center">
 
-**Architecture Documentation** | [InkRoot](https://github.com/yyyyymmmmm/InkRoot)
+**Architecture Documentation** | [IntPaper](https://github.com/yyyyymmmmm/IntPaper)
 
 [Back to Main README](../../README.md) | [View ADRs](adr/README.md)
 

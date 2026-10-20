@@ -40,24 +40,22 @@ iOS 和 macOS 包当前用于测试分发。
 
 ```bash
 flutter pub get
-dart tool/inkroot.dart verify
+dart tool/intpaper.dart verify
 ```
 
 常用命令：
 
 ```bash
-dart tool/inkroot.dart doctor
-dart tool/inkroot.dart analyze
-dart tool/inkroot.dart test
-dart tool/inkroot.dart store-check
-dart tool/inkroot.dart build android-debug
-dart tool/inkroot.dart build ios-sim
-dart tool/inkroot.dart build macos-debug
-dart tool/inkroot.dart build windows-debug
-dart tool/inkroot.dart build linux-debug
+dart tool/intpaper.dart doctor
+dart tool/intpaper.dart analyze
+dart tool/intpaper.dart test
+dart tool/intpaper.dart store-check
+dart tool/intpaper.dart build android-debug
+dart tool/intpaper.dart build ios-sim
+dart tool/intpaper.dart build macos-debug
+dart tool/intpaper.dart build windows-debug
+dart tool/intpaper.dart build linux-debug
 ```
-
-> 注：项目内部维护脚本仍沿用 `tool/inkroot.dart` 命名，属历史约定，后续可随项目演进重命名。
 
 不同桌面或移动平台需要对应系统环境。例如 iOS 和 macOS 需要 macOS 与 Xcode，Windows 需要 Windows 与 Visual Studio C++ 桌面组件，Linux 需要 GTK、CMake 和 Ninja。Android 构建需要 Android SDK（见下方"Android 环境"）。
 
@@ -84,7 +82,7 @@ version: 1.0.0+10000
 发布入口：
 
 ```bash
-dart tool/inkroot.dart release v1.0.0
+dart tool/intpaper.dart release v1.0.0
 ```
 
 这个命令会创建并推送版本 tag。GitHub Actions 收到 tag 后自动执行检查、构建并发布 Android APK/AAB、iOS、macOS、Windows 和 Linux 产物。

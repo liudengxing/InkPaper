@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-InkRoot needs a state management solution that:
+IntPaper needs a state management solution that:
 - Handles complex app state (notes, user data, sync status, UI state)
 - Enables reactive UI updates when data changes
 - Is easy to understand and maintain
@@ -31,7 +31,7 @@ The app has multiple screens that need to share state:
 
 ## Decision
 
-We will use **Provider** as the primary state management solution for InkRoot.
+We will use **Provider** as the primary state management solution for IntPaper.
 
 Specifically:
 - Use `ChangeNotifierProvider` for app-wide state (`AppProvider`)
@@ -53,10 +53,10 @@ Specifically:
 **Cons:**
 - Steeper learning curve
 - More boilerplate code
-- Overkill for InkRoot's needs
+- Overkill for IntPaper's needs
 - Slower development iteration
 
-**Reason for rejection:** Too complex for InkRoot's state management needs. Most of our state updates are straightforward CRUD operations that don't require the ceremony of Bloc.
+**Reason for rejection:** Too complex for IntPaper's state management needs. Most of our state updates are straightforward CRUD operations that don't require the ceremony of Bloc.
 
 ### Alternative 2: Riverpod
 

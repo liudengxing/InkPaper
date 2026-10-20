@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:inkpaper/models/app_config_model.dart' as models;
@@ -97,12 +98,22 @@ class AppTheme {
       );
 
   // 根据字体家族获取 TextStyle
+  //
+  // Android 系统内置的 Noto Sans CJK / Noto Serif CJK 与「思源黑体 / 思源宋体」
+  // 同源，直接走系统字体族即可：省掉 google_fonts 的运行时下载（中文字体首次
+  // 8–15MB），也避免下载完成前正文先用 fallback 渲染造成的字体跳动。
+  // 装饰字体（手写体、站酷体）系统没有等价物，仍走 google_fonts。
   static TextStyle? getFontStyle(String fontFamily) {
+    final useSystemCjkFonts = defaultTargetPlatform == TargetPlatform.android;
     switch (fontFamily) {
       case models.AppConfig.FONT_FAMILY_NOTO_SANS:
-        return GoogleFonts.notoSansSc();
+        return useSystemCjkFonts
+            ? const TextStyle(fontFamily: 'sans-serif')
+            : GoogleFonts.notoSansSc();
       case models.AppConfig.FONT_FAMILY_NOTO_SERIF:
-        return GoogleFonts.notoSerifSc();
+        return useSystemCjkFonts
+            ? const TextStyle(fontFamily: 'serif')
+            : GoogleFonts.notoSerifSc();
       case models.AppConfig.FONT_FAMILY_MA_SHAN_ZHENG:
         return GoogleFonts.maShanZheng();
       case models.AppConfig.FONT_FAMILY_ZCOOL_XIAOWEI:

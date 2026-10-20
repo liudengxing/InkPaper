@@ -252,11 +252,30 @@ class InkPaperCli {
         await _run(_flutterBuildCommand(['apk', '--debug']));
         return;
       case 'android-release':
+        // 发布用 universal APK：单个文件，不挑机型，CI 与商店渠道都依赖这个产物。
         await _run(_flutterBuildCommand(['apk', '--release']));
+        return;
+      case 'android-release-split':
+        // 本机安装 / 测体积用：按 ABI 拆包，每个包只带一套 native 库。
+        // 产物为 app-armeabi-v7a / app-arm64-v8a / app-x86_64 三个 APK。
+        await _run(
+          _flutterBuildCommand([
+            'apk',
+            '--release',
+            '--split-per-abi',
+            '--split-debug-info=build/symbols',
+          ]),
+        );
         return;
       case 'android-aab':
       case 'android-appbundle':
-        await _run(_flutterBuildCommand(['appbundle', '--release']));
+        await _run(
+          _flutterBuildCommand([
+            'appbundle',
+            '--release',
+            '--split-debug-info=build/symbols',
+          ]),
+        );
         return;
       case 'ios':
       case 'ios-sim':
@@ -591,7 +610,7 @@ Commands:
 
 Build targets:
   all                            Android + host-specific desktop/mobile
-  android-debug | android-release | android-aab
+  android-debug | android-release | android-release-split | android-aab
   ios-sim | ios-unsigned-ipa     macOS only
   macos-debug | macos-release    macOS only
   windows-debug | windows-release Windows only

@@ -7,10 +7,10 @@ cd "$ROOT_DIR"
 MODE="${1:-all}"
 
 case "$MODE" in
-  all|android|android-debug|android-release|ios|ios-sim|ios-unsigned-ipa|macos|macos-debug|macos-release|windows|windows-debug|windows-release|linux|linux-debug|linux-release)
+  all|android|android-debug|android-release|android-release-split|ios|ios-sim|ios-unsigned-ipa|macos|macos-debug|macos-release|windows|windows-debug|windows-release|linux|linux-debug|linux-release)
     ;;
   *)
-    echo "Usage: scripts/ci.sh [all|android-debug|android-release|ios-sim|ios-unsigned-ipa|macos-debug|macos-release|windows-debug|windows-release|linux-debug|linux-release]" >&2
+    echo "Usage: scripts/ci.sh [all|android-debug|android-release|android-release-split|ios-sim|ios-unsigned-ipa|macos-debug|macos-release|windows-debug|windows-release|linux-debug|linux-release]" >&2
     exit 2
     ;;
 esac

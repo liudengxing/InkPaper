@@ -1,8 +1,8 @@
-# 小纸 (IntPaper)
+# 小纸 (InkPaper)
 
 小纸是一款面向个人知识记录的跨平台笔记应用。它推荐本地记录，也可以连接自托管 Memos 服务进行同步。应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、导入导出、系统分享、小组件和可选 AI 辅助等能力。
 
-[下载最新版本](https://github.com/liudengxing/IntPaper/releases/latest) · [问题反馈](https://github.com/liudengxing/IntPaper/issues) · [English](README.en.md)
+[下载最新版本](https://github.com/liudengxing/InkPaper/releases/latest) · [问题反馈](https://github.com/liudengxing/InkPaper/issues) · [English](README.en.md)
 
 ## 当前版本
 
@@ -27,7 +27,7 @@
 
 ## 下载
 
-发布包在 [GitHub Releases](https://github.com/liudengxing/IntPaper/releases) 页面提供。
+发布包在 [GitHub Releases](https://github.com/liudengxing/InkPaper/releases) 页面提供。
 
 GitHub Releases 的 Android APK 用于手动安装和测试分发；Google Play 上架使用发布流程生成的签名 AAB。
 Windows 用户下载压缩包后运行应用。
@@ -40,21 +40,21 @@ iOS 和 macOS 包当前用于测试分发。
 
 ```bash
 flutter pub get
-dart tool/intpaper.dart verify
+dart tool/inkpaper.dart verify
 ```
 
 常用命令：
 
 ```bash
-dart tool/intpaper.dart doctor
-dart tool/intpaper.dart analyze
-dart tool/intpaper.dart test
-dart tool/intpaper.dart store-check
-dart tool/intpaper.dart build android-debug
-dart tool/intpaper.dart build ios-sim
-dart tool/intpaper.dart build macos-debug
-dart tool/intpaper.dart build windows-debug
-dart tool/intpaper.dart build linux-debug
+dart tool/inkpaper.dart doctor
+dart tool/inkpaper.dart analyze
+dart tool/inkpaper.dart test
+dart tool/inkpaper.dart store-check
+dart tool/inkpaper.dart build android-debug
+dart tool/inkpaper.dart build ios-sim
+dart tool/inkpaper.dart build macos-debug
+dart tool/inkpaper.dart build windows-debug
+dart tool/inkpaper.dart build linux-debug
 ```
 
 不同桌面或移动平台需要对应系统环境。例如 iOS 和 macOS 需要 macOS 与 Xcode，Windows 需要 Windows 与 Visual Studio C++ 桌面组件，Linux 需要 GTK、CMake 和 Ninja。Android 构建需要 Android SDK（见下方"Android 环境"）。
@@ -82,7 +82,7 @@ version: 1.0.0+10000
 发布入口：
 
 ```bash
-dart tool/intpaper.dart release v1.0.0
+dart tool/inkpaper.dart release v1.0.0
 ```
 
 这个命令会创建并推送版本 tag。GitHub Actions 收到 tag 后自动执行检查、构建并发布 Android APK/AAB、iOS、macOS、Windows 和 Linux 产物。

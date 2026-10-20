@@ -3,7 +3,7 @@
 Use this helper when you need an IPA-like package for internal device testing.
 
 ```bash
-dart tool/intpaper.dart build ios-unsigned-ipa
+dart tool/inkpaper.dart build ios-unsigned-ipa
 ```
 
 The output is written to:

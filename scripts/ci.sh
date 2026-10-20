@@ -23,4 +23,4 @@ case "$MODE" in
   android) MODE="android-release" ;;
 esac
 
-dart tool/intpaper.dart ci "$MODE"
+dart tool/inkpaper.dart ci "$MODE"

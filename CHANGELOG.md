@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to InkRoot will be documented in this file.
+All notable changes to InkPaper will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.13] - 2026-06-22
 
 ### 修复
-- 修复 Android 从浏览器、阅读器分享文本或网页到 InkRoot 时可能闪退的问题
+- 修复 Android 从浏览器、阅读器分享文本或网页到 InkPaper 时可能闪退的问题
 - 修复 Android 分享入口对网页 URL ClipData 的误判，避免把浏览器链接当附件读取
-- 修复 iOS/Android 随机回顾小组件明明有笔记却显示“打开 InkRoot 后显示随机回顾”的问题
+- 修复 iOS/Android 随机回顾小组件明明有笔记却显示“打开 InkPaper 后显示随机回顾”的问题
 - 修复随机回顾小组件按更新时间筛选导致同步/恢复后回顾范围不准的问题
 - 补齐 iOS 主 App、小组件和分享扩展的 Development Team 配置，便于 Xcode 真机调试
 
@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.11] - 2026-06-22
 
 ### 新增
-- 新增 iOS 系统分享扩展，支持从浏览器、阅读器、相册和文件 App 分享文本、网页、图片与文件到 InkRoot
+- 新增 iOS 系统分享扩展，支持从浏览器、阅读器、相册和文件 App 分享文本、网页、图片与文件到 InkPaper
 
 ### 优化
 - 优化 Android 系统分享入口，统一支持浏览器/阅读器文本、系统选中文本、相册单图/多图、文件管理器单文件/多文件与混合附件分享
@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 优化 Memos 0.21.0 至 0.29.1 兼容链路，增强服务器识别、登录 token 字段和当前用户接口回退能力
 
 ### 修复
-- 修复部分 Android App 分享到 InkRoot 后内容为空白的问题
+- 修复部分 Android App 分享到 InkPaper 后内容为空白的问题
 - 修复部分自部署 Memos 0.26、0.27、0.29 服务器登录或同步初始化失败的问题
 
 ## [1.1.10] - 2026-06-22
@@ -175,7 +175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0] - 2026-06-14
 
 ### 维护与发布体系
-- 新增统一维护 CLI：`dart tool/inkroot.dart`
+- 新增统一维护 CLI：`dart tool/inkpaper.dart`
 - GitHub Actions 升级为多平台验证与构建：Android、iOS 模拟器、macOS、Windows、Linux
 - 新增 PR 模板、Issue 模板、Dependabot 配置和 Gitleaks secret 扫描
 - 新增 `docs/MAINTENANCE.md`，统一说明版本、CI、发版和安全基线
@@ -783,11 +783,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[1.0.7]: https://github.com/yyyyymmmmm/InkRoot/releases/tag/v1.0.7
-[1.0.6]: https://github.com/yyyyymmmmm/InkRoot/releases/tag/v1.0.6
-[1.0.5]: https://github.com/yyyyymmmmm/InkRoot/releases/tag/v1.0.5
-[1.0.4]: https://github.com/yyyyymmmmm/InkRoot/releases/tag/v1.0.4
-[1.0.3]: https://github.com/yyyyymmmmm/InkRoot/releases/tag/v1.0.3
-[1.0.2]: https://github.com/yyyyymmmmm/InkRoot/releases/tag/v1.0.2
-[1.0.1]: https://github.com/yyyyymmmmm/InkRoot/releases/tag/v1.0.1
-[Unreleased]: https://github.com/yyyyymmmmm/InkRoot/compare/v1.0.7...HEAD
+[1.0.7]: https://github.com/yyyyymmmmm/InkPaper/releases/tag/v1.0.7
+[1.0.6]: https://github.com/yyyyymmmmm/InkPaper/releases/tag/v1.0.6
+[1.0.5]: https://github.com/yyyyymmmmm/InkPaper/releases/tag/v1.0.5
+[1.0.4]: https://github.com/yyyyymmmmm/InkPaper/releases/tag/v1.0.4
+[1.0.3]: https://github.com/yyyyymmmmm/InkPaper/releases/tag/v1.0.3
+[1.0.2]: https://github.com/yyyyymmmmm/InkPaper/releases/tag/v1.0.2
+[1.0.1]: https://github.com/yyyyymmmmm/InkPaper/releases/tag/v1.0.1
+[Unreleased]: https://github.com/yyyyymmmmm/InkPaper/compare/v1.0.7...HEAD

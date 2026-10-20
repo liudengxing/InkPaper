@@ -1,6 +1,6 @@
-# IntPaper API 文档
+# InkPaper API 文档
 
-IntPaper 与 Memos 服务器集成的完整 API 参考文档。
+InkPaper 与 Memos 服务器集成的完整 API 参考文档。
 
 ---
 
@@ -18,7 +18,7 @@ IntPaper 与 Memos 服务器集成的完整 API 参考文档。
 
 ## 🌐 概述
 
-IntPaper 使用 Memos v1 API 进行服务器同步。本文档涵盖所有可用的 API 端点及其用法。
+InkPaper 使用 Memos v1 API 进行服务器同步。本文档涵盖所有可用的 API 端点及其用法。
 
 ### 支持的版本
 
@@ -40,7 +40,7 @@ IntPaper 使用 Memos v1 API 进行服务器同步。本文档涵盖所有可用
 
 ### 认证方式
 
-IntPaper 使用 JWT (JSON Web Token) 认证。
+InkPaper 使用 JWT (JSON Web Token) 认证。
 
 #### 1. 用户登录
 
@@ -661,13 +661,13 @@ void main() async {
 
 ## 🤝 贡献
 
-文档中发现错误？请[提交 issue](https://github.com/yyyyymmmmm/IntPaper/issues) 或提交 pull request。
+文档中发现错误？请[提交 issue](https://github.com/yyyyymmmmm/InkPaper/issues) 或提交 pull request。
 
 ---
 
 <div align="center">
 
-**API 文档** | [IntPaper](https://github.com/yyyyymmmmm/IntPaper)
+**API 文档** | [InkPaper](https://github.com/yyyyymmmmm/InkPaper)
 
 [返回主 README](../../README.md) | [English Version](README.md)
 

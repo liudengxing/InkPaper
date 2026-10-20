@@ -1,6 +1,6 @@
-# IntPaper Architecture Documentation
+# InkPaper Architecture Documentation
 
-This directory contains the architecture documentation for IntPaper.
+This directory contains the architecture documentation for InkPaper.
 
 > 📌 **最新的完整架构解析与架构图见 [ARCHITECTURE_OVERVIEW.md](ARCHITECTURE_OVERVIEW.md)**（2026-10，含分层总览图、Android 桥接图、启动时序、路由树、同步链路、SQLite ER 图、CI/CD 流水线，以及带 file:line 证据的风险清单）。
 >
@@ -20,7 +20,7 @@ This directory contains the architecture documentation for IntPaper.
 
 ## 🏗️ Architecture Overview
 
-IntPaper follows a **layered architecture** pattern with clear separation of concerns:
+InkPaper follows a **layered architecture** pattern with clear separation of concerns:
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -88,7 +88,7 @@ See [ADR Template](adr/template.md) for guidelines on creating new architecture 
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                   IntPaper App                    │
+│                   InkPaper App                    │
 ├─────────────────────────────────────────────────┤
 │                                                  │
 │  ┌──────────────┐  ┌──────────────┐            │
@@ -376,7 +376,7 @@ When making architectural changes:
 
 <div align="center">
 
-**Architecture Documentation** | [IntPaper](https://github.com/yyyyymmmmm/IntPaper)
+**Architecture Documentation** | [InkPaper](https://github.com/yyyyymmmmm/InkPaper)
 
 [Back to Main README](../../README.md) | [View ADRs](adr/README.md)
 

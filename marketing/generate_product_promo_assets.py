@@ -154,7 +154,7 @@ def base(size: tuple[int, int]) -> Image.Image:
 def draw_brand(draw: ImageDraw.ImageDraw, canvas: Image.Image, x: int, y: int, scale: float = 1.0, tagline: bool = True) -> None:
     mark_size = round(32 * scale)
     canvas.alpha_composite(logo_mark(mark_size), (x, y))
-    draw.text((x + round(46 * scale), y - round(2 * scale)), "IntPaper", font=font(round(26 * scale), True), fill=TEXT)
+    draw.text((x + round(46 * scale), y - round(2 * scale)), "InkPaper", font=font(round(26 * scale), True), fill=TEXT)
     if tagline:
         draw.text((x + round(46 * scale), y + round(31 * scale)), "静待沉淀，蓄势而鸣", font=font(round(15 * scale)), fill=TEXT_SECONDARY)
 
@@ -376,7 +376,7 @@ def make_sspai() -> None:
     draw.rounded_rectangle((628, 38, 1368, 670), radius=34, fill=BG, outline=SOFT_TEXT_BORDER, width=1)
     paste_screenshot_card(canvas, "01-home.png", (676, 70, 1070, 650), crop=(0, 170, 1206, 1940), radius=24, shadow_alpha=28)
     paste_screenshot_card(canvas, "05-settings.png", (852, 428, 1326, 608), crop=(0, 900, 1206, 1360), radius=20, shadow_alpha=18)
-    save_rgb(canvas, OUT_SSPAI / "IntPaper-sspai-cover-1420x708.png")
+    save_rgb(canvas, OUT_SSPAI / "InkPaper-sspai-cover-1420x708.png")
 
 
 def make_wide() -> None:
@@ -398,7 +398,7 @@ def make_wide() -> None:
     paste_screenshot_card(canvas, "02-tags.png", (1290, 142, 1680, 840), crop=(0, 210, 1206, 1890), radius=24, shadow_alpha=16)
     paste_screenshot_card(canvas, "01-home.png", (946, 92, 1402, 996), crop=(0, 170, 1206, 2200), radius=26, shadow_alpha=30)
     paste_screenshot_card(canvas, "05-settings.png", (1220, 758, 1748, 946), crop=(0, 900, 1206, 1360), radius=22, shadow_alpha=20)
-    save_rgb(canvas, OUT_WIDE / "IntPaper-hero-1920x1080.png")
+    save_rgb(canvas, OUT_WIDE / "InkPaper-hero-1920x1080.png")
 
     og = base((1200, 630))
     og_draw = ImageDraw.Draw(og)
@@ -407,7 +407,7 @@ def make_wide() -> None:
         og_draw,
         62,
         172,
-        "IntPaper：服务器自己选",
+        "InkPaper：服务器自己选",
         "官方 / 自部署 Memos / WebDAV / AI 可选",
         470,
         title_size=48,
@@ -416,15 +416,15 @@ def make_wide() -> None:
     draw_chips(og_draw, 62, 454, ["自部署", "轻记录"])
     og_draw.rounded_rectangle((592, 54, 1124, 582), radius=30, fill=BG, outline=SOFT_TEXT_BORDER, width=1)
     paste_screenshot_card(og, "01-home.png", (594, 126, 1138, 550), crop=(0, 330, 1206, 1260), radius=22, shadow_alpha=24)
-    save_rgb(og, OUT_WIDE / "IntPaper-og-1200x630.png")
+    save_rgb(og, OUT_WIDE / "InkPaper-og-1200x630.png")
 
 
 def make_contact_sheet() -> None:
     paths = [
         *sorted(OUT_XHS.glob("*.png")),
-        OUT_SSPAI / "IntPaper-sspai-cover-1420x708.png",
-        OUT_WIDE / "IntPaper-hero-1920x1080.png",
-        OUT_WIDE / "IntPaper-og-1200x630.png",
+        OUT_SSPAI / "InkPaper-sspai-cover-1420x708.png",
+        OUT_WIDE / "InkPaper-hero-1920x1080.png",
+        OUT_WIDE / "InkPaper-og-1200x630.png",
     ]
     thumbs = []
     label_font = font(16)

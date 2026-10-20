@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to InkRoot will be documented in this file.
+All notable changes to InkPaper will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.13] - 2026-06-22
 
 ### Fixed
-- Fixed a possible Android crash when sharing text or web pages from browsers and reading apps into InkRoot
+- Fixed a possible Android crash when sharing text or web pages from browsers and reading apps into InkPaper
 - Fixed Android share handling that could mistake web page URL ClipData for file attachments
-- Fixed iOS and Android random-review widgets showing "Open InkRoot to show random review" even when notes exist
+- Fixed iOS and Android random-review widgets showing "Open InkPaper to show random review" even when notes exist
 - Fixed random-review widget filtering based on updated time, which made restored or synced notes appear in the wrong review range
 - Added Development Team settings for the iOS main app, widget extension, and share extension to support Xcode device debugging
 
@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.11] - 2026-06-22
 
 ### Added
-- Added an iOS system share extension for sharing text, web pages, images, and files from browsers, reading apps, Photos, and Files into InkRoot
+- Added an iOS system share extension for sharing text, web pages, images, and files from browsers, reading apps, Photos, and Files into InkPaper
 
 ### Improved
 - Improved Android system sharing to support browser and reader text, selected text, single and multiple gallery images, single and multiple file-manager files, and mixed attachments
@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved Memos 0.21.0 to 0.29.1 compatibility for server detection, login token fields, and current-user API fallback
 
 ### Fixed
-- Fixed blank content when sharing from some Android apps into InkRoot
+- Fixed blank content when sharing from some Android apps into InkPaper
 - Fixed login or sync initialization failures on some self-hosted Memos 0.26, 0.27, and 0.29 servers
 
 ## [1.1.10] - 2026-06-22
@@ -175,7 +175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0] - 2026-06-14
 
 ### Maintenance and Release Workflow
-- Added the unified maintenance CLI: `dart tool/inkroot.dart`
+- Added the unified maintenance CLI: `dart tool/inkpaper.dart`
 - Upgraded GitHub Actions to validate and build Android, iOS simulator, macOS, Windows, and Linux
 - Added PR template, issue templates, Dependabot configuration, and Gitleaks secret scanning
 - Added `docs/MAINTENANCE.md` for versioning, CI, release, and security workflow
@@ -567,4 +567,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-For more details, visit our [GitHub Repository](https://github.com/yyyyymmmmm/InkRoot).
+For more details, visit our [GitHub Repository](https://github.com/yyyyymmmmm/InkPaper).

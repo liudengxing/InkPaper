@@ -1,6 +1,6 @@
 # 项目结构与构建指南
 
-这份文档用于维护 IntPaper 项目。重点回答三个问题：
+这份文档用于维护 InkPaper 项目。重点回答三个问题：
 
 - 仓库里的主要文件和文件夹分别负责什么。
 - Flutter 业务代码、平台代码、脚本和 CI 的边界在哪里。
@@ -10,7 +10,7 @@
 
 ## 仓库总览
 
-IntPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台外壳在 `android/`、`ios/`、`macos/`、`windows/`、`linux/`、`web/`，自动化入口集中在 `tool/intpaper.dart` 和 `.github/workflows/`。
+InkPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台外壳在 `android/`、`ios/`、`macos/`、`windows/`、`linux/`、`web/`，自动化入口集中在 `tool/inkpaper.dart` 和 `.github/workflows/`。
 
 常用维护入口：
 
@@ -19,7 +19,7 @@ IntPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台�
 - `lib/config/`：应用级配置、品牌、资源路径、服务器和公开 URL。
 - `lib/providers/app_provider.dart`：核心状态管理入口。
 - `lib/routes/app_router.dart`：页面路由入口。
-- `tool/intpaper.dart`：项目 CLI，负责检查、测试、构建和打 tag 发布。
+- `tool/inkpaper.dart`：项目 CLI，负责检查、测试、构建和打 tag 发布。
 - `.github/workflows/ci.yml`：主分支和 PR 的持续集成。
 - `.github/workflows/release.yml`：正式 tag 的云端发布构建。
 
@@ -364,7 +364,7 @@ IntPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台�
 - `docs/site/agreement.html`：官网用户协议静态页。
 - `docs/site/account-deletion.html`：官网账号与数据删除说明页。
 
-官网协议页更新后，需要同步部署到 `inkroot.cn`，同时确认应用内法律文档和公开网页内容一致。
+官网协议页更新后，需要同步部署到 `inkpaper.cn`，同时确认应用内法律文档和公开网页内容一致。
 
 ## 平台目录
 
@@ -372,21 +372,21 @@ IntPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台�
 
 主要文件：
 
-- `android/app/build.gradle`：Android 应用配置。包名为 `com.didichou.intpaper`，版本来自 `pubspec.yaml`，Release 构建强制要求签名配置。
+- `android/app/build.gradle`：Android 应用配置。包名为 `com.didichou.inkpaper`，版本来自 `pubspec.yaml`，Release 构建强制要求签名配置。
 - `android/app/src/main/AndroidManifest.xml`：权限、Activity、Provider、应用入口配置。
 - `android/app/src/debug/AndroidManifest.xml`：Debug 专用配置。
 - `android/app/src/profile/AndroidManifest.xml`：Profile 专用配置。
-- `android/app/src/main/kotlin/com/didichou/IntPaper/MainActivity.kt`：Android 主 Activity。
-- `android/app/src/main/kotlin/com/didichou/IntPaper/AlarmReceiver.kt`：提醒通知相关广播接收。
-- `android/app/src/main/kotlin/com/didichou/IntPaper/ReleaseLog.kt`：原生日志辅助。
+- `android/app/src/main/kotlin/com/didichou/InkPaper/MainActivity.kt`：Android 主 Activity。
+- `android/app/src/main/kotlin/com/didichou/InkPaper/AlarmReceiver.kt`：提醒通知相关广播接收。
+- `android/app/src/main/kotlin/com/didichou/InkPaper/ReleaseLog.kt`：原生日志辅助。
 - `android/app/src/main/res/`：Android 图标、启动页、通知图标、主题和文件共享路径。
 - `android/gradle.properties`、`android/settings.gradle`、`android/build.gradle`：Gradle 工程配置。
-- `android/intpaper-new-cert.der`：用于校验正式签名证书的公开证书材料，不是私钥。
+- `android/inkpaper-new-cert.der`：用于校验正式签名证书的公开证书材料，不是私钥。
 
 不要提交：
 
 - `android/key.properties`
-- `android/intpaper-new-release.keystore`
+- `android/inkpaper-new-release.keystore`
 - 任何 `.keystore`、`.jks`、`.p12`、`.pem` 私密文件
 
 ### iOS
@@ -467,9 +467,9 @@ Linux 构建需要 GTK、CMake、Ninja、pkg-config、libsecret、curl、c-ares 
 
 ## scripts 和 tool
 
-优先使用 `tool/intpaper.dart`，它是统一维护入口。
+优先使用 `tool/inkpaper.dart`，它是统一维护入口。
 
-`tool/intpaper.dart` 支持：
+`tool/inkpaper.dart` 支持：
 
 - `doctor`：运行 `flutter doctor -v`。
 - `deps`：运行 `flutter pub get`。
@@ -514,10 +514,10 @@ Linux 构建需要 GTK、CMake、Ninja、pkg-config、libsecret、curl、c-ares 
 常用测试命令：
 
 ```bash
-dart tool/intpaper.dart test
-dart tool/intpaper.dart test --coverage
-dart tool/intpaper.dart verify
-dart tool/intpaper.dart verify --coverage
+dart tool/inkpaper.dart test
+dart tool/inkpaper.dart test --coverage
+dart tool/inkpaper.dart verify
+dart tool/inkpaper.dart verify --coverage
 ```
 
 ## 本地开发准备
@@ -535,29 +535,29 @@ dart tool/intpaper.dart verify --coverage
 首次拉取后：
 
 ```bash
-git clone https://github.com/yyyyymmmmm/IntPaper.git
-cd IntPaper
-dart tool/intpaper.dart doctor
-dart tool/intpaper.dart deps
-dart tool/intpaper.dart verify
+git clone https://github.com/yyyyymmmmm/InkPaper.git
+cd InkPaper
+dart tool/inkpaper.dart doctor
+dart tool/inkpaper.dart deps
+dart tool/inkpaper.dart verify
 ```
 
 如果只想快速运行到当前连接设备：
 
 ```bash
-dart tool/intpaper.dart run
+dart tool/inkpaper.dart run
 ```
 
 如果要运行 iOS 模拟器：
 
 ```bash
-dart tool/intpaper.dart run ios-sim
+dart tool/inkpaper.dart run ios-sim
 ```
 
 如果要运行 macOS：
 
 ```bash
-dart tool/intpaper.dart run macos
+dart tool/inkpaper.dart run macos
 ```
 
 ## 本地构建
@@ -565,49 +565,49 @@ dart tool/intpaper.dart run macos
 Android Debug：
 
 ```bash
-dart tool/intpaper.dart build android-debug
+dart tool/inkpaper.dart build android-debug
 ```
 
 Android Release APK：
 
 ```bash
-dart tool/intpaper.dart build android-release
+dart tool/inkpaper.dart build android-release
 ```
 
 Android Release AAB：
 
 ```bash
-dart tool/intpaper.dart build android-aab
+dart tool/inkpaper.dart build android-aab
 ```
 
 iOS 模拟器：
 
 ```bash
-dart tool/intpaper.dart build ios-sim
+dart tool/inkpaper.dart build ios-sim
 ```
 
 iOS unsigned IPA：
 
 ```bash
-dart tool/intpaper.dart build ios-unsigned-ipa
+dart tool/inkpaper.dart build ios-unsigned-ipa
 ```
 
 macOS：
 
 ```bash
-dart tool/intpaper.dart build macos-release
+dart tool/inkpaper.dart build macos-release
 ```
 
 Windows：
 
 ```bash
-dart tool/intpaper.dart build windows-release
+dart tool/inkpaper.dart build windows-release
 ```
 
 Linux：
 
 ```bash
-dart tool/intpaper.dart build linux-release
+dart tool/inkpaper.dart build linux-release
 ```
 
 当前机器无法构建所有平台。iOS 和 macOS 只能在 macOS 构建，Windows 只能在 Windows 构建，Linux 只能在 Linux 构建。云端构建通过不同 GitHub Runner 分别完成。
@@ -617,12 +617,12 @@ dart tool/intpaper.dart build linux-release
 Release APK/AAB 需要本地签名文件。工程会读取：
 
 - `android/key.properties`
-- `android/intpaper-new-release.keystore`
+- `android/inkpaper-new-release.keystore`
 
 `android/key.properties` 需要包含：
 
 ```properties
-storeFile=../intpaper-new-release.keystore
+storeFile=../inkpaper-new-release.keystore
 storePassword=你的本地密码
 keyAlias=你的 alias
 keyPassword=你的本地密码
@@ -633,9 +633,9 @@ keyPassword=你的本地密码
 正式签名必须保持一致，否则用户无法覆盖安装旧版本。每次发版前至少检查：
 
 ```bash
-dart tool/intpaper.dart store-check
-dart tool/intpaper.dart build android-release
-dart tool/intpaper.dart build android-aab
+dart tool/inkpaper.dart store-check
+dart tool/inkpaper.dart build android-release
+dart tool/inkpaper.dart build android-aab
 ```
 
 ## iOS 和 macOS 签名
@@ -648,7 +648,7 @@ dart tool/intpaper.dart build android-aab
 App Store 正式上架仍需要：
 
 - Apple Developer Program 账号。
-- Bundle ID：`com.didichou.intpaper`。
+- Bundle ID：`com.didichou.inkpaper`。
 - App Store Connect 应用记录。
 - Distribution Certificate。
 - App Store Provisioning Profile。
@@ -690,8 +690,8 @@ v1.1.13
 
 默认检查：
 
-- `dart tool/intpaper.dart store-check`
-- `dart tool/intpaper.dart verify --coverage`
+- `dart tool/inkpaper.dart store-check`
+- `dart tool/inkpaper.dart verify --coverage`
 - gitleaks 密钥扫描
 - Android Debug APK
 - iOS Simulator App
@@ -710,13 +710,13 @@ v1.1.13
 发布前本地流程：
 
 ```bash
-dart tool/intpaper.dart store-check
-dart tool/intpaper.dart verify
+dart tool/inkpaper.dart store-check
+dart tool/inkpaper.dart verify
 git status --short
 git add pubspec.yaml CHANGELOG.md CHANGELOG.en.md docs README.md
 git commit -m "chore: prepare vX.Y.Z"
 git push origin main
-dart tool/intpaper.dart release vX.Y.Z
+dart tool/inkpaper.dart release vX.Y.Z
 ```
 
 `release` 命令会检查：
@@ -743,8 +743,8 @@ tag 推送后，GitHub Actions 会执行：
 
 当前 Release 产物包括：
 
-- `IntPaper-vX.Y.Z-android.apk`
-- `IntPaper-vX.Y.Z-android.aab`
+- `InkPaper-vX.Y.Z-android.apk`
+- `InkPaper-vX.Y.Z-android.aab`
 - iOS unsigned `.ipa`
 - macOS `.zip`
 - Windows `.zip`
@@ -776,7 +776,7 @@ Release 工作流至少需要这些 Secrets：
 UMENG_ANDROID_APPKEY=xxx \
 UMENG_CHANNEL=official \
 SENTRY_DSN=xxx \
-dart tool/intpaper.dart build android-release
+dart tool/inkpaper.dart build android-release
 ```
 
 ## 不要提交的内容
@@ -795,8 +795,8 @@ dart tool/intpaper.dart build android-release
 ```bash
 git status --short
 git diff --check
-dart tool/intpaper.dart store-check
-dart tool/intpaper.dart verify
+dart tool/inkpaper.dart store-check
+dart tool/inkpaper.dart verify
 ```
 
 ## 常见维护任务
@@ -819,7 +819,7 @@ dart tool/intpaper.dart verify
 新增用户可见文案：
 
 - 修改 `lib/l10n/app_zh.arb` 和 `lib/l10n/app_en.arb`。
-- 运行 `dart tool/intpaper.dart deps` 或 Flutter 生成流程。
+- 运行 `dart tool/inkpaper.dart deps` 或 Flutter 生成流程。
 - 检查长文本、英文、动态字体下是否溢出。
 
 新增图片或图标：
@@ -834,7 +834,7 @@ dart tool/intpaper.dart verify
 - 更新 `CHANGELOG.md` 和 `CHANGELOG.en.md`。
 - 跑 `store-check` 和 `verify`。
 - 提交并推送 main。
-- 执行 `dart tool/intpaper.dart release vX.Y.Z`。
+- 执行 `dart tool/inkpaper.dart release vX.Y.Z`。
 - 等待 GitHub Actions Release 全部成功。
 
 修改签名：
@@ -848,8 +848,8 @@ dart tool/intpaper.dart verify
 
 构建依赖失败：
 
-- 运行 `dart tool/intpaper.dart doctor`。
-- 运行 `flutter clean` 或 `dart tool/intpaper.dart clean` 后重新 `deps`。
+- 运行 `dart tool/inkpaper.dart doctor`。
+- 运行 `flutter clean` 或 `dart tool/inkpaper.dart clean` 后重新 `deps`。
 - iOS/macOS 检查 Xcode、CocoaPods、Podfile 和网络访问。
 
 Android Release 失败：
@@ -861,7 +861,7 @@ Android Release 失败：
 
 iOS 构建失败：
 
-- 先运行 `dart tool/intpaper.dart deps`。
+- 先运行 `dart tool/inkpaper.dart deps`。
 - 检查 `pod install` 是否成功。
 - 检查 `ios/Podfile` 是否被误改。
 - 检查是否在 OneDrive、iCloud 等文件同步目录导致扩展属性问题，必要时运行 `scripts/clean_apple_xattrs.sh`。
@@ -884,16 +884,16 @@ iOS 构建失败：
 
 ```bash
 git pull --rebase
-dart tool/intpaper.dart deps
-dart tool/intpaper.dart verify
-dart tool/intpaper.dart run ios-sim
+dart tool/inkpaper.dart deps
+dart tool/inkpaper.dart verify
+dart tool/inkpaper.dart run ios-sim
 ```
 
 提交前：
 
 ```bash
-dart tool/intpaper.dart store-check
-dart tool/intpaper.dart verify
+dart tool/inkpaper.dart store-check
+dart tool/inkpaper.dart verify
 git diff --check
 git status --short
 ```
@@ -901,10 +901,10 @@ git status --short
 正式发布：
 
 ```bash
-dart tool/intpaper.dart store-check
-dart tool/intpaper.dart verify
+dart tool/inkpaper.dart store-check
+dart tool/inkpaper.dart verify
 git push origin main
-dart tool/intpaper.dart release vX.Y.Z
+dart tool/inkpaper.dart release vX.Y.Z
 ```
 
 发布后：

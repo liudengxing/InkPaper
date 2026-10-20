@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-15
 
-This document tracks the release checks required before submitting IntPaper to app stores. It is written for maintainers and store-review preparation.
+This document tracks the release checks required before submitting InkPaper to app stores. It is written for maintainers and store-review preparation.
 
 ## iOS App Store
 
@@ -13,15 +13,15 @@ Current app-side status:
 - In-app path exists at `Settings > Account and Data Deletion`.
 - Account page includes the same entry.
 - The legal documents hub includes the same entry.
-- Public deletion URL is `https://inkroot.cn/account-deletion.html`.
+- Public deletion URL is `https://inkpaper.cn/account-deletion.html`.
 
 Before App Store submission:
 
-- Confirm `https://inkroot.cn/account-deletion.html` returns HTTP 200.
+- Confirm `https://inkpaper.cn/account-deletion.html` returns HTTP 200.
 - Confirm App Store Connect privacy answers match `ios/Runner/PrivacyInfo.xcprivacy` and the public privacy policy.
 - Use App Store update delivery only on iOS. Do not show APK or self-update prompts on iOS.
 - Build and archive from a clean non-File-Provider directory or CI runner to avoid extended-attribute code signing failures.
-- Use a real Apple Developer Team, production bundle id `com.didichou.intpaper`, release signing, and an App Store provisioning profile.
+- Use a real Apple Developer Team, production bundle id `com.didichou.inkpaper`, release signing, and an App Store provisioning profile.
 
 ## Google Play
 
@@ -30,13 +30,13 @@ Google Play requires apps with account creation to provide an in-app path for de
 Current app-side status:
 
 - In-app deletion path exists at `Settings > Account and Data Deletion`.
-- Public deletion URL is `https://inkroot.cn/account-deletion.html`.
+- Public deletion URL is `https://inkpaper.cn/account-deletion.html`.
 - Android manifest does not request broad photo/video access or exact-alarm special access. User-created reminders fall back to normal system alarms when exact scheduling is unavailable.
 
 Before Google Play submission:
 
 - Confirm the Data safety form discloses account/profile data, user content, photos/files, optional AI/WebDAV/Memos transfer, feedback, crash diagnostics, and Android analytics only when actually enabled.
-- In the account deletion answers, provide `https://inkroot.cn/account-deletion.html`.
+- In the account deletion answers, provide `https://inkpaper.cn/account-deletion.html`.
 - Reminders use normal system alarm fallback on Android 12+ when exact scheduling is unavailable; do not request exact-alarm special access unless the product is changed to a policy-eligible alarm/calendar use case.
 - Build the signed AAB with the production keystore and verify upload signing configuration before rollout.
 
@@ -45,20 +45,20 @@ Before Google Play submission:
 Run locally or in CI before tagging:
 
 ```bash
-dart tool/intpaper.dart store-check
-dart tool/intpaper.dart verify
-dart tool/intpaper.dart build android-release
-dart tool/intpaper.dart build android-aab
-dart tool/intpaper.dart build ios-sim
-dart tool/intpaper.dart build macos-release
-dart tool/intpaper.dart build windows-release
-dart tool/intpaper.dart build linux-release
+dart tool/inkpaper.dart store-check
+dart tool/inkpaper.dart verify
+dart tool/inkpaper.dart build android-release
+dart tool/inkpaper.dart build android-aab
+dart tool/inkpaper.dart build ios-sim
+dart tool/inkpaper.dart build macos-release
+dart tool/inkpaper.dart build windows-release
+dart tool/inkpaper.dart build linux-release
 ```
 
 Platform notes:
 
 - Android builds require Android SDK and release signing secrets. Google Play
-  submission should use the signed AAB from `dart tool/intpaper.dart build android-aab`.
+  submission should use the signed AAB from `dart tool/inkpaper.dart build android-aab`.
 - iOS simulator builds validate compile/runtime basics. App Store submission
   requires an Xcode archive with Apple signing assets and App Store Connect
   upload.

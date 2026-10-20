@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# IntPaper macOS 发布构建脚本
+# InkPaper macOS 发布构建脚本
 # 自动化构建和打包流程
 
 set -e
@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}   IntPaper macOS 发布构建工具${NC}"
+echo -e "${BLUE}   InkPaper macOS 发布构建工具${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
@@ -68,15 +68,15 @@ echo -e "${YELLOW}📦 步骤 4/4: 创建 DMG 安装包...${NC}"
 ./scripts/dmg/create_ultimate_dmg.sh
 
 # 重命名DMG文件包含版本号
-if [ -f "IntPaper-Installer.dmg" ]; then
-    mv IntPaper-Installer.dmg "IntPaper-${VERSION}-Installer.dmg"
+if [ -f "InkPaper-Installer.dmg" ]; then
+    mv InkPaper-Installer.dmg "InkPaper-${VERSION}-Installer.dmg"
     echo ""
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${GREEN}✅ 构建完成！${NC}"
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
-    echo -e "${BLUE}📦 安装包: IntPaper-${VERSION}-Installer.dmg${NC}"
-    echo -e "${BLUE}💾 大小: $(du -h "IntPaper-${VERSION}-Installer.dmg" | cut -f1)${NC}"
+    echo -e "${BLUE}📦 安装包: InkPaper-${VERSION}-Installer.dmg${NC}"
+    echo -e "${BLUE}💾 大小: $(du -h "InkPaper-${VERSION}-Installer.dmg" | cut -f1)${NC}"
     echo ""
     echo -e "${YELLOW}📝 下一步:${NC}"
     echo "  1. 测试安装包"

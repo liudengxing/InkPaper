@@ -1,4 +1,4 @@
-# IntPaper Docs
+# InkPaper Docs
 
 This directory contains project documentation for users and maintainers.
 
@@ -32,6 +32,6 @@ This directory contains project documentation for users and maintainers.
 
 ## Links
 
-- [GitHub](https://github.com/yyyyymmmmm/IntPaper)
-- [Releases](https://github.com/yyyyymmmmm/IntPaper/releases)
-- [Issues](https://github.com/yyyyymmmmm/IntPaper/issues)
+- [GitHub](https://github.com/yyyyymmmmm/InkPaper)
+- [Releases](https://github.com/yyyyymmmmm/InkPaper/releases)
+- [Issues](https://github.com/yyyyymmmmm/InkPaper/issues)

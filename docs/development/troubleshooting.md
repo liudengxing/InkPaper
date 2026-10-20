@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Common issues and their solutions for IntPaper development.
+Common issues and their solutions for InkPaper development.
 
 ---
 
@@ -638,14 +638,14 @@ If you can't find a solution here:
    ```
 
 2. **Search Issues**: Look for similar issues
-   - [IntPaper Issues](https://github.com/yyyyymmmmm/IntPaper/issues)
+   - [InkPaper Issues](https://github.com/yyyyymmmmm/InkPaper/issues)
    - [Flutter Issues](https://github.com/flutter/flutter/issues)
    - [Stack Overflow](https://stackoverflow.com/questions/tagged/flutter)
 
 3. **Ask for Help**:
-   - 📧 Email: IntPaper2025@gmail.com
-   - 💬 [GitHub Discussions](https://github.com/yyyyymmmmm/IntPaper/discussions)
-   - 🐛 [Report Bug](https://github.com/yyyyymmmmm/IntPaper/issues/new)
+   - 📧 Email: InkPaper2025@gmail.com
+   - 💬 [GitHub Discussions](https://github.com/yyyyymmmmm/InkPaper/discussions)
+   - 🐛 [Report Bug](https://github.com/yyyyymmmmm/InkPaper/issues/new)
 
 4. **Provide Information**:
    - Flutter version (`flutter --version`)

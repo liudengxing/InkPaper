@@ -17,16 +17,16 @@ Do not duplicate the app version in platform files or Dart code. Flutter passes 
 Use the project CLI for repeatable local work:
 
 ```bash
-dart tool/intpaper.dart doctor
-dart tool/intpaper.dart verify
-dart tool/intpaper.dart verify --coverage
-dart tool/intpaper.dart store-check
-dart tool/intpaper.dart build android-debug
-dart tool/intpaper.dart build ios-sim
-dart tool/intpaper.dart build macos-debug
-dart tool/intpaper.dart build windows-debug
-dart tool/intpaper.dart build linux-debug
-dart tool/intpaper.dart release v1.1.13
+dart tool/inkpaper.dart doctor
+dart tool/inkpaper.dart verify
+dart tool/inkpaper.dart verify --coverage
+dart tool/inkpaper.dart store-check
+dart tool/inkpaper.dart build android-debug
+dart tool/inkpaper.dart build ios-sim
+dart tool/inkpaper.dart build macos-debug
+dart tool/inkpaper.dart build windows-debug
+dart tool/inkpaper.dart build linux-debug
+dart tool/inkpaper.dart release v1.1.13
 ```
 
 Host-specific builds require matching local tools:
@@ -66,9 +66,9 @@ check [`docs/STORE_COMPLIANCE.md`](STORE_COMPLIANCE.md).
 
 Required public URLs:
 
-- Privacy Policy: https://inkroot.cn/privacy.html
-- User Agreement: https://inkroot.cn/agreement.html
-- Account and Data Deletion: https://inkroot.cn/account-deletion.html
+- Privacy Policy: https://inkpaper.cn/privacy.html
+- User Agreement: https://inkpaper.cn/agreement.html
+- Account and Data Deletion: https://inkpaper.cn/account-deletion.html
 
 The in-app deletion path is `Settings > Account and Data Deletion`. Keep the
 website pages and the in-app legal text aligned whenever the data flow changes.
@@ -79,9 +79,9 @@ Release flow:
 
 1. Update `pubspec.yaml`.
 2. Update `CHANGELOG.md` and `CHANGELOG.en.md`.
-3. Run `dart tool/intpaper.dart store-check` and `dart tool/intpaper.dart verify`.
+3. Run `dart tool/inkpaper.dart store-check` and `dart tool/inkpaper.dart verify`.
 4. Commit and push the changes.
-5. Run `dart tool/intpaper.dart release vX.Y.Z`.
+5. Run `dart tool/inkpaper.dart release vX.Y.Z`.
 6. Wait for the GitHub Actions Release workflow to finish.
 
 The tag must match the version in `pubspec.yaml`. For `version: 1.1.13+10113`, the release tag is `v1.1.13`.

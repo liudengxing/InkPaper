@@ -1,6 +1,6 @@
 # Architecture Decision Records (ADR)
 
-This directory contains Architecture Decision Records (ADRs) for IntPaper.
+This directory contains Architecture Decision Records (ADRs) for InkPaper.
 
 ---
 

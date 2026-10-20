@@ -3,10 +3,10 @@
 # 终极完美DMG创建脚本 - Release版本
 set -e
 
-APP_NAME="IntPaper"
-APP_PATH="build/macos/Build/Products/Release/IntPaper.app"
-DMG_NAME="IntPaper-1.0.9.dmg"
-VOLUME_NAME="Install IntPaper"
+APP_NAME="InkPaper"
+APP_PATH="build/macos/Build/Products/Release/InkPaper.app"
+DMG_NAME="InkPaper-1.0.9.dmg"
+VOLUME_NAME="Install InkPaper"
 BACKGROUND_DIR="dmg_background"
 BACKGROUND_FILE="background.png"
 
@@ -67,7 +67,7 @@ except:
     except:
         font_large = font_medium = font_small = ImageFont.load_default()
 
-draw.text((330, 60), "欢迎安装 IntPaper", anchor="mm", fill='#2E7D32', font=font_large)
+draw.text((330, 60), "欢迎安装 InkPaper", anchor="mm", fill='#2E7D32', font=font_large)
 draw.text((330, 340), "拖动应用图标到右侧文件夹", anchor="mm", fill='#5FB878', font=font_medium)
 draw.text((330, 380), "智能笔记管理 · 让思考更有条理", anchor="mm", fill='#81C784', font=font_small)
 
@@ -135,7 +135,7 @@ tell application "Finder"
             set background picture of viewOptions to file ".background:$BACKGROUND_FILE"
         end try
         delay 1
-        set position of item "IntPaper.app" of container window to {180, 200}
+        set position of item "InkPaper.app" of container window to {180, 200}
         set position of item "Applications" of container window to {480, 200}
         close
         open

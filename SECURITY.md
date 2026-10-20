@@ -2,7 +2,7 @@
 
 ## 🔒 Reporting a Vulnerability
 
-The IntPaper team takes security seriously. We appreciate your efforts to responsibly disclose your findings.
+The InkPaper team takes security seriously. We appreciate your efforts to responsibly disclose your findings.
 
 ### How to Report
 
@@ -10,7 +10,7 @@ The IntPaper team takes security seriously. We appreciate your efforts to respon
 
 Instead, please report security vulnerabilities by emailing:
 
-📧 **[IntPaper2025@gmail.com](mailto:IntPaper2025@gmail.com)**
+📧 **[InkPaper2025@gmail.com](mailto:InkPaper2025@gmail.com)**
 
 Include the following information in your report:
 
@@ -70,11 +70,11 @@ We release security updates for the following versions:
 - ❌ We do not read private notes for advertising profiles
 - ❌ We do not access self-hosted Memos, WebDAV, or AI service data unless you configure and use those features in the app
 
-For more details, see our [Privacy Policy](https://inkroot.cn/privacy.html)
+For more details, see our [Privacy Policy](https://inkpaper.cn/privacy.html)
 
 ### Third-Party Services
 
-IntPaper uses the following third-party services:
+InkPaper uses the following third-party services:
 
 1. **Umeng Analytics** (Android only when enabled)
    - Purpose: Usage statistics and crash reporting
@@ -110,18 +110,18 @@ IntPaper uses the following third-party services:
 
 1. **Use HTTPS** - Always use HTTPS for server connections, never HTTP in production
 2. **Strong Passwords** - Use strong, unique passwords for your Memos account
-3. **Keep Updated** - Always use the latest version of IntPaper
+3. **Keep Updated** - Always use the latest version of InkPaper
 4. **Secure Your Device** - Use device lock (PIN/password/biometrics)
 5. **Review Permissions** - Only grant permissions you need
 6. **Backup Data** - Regularly export your notes for backup
 
 ### Secure Development Practices
 
-We follow these practices to ensure IntPaper's security:
+We follow these practices to ensure InkPaper's security:
 
 - ✅ Regular dependency updates
 - ✅ Code review for all changes
-- ✅ Static code analysis (`dart tool/intpaper.dart verify`)
+- ✅ Static code analysis (`dart tool/inkpaper.dart verify`)
 - ✅ GitHub Actions secret scanning
 - ✅ Secure storage for sensitive data
 - ✅ Input validation and sanitization
@@ -146,7 +146,7 @@ Android release signing is configured locally through ignored files:
 
 ```text
 android/key.properties
-android/intpaper-new-release.keystore
+android/inkpaper-new-release.keystore
 ```
 
 CI release signing uses GitHub Secrets as documented in
@@ -195,19 +195,19 @@ We appreciate the security research community and thank all researchers who resp
 
 ### Hall of Fame
 
-_(We will list security researchers who have helped improve IntPaper's security here)_
+_(We will list security researchers who have helped improve InkPaper's security here)_
 
 ---
 
 ## 📧 Contact
 
 For security-related inquiries:
-- **Email**: [IntPaper2025@gmail.com](mailto:IntPaper2025@gmail.com)
+- **Email**: [InkPaper2025@gmail.com](mailto:InkPaper2025@gmail.com)
 - **Subject**: `[SECURITY] Your concern here`
 
 For general inquiries:
-- **GitHub Issues**: [https://github.com/yyyyymmmmm/IntPaper/issues](https://github.com/yyyyymmmmm/IntPaper/issues)
-- **Website**: [https://inkroot.cn](https://inkroot.cn)
+- **GitHub Issues**: [https://github.com/yyyyymmmmm/InkPaper/issues](https://github.com/yyyyymmmmm/InkPaper/issues)
+- **Website**: [https://inkpaper.cn](https://inkpaper.cn)
 
 ---
 

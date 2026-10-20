@@ -1,4 +1,4 @@
-# IntPaper Marketing Assets
+# InkPaper Marketing Assets
 
 This folder keeps store screenshots and promotional images.
 

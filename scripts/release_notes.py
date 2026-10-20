@@ -21,7 +21,7 @@ def main() -> int:
         return 1
 
     body = match.group("body").strip()
-    print(body if body else f"IntPaper {sys.argv[2]}")
+    print(body if body else f"InkPaper {sys.argv[2]}")
     return 0
 
 

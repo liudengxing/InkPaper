@@ -1,6 +1,6 @@
-# IntPaper API Documentation
+# InkPaper API Documentation
 
-Complete API reference for IntPaper integration with Memos server.
+Complete API reference for InkPaper integration with Memos server.
 
 ---
 
@@ -18,7 +18,7 @@ Complete API reference for IntPaper integration with Memos server.
 
 ## 🌐 Overview
 
-IntPaper uses the Memos v1 API for server synchronization. This documentation covers all available API endpoints and their usage.
+InkPaper uses the Memos v1 API for server synchronization. This documentation covers all available API endpoints and their usage.
 
 ### Supported Versions
 
@@ -40,7 +40,7 @@ IntPaper uses the Memos v1 API for server synchronization. This documentation co
 
 ### Authentication Methods
 
-IntPaper uses JWT (JSON Web Token) authentication.
+InkPaper uses JWT (JSON Web Token) authentication.
 
 #### 1. User Login
 
@@ -657,13 +657,13 @@ void main() async {
 
 ## 🤝 Contributing
 
-Found an error in the documentation? Please [open an issue](https://github.com/yyyyymmmmm/IntPaper/issues) or submit a pull request.
+Found an error in the documentation? Please [open an issue](https://github.com/yyyyymmmmm/InkPaper/issues) or submit a pull request.
 
 ---
 
 <div align="center">
 
-**API Documentation** | [IntPaper](https://github.com/yyyyymmmmm/IntPaper)
+**API Documentation** | [InkPaper](https://github.com/yyyyymmmmm/InkPaper)
 
 [Back to Main README](../../README.md)
 

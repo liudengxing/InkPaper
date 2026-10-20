@@ -1,6 +1,6 @@
 # Debugging Guide
 
-This guide covers debugging techniques and tools for IntPaper development.
+This guide covers debugging techniques and tools for InkPaper development.
 
 ---
 
@@ -54,7 +54,7 @@ class AppConfig {
 ### Using Logger Service
 
 ```dart
-import 'package:intpaper/services/logger_service.dart';
+import 'package:inkpaper/services/logger_service.dart';
 
 final logger = LoggerService();
 
@@ -72,20 +72,20 @@ logger.error('Error message', error: e, stackTrace: st);
 flutter logs
 
 # Filter by tag
-flutter logs | grep "IntPaper"
+flutter logs | grep "InkPaper"
 
 # Android logcat
 adb logcat | grep flutter
 
 # iOS logs (requires device connection)
-idevicesyslog | grep IntPaper
+idevicesyslog | grep InkPaper
 ```
 
 ### Custom Log Output
 
 ```dart
 // Print with source information
-void debugLog(String message, {String tag = 'IntPaper'}) {
+void debugLog(String message, {String tag = 'InkPaper'}) {
   if (AppConfig.debugMode) {
     final now = DateTime.now();
     print('[$tag] ${now.toString()}: $message');
@@ -366,7 +366,7 @@ class DatabaseService {
 
 ```bash
 # Android: Pull database from device
-adb pull /data/data/com.didichou.intpaper/databases/IntPaper.db ./debug_db.db
+adb pull /data/data/com.didichou.inkpaper/databases/InkPaper.db ./debug_db.db
 
 # Open with SQLite browser
 sqlite3 debug_db.db
@@ -406,7 +406,7 @@ SELECT * FROM note_tags WHERE note_id NOT IN (SELECT id FROM notes);
 adb logcat
 
 # Filter by app
-adb logcat | grep com.didichou.intpaper
+adb logcat | grep com.didichou.inkpaper
 
 # Filter by tag
 adb logcat -s flutter
@@ -431,10 +431,10 @@ adb devices
 adb install app-release.apk
 
 # Clear app data
-adb shell pm clear com.didichou.intpaper
+adb shell pm clear com.didichou.inkpaper
 
 # View app files
-adb shell run-as com.didichou.intpaper ls /data/data/com.didichou.intpaper
+adb shell run-as com.didichou.inkpaper ls /data/data/com.didichou.inkpaper
 ```
 
 ### iOS Debugging
@@ -461,7 +461,7 @@ adb shell run-as com.didichou.intpaper ls /data/data/com.didichou.intpaper
 ```bash
 # View device logs (requires libimobiledevice)
 brew install libimobiledevice
-idevicesyslog | grep IntPaper
+idevicesyslog | grep InkPaper
 
 # Save to file
 idevicesyslog > ios_logs.txt

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://inkroot.cn/sitemap.xml
+Sitemap: https://inkpaper.cn/sitemap.xml

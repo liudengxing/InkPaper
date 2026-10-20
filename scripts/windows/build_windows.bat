@@ -1,9 +1,9 @@
 @echo off
-REM IntPaper Windows 发布构建脚本
+REM InkPaper Windows 发布构建脚本
 REM 需要在Windows系统上运行
 
 echo ========================================
-echo    IntPaper Windows 发布构建工具
+echo    InkPaper Windows 发布构建工具
 echo ========================================
 echo.
 
@@ -29,13 +29,13 @@ flutter build windows --release
 echo.
 
 REM 检查构建结果
-if exist "build\windows\x64\runner\Release\IntPaper.exe" (
+if exist "build\windows\x64\runner\Release\InkPaper.exe" (
     echo ========================================
     echo 构建完成！
     echo ========================================
     echo.
     echo 应用位置: build\windows\x64\runner\Release\
-    echo 可执行文件: IntPaper.exe
+    echo 可执行文件: InkPaper.exe
     echo.
     echo 下一步:
     echo   1. 测试应用

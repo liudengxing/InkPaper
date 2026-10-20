@@ -1,13 +1,13 @@
-# IntPaper User Guide
+# InkPaper User Guide
 
-Welcome to IntPaper! This guide will help you get started and make the most of all features.
+Welcome to InkPaper! This guide will help you get started and make the most of all features.
 
 ---
 
 ## 📚 Quick Navigation
 
 ### Getting Started
-- [Quick Start Guide](getting-started.md) - First steps with IntPaper
+- [Quick Start Guide](getting-started.md) - First steps with InkPaper
 - [Installation](../installation.md) - How to install on your device
 - [First Note](tutorials/first-note.md) - Create your first note
 
@@ -31,7 +31,7 @@ Welcome to IntPaper! This guide will help you get started and make the most of a
 
 ### Customization
 - [Themes & Fonts](customization/themes.md) - Personalize your experience
-- [Settings](customization/settings.md) - Configure IntPaper
+- [Settings](customization/settings.md) - Configure InkPaper
 - [Language](customization/language.md) - Choose your language
 
 ### Help & Troubleshooting
@@ -41,9 +41,9 @@ Welcome to IntPaper! This guide will help you get started and make the most of a
 
 ---
 
-## 🎯 What is IntPaper?
+## 🎯 What is InkPaper?
 
-IntPaper is a powerful yet simple note-taking app that helps you:
+InkPaper is a powerful yet simple note-taking app that helps you:
 
 - 📝 **Capture Ideas Quickly** - Write notes with full Markdown support
 - ✅ **Manage Tasks** - Interactive todo lists
@@ -153,7 +153,7 @@ IntPaper is a powerful yet simple note-taking app that helps you:
 
 ```
 ┌─────────────────────────────────┐
-│  ☰  IntPaper          🔍  ⚙️     │  Header
+│  ☰  InkPaper          🔍  ⚙️     │  Header
 ├─────────────────────────────────┤
 │                                 │
 │  📝 My First Note      📌       │  Note Card
@@ -225,13 +225,13 @@ IntPaper is a powerful yet simple note-taking app that helps you:
 - [Troubleshooting](troubleshooting.md) - Fix common issues
 
 ### Get Support
-- 📧 Email: [IntPaper2025@gmail.com](mailto:IntPaper2025@gmail.com)
-- 💬 GitHub: [Discussions](https://github.com/yyyyymmmmm/IntPaper/discussions)
-- 🐛 Report Bug: [Issues](https://github.com/yyyyymmmmm/IntPaper/issues)
+- 📧 Email: [InkPaper2025@gmail.com](mailto:InkPaper2025@gmail.com)
+- 💬 GitHub: [Discussions](https://github.com/yyyyymmmmm/InkPaper/discussions)
+- 🐛 Report Bug: [Issues](https://github.com/yyyyymmmmm/InkPaper/issues)
 
 ### Community
-- ⭐ Star on GitHub: [IntPaper Repository](https://github.com/yyyyymmmmm/IntPaper)
-- 🌐 Website: [inkroot.cn](https://inkroot.cn)
+- ⭐ Star on GitHub: [InkPaper Repository](https://github.com/yyyyymmmmm/InkPaper)
+- 🌐 Website: [inkpaper.cn](https://inkpaper.cn)
 
 ---
 

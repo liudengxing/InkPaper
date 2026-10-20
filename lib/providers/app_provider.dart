@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // 添加http包
@@ -39,6 +38,7 @@ import 'package:inkpaper/services/widget_snapshot_service.dart';
 import 'package:inkpaper/utils/error_handler.dart';
 // 🚀 大厂标准：监控工具
 import 'package:inkpaper/utils/logger.dart';
+import 'package:inkpaper/utils/note_dedupe.dart';
 import 'package:inkpaper/utils/performance_tracker.dart';
 import 'package:inkpaper/widgets/cached_avatar.dart';
 import 'package:path_provider/path_provider.dart';
@@ -1129,11 +1129,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   }
 
   // 计算笔记内容的哈希值
-  String _calculateNoteHash(Note note) {
-    final content = utf8.encode(note.content);
-    final digest = sha256.convert(content);
-    return digest.toString();
-  }
+  String _calculateNoteHash(Note note) => noteContentHash(note);
 
   Future<Note> _prepareNoteForMemosUpload(Note note) async {
     if (_resourceService == null) {

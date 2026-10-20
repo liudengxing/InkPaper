@@ -57,7 +57,10 @@ extension AppProviderSyncPart on AppProvider {
       // 智能合并策略：优先保留服务器数据，但不丢失本地未同步的数据
       final mergedNotes = <Note>[];
       final serverNoteIds = serverNotes.map((note) => note.id).toSet();
-      final serverNoteHashes = serverNotes.map(_calculateNoteHash).toSet();
+      // 内容哈希 -> 服务端笔记，用于识别「同内容、不同 id」的残留副本
+      final serverNotesByHash = <String, Note>{
+        for (final note in serverNotes) _calculateNoteHash(note): note,
+      };
       final localNotesById = {for (final note in localNotes) note.id: note};
 
       // 1. 添加所有服务器笔记，但保留本地的引用关系和置顶状态
@@ -81,15 +84,16 @@ extension AppProviderSyncPart on AppProvider {
 
       // 2. 添加本地未同步的笔记（避免重复）
       var addedUnsyncedCount = 0;
+      // 内容与服务端某条完全一致、但 id 不同的本地未同步残留，稍后物理删除
+      final staleLocalIds = <String>[];
+
       for (var note in unsyncedNotes) {
         final noteHash = _calculateNoteHash(note);
-
-        // 检查是否与服务器数据重复
-        final isDuplicate = serverNoteHashes.contains(noteHash);
+        final duplicateTarget = serverNotesByHash[noteHash];
         final hasIdConflict =
             serverNoteIds.contains(note.id) && !note.id.startsWith('local_');
 
-        if (!isDuplicate) {
+        if (duplicateTarget == null) {
           // 如果ID冲突但内容不重复，生成新的本地ID
           if (hasIdConflict) {
             note = note.copyWith(
@@ -99,6 +103,23 @@ extension AppProviderSyncPart on AppProvider {
           }
           mergedNotes.add(note);
           addedUnsyncedCount++;
+        } else if (!hasIdConflict) {
+          // 同内容、不同 id：多半是「远端被删后重建」在本机留下的旧副本。
+          // 剪枝会跳过未同步行，如果只是跳过，库里会同时存在两条一样的笔记。
+          // 把本地增强数据（置顶、批注、引用）并到服务端那条上，再删掉旧副本。
+          final index =
+              mergedNotes.indexWhere((merged) => merged.id == duplicateTarget.id);
+          if (index != -1) {
+            mergedNotes[index] = _mergeServerNoteWithLocalState(
+              duplicateTarget,
+              note,
+              keepLocalPendingChanges: true,
+            );
+          }
+          staleLocalIds.add(note.id);
+          debugPrint(
+            'AppProvider: 清理同内容残留副本 ${note.id} → ${duplicateTarget.id}',
+          );
         } else {
           debugPrint('AppProvider: 跳过重复笔记: ${note.id}');
         }
@@ -109,6 +130,9 @@ extension AppProviderSyncPart on AppProvider {
       // 3. 更新本地数据库（upsert 策略：不清空，避免写入中断时丢失数据）
       debugPrint('AppProvider: 更新本地数据库');
       await _databaseService.saveNotes(mergedNotes);
+      for (final staleId in staleLocalIds) {
+        await _databaseService.deleteNote(staleId);
+      }
       // 删除服务器已不存在的本地已同步笔记，未同步笔记保留
       if (isRemoteComplete) {
         await _databaseService.deleteSyncedNotesNotIn(serverNoteIds.toList());
@@ -263,8 +287,20 @@ extension AppProviderSyncPart on AppProvider {
       // 4. 更新本地数据库（upsert 策略）
       _setSyncMessage('更新本地数据...');
 
+      // 内容与服务端某条一致、但 id 不同的本地未同步副本（远端被删后重建的残留）
+      final duplicateLocalCopies = findDuplicateLocalCopies(
+        localNotes: localNotes,
+        serverNotes: serverNotes,
+      );
+      // 服务端 id -> 可继承本地状态的副本
+      final copyByServerId = <String, Note>{
+        for (final entry in duplicateLocalCopies.entries)
+          entry.value.id: localNotesById[entry.key]!,
+      };
+
       final mergedServerNotes = serverNotes.map((serverNote) {
-        final localNote = localNotesById[serverNote.id];
+        final localNote =
+            localNotesById[serverNote.id] ?? copyByServerId[serverNote.id];
         return localNote == null
             ? serverNote
             : _mergeServerNoteWithLocalState(
@@ -274,6 +310,10 @@ extension AppProviderSyncPart on AppProvider {
               );
       }).toList();
       await _databaseService.saveNotes(mergedServerNotes);
+      for (final copyId in duplicateLocalCopies.keys) {
+        await _databaseService.deleteNote(copyId);
+        debugPrint('AppProvider: 清理同内容残留副本 $copyId');
+      }
       final syncedServerIds = mergedServerNotes.map((n) => n.id).toList();
       if (isRemoteComplete) {
         await _databaseService.deleteSyncedNotesNotIn(syncedServerIds);

@@ -268,9 +268,6 @@ class AppConfig {
   /// 配置键 - 法律文档同意时间
   static const String prefKeyLegalAcceptedAt = 'legal_accepted_at';
 
-  /// 配置键 - 上次同步时间
-  static const String prefKeyLastSyncTime = 'last_sync_time';
-
   /// 配置键 - 功能开关
   static const String prefKeyFeatureFlags = 'feature_flags';
 

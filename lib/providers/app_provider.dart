@@ -19,7 +19,6 @@ import 'package:intpaper/models/webdav_config.dart';
 import 'package:intpaper/services/api_service_factory.dart';
 import 'package:intpaper/services/cloud_verification_service.dart';
 import 'package:intpaper/services/database_service.dart';
-import 'package:intpaper/services/incremental_sync_service.dart';
 import 'package:intpaper/services/local_reference_service.dart';
 import 'package:intpaper/services/memos_api_service_fixed.dart'; // 使用修复版API服务
 import 'package:intpaper/services/memos_resource_service.dart'; // 图片上传服务
@@ -199,7 +198,6 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       _reminderNotificationService;
   // 🎯 大厂标准：暴露preferencesService供登录/注册页使用
   PreferencesService get preferencesService => _preferencesService;
-  IncrementalSyncService? _incrementalSyncService;
   int _unreadAnnouncementsCount = 0;
 
   // 云验证相关
@@ -2954,28 +2952,18 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
   // NOTE: `fetchNotesFromServer` moved to `app_provider_sync.part.dart`.
 
-  /// 🚀 快速从服务器刷新（增量同步）
-  /// HomeScreen 下拉刷新依赖这个方法。
+  /// 从服务器刷新（HomeScreen 下拉刷新依赖这个方法）。
+  ///
+  /// 直接复用完整同步的「拉取 → 合并 → 剪枝 → 重载」链路。
+  /// 原先走 `IncrementalSyncService`：所谓增量只是本地按 updatedAt 过滤，
+  /// 实际仍然全量 GET，却少了批注/置顶的合并保护、远端删除剪枝和统一错误处理，
+  /// 它自己维护的 lastSyncTime 还会与完整同步互相污染。收敛到一条链路后
+  /// 两处行为一致，也不会再出现"下拉刷新后已删笔记回来"的情况。
   Future<void> refreshFromServerFast() async {
     if (!isLoggedIn || _memosApiService == null) {
       return;
     }
-
-    _setSyncUi(syncing: true, message: '正在快速同步...');
-    try {
-      _incrementalSyncService ??=
-          IncrementalSyncService(_databaseService, _memosApiService);
-
-      await _incrementalSyncService!.incrementalSync();
-
-      // 同步后从本地重新加载，保证 UI/内存态一致
-      await loadNotesFromLocal(reset: true);
-    } on Object catch (e) {
-      _setSyncMessage(sync_status.syncFailedMessage(e));
-      rethrow;
-    } finally {
-      _setSyncUi(syncing: false);
-    }
+    await fetchNotesFromServer();
   }
 
   /// 当本地临时ID笔记上传到服务器后，ID 可能发生变化。
@@ -3505,10 +3493,6 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
           baseUrl: savedServerUrl,
           token: savedToken,
         ) as MemosApiServiceFixed;
-
-        // 🚀 初始化增量同步服务（关键！）
-        _incrementalSyncService =
-            IncrementalSyncService(_databaseService, _memosApiService);
 
         _resourceService = MemosResourceService(
           baseUrl: savedServerUrl,

@@ -8,33 +8,9 @@ IntPaper is a cross-platform note-taking app for personal knowledge capture. It 
 
 ## Current Version
 
-`1.1.13`
+`1.0.0`
 
-This release fixes Android share crashes, blank shared content, self-hosted Memos 0.26/0.27/0.29 login or sync initialization failures, random-review widget placeholders, and iOS share-extension packaging issues. It also continues improving widgets, system sharing, Memos compatibility, and cross-platform builds.
-
-Highlights:
-
-- Android and iOS widgets now provide separate quick-note and random-review entry points.
-- Random-review widgets support real note selection, refresh settings, and random switching.
-- Android system sharing supports browsers, readers, selected text, galleries, file managers, and mixed attachments.
-- iOS adds a system share extension for sharing content from browsers, readers, Photos, and Files into IntPaper.
-- The Memos 0.21.0 to 0.29.1 compatibility path is improved for login, account loading, resources, and sync initialization.
-- Speech recognition now has a user-managed iFlytek configuration entry.
-- The knowledge graph has improved visuals, zooming, node selection, and large-note rendering performance.
-- Windows, macOS, and Linux now treat the font-size preference as whole-interface desktop scaling.
-- Markdown headings, blockquotes, links, underline, and related-note references render more consistently.
-- Tag path parsing, sidebar tag back navigation, and Chinese tag opening behavior are improved.
-- AI settings, model input, custom prompts, and quick-start copy are tightened.
-- Home feed rendering keeps user line breaks and spacing.
-- Expand controls are based on rendered visible content.
-- Image preview supports tap-to-dismiss, original image viewing, and multi-image browsing.
-- WebDAV backup supports image attachment options and improved folder creation, progress, and error handling.
-- Sync and refresh preserve note creation time to keep activity heatmaps stable.
-- Account and data deletion is now available in Settings, with a public deletion request page.
-- The iOS privacy manifest, permission declarations, and legal documents now match the current data flow.
-- The public website now has refreshed product pages, downloads, guide, FAQ, full changelog, and legal pages.
-- The project CLI covers verification, builds, and release tags.
-- GitHub Actions covers Android, iOS, macOS, Windows, and Linux.
+Official build
 
 ## Features
 
@@ -104,13 +80,13 @@ sdkmanager --licenses
 The app version is managed in `pubspec.yaml`:
 
 ```yaml
-version: 1.1.13+10113
+version: 1.0.0+10000
 ```
 
 Release command:
 
 ```bash
-dart tool/inkroot.dart release v1.1.13
+dart tool/inkroot.dart release v1.0.0
 ```
 
 The command creates and pushes a version tag. GitHub Actions then verifies, builds, and publishes Android APK/AAB, iOS, macOS, Windows, and Linux assets.

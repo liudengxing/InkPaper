@@ -80,13 +80,13 @@ sdkmanager --licenses
 版本号统一维护在 `pubspec.yaml`：
 
 ```yaml
-version: 1.1.13+10113
+version: 1.0.0+10000
 ```
 
 发布入口：
 
 ```bash
-dart tool/inkroot.dart release v1.1.13
+dart tool/inkroot.dart release v1.0.0
 ```
 
 这个命令会创建并推送版本 tag。GitHub Actions 收到 tag 后自动执行检查、构建并发布 Android APK/AAB、iOS、macOS、Windows 和 Linux 产物。

@@ -60,7 +60,7 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement at
-[InkPaper2025@gmail.com](mailto:InkPaper2025@gmail.com).
+[rsbgbn@126.com](mailto:rsbgbn@126.com).
 
 All complaints will be reviewed and investigated promptly and fairly.
 

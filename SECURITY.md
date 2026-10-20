@@ -10,7 +10,7 @@ The InkPaper team takes security seriously. We appreciate your efforts to respon
 
 Instead, please report security vulnerabilities by emailing:
 
-📧 **[InkPaper2025@gmail.com](mailto:InkPaper2025@gmail.com)**
+📧 **[rsbgbn@126.com](mailto:rsbgbn@126.com)**
 
 Include the following information in your report:
 
@@ -202,7 +202,7 @@ _(We will list security researchers who have helped improve InkPaper's security 
 ## 📧 Contact
 
 For security-related inquiries:
-- **Email**: [InkPaper2025@gmail.com](mailto:InkPaper2025@gmail.com)
+- **Email**: [rsbgbn@126.com](mailto:rsbgbn@126.com)
 - **Subject**: `[SECURITY] Your concern here`
 
 For general inquiries:

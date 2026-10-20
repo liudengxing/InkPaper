@@ -311,7 +311,7 @@ Now that you're set up, explore these features:
 ### Get Help
 - 📖 Read [FAQ](faq.md)
 - 🔧 Check [Troubleshooting](troubleshooting.md)
-- 📧 Email: InkPaper2025@gmail.com
+- 📧 Email: rsbgbn@126.com
 - 💬 GitHub: [Discussions](https://github.com/yyyyymmmmm/InkPaper/discussions)
 
 ---

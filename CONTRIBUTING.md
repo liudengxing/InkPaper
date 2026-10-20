@@ -407,7 +407,7 @@ class _MyWidgetState extends State<MyWidget> {
 
 - **GitHub Issues**: [https://github.com/yyyyymmmmm/InkPaper/issues](https://github.com/yyyyymmmmm/InkPaper/issues)
 - **GitHub Discussions**: [https://github.com/yyyyymmmmm/InkPaper/discussions](https://github.com/yyyyymmmmm/InkPaper/discussions)
-- **Email**: [InkPaper2025@gmail.com](mailto:InkPaper2025@gmail.com)
+- **Email**: [rsbgbn@126.com](mailto:rsbgbn@126.com)
 - **Website**: [https://inkpaper.cn](https://inkpaper.cn)
 
 ---

@@ -23,7 +23,7 @@ The public website source lives in `docs/site`.
 6. Keep the real site identity information:
    - ICP filing: `陕ICP备20002445号-6`
    - Public security filing: `陕公网安备 61011302002176号`
-   - Contact email: `InkPaper2025@gmail.com`
+   - Contact email: `rsbgbn@126.com`
    - Baidu verification file: `baidu_verify_codeva-AVWaMz7Wrp.html`
 7. Keep compatibility redirect pages for old public URLs:
    - `/guide.html`, `/faq.html`, `/changelog.html`

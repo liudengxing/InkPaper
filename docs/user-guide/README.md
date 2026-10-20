@@ -225,7 +225,7 @@ InkPaper is a powerful yet simple note-taking app that helps you:
 - [Troubleshooting](troubleshooting.md) - Fix common issues
 
 ### Get Support
-- 📧 Email: [InkPaper2025@gmail.com](mailto:InkPaper2025@gmail.com)
+- 📧 Email: [rsbgbn@126.com](mailto:rsbgbn@126.com)
 - 💬 GitHub: [Discussions](https://github.com/yyyyymmmmm/InkPaper/discussions)
 - 🐛 Report Bug: [Issues](https://github.com/yyyyymmmmm/InkPaper/issues)
 

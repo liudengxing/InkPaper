@@ -643,7 +643,7 @@ If you can't find a solution here:
    - [Stack Overflow](https://stackoverflow.com/questions/tagged/flutter)
 
 3. **Ask for Help**:
-   - 📧 Email: InkPaper2025@gmail.com
+   - 📧 Email: rsbgbn@126.com
    - 💬 [GitHub Discussions](https://github.com/yyyyymmmmm/InkPaper/discussions)
    - 🐛 [Report Bug](https://github.com/yyyyymmmmm/InkPaper/issues/new)
 

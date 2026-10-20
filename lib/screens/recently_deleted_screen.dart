@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/database_service.dart';
@@ -51,24 +52,29 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
   }
 
   Future<void> _restore(Note note) async {
+    final l10n = AppLocalizationsSimple.of(context);
     final provider = context.read<AppProvider>();
     final restored = await provider.restoreRecentlyDeletedNote(note.id);
     if (!mounted) {
       return;
     }
     if (restored) {
-      SnackBarUtils.showSuccess(context, '已恢复到笔记列表');
+      SnackBarUtils.showSuccess(context, l10n?.noteRestored ?? '笔记已恢复');
     } else {
-      SnackBarUtils.showError(context, '恢复失败，请重试');
+      SnackBarUtils.showError(
+        context,
+        l10n?.restoreFailedRetry ?? '恢复失败，请重试',
+      );
     }
     await _load();
   }
 
   Future<void> _purge(Note note) async {
+    final l10n = AppLocalizationsSimple.of(context);
     final confirmed = await _confirm(
-      title: '彻底删除',
-      content: '这条笔记将被永久删除，无法恢复。',
-      confirmText: '彻底删除',
+      title: l10n?.purgeForever ?? '彻底删除',
+      content: l10n?.purgeForeverMessage ?? '这条笔记将被永久删除，无法恢复。',
+      confirmText: l10n?.purgeForever ?? '彻底删除',
     );
     if (confirmed != true || !mounted) {
       return;
@@ -80,18 +86,23 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
       return;
     }
     if (purged) {
-      SnackBarUtils.showSuccess(context, '已彻底删除');
+      SnackBarUtils.showSuccess(context, l10n?.notePurged ?? '已彻底删除');
     } else {
-      SnackBarUtils.showError(context, '删除失败，请重试');
+      SnackBarUtils.showError(
+        context,
+        l10n?.deleteFailedRetry ?? '删除失败，请重试',
+      );
     }
     await _load();
   }
 
   Future<void> _purgeAll() async {
+    final l10n = AppLocalizationsSimple.of(context);
     final confirmed = await _confirm(
-      title: '清空最近删除',
-      content: '最近删除中的 ${_notes.length} 条笔记将被永久删除，无法恢复。',
-      confirmText: '全部删除',
+      title: l10n?.purgeAllTitle ?? '清空最近删除',
+      content: l10n?.purgeAllMessage(_notes.length) ??
+          '最近删除中的 ${_notes.length} 条笔记将被永久删除，无法恢复。',
+      confirmText: l10n?.purgeAllAction ?? '全部删除',
     );
     if (confirmed != true || !mounted) {
       return;
@@ -102,7 +113,10 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
     if (!mounted) {
       return;
     }
-    SnackBarUtils.showSuccess(context, '已彻底删除 $removed 条笔记');
+    SnackBarUtils.showSuccess(
+      context,
+      l10n?.purgeAllSuccess(removed) ?? '已彻底删除 $removed 条笔记',
+    );
     await _load();
   }
 
@@ -119,7 +133,7 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('取消'),
+              child: Text(AppLocalizationsSimple.of(context)?.cancel ?? '取消'),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -135,15 +149,16 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizationsSimple.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('最近删除'),
+        title: Text(l10n?.recentlyDeleted ?? '最近删除'),
         centerTitle: true,
         actions: [
           if (_notes.isNotEmpty)
             IconButton(
-              tooltip: '清空',
+              tooltip: l10n?.emptyTrashAction ?? '清空',
               icon: const Icon(Icons.delete_sweep_outlined),
               onPressed: _purgeAll,
             ),
@@ -159,6 +174,7 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
     }
 
     if (_notes.isEmpty) {
+      final l10n = AppLocalizationsSimple.of(context);
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -170,12 +186,16 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              '最近删除是空的',
+              l10n?.recentlyDeletedEmpty ?? '最近删除是空的',
               style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: 6),
             Text(
-              '删除的笔记会在这里保留 30 天',
+              l10n?.recentlyDeletedRetention(
+                    RecentlyDeletedScreen.retention.inDays,
+                  ) ??
+                  '删除的笔记会在这里保留 '
+                      '${RecentlyDeletedScreen.retention.inDays} 天',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.outline,
               ),
@@ -200,17 +220,18 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
   }
 
   Widget _buildNoteItem(Note note, ThemeData theme) {
+    final l10n = AppLocalizationsSimple.of(context);
     final preview = _previewText(note.content);
     final deletedAt = note.deletedAt;
     final subtitle = deletedAt == null
-        ? '删除时间未知'
-        : '删除于 ${TimeUtils.formatDateTime(deletedAt)}'
+        ? (l10n?.deletedAtUnknown ?? '删除时间未知')
+        : '${l10n?.deletedAtLabel(TimeUtils.formatDateTime(deletedAt)) ?? '删除于 ${TimeUtils.formatDateTime(deletedAt)}'}'
             '（${TimeUtils.getRelativeTime(deletedAt)}）';
 
     return ListTile(
       isThreeLine: true,
       title: Text(
-        preview.isEmpty ? '无标题笔记' : preview,
+        preview.isEmpty ? (l10n?.untitledNote ?? '无标题笔记') : preview,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
@@ -221,7 +242,8 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
           Text(subtitle, style: theme.textTheme.bodySmall),
           const SizedBox(height: 2),
           Text(
-            '共 ${note.content.length} 字',
+            l10n?.noteCharCount(note.content.length) ??
+                '共 ${note.content.length} 字',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.outline,
             ),
@@ -232,12 +254,12 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            tooltip: '恢复',
+            tooltip: l10n?.restoreAction ?? '恢复',
             icon: const Icon(Icons.restore),
             onPressed: () => _restore(note),
           ),
           IconButton(
-            tooltip: '彻底删除',
+            tooltip: l10n?.purgeForever ?? '彻底删除',
             icon: Icon(
               Icons.delete_forever_outlined,
               color: theme.colorScheme.error,

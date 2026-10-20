@@ -2874,6 +2874,57 @@ class Translations {
       'en': 'Restored: {count} notes',
     },
     'errorsCount': {'zh': '错误：{count}', 'en': 'Errors: {count}'},
+
+    // ===== 最近删除（回收站） =====
+    'recentlyDeleted': {'zh': '最近删除', 'en': 'Recently Deleted'},
+    'recentlyDeletedEmpty': {
+      'zh': '最近删除是空的',
+      'en': 'Nothing in Recently Deleted',
+    },
+    'recentlyDeletedRetention': {
+      'zh': '删除的笔记会在这里保留 {days} 天',
+      'en': 'Deleted notes are kept here for {days} days',
+    },
+    'purgeForever': {
+      'zh': '彻底删除',
+      'en': 'Delete Permanently',
+    },
+    'purgeForeverMessage': {
+      'zh': '这条笔记将被永久删除，无法恢复。',
+      'en': "This note will be permanently deleted. This can't be undone.",
+    },
+    'purgeAllTitle': {
+      'zh': '清空最近删除',
+      'en': 'Empty Recently Deleted',
+    },
+    'purgeAllMessage': {
+      'zh': '最近删除中的 {count} 条笔记将被永久删除，无法恢复。',
+      'en':
+          '{count} notes in Recently Deleted will be permanently deleted. This can\'t be undone.',
+    },
+    'purgeAllAction': {'zh': '全部删除', 'en': 'Delete All'},
+    'purgeAllSuccess': {
+      'zh': '已彻底删除 {count} 条笔记',
+      'en': 'Permanently deleted {count} notes',
+    },
+    'notePurged': {'zh': '已彻底删除', 'en': 'Permanently deleted'},
+    'restoreAction': {'zh': '恢复', 'en': 'Restore'},
+    'restoreFailedRetry': {
+      'zh': '恢复失败，请重试',
+      'en': 'Restore failed, please try again',
+    },
+    'deleteFailedRetry': {
+      'zh': '删除失败，请重试',
+      'en': 'Delete failed, please try again',
+    },
+    'deletedAtLabel': {'zh': '删除于 {time}', 'en': 'Deleted {time}'},
+    'deletedAtUnknown': {
+      'zh': '删除时间未知',
+      'en': 'Deletion time unknown',
+    },
+    'noteCharCount': {'zh': '共 {count} 字', 'en': '{count} characters'},
+    'untitledNote': {'zh': '无标题笔记', 'en': 'Untitled note'},
+    'emptyTrashAction': {'zh': '清空', 'en': 'Empty'},
   };
 
   /// 获取翻译文本

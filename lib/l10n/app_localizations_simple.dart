@@ -2960,6 +2960,46 @@ class AppLocalizationsSimple {
         fallback: '无法将文件保存到本地存储。是否改用分享方式，您可以通过分享选择保存位置？',
       );
   String get shareSave => _t('shareSave', fallback: '分享保存');
+
+  // ===== 最近删除（回收站） =====
+  String get recentlyDeleted => _t('recentlyDeleted', fallback: '最近删除');
+  String get recentlyDeletedEmpty =>
+      _t('recentlyDeletedEmpty', fallback: '最近删除是空的');
+  String recentlyDeletedRetention(int days) => _t(
+        'recentlyDeletedRetention',
+        fallback: '删除的笔记会在这里保留 {days} 天',
+      ).replaceAll('{days}', days.toString());
+  String get purgeForever => _t('purgeForever', fallback: '彻底删除');
+  String get purgeForeverMessage => _t(
+        'purgeForeverMessage',
+        fallback: '这条笔记将被永久删除，无法恢复。',
+      );
+  String get purgeAllTitle => _t('purgeAllTitle', fallback: '清空最近删除');
+  String purgeAllMessage(int count) => _t(
+        'purgeAllMessage',
+        fallback: '最近删除中的 {count} 条笔记将被永久删除，无法恢复。',
+      ).replaceAll('{count}', count.toString());
+  String get purgeAllAction => _t('purgeAllAction', fallback: '全部删除');
+  String purgeAllSuccess(int count) => _t(
+        'purgeAllSuccess',
+        fallback: '已彻底删除 {count} 条笔记',
+      ).replaceAll('{count}', count.toString());
+  String get notePurged => _t('notePurged', fallback: '已彻底删除');
+  String get restoreAction => _t('restoreAction', fallback: '恢复');
+  String get restoreFailedRetry =>
+      _t('restoreFailedRetry', fallback: '恢复失败，请重试');
+  String get deleteFailedRetry =>
+      _t('deleteFailedRetry', fallback: '删除失败，请重试');
+  String deletedAtLabel(String time) =>
+      _t('deletedAtLabel', fallback: '删除于 {time}')
+          .replaceAll('{time}', time);
+  String get deletedAtUnknown =>
+      _t('deletedAtUnknown', fallback: '删除时间未知');
+  String noteCharCount(int count) =>
+      _t('noteCharCount', fallback: '共 {count} 字')
+          .replaceAll('{count}', count.toString());
+  String get untitledNote => _t('untitledNote', fallback: '无标题笔记');
+  String get emptyTrashAction => _t('emptyTrashAction', fallback: '清空');
 }
 
 class _AppLocalizationsDelegate

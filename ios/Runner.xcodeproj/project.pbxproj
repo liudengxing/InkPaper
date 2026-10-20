@@ -17,10 +17,10 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
-		A10000000000000000000005 /* InkRootWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000001 /* InkRootWidgets.swift */; };
-		A10000000000000000000006 /* InkRootWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000004 /* InkRootWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A10000000000000000000005 /* IntPaperWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000001 /* IntPaperWidgets.swift */; };
+		A10000000000000000000006 /* IntPaperWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000004 /* IntPaperWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B10000000000000000000005 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* ShareViewController.swift */; };
-		B10000000000000000000006 /* InkRootShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* InkRootShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B10000000000000000000006 /* IntPaperShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* IntPaperShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,14 +36,14 @@
 			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A1000000000000000000000A;
-			remoteInfo = InkRootWidgets;
+			remoteInfo = IntPaperWidgets;
 		};
 		B10000000000000000000012 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = B1000000000000000000000A;
-			remoteInfo = InkRootShareExtension;
+			remoteInfo = IntPaperShareExtension;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -64,8 +64,8 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				A10000000000000000000006 /* InkRootWidgets.appex in Embed App Extensions */,
-				B10000000000000000000006 /* InkRootShareExtension.appex in Embed App Extensions */,
+				A10000000000000000000006 /* IntPaperWidgets.appex in Embed App Extensions */,
+				B10000000000000000000006 /* IntPaperShareExtension.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -96,14 +96,14 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A10000000000000000000001 /* InkRootWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InkRootWidgets.swift; sourceTree = "<group>"; };
+		A10000000000000000000001 /* IntPaperWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntPaperWidgets.swift; sourceTree = "<group>"; };
 		A10000000000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A10000000000000000000003 /* InkRootWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = InkRootWidgets.entitlements; sourceTree = "<group>"; };
-		A10000000000000000000004 /* InkRootWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = InkRootWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000003 /* IntPaperWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = IntPaperWidgets.entitlements; sourceTree = "<group>"; };
+		A10000000000000000000004 /* IntPaperWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = IntPaperWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B10000000000000000000001 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		B10000000000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		B10000000000000000000003 /* InkRootShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = InkRootShareExtension.entitlements; sourceTree = "<group>"; };
-		B10000000000000000000004 /* InkRootShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = InkRootShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000003 /* IntPaperShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = IntPaperShareExtension.entitlements; sourceTree = "<group>"; };
+		B10000000000000000000004 /* IntPaperShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = IntPaperShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -165,8 +165,8 @@
 			isa = PBXGroup;
 			children = (
 				9740EEB11CF90186004384FC /* Flutter */,
-				A1000000000000000000000F /* InkRootWidgets */,
-				B1000000000000000000000F /* InkRootShareExtension */,
+				A1000000000000000000000F /* IntPaperWidgets */,
+				B1000000000000000000000F /* IntPaperShareExtension */,
 				97C146F01CF9000F007C117D /* Runner */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
@@ -179,8 +179,8 @@
 			isa = PBXGroup;
 			children = (
 				97C146EE1CF9000F007C117D /* Runner.app */,
-				A10000000000000000000004 /* InkRootWidgets.appex */,
-				B10000000000000000000004 /* InkRootShareExtension.appex */,
+				A10000000000000000000004 /* IntPaperWidgets.appex */,
+				B10000000000000000000004 /* IntPaperShareExtension.appex */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
 			);
 			name = Products;
@@ -213,24 +213,24 @@
 			path = Pods;
 			sourceTree = "<group>";
 		};
-		A1000000000000000000000F /* InkRootWidgets */ = {
+		A1000000000000000000000F /* IntPaperWidgets */ = {
 			isa = PBXGroup;
 			children = (
-				A10000000000000000000001 /* InkRootWidgets.swift */,
+				A10000000000000000000001 /* IntPaperWidgets.swift */,
 				A10000000000000000000002 /* Info.plist */,
-				A10000000000000000000003 /* InkRootWidgets.entitlements */,
+				A10000000000000000000003 /* IntPaperWidgets.entitlements */,
 			);
-			path = InkRootWidgets;
+			path = IntPaperWidgets;
 			sourceTree = "<group>";
 		};
-		B1000000000000000000000F /* InkRootShareExtension */ = {
+		B1000000000000000000000F /* IntPaperShareExtension */ = {
 			isa = PBXGroup;
 			children = (
 				B10000000000000000000001 /* ShareViewController.swift */,
 				B10000000000000000000002 /* Info.plist */,
-				B10000000000000000000003 /* InkRootShareExtension.entitlements */,
+				B10000000000000000000003 /* IntPaperShareExtension.entitlements */,
 			);
-			path = InkRootShareExtension;
+			path = IntPaperShareExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -278,9 +278,9 @@
 			productReference = 97C146EE1CF9000F007C117D /* Runner.app */;
 			productType = "com.apple.product-type.application";
 		};
-		A1000000000000000000000A /* InkRootWidgets */ = {
+		A1000000000000000000000A /* IntPaperWidgets */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A1000000000000000000000B /* Build configuration list for PBXNativeTarget "InkRootWidgets" */;
+			buildConfigurationList = A1000000000000000000000B /* Build configuration list for PBXNativeTarget "IntPaperWidgets" */;
 			buildPhases = (
 				A10000000000000000000007 /* Sources */,
 				A10000000000000000000008 /* Frameworks */,
@@ -290,14 +290,14 @@
 			);
 			dependencies = (
 			);
-			name = InkRootWidgets;
-			productName = InkRootWidgets;
-			productReference = A10000000000000000000004 /* InkRootWidgets.appex */;
+			name = IntPaperWidgets;
+			productName = IntPaperWidgets;
+			productReference = A10000000000000000000004 /* IntPaperWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		B1000000000000000000000A /* InkRootShareExtension */ = {
+		B1000000000000000000000A /* IntPaperShareExtension */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = B1000000000000000000000B /* Build configuration list for PBXNativeTarget "InkRootShareExtension" */;
+			buildConfigurationList = B1000000000000000000000B /* Build configuration list for PBXNativeTarget "IntPaperShareExtension" */;
 			buildPhases = (
 				B10000000000000000000007 /* Sources */,
 				B10000000000000000000008 /* Frameworks */,
@@ -307,9 +307,9 @@
 			);
 			dependencies = (
 			);
-			name = InkRootShareExtension;
-			productName = InkRootShareExtension;
-			productReference = B10000000000000000000004 /* InkRootShareExtension.appex */;
+			name = IntPaperShareExtension;
+			productName = IntPaperShareExtension;
+			productReference = B10000000000000000000004 /* IntPaperShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -356,8 +356,8 @@
 			projectRoot = "";
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,
-				A1000000000000000000000A /* InkRootWidgets */,
-				B1000000000000000000000A /* InkRootShareExtension */,
+				A1000000000000000000000A /* IntPaperWidgets */,
+				B1000000000000000000000A /* IntPaperShareExtension */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
 			);
 		};
@@ -495,7 +495,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A10000000000000000000005 /* InkRootWidgets.swift in Sources */,
+				A10000000000000000000005 /* IntPaperWidgets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -517,12 +517,12 @@
 		};
 		A10000000000000000000011 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = A1000000000000000000000A /* InkRootWidgets */;
+			target = A1000000000000000000000A /* IntPaperWidgets */;
 			targetProxy = A10000000000000000000012 /* PBXContainerItemProxy */;
 		};
 		B10000000000000000000011 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = B1000000000000000000000A /* InkRootShareExtension */;
+			target = B1000000000000000000000A /* IntPaperShareExtension */;
 			targetProxy = B10000000000000000000012 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -620,7 +620,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkroot;
+				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -636,7 +636,7 @@
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
-				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkroot.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -653,7 +653,7 @@
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
-				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkroot.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Runner";
@@ -668,7 +668,7 @@
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
-				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkroot.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Runner";
@@ -808,7 +808,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkroot;
+				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -838,7 +838,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkroot;
+				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -851,12 +851,12 @@
 			baseConfigurationReference = 9740EEB21CF90195004384FC /* Debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CODE_SIGN_ENTITLEMENTS = InkRootWidgets/InkRootWidgets.entitlements;
+				CODE_SIGN_ENTITLEMENTS = IntPaperWidgets/IntPaperWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = F8WRN47K72;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = InkRootWidgets/Info.plist;
+				INFOPLIST_FILE = IntPaperWidgets/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -865,7 +865,7 @@
 				);
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
 				OTHER_LDFLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkroot.widgets;
+				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
@@ -880,12 +880,12 @@
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CODE_SIGN_ENTITLEMENTS = InkRootWidgets/InkRootWidgets.entitlements;
+				CODE_SIGN_ENTITLEMENTS = IntPaperWidgets/IntPaperWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = F8WRN47K72;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = InkRootWidgets/Info.plist;
+				INFOPLIST_FILE = IntPaperWidgets/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -894,7 +894,7 @@
 				);
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
 				OTHER_LDFLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkroot.widgets;
+				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
@@ -907,12 +907,12 @@
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CODE_SIGN_ENTITLEMENTS = InkRootWidgets/InkRootWidgets.entitlements;
+				CODE_SIGN_ENTITLEMENTS = IntPaperWidgets/IntPaperWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = F8WRN47K72;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = InkRootWidgets/Info.plist;
+				INFOPLIST_FILE = IntPaperWidgets/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -921,7 +921,7 @@
 				);
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
 				OTHER_LDFLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkroot.widgets;
+				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
@@ -933,12 +933,12 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = B10000000000000000000013 /* ExtensionDebug.xcconfig */;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = InkRootShareExtension/InkRootShareExtension.entitlements;
+				CODE_SIGN_ENTITLEMENTS = IntPaperShareExtension/IntPaperShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = F8WRN47K72;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = InkRootShareExtension/Info.plist;
+				INFOPLIST_FILE = IntPaperShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -946,7 +946,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
-				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkroot.share;
+				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -960,12 +960,12 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = B10000000000000000000014 /* ExtensionRelease.xcconfig */;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = InkRootShareExtension/InkRootShareExtension.entitlements;
+				CODE_SIGN_ENTITLEMENTS = IntPaperShareExtension/IntPaperShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = F8WRN47K72;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = InkRootShareExtension/Info.plist;
+				INFOPLIST_FILE = IntPaperShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -973,7 +973,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
-				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkroot.share;
+				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
@@ -985,12 +985,12 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = B10000000000000000000014 /* ExtensionRelease.xcconfig */;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = InkRootShareExtension/InkRootShareExtension.entitlements;
+				CODE_SIGN_ENTITLEMENTS = IntPaperShareExtension/IntPaperShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = F8WRN47K72;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = InkRootShareExtension/Info.plist;
+				INFOPLIST_FILE = IntPaperShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -998,7 +998,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
-				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.inkroot.share;
+				PRODUCT_BUNDLE_IDENTIFIER = com.didichou.intpaper.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
@@ -1039,7 +1039,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A1000000000000000000000B /* Build configuration list for PBXNativeTarget "InkRootWidgets" */ = {
+		A1000000000000000000000B /* Build configuration list for PBXNativeTarget "IntPaperWidgets" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1000000000000000000000C /* Debug */,
@@ -1049,7 +1049,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		B1000000000000000000000B /* Build configuration list for PBXNativeTarget "InkRootShareExtension" */ = {
+		B1000000000000000000000B /* Build configuration list for PBXNativeTarget "IntPaperShareExtension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				B1000000000000000000000C /* Debug */,

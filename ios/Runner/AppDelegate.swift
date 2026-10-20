@@ -40,7 +40,7 @@ import WidgetKit
 
     let messenger = engineBridge.applicationRegistrar.messenger()
     methodChannel = FlutterMethodChannel(
-      name: "com.didichou.inkroot/native_alarm",
+      name: "com.didichou.intpaper/native_alarm",
       binaryMessenger: messenger
     )
 
@@ -64,12 +64,12 @@ import WidgetKit
           result(false)
           return
         }
-        let defaults = UserDefaults(suiteName: "group.com.didichou.inkroot")
+        let defaults = UserDefaults(suiteName: "group.com.didichou.intpaper")
         defaults?.set(snapshot, forKey: key)
         defaults?.synchronize()
         if #available(iOS 14.0, *) {
-          WidgetCenter.shared.reloadTimelines(ofKind: "InkRootQuickNoteWidget")
-          WidgetCenter.shared.reloadTimelines(ofKind: "InkRootRandomReviewWidget")
+          WidgetCenter.shared.reloadTimelines(ofKind: "IntPaperQuickNoteWidget")
+          WidgetCenter.shared.reloadTimelines(ofKind: "IntPaperRandomReviewWidget")
         }
         result(true)
       } else {
@@ -81,7 +81,7 @@ import WidgetKit
     
     // 🎨 启动页动画 MethodChannel
     let launchScreenChannel = FlutterMethodChannel(
-      name: "com.didichou.inkroot/launch_screen",
+      name: "com.didichou.intpaper/launch_screen",
       binaryMessenger: messenger
     )
 
@@ -98,7 +98,7 @@ import WidgetKit
     // ⚠️ iOS版本不使用友盟统计 - 为了通过App Store审核
     // 友盟Method Channel已禁用，所有调用将返回false
     let umengChannel = FlutterMethodChannel(
-      name: "com.didichou.inkroot/umeng",
+      name: "com.didichou.intpaper/umeng",
       binaryMessenger: messenger
     )
 
@@ -132,9 +132,9 @@ import WidgetKit
   }
 
   private func consumeSharedPayload() -> [String: Any]? {
-    let defaults = UserDefaults(suiteName: "group.com.didichou.inkroot")
-    let payload = defaults?.dictionary(forKey: "inkroot_pending_share_payload")
-    defaults?.removeObject(forKey: "inkroot_pending_share_payload")
+    let defaults = UserDefaults(suiteName: "group.com.didichou.intpaper")
+    let payload = defaults?.dictionary(forKey: "intpaper_pending_share_payload")
+    defaults?.removeObject(forKey: "intpaper_pending_share_payload")
     defaults?.synchronize()
     return payload
   }

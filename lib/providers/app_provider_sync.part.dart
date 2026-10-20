@@ -353,10 +353,16 @@ extension AppProviderSyncPart on AppProvider {
 
       _setSyncMessage('同步完成');
 
-      // 延迟一点时间再清除同步状态
+      // 延迟一点时间再清除同步状态。
+      // 有暂停重试的笔记时保留提示，否则用户只会在同步过程中瞥到一眼。
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
-          _setSyncUi(syncing: false);
+          _setSyncUi(
+            syncing: false,
+            message: blockedUploads > 0
+                ? '$blockedUploads 条笔记多次上传失败，编辑后会自动重试'
+                : null,
+          );
         }
       });
     } on Object catch (e) {

@@ -284,7 +284,7 @@ class DatabaseService {
   Future<List<Note>> getNotes() async {
     final db = await database;
     final List<Map<String, dynamic>> maps =
-        await db.query('notes', orderBy: 'createdAt DESC');
+        await db.query(viewActiveNotes, orderBy: 'createdAt DESC');
 
     return List.generate(maps.length, (i) => Note.fromMap(maps[i]));
   }
@@ -299,7 +299,7 @@ class DatabaseService {
     final offset = page * pageSize;
 
     final List<Map<String, dynamic>> maps = await db.query(
-      'notes',
+      viewActiveNotes,
       orderBy: orderBy ?? 'createdAt DESC',
       limit: pageSize,
       offset: offset,
@@ -311,7 +311,8 @@ class DatabaseService {
   /// 获取笔记总数
   Future<int> getNotesCount() async {
     final db = await database;
-    final result = await db.rawQuery('SELECT COUNT(*) as count FROM notes');
+    final result =
+        await db.rawQuery('SELECT COUNT(*) as count FROM $viewActiveNotes');
     return result.isNotEmpty ? (result.first['count'] as int? ?? 0) : 0;
   }
 
@@ -319,7 +320,7 @@ class DatabaseService {
   Future<Note?> getNoteById(String id) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
-      'notes',
+      viewActiveNotes,
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -335,7 +336,7 @@ class DatabaseService {
   Future<List<Note>> getUnsyncedNotes() async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
-      'notes',
+      viewActiveNotes,
       where: 'is_synced = ?',
       whereArgs: [0],
     );
@@ -416,9 +417,11 @@ class DatabaseService {
     }
     final db = await database;
     final placeholders = List.filled(serverIds.length, '?').join(',');
+    // 软删行由删除同步与 GC 负责，这里不参与剪枝
     await db.delete(
       'notes',
-      where: 'is_synced = 1 AND id NOT IN ($placeholders)',
+      where: "is_synced = 1 AND IFNULL(rowStatus, 'NORMAL') <> 'DELETED' "
+          'AND id NOT IN ($placeholders)',
       whereArgs: serverIds,
     );
   }
@@ -432,7 +435,8 @@ class DatabaseService {
 
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.rawQuery(
-      'SELECT * FROM notes WHERE $tagMatchWhereClause ORDER BY createdAt DESC',
+      'SELECT * FROM $viewActiveNotes WHERE $tagMatchWhereClause '
+      'ORDER BY createdAt DESC',
       [tagMatchPattern(normalized)],
     );
 
@@ -449,7 +453,7 @@ class DatabaseService {
     final db = await database;
     final pattern = '%$normalizedQuery%';
     final List<Map<String, dynamic>> maps = await db.query(
-      'notes',
+      viewActiveNotes,
       where: 'content LIKE ? OR tags LIKE ?',
       whereArgs: [pattern, pattern],
       orderBy: 'createdAt DESC',

@@ -152,6 +152,71 @@ void main() {
     final indexes = await _indexes(db, 'notes');
     expect(indexes, contains('idx_notes_created_at'));
     expect(indexes, contains('idx_notes_is_synced'));
+    final colsAfter = await _columns(db, 'notes');
+    expect(colsAfter, contains('deleted_at'));
+    await db.close();
+  });
+
+  test('DB-MIG-06 createSchema 建立 active_notes 视图并过滤软删行', () async {
+    final db = await _openDbAtVersion(DatabaseService.schemaVersion);
+
+    final views = await db
+        .rawQuery("SELECT name FROM sqlite_master WHERE type='view'")
+        .then((rows) => rows.map((r) => r['name']! as String).toList());
+    expect(views, contains(DatabaseService.viewActiveNotes));
+
+    await db.insert('notes', {
+      'id': 'alive',
+      'content': '正常笔记',
+      'createdAt': DateTime(2025).toIso8601String(),
+      'updatedAt': DateTime(2025).toIso8601String(),
+    });
+    await db.insert('notes', {
+      'id': 'soft-deleted',
+      'content': '已软删',
+      'createdAt': DateTime(2025).toIso8601String(),
+      'updatedAt': DateTime(2025).toIso8601String(),
+      'rowStatus': 'DELETED',
+      'deleted_at': DateTime(2025).toIso8601String(),
+    });
+
+    final active = await db.query(DatabaseService.viewActiveNotes);
+    expect(active.map((row) => row['id']), ['alive']);
+    await db.close();
+  });
+
+  test('DB-MIG-07 upgradeSchema (9 -> 10) 补 deleted_at 列并建视图', () async {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+
+    final db = await databaseFactory.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 9,
+        singleInstance: false,
+        onCreate: (db, _) async {
+          await db.execute('''
+            CREATE TABLE notes(
+              id TEXT PRIMARY KEY,
+              content TEXT NOT NULL,
+              createdAt TEXT NOT NULL,
+              updatedAt TEXT NOT NULL,
+              tags TEXT,
+              is_synced INTEGER DEFAULT 0,
+              rowStatus TEXT DEFAULT 'NORMAL'
+            )
+          ''');
+        },
+      ),
+    );
+
+    await DatabaseService.upgradeSchema(db, oldVersion: 9, newVersion: 10);
+
+    expect(await _columns(db, 'notes'), contains('deleted_at'));
+    final views = await db
+        .rawQuery("SELECT name FROM sqlite_master WHERE type='view'")
+        .then((rows) => rows.map((r) => r['name']! as String).toList());
+    expect(views, contains(DatabaseService.viewActiveNotes));
     await db.close();
   });
 }

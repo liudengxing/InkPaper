@@ -2685,6 +2685,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       }
       // 软删：行保留在库里，撤销窗口外仍可从「最近删除」恢复
       await _databaseService.softDeleteNote(id);
+      // 软删行不再计入 viewActiveNotes，总数要跟着减，
+      // 否则「共 N 条」和 hasMoreData 会一直沿用删除前的值。
+      _totalNotesCount = await _databaseService.getNotesCount();
       await _cleanupReferencesForDeletedNote(id);
       notifyListeners(); // ⚡ UI立即刷新
       _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
@@ -2815,7 +2818,12 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       _deleteQueue.remove(_lastDeletedNote!.id);
       _pendingDeleteIds.remove(_lastDeletedNote!.id);
 
-      // 1. 恢复到内存列表。搜索结果删除的笔记可能不在当前分页内，默认恢复到顶部。
+      // 1. 先解除软删标记并校准总数：软删行不计入 viewActiveNotes，
+      //    恢复后总数要跟着回来，否则「共 N 条」会少一条。
+      await _databaseService.restoreDeletedNote(_lastDeletedNote!.id);
+      _totalNotesCount = await _databaseService.getNotesCount();
+
+      // 2. 恢复到内存列表。搜索结果删除的笔记可能不在当前分页内，默认恢复到顶部。
       final restoreIndex = _lastDeletedIndex! < 0
           ? 0
           : _lastDeletedIndex!.clamp(0, _notes.length);
@@ -2824,9 +2832,6 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
 
       debugPrint('AppProvider: ⚡ UI已更新（笔记已恢复到列表）');
-
-      // 2. 后台解除软删标记
-      await _databaseService.restoreDeletedNote(_lastDeletedNote!.id);
 
       // 3. 清理临时变量
       _lastDeletedNote = null;

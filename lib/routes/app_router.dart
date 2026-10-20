@@ -30,6 +30,7 @@ import 'package:intpaper/screens/performance_dashboard_screen.dart';
 import 'package:intpaper/screens/preferences_screen.dart';
 import 'package:intpaper/screens/privacy_policy_screen.dart';
 import 'package:intpaper/screens/random_review_screen.dart';
+import 'package:intpaper/screens/recently_deleted_screen.dart';
 import 'package:intpaper/screens/register_screen.dart';
 import 'package:intpaper/screens/server_info_screen.dart';
 import 'package:intpaper/screens/settings_screen.dart';
@@ -416,6 +417,16 @@ class AppRouter {
               context: context,
               state: state,
               child: const DataCleanupScreen(),
+            ),
+          ),
+
+          GoRoute(
+            path: 'recently-deleted',
+            name: 'recentlyDeleted',
+            pageBuilder: (context, state) => buildSlideTransition(
+              context: context,
+              state: state,
+              child: const RecentlyDeletedScreen(),
             ),
           ),
 

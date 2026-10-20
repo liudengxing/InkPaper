@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intpaper/l10n/app_localizations_simple.dart';
 import 'package:intpaper/models/app_config_model.dart';
 import 'package:intpaper/providers/app_provider.dart';
@@ -24,6 +25,7 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
 
   bool _isLoading = false;
   int _notesCount = 0;
+  int _deletedNotesCount = 0;
   double _databaseSize = 0;
   double _cacheSize = 0;
   int _imagesCount = 0;
@@ -43,6 +45,8 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
     try {
       // 获取笔记数量
       final notesCount = await _databaseService.getNotesCount();
+      final deletedNotesCount =
+          await _databaseService.getDeletedNotesCount();
 
       // 获取数据库大小
       final dbSize = await _databaseService.getDatabaseSize();
@@ -57,6 +61,7 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
       if (mounted) {
         setState(() {
           _notesCount = notesCount;
+          _deletedNotesCount = deletedNotesCount;
           _databaseSize = dbSizeInMB;
           _cacheSize = cacheSize;
           _imagesCount = imagesCount;
@@ -609,6 +614,12 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
         ],
       );
 
+  /// 打开「最近删除」，返回后刷新计数
+  Future<void> _openRecentlyDeleted() async {
+    await context.push('/recently-deleted');
+    await _loadDataInfo();
+  }
+
   // 清理操作卡片
   Widget _buildCleanupActionsCard(Color cardColor, Color textColor) => Card(
         elevation: 1,
@@ -630,6 +641,16 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+              _buildActionItem(
+                icon: Icons.restore_from_trash_outlined,
+                title: '最近删除',
+                subtitle: _deletedNotesCount == 0
+                    ? '没有已删除的笔记'
+                    : '$_deletedNotesCount 条已删除笔记，可恢复或彻底删除（保留 30 天）',
+                iconColor: Colors.teal,
+                onTap: _openRecentlyDeleted,
+              ),
+              const Divider(),
               _buildActionItem(
                 icon: Icons.delete_outline,
                 title: AppLocalizationsSimple.of(context)?.cleanCache ?? '清理缓存',

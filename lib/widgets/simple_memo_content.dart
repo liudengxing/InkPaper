@@ -144,8 +144,9 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
   }) {
     final maxChars =
         (widget.compactHeadings || widget.maxLines != null) ? 18 : 30;
-    final noteIndex = notes.indexWhere((note) => note.id == noteId);
-    final isMissing = noteIndex < 0;
+    // 逐条 indexWhere 会让每个引用都扫一遍全表，先建一次 id -> Note 索引。
+    final resolved = _referenceIndexFor(notes)[noteId];
+    final isMissing = resolved == null;
 
     final alias = customText?.trim();
     if (alias != null && alias.isNotEmpty) {
@@ -155,14 +156,29 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
       );
     }
 
-    if (isMissing) {
+    if (resolved == null) {
       return const _ReferenceDisplay('已删除的笔记', isMissing: true);
     }
 
     return _ReferenceDisplay(
-      _extractDisplayText(notes[noteIndex].content, maxChars: maxChars),
+      _extractDisplayText(resolved.content, maxChars: maxChars),
       isMissing: false,
     );
+  }
+
+  List<Note>? _referenceIndexSource;
+  Map<String, Note>? _referenceIndexCache;
+
+  Map<String, Note> _referenceIndexFor(List<Note> notes) {
+    if (identical(_referenceIndexSource, notes) &&
+        _referenceIndexCache != null) {
+      return _referenceIndexCache!;
+    }
+    _referenceIndexSource = notes;
+    _referenceIndexCache = <String, Note>{
+      for (final note in notes) note.id: note,
+    };
+    return _referenceIndexCache!;
   }
 
   String _extractDisplayText(String content, {required int maxChars}) {

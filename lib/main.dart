@@ -436,6 +436,49 @@ void _handleInkPaperDeepLink(AppRouter appRouter, String rawUrl) {
   }
 }
 
+/// 只影响 `MaterialApp` 外壳的主题 / 语言配置。
+///
+/// 用值相等语义把 `AppProvider` 的变更面收窄：笔记增删、同步进度、登录
+/// 状态变化都不再触发整个 `MaterialApp` 树重建。
+class _AppChrome {
+  const _AppChrome({
+    required this.isDark,
+    required this.themeSelection,
+    required this.themeMode,
+    required this.fontScale,
+    required this.fontFamily,
+    required this.locale,
+  });
+
+  final bool isDark;
+  final String themeSelection;
+  final String themeMode;
+  final double fontScale;
+  final String fontFamily;
+  final String? locale;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _AppChrome &&
+          other.isDark == isDark &&
+          other.themeSelection == themeSelection &&
+          other.themeMode == themeMode &&
+          other.fontScale == fontScale &&
+          other.fontFamily == fontFamily &&
+          other.locale == locale;
+
+  @override
+  int get hashCode => Object.hash(
+        isDark,
+        themeSelection,
+        themeMode,
+        fontScale,
+        fontFamily,
+        locale,
+      );
+}
+
 // 创建自定义页面切换动画
 class FadeTransitionPageRoute<T> extends PageRouteBuilder<T> {
   FadeTransitionPageRoute({required this.page})
@@ -493,15 +536,22 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) => ChangeNotifierProvider.value(
         value: widget.appProvider,
-        child: Consumer<AppProvider>(
-          builder: (context, provider, child) {
-            // 获取主题选择和深色模式状态
-            final isDarkMode = provider.isDarkMode;
-            final themeSelection = provider.themeSelection;
-            final themeMode = provider.themeMode;
-            final fontScale = provider.appConfig.fontScale;
-            final fontFamily = provider.appConfig.fontFamily;
-            final locale = provider.locale;
+        child: Selector<AppProvider, _AppChrome>(
+          selector: (_, provider) => _AppChrome(
+            isDark: provider.isDarkMode,
+            themeSelection: provider.themeSelection,
+            themeMode: provider.themeMode,
+            fontScale: provider.appConfig.fontScale,
+            fontFamily: provider.appConfig.fontFamily,
+            locale: provider.locale,
+          ),
+          builder: (context, chrome, child) {
+            final isDarkMode = chrome.isDark;
+            final themeSelection = chrome.themeSelection;
+            final themeMode = chrome.themeMode;
+            final fontScale = chrome.fontScale;
+            final fontFamily = chrome.fontFamily;
+            final locale = chrome.locale;
 
             // 🚀 优化：立即设置状态栏，避免延迟导致的闪烁
             final statusBarColor =

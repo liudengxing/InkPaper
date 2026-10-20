@@ -8,7 +8,7 @@
 - 静态检查基线：`dart analyze lib tool test` 4 条既有 warning（`unawaited_return_in_try_block`）、0 error
 - 测试基线：`flutter test` **383** 项全通过
 - 代码规模：`lib/` 146 个 Dart 文件 / 88,287 行；`test/` 38 个文件
-- 当前版本：`1.0.4+10004`
+- 当前版本：`1.0.5+10005`
 
 ---
 
@@ -34,6 +34,8 @@
 | `4b54c01` | P-2 字体 | Android 上思源黑体/宋体走系统字体族，去掉 google_fonts 运行时下载 |
 | `0c8ec83` | P-1 状态通知分家 | 新增 `notifyUiStateChanged()`；主页 `Selector<_FeedSnapshot>`、未读条 `Selector<int>` |
 | `2419d4e` | P-6 基线采集 | `BUILD_AND_DEVICE_TESTING.md` §3.1 写入采集步骤与目标值 |
+| `11f46f5` | 卡片按压动画 | `AnimatedBuilder` 接上 `child`，缩放不再整卡重建；修掉恒定居中缩小 3% 的曲线错误；`DateFormat` 与预览正则静态化 |
+| `91eb1ab` | P1-1 计数修复 | 删除与撤销删除后重新取 `viewActiveNotes` 的 COUNT |
 
 ### 1.1 已落地的设计约束（改动时不要破坏）
 
@@ -76,7 +78,7 @@
 
 | # | 问题 | 位置 | 建议方案 |
 | --- | --- | --- | --- |
-| P1-1 | 删除/恢复后 `totalNotesCount` 不更新 | `AppProvider._totalNotesCount` 仅在加载路径赋值 | 删除与回收站恢复后同步调整计数 |
+| ~~P1-1~~ ✅ | 删除/撤销删除后 `totalNotesCount` 不更新 | ~~`AppProvider._totalNotesCount` 仅在加载路径赋值~~ | 已在删除与撤销两处改为库操作后重新取 COUNT（`91eb1ab`）。回收站恢复走 `loadNotesFromLocal`，本来就会重算 |
 | P1-2 | 回收站页面文案硬编码中文 | `lib/screens/recently_deleted_screen.dart` | 并入 i18n 收敛（P2-1） |
 | P1-3 | 回收站 GC 仅在进入页面时触发 | `_RecentlyDeletedScreenState._load` | 也可挂到启动幂等任务或数据清理页 |
 | P1-4 | 缺少删除链路的组件/集成测试 | `test/` 目前以 unit 为主 | 补「删除 → 回收站出现 → 恢复 → 列表中有」的 widget 测试 |
@@ -99,6 +101,8 @@
 | **P-5** | 卡片缩略图按格子实际像素宽度解码（`memCacheWidth` 不再固定 720） |
 | **P-6** | 基线采集方法与目标值写入 `BUILD_AND_DEVICE_TESTING.md` §3.1，数值待真机采集 |
 | 拆包构建 | `android-release-split`（`--split-per-abi` + `--split-debug-info`） |
+| 卡片按压动画 | `AnimatedBuilder` 接上 `child` 复用静态子树，每帧只重建 `Transform`；顺带修掉 `Tween(1→0.98)` 导致卡片恒定居中缩小 3% 的问题 |
+| 格式与正则 | 卡片时间 `DateFormat`、预览解析用的 `RegExp` / `InlineSyntax` 全部提到静态，不再每条笔记重新编译 |
 
 待办：
 

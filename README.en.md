@@ -2,8 +2,6 @@
 
 IntPaper is a cross-platform note-taking app for personal knowledge capture. Local note-taking is recommended, and you can also connect to a self-hosted Memos server for sync. The app supports Memos-compatible Markdown, images, tags, reminders, search, WebDAV backup, import/export, system sharing, widgets, and optional AI-assisted writing.
 
-> IntPaper is a continuation and rename of [InkRoot](https://github.com/yyyyymmmmm/InkRoot). The codebase is maintained here, and the repository now lives at [liudengxing/IntPaper](https://github.com/liudengxing/IntPaper).
-
 [Latest release](https://github.com/liudengxing/IntPaper/releases/latest) · [Issues](https://github.com/liudengxing/IntPaper/issues) · [中文](README.md)
 
 ## Current Version

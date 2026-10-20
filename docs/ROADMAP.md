@@ -8,7 +8,7 @@
 - 静态检查基线：`dart analyze lib tool test` 4 条既有 warning（`unawaited_return_in_try_block`）、0 error
 - 测试基线：`flutter test` **383** 项全通过
 - 代码规模：`lib/` 146 个 Dart 文件 / 88,287 行；`test/` 38 个文件
-- 当前版本：`1.0.3+10003`
+- 当前版本：`1.0.4+10004`
 
 ---
 
@@ -25,10 +25,15 @@
 | `e411a69` | 删除重试 | schema 11：`pending_note_operations` 表；远端删除入队，同步前后补交，失败累加 `attempts` |
 | `111cd1c` | 同步收敛 | 下拉刷新复用 `fetchNotesFromServer`；删除 `IncrementalSyncService` 与 `AppConfig.prefKeyLastSyncTime` |
 | `0e9dd00` | 合并保护 | 拉取合并新增 `keepLocalPendingChanges`，本地待上传改动不再被服务端旧内容覆盖 |
-| 待提交 | 卡片渲染降维 | 新增 `utils/note_preview_builder.dart` + `widgets/note_preview_text.dart`：Markdown AST → 纯文本 + 样式区间，整卡只产出一个 `Text.rich`；`NotePreviewCache` LRU 400 条 |
-| 待提交 | 列表与根节点重建收窄 | 删除 `_visibleItemsCount` 分帧递增、骨架屏、`scrollCacheExtent: 1000`；根节点 `Consumer` → `Selector<AppProvider, _AppChrome>` |
-| 待提交 | 引用解析索引化 | `SimpleMemoContent` 的 `indexWhere` 全表扫描改为 id→Note 索引缓存 |
-| 待提交 | Android 拆包构建 | `tool/inkpaper.dart` 新增 `android-release-split`（`--split-per-abi` + `--split-debug-info`），发布用 universal 包不变 |
+| `aa7dca6` | 卡片渲染降维 | 新增 `utils/note_preview_builder.dart` + `widgets/note_preview_text.dart`：Markdown AST → 纯文本 + 样式区间，整卡只产出一个 `Text.rich`；`NotePreviewCache` LRU 400 条。同时删除 `_visibleItemsCount` 分帧递增、骨架屏、`scrollCacheExtent: 1000` |
+| `864e6fa` | 根节点重建收窄 | 根级 `Consumer` → `Selector<AppProvider, _AppChrome>` |
+| `2a3e837` | 引用解析索引化 | `SimpleMemoContent` 的 `indexWhere` 全表扫描改为 id→Note 索引缓存 |
+| `8490e1a` | Android 拆包构建 | `tool/inkpaper.dart` 新增 `android-release-split`（`--split-per-abi` + `--split-debug-info`），发布用 universal 包不变 |
+| `5b1cccc` | P0-1 同步修复 | `updateMemo` 遇 404 回退 `createMemo`，恢复的笔记不再永久上传失败 |
+| `2ab768f` | P-5 缩略图解码 | 卡片图片按格子实际像素宽度解码，`memCacheWidth` 不再固定 720 |
+| `4b54c01` | P-2 字体 | Android 上思源黑体/宋体走系统字体族，去掉 google_fonts 运行时下载 |
+| `0c8ec83` | P-1 状态通知分家 | 新增 `notifyUiStateChanged()`；主页 `Selector<_FeedSnapshot>`、未读条 `Selector<int>` |
+| `2419d4e` | P-6 基线采集 | `BUILD_AND_DEVICE_TESTING.md` §3.1 写入采集步骤与目标值 |
 
 ### 1.1 已落地的设计约束（改动时不要破坏）
 
@@ -59,7 +64,7 @@
 
 | # | 问题 | 位置 | 影响 | 建议方案 |
 | --- | --- | --- | --- | --- |
-| P0-1 | 从回收站恢复时若远端已删除，上传会永久失败 | `MemosApiServiceFixed.updateMemo`（非 200 一律 throw，含 404）；`AppProvider.restoreRecentlyDeletedNote` | 恢复后每轮同步重试都失败，笔记停在"本地有、远端无"，只有日志可见 | 上传遇 404 时回退 `createMemo`，拿到新 id 后走 `_updateReferenceIdsAfterSync`；或在恢复时先探测远端是否存在 |
+| ~~P0-1~~ ✅ | 从回收站恢复时若远端已删除，上传会永久失败 | ~~`MemosApiServiceFixed.updateMemo`（非 200 一律 throw，含 404）~~ | 已修复：404 回退 `createMemo`，上层 `_syncUnsyncedNoteToMemos` 已有的 id 变更处理会自动重写引用并物理删除旧记录。待真机验证（见「七」） | — |
 | P0-2 | 上传失败无退避、无上限、无提示 | `AppProvider.syncWithServer` 的上传循环 | 内容被服务端拒绝（超长/违规）时无限重试；仅记录失败条数 | 复用 `pending_note_operations`，增加 `operation='upsert'` 与 `attempts`/`last_error`，超过阈值后提示用户 |
 | P0-3 | 冲突静默 LWW | `SyncStats.conflicts` 从未赋值；`mergeServerNoteWithLocalState` 以时间戳为准 | 双端同时编辑，一侧修改无声丢失 | 同 id 且双方内容与时间戳都变化时记录冲突，至少在设置页/回收站可见并允许重试 |
 | P0-4 | 备份与回收站语义未对齐 | `local_backup_restore_screen.dart` 导出取 `getNotes()`（仅未删）；`Note.toJson` 有 `rowStatus` 但无 `deletedAt`；`replaceAllNotes` 物理清表 | 换机恢复后回收站为空；若导出 DELETED 行则 `deleted_at` 丢失、GC 失效 | 明确「备份不含回收站」并在导出时跳过 `DELETED`；`toJson` 补 `deletedAt` 以备将来 |
@@ -81,27 +86,30 @@
 
 目标是「中端安卓机（骁龙 7 系 / 天玑 8000 档）主页滚动不掉帧、冷启动 ≤1.5s」。性能问题是实现层面的，**不建议为此重写为纯 Kotlin**（理由见 4.3）。
 
-已完成（本次，见「一、已完成」四条待提交记录）：卡片渲染降维、分帧机制移除、引用索引化、根节点重建收窄、拆包构建。
+已完成：
 
-待办，按「收益 / 成本」排序：
+| 项 | 做法 |
+| --- | --- |
+| 卡片渲染降维 | `NotePreviewText` + `NotePreviewCache`，整卡一个 `Text.rich`，去掉逐卡 `MarkdownBody` 与 `TextPainter` 测量 |
+| 列表分帧机制 | 删除 `_visibleItemsCount` 递增、骨架屏占位、`scrollCacheExtent: 1000`，交回 `ListView.builder` |
+| 引用解析 | `SimpleMemoContent` 用 id→Note 索引缓存替代逐条 `indexWhere` |
+| 根节点重建 | `main.dart` 根级 `Consumer` → `Selector<AppProvider, _AppChrome>` |
+| **P-1** | 新增 `notifyUiStateChanged()`：同步进度、加载指示、未读数变化不清 `notes` 缓存。主页 body → `Selector<_FeedSnapshot>`，未读通知条 → `Selector<int>` |
+| **P-2** | Android 上思源黑体/宋体改走 `sans-serif` / `serif` 系统族，去掉 google_fonts 运行时下载（装饰字体保留） |
+| **P-5** | 卡片缩略图按格子实际像素宽度解码（`memCacheWidth` 不再固定 720） |
+| **P-6** | 基线采集方法与目标值写入 `BUILD_AND_DEVICE_TESTING.md` §3.1，数值待真机采集 |
+| 拆包构建 | `android-release-split`（`--split-per-abi` + `--split-debug-info`） |
+
+待办：
 
 | # | 项 | 位置 | 预期收益 | 成本 |
 | --- | --- | --- | --- | --- |
-| P-1 | `notifyListeners` 不区分「数据变了」与「UI 状态变了」 | `AppProvider.notifyListeners` 覆写里无条件 `_clearNotesCache()` | 同步文案/登录态变化会让 `notes` 重新排序过滤并产出新 List，导致列表必重建。**这是 P1-5 之前必须先解决的前置**，否则 `home_screen` 换 `Selector` 也无效 | 中 |
-| P-2 | `google_fonts` 运行时下载中文字体 | `themes/app_theme.dart:100-116` | 首帧文字要等网络+磁盘；弱网/离线时明显延迟。改为打包子集字体（体积 +1~3MB）或默认走系统字体 | 低-中 |
-| P-3 | `AppProvider` 拆分 | 同 P1-5 | 消除全局重建根因 | 高 |
+| P-3 | `AppProvider` 拆分（同 P1-5） | `providers/app_provider.dart` | 消除全局重建根因，也是 P2-3 大文件拆分的主战场 | 高 |
 | P-4 | SQLite 结果 → `Note` 反序列化在主 isolate | `services/database_service.dart` / `AppProvider.loadNotesFromLocal` | 千条笔记首屏 -100~300ms；全项目仅 5 处 `compute()` | 中 |
-| P-5 | 卡片图片 `memCacheWidth: 720` 与实际显示尺寸不匹配 | `widgets/note_card.dart` `_buildImageWidget` | 三列网格实际约 110dp，720 宽解码浪费约 4× 内存，易触发 ImageCache 抖动 | 低 |
-| P-6 | 缺 profile 基线 | — | 无法量化后续收益。先采一轮：滚动 99 分位帧耗时、冷启动、包体 | 低 |
 
-执行顺序建议：
+执行顺序：先真机采一轮基线（P-6 的方法），再动 P-3；P-4 随手做。
 
-1. **P-6 + P-2**（半天）：先有基线，再拿最容易感知的首屏收益。
-2. **P-1**（2-3 天）：改完后 `home_screen` 的 `Consumer` 才能安全换成 `Selector`，列表重建面收窄到「真的加了/删了笔记」。
-3. **P-3**（1-2 周）：拆分期间保持 `AppProvider` 作为 facade 转发，避免一次性改 100+ 调用点。
-4. **P-4 / P-5** 随手做，不单独排期。
-
-并行约束：P-1 / P-3 都动 `app_provider.dart`，与「三、P0」的同步改造（P0-1 / P0-2 也动该文件）**不要同时开两个会话**，遵守 P2-7。
+并行约束：P-3 与「三、P0」剩余项都动 `app_provider.dart`，**不要同时开两个会话**，遵守 P2-7。
 
 ### 4.2 性能验收标准
 
@@ -144,9 +152,10 @@
 
 ## 七、尚未验证的部分
 
-- 未运行 `dart tool/intpaper.dart verify`（仅跑了 `flutter analyze` 与 `flutter test`）。
+- 未运行 `dart tool/inkpaper.dart verify`（仅跑了 `dart analyze` 与 `flutter test`）。
 - 未在真机/模拟器验证 UI 链路（删除刷新、分页、回收站、下拉刷新）。
-- 未在真机上采集性能基线（见 P-6）：卡片渲染降维后的滚动帧耗时、冷启动、`NotePreviewCache.hitRate` 均无实测数据。
+- **P0-1 只有代码修复，没有集成验证**：需要构造「设备 A 删除 → 设备 B 从回收站恢复 → 同步」的真实链路，确认重建后本地 id 收敛、引用关系不断裂、旧记录不残留。
+- 未在真机上采集性能基线（见 §4.1 P-6）：滚动帧耗时、冷启动、`NotePreviewCache.hitRate` 均无实测数据。
 - 未执行 `build android-release-split` 验证拆包产物与 `--split-debug-info` 输出路径。
 - 迁移测试使用手工构造的 schema，未覆盖真实用户库中的脏数据（例如 `rowStatus` 为 NULL、`createdAt` 非 ISO 格式）。
 - `docs/architecture/ARCHITECTURE_OVERVIEW.md` 是 v1.1.13 时期的历史快照（记为 102,042 行 / `AppProvider` 4,613 行），与当前 88,287 行 / 3,781 行不符，引用数据时以本文件为准。

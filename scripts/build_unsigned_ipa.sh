@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# InkRoot iOS unsigned archive helper.
+# IntPaper iOS unsigned archive helper.
 # This artifact is for CI smoke checks and internal packaging only.
 # App Store/TestFlight submission must use a signed Xcode archive.
 
@@ -15,13 +15,13 @@ NC='\033[0m' # No Color
 
 # 项目信息
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_NAME="InkRoot"
+APP_NAME="IntPaper"
 VERSION=$(grep "version:" "$PROJECT_DIR/pubspec.yaml" | awk '{print $2}' | cut -d'+' -f1)
 BUILD_NUMBER=$(grep "version:" "$PROJECT_DIR/pubspec.yaml" | awk '{print $2}' | cut -d'+' -f2)
 OUTPUT_DIR="$PROJECT_DIR/build/ios/unsigned"
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  InkRoot iOS unsigned build${NC}"
+echo -e "${BLUE}  IntPaper iOS unsigned build${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 echo -e "${GREEN}App:${NC} $APP_NAME"

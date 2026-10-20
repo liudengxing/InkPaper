@@ -76,6 +76,7 @@ app.*.map.json
 # Android
 **/android/**/gradle-wrapper.jar
 **/android/.gradle
+**/android/build/
 **/android/captures/
 **/android/gradlew
 **/android/gradlew.bat
@@ -115,8 +116,8 @@ key/
 *.der
 *.pem
 *.private_key
-android/inkroot-new-release.keystore
-inkroot-new-release.keystore
+android/intpaper-new-release.keystore
+intpaper-new-release.keystore
 android/key.properties
 
 # Local artifacts (decompiled APK / media collections, not project source)

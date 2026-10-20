@@ -36,8 +36,8 @@ jobs:
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
-      - run: dart tool/inkroot.dart store-check
-      - run: dart tool/inkroot.dart verify --coverage
+      - run: dart tool/intpaper.dart store-check
+      - run: dart tool/intpaper.dart verify --coverage
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
@@ -66,7 +66,7 @@ jobs:
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
-      - run: dart tool/inkroot.dart deps
+      - run: dart tool/intpaper.dart deps
       - name: Restore Android signing files
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
         shell: bash
@@ -81,23 +81,23 @@ jobs:
             exit 1
           fi
           mkdir -p android
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/inkroot-new-release.keystore
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/intpaper-new-release.keystore
           {
-            echo "storeFile=../inkroot-new-release.keystore"
+            echo "storeFile=../intpaper-new-release.keystore"
             echo "storePassword=$ANDROID_STORE_PASSWORD"
             echo "keyAlias=$ANDROID_KEY_ALIAS"
             echo "keyPassword=$ANDROID_KEY_PASSWORD"
           } > android/key.properties
-          chmod 600 android/inkroot-new-release.keystore android/key.properties
+          chmod 600 android/intpaper-new-release.keystore android/key.properties
       - name: Build debug APK
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.release_build }}
-        run: dart tool/inkroot.dart build android-debug
+        run: dart tool/intpaper.dart build android-debug
       - name: Build release APK
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
-        run: dart tool/inkroot.dart build android-release
+        run: dart tool/intpaper.dart build android-release
       - name: Build release AAB
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
-        run: dart tool/inkroot.dart build android-aab
+        run: dart tool/intpaper.dart build android-aab
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:

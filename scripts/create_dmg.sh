@@ -19,7 +19,7 @@ cd "$PROJECT_ROOT"
 
 # 读取版本号
 VERSION=$(grep "version:" pubspec.yaml | sed 's/version: //' | tr -d ' ')
-APP_NAME="InkRoot"
+APP_NAME="IntPaper"
 DMG_NAME="${APP_NAME}-${VERSION}-macOS"
 
 echo -e "${BLUE}应用名称:${NC} $APP_NAME"
@@ -28,7 +28,7 @@ echo -e "${BLUE}DMG名称:${NC} $DMG_NAME.dmg"
 echo
 
 # 检查 Release 构建是否存在
-APP_PATH="build/macos/Build/Products/Release/inkroot.app"
+APP_PATH="build/macos/Build/Products/Release/IntPaper.app"
 if [ ! -d "$APP_PATH" ]; then
     echo -e "${RED}❌ 找不到 Release 构建！${NC}"
     echo -e "${YELLOW}💡 请先运行: flutter build macos --release${NC}"
@@ -105,7 +105,7 @@ tell application "Finder"
         set viewOptions to the icon view options of container window
         set arrangement of viewOptions to not arranged
         set icon size of viewOptions to 100
-        set position of item "inkroot.app" of container window to {150, 150}
+        set position of item "IntPaper.app" of container window to {150, 150}
         set position of item "Applications" of container window to {450, 150}
         close
         open

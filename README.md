@@ -1,6 +1,6 @@
 # 小纸 (IntPaper)
 
-小纸是一款面向个人知识记录的跨平台笔记应用。它可以本地优先使用，也可以连接官方服务器或自托管 Memos 服务进行同步。应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、导入导出、系统分享、小组件和可选 AI 辅助等能力。
+小纸是一款面向个人知识记录的跨平台笔记应用。它推荐本地记录，也可以连接自托管 Memos 服务进行同步。应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、导入导出、系统分享、小组件和可选 AI 辅助等能力。
 
 > 本项目是 [InkRoot](https://github.com/yyyyymmmmm/InkRoot)（旧名「墨迹」，现更名「小纸」）的延续与重命名版本，代码在此基础上继续维护，仓库现托管于 [liudengxing/IntPaper](https://github.com/liudengxing/IntPaper)。
 

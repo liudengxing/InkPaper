@@ -92,6 +92,28 @@ CI 侧对应 4 个 Secret：`ANDROID_KEYSTORE_BASE64`、`ANDROID_STORE_PASSWORD`
 
 应用 ID 为 `com.didichou.inkpaper`，深链 scheme 为 `inkpaper://`（快速记录、随机回顾、分享都走它）。改名前的旧包与本包会被系统视为两个独立应用。
 
+### 3.1 性能基线采集
+
+优化前后必须用同一台设备、同一个 profile 构建对比，否则数字没有意义。
+
+```bash
+# profile 模式（release 的优化 + 可观测）
+flutter run --profile
+
+# 顺带记录包体
+dart tool/inkpaper.dart build android-release-split
+ls -lh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+```
+
+| 指标 | 采集方式 | 目标（中端机） |
+| --- | --- | --- |
+| 滚动帧耗时 | DevTools → Performance → 录制主页连续滚动 30 秒，看 `Frame` 轨道 99 分位 | < 16ms，无超过 2 帧的尖峰 |
+| 冷启动 | `adb shell am start -W com.didichou.inkpaper/.MainActivity`，读 `TotalTime` | ≤ 1.5s（1000 条笔记） |
+| 内存 | DevTools → Memory，滚动前后各拍一次快照，看图片缓存占用 | 不持续增长 |
+| 预览缓存命中率 | 断点或在 DevTools console 里读 `NotePreviewCache.hitRate` | > 90% |
+
+采集前先准备数据量：导入或批量创建 1000 条笔记（含 20% 带图笔记），否则测不出长列表的问题。
+
 ## 4. iOS / macOS
 
 1. `cd ios && pod install`（CLI 已自动执行）。

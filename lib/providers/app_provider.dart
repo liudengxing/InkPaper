@@ -75,6 +75,13 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   // 🚀 大厂标准：并发控制（防止重复加载）
   Completer<void>? _loadMoreCompleter;
 
+  /// 最近一次同步中检测到的冲突条数。
+  ///
+  /// 冲突 = 本地有未上传改动、服务端内容又与之不同，合并会以服务端为准，
+  /// 本地那次编辑没有保住。只做统计与提示，不做自动合并。
+  int _lastSyncConflicts = 0;
+  int get lastSyncConflicts => _lastSyncConflicts;
+
   // 🚀 大厂标准：性能监控
   int _totalNotesCount = 0; // 数据库总笔记数
   DateTime? _lastLoadTime; // 上次加载时间
@@ -435,6 +442,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 加载应用配置
       // 加载应用配置
       _appConfig = await _preferencesService.loadAppConfig();
+
+      // 上次同步的冲突条数，用于服务器信息页展示
+      _lastSyncConflicts = await _preferencesService.getLastSyncConflicts();
 
       // 字体缩放将通过MediaQuery.textScaleFactor全局应用
 
@@ -1263,6 +1273,16 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         content: uploadableNote.content,
         visibility: visibility,
       );
+
+      // 上传后服务端回显的内容与本地不一致：说明这条笔记在上传期间被另一台
+      // 设备改过（Memos 没有版本号，只能靠内容比对发现）。这里只计数，
+      // 合并逻辑仍以服务端为准，但会在服务器信息页提示用户。
+      if (serverNote.content != uploadableNote.content) {
+        _lastSyncConflicts++;
+        debugPrint(
+          'AppProvider: 检测到冲突 ${uploadableNote.id}：服务端内容与本地不一致',
+        );
+      }
     }
 
     final syncedNote = _mergeServerNoteWithLocalState(

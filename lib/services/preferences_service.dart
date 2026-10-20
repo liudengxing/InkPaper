@@ -545,6 +545,20 @@ class PreferencesService {
     await prefs.setString('last_backup_time', DateTime.now().toIso8601String());
   }
 
+  /// 上次同步的冲突条数。
+  ///
+  /// 冲突的含义是「本地未上传的改动被服务端版本覆盖」。当前只做统计与提示，
+  /// 不做自动合并 —— 界面上告诉用户有一条改动没保住，比静默丢失要好。
+  Future<int> getLastSyncConflicts() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('last_sync_conflicts') ?? 0;
+  }
+
+  Future<void> saveLastSyncConflicts(int count) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('last_sync_conflicts', count);
+  }
+
   // 清除导入导出历史记录
   Future<void> clearImportExportHistory() async {
     final prefs = await SharedPreferences.getInstance();

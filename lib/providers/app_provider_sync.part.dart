@@ -228,6 +228,7 @@ extension AppProviderSyncPart on AppProvider {
 
     // 设置同步状态
     _setSyncUi(syncing: true, message: '准备同步...');
+    _lastSyncConflicts = 0;
 
     try {
       // 0. 先补交之前失败的远端删除，避免已删笔记在下次拉取时被服务端"还回来"
@@ -350,6 +351,12 @@ extension AppProviderSyncPart on AppProvider {
 
       // 5. 更新内存中的列表
       _notes = _excludePendingDeletedNotes(await _databaseService.getNotes());
+
+      // 冲突条数落盘，重启后仍能在服务器信息页看到上次同步的情况
+      await _preferencesService.saveLastSyncConflicts(_lastSyncConflicts);
+      if (_lastSyncConflicts > 0) {
+        debugPrint('AppProvider: 本次同步检测到 $_lastSyncConflicts 条冲突');
+      }
 
       _setSyncMessage('同步完成');
 

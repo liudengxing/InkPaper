@@ -226,6 +226,7 @@ class WebDavSyncEngine {
     final mergedMap = <String, Note>{};
     var uploaded = 0;
     var downloaded = 0;
+    var conflicts = 0;
     final now = DateTime.now();
 
     // 创建远程笔记映射（用于快速查找）
@@ -253,7 +254,20 @@ class WebDavSyncEngine {
           mergedMap[localNote.id] = localNote;
         }
       } else {
-        // 本地和远程都有的笔记，比较更新时间
+        // 本地和远程都有的笔记，比较更新时间。
+        // 以 lastSyncTime 为基准做三方判断：两边在上次同步之后都改过、且时间戳
+        // 不同，说明这是一次真冲突 —— 下面无论选哪边，另一边的改动都会丢。
+        final lastSync = localNote.lastSyncTime;
+        final localChangedAfterSync =
+            lastSync == null || localNote.updatedAt.isAfter(lastSync);
+        final remoteChangedAfterSync =
+            lastSync == null || remoteNote.updatedAt.isAfter(lastSync);
+        if (localChangedAfterSync &&
+            remoteChangedAfterSync &&
+            !remoteNote.updatedAt.isAtSameMomentAs(localNote.updatedAt)) {
+          conflicts++;
+        }
+
         if (remoteNote.updatedAt.isAfter(localNote.updatedAt)) {
           // 远程更新，使用远程版本
           final syncedNote = remoteNote.copyWith(lastSyncTime: now);
@@ -288,6 +302,7 @@ class WebDavSyncEngine {
     _stats = SyncStats(
       uploaded: uploaded,
       downloaded: downloaded,
+      conflicts: conflicts,
     );
 
     return mergedMap.values.toList();

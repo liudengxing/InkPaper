@@ -302,6 +302,20 @@ class _ServerInfoScreenState extends State<ServerInfoScreen> {
           ),
         );
 
+        // 上次同步检测到的冲突：本地有未上传改动、服务端内容又不同，
+        // 合并以服务端为准，本地那次编辑没保住。只做提示，不自动合并。
+        if (appProvider.lastSyncConflicts > 0) {
+          _logs.add(
+            LogEntry(
+              time:
+                  _formatTime(now.subtract(const Duration(milliseconds: 450))),
+              message:
+                  '上次同步有 ${appProvider.lastSyncConflicts} 条笔记存在冲突，本地改动已被服务端版本覆盖',
+              type: LogType.warning,
+            ),
+          );
+        }
+
         // 如果上次同步超过1小时，添加警告
         if (diff.inHours > 1) {
           _logs.add(

@@ -63,3 +63,17 @@ Note mergeServerNoteWithLocalState(
 
 bool _isValidServerTimestamp(DateTime value) =>
     value.millisecondsSinceEpoch > 0;
+
+/// 判断一次「拉取合并」会不会丢掉一侧的改动。
+///
+/// 冲突定义：本地有未上传的改动（`is_synced = 0`），同时服务端内容与本地不同。
+/// 也就是说两边自上次同步后都改过，单靠时间戳无法判断谁更新，合并必然要丢弃
+/// 一侧。当前策略是以服务端为准（本地未同步但内容不同时会被覆盖），所以这个
+/// 判断只用于计数和提示，不改变合并结果。
+///
+/// 注意不要用它判断「上传成功后的回写」：那条路径上的 localNote 本来就还是
+/// `is_synced = 0`，会被误判成冲突。
+bool isMergeConflict(Note serverNote, Note localNote) =>
+    !localNote.isSynced &&
+    serverNote.content.isNotEmpty &&
+    serverNote.content != localNote.content;

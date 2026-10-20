@@ -1,4 +1,4 @@
-package com.didichou.inkroot
+package com.didichou.intpaper
 
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -22,8 +22,8 @@ import java.util.UUID
 import java.util.concurrent.Executors
 
 class MainActivity: FlutterActivity() {
-    private val CHANNEL = "com.didichou.inkroot/native_alarm"
-    private val UMENG_CHANNEL = "com.didichou.inkroot/umeng"
+    private val CHANNEL = "com.didichou.intpaper/native_alarm"
+    private val UMENG_CHANNEL = "com.didichou.intpaper/umeng"
     private var methodChannel: MethodChannel? = null
     private var umengChannel: MethodChannel? = null
     private var pendingNoteId: Int? = null
@@ -151,7 +151,7 @@ class MainActivity: FlutterActivity() {
                     pendingDeepLink = null
                 }
                 "saveWidgetSnapshot" -> {
-                    val key = call.argument<String>("key") ?: "inkroot_widget_snapshot"
+                    val key = call.argument<String>("key") ?: "intpaper_widget_snapshot"
                     val snapshot = call.argument<String>("snapshot") ?: ""
                     saveWidgetSnapshot(key, snapshot)
                     result.success(true)
@@ -240,7 +240,7 @@ class MainActivity: FlutterActivity() {
             ) {
                 handleSharedContent(it)
             } 
-            else if (it.data?.scheme == "inkroot") {
+            else if (it.data?.scheme == "IntPaper") {
                 handleDeepLink(it.data.toString())
             }
             else {
@@ -260,13 +260,13 @@ class MainActivity: FlutterActivity() {
 
     private fun saveWidgetSnapshot(key: String, snapshot: String) {
         try {
-            getSharedPreferences("inkroot_widget", Context.MODE_PRIVATE)
+            getSharedPreferences("intpaper_widget", Context.MODE_PRIVATE)
                 .edit()
                 .putString(key, snapshot)
                 .apply()
 
-            notifyWidgetProvider(InkRootQuickNoteWidgetProvider::class.java)
-            notifyWidgetProvider(InkRootRandomReviewWidgetProvider::class.java)
+            notifyWidgetProvider(IntPaperQuickNoteWidgetProvider::class.java)
+            notifyWidgetProvider(IntPaperRandomReviewWidgetProvider::class.java)
         } catch (e: Exception) {
             ReleaseLog.e("MainActivity", "❌ 保存小组件快照失败: ${e.message}")
         }

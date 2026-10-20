@@ -1,4 +1,4 @@
-package com.didichou.inkroot
+package com.didichou.intpaper
 
 import android.util.Log
 

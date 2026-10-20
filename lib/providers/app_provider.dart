@@ -1177,8 +1177,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     return updatedNote;
   }
 
-  bool _isLocalOnlyNoteId(String id) =>
-      id.startsWith('local_') || id.contains('-');
+  bool _isLocalOnlyNoteId(String id) => Note.isLocalId(id);
 
   List<Note> _excludePendingDeletedNotes(List<Note> notes) {
     if (_pendingDeleteIds.isEmpty) {

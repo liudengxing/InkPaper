@@ -466,4 +466,25 @@ void main() {
       expect(tags.any((t) => t.startsWith('#')), isFalse);
     });
   });
+
+  // ─────────────────────────────────────────────────────────
+  // Note.isLocalId
+  // ─────────────────────────────────────────────────────────
+  group('Note.isLocalId', () {
+    test('TC-26 local_ 前缀判定为本地笔记', () {
+      expect(Note.isLocalId('local_1700000000000_1'), isTrue);
+      expect(Note.isLocalId(Note.localIdPrefix), isTrue);
+    });
+
+    test('TC-27 数字 id 判定为服务端笔记', () {
+      expect(Note.isLocalId('123'), isFalse);
+    });
+
+    test('TC-28 含短横的 UUID 服务端 id 不会被误判为本地笔记', () {
+      expect(
+        Note.isLocalId('0f8fad5b-d9cb-469f-a165-70867728950e'),
+        isFalse,
+      );
+    });
+  });
 }

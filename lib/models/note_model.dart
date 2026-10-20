@@ -446,6 +446,16 @@ class Note {
         'lastSyncTime': lastSyncTime?.toIso8601String(), // ✅ 包含同步时间
       };
 
+  /// 本地 id 前缀。本地新建但尚未同步到服务端的笔记使用 `local_<毫秒>_<序号>`。
+  static const String localIdPrefix = 'local_';
+
+  /// 是否是尚未同步到服务端的本地笔记。
+  ///
+  /// 只认 [localIdPrefix]：服务端 id 可能是数字，也可能是含 `-` 的 UUID，
+  /// 用 `id.contains('-')` 判断会把服务端笔记误判成本地笔记，
+  /// 导致更新/删除被静默跳过。
+  static bool isLocalId(String id) => id.startsWith(localIdPrefix);
+
   // 从笔记内容中提取标签（改进版，排除URL中的#）
   static List<String> extractTagsFromContent(String content) {
     // 使用统一的标签提取逻辑

@@ -593,7 +593,7 @@ class MemosApiServiceFixed {
     required String content,
     String? visibility,
   }) async {
-    if (id.startsWith('local_') || id.contains('-')) {
+    if (Note.isLocalId(id)) {
       return createMemo(content: content, visibility: visibility ?? 'PRIVATE');
     }
 
@@ -653,7 +653,7 @@ class MemosApiServiceFixed {
   // ── Delete memo ────────────────────────────────────────────────────────────
 
   Future<void> deleteMemo(String id) async {
-    if (id.startsWith('local_') || id.contains('-')) {
+    if (Note.isLocalId(id)) {
       return;
     }
     final base = await _memoBase();
@@ -810,12 +810,12 @@ class MemosApiServiceFixed {
     return name.contains('/') ? name.split('/').last : name;
   }
 
-  bool _isLocalMemoId(String id) => id.startsWith('local_') || id.contains('-');
+  bool _isLocalMemoId(String id) => Note.isLocalId(id);
 
   // ── Update memo organizer (pin/unpin) ──────────────────────────────────────
 
   Future<Note> updateMemoOrganizer(String id, {required bool pinned}) async {
-    if (id.startsWith('local_') || id.contains('-')) {
+    if (Note.isLocalId(id)) {
       throw Exception('本地笔记无需同步');
     }
 

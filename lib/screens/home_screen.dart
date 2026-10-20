@@ -84,8 +84,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isLoadingMore = false;
   bool _hasHandledWidgetQuickAction = false;
 
-  // 🚀 分帧渲染优化
-  int _visibleItemsCount = 0; // 初始显示0个NoteCard，首帧只渲染骨架
+  // ListView.builder 本身是懒构建，不需要再手写「分帧递增可见数量」。
 
   @override
   void initState() {
@@ -104,7 +103,6 @@ class _HomeScreenState extends State<HomeScreen>
     // 🚀 大厂做法：先渲染 UI，再异步初始化（不阻塞 UI）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeApp(); // 异步执行，不阻塞首帧
-      _startProgressiveRendering();
     });
     // 🚀 添加滚动监听，实现分页加载
     _scrollController.addListener(_onScroll);
@@ -169,47 +167,6 @@ class _HomeScreenState extends State<HomeScreen>
       return '';
     }
     return '#${tag.replaceAll(RegExp('^#+'), '')} ';
-  }
-
-  // 🚀 分帧渲染：逐步增加可见NoteCard数量
-  void _startProgressiveRendering() {
-    if (!mounted) {
-      return;
-    }
-
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final totalNotes = appProvider.notes.length;
-
-    if (totalNotes == 0) {
-      setState(() => _visibleItemsCount = 0);
-      return;
-    }
-
-    // 🎯 首帧显示0个，后续每帧增加3个（微信/抖音标准做法）
-    const itemsPerFrame = 3;
-    var currentCount = 0;
-
-    void renderNextBatch() {
-      if (!mounted) {
-        return;
-      }
-
-      currentCount = (currentCount + itemsPerFrame).clamp(0, totalNotes);
-
-      setState(() {
-        _visibleItemsCount = currentCount;
-      });
-
-      // 如果还没渲染完，继续下一帧
-      if (currentCount < totalNotes) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          renderNextBatch();
-        });
-      }
-    }
-
-    // 开始渲染
-    renderNextBatch();
   }
 
   // 🎯 退出搜索状态
@@ -700,14 +657,6 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted) {
       return;
     }
-    setState(() {
-      final newCount = _visibleItemsCount + 1;
-      final minCount =
-          appProvider.notes.length >= 10 ? 10 : appProvider.notes.length;
-      _visibleItemsCount = newCount < minCount
-          ? minCount
-          : newCount.clamp(0, appProvider.notes.length);
-    });
 
     if (_scrollController.hasClients) {
       unawaited(
@@ -963,7 +912,6 @@ class _HomeScreenState extends State<HomeScreen>
       padding: const EdgeInsets.only(top: 8),
       child: NoteCard(
         note: _welcomeNote,
-        referenceNotes: const <Note>[],
         onEdit: () => _showAddNoteFormWithContent(_welcomeNoteContent),
         onDelete: _showWelcomeNoteHint,
         onPin: _showWelcomeNoteHint,
@@ -1256,37 +1204,6 @@ class _HomeScreenState extends State<HomeScreen>
                       .toList())
               : allVisibleNotes;
 
-          // 🔧 修复：确保至少显示一些笔记，避免创建后不显示
-          if (!_isSearchActive && notes.isNotEmpty && _visibleItemsCount == 0) {
-            // 使用 post frame callback 避免在 build 中调用 setState
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                setState(() {
-                  // 至少显示 10 条笔记（如果有的话）
-                  _visibleItemsCount = notes.length >= 10 ? 10 : notes.length;
-                });
-              }
-            });
-          }
-
-          // 保持分帧渲染收益：数据增加时只补一小批，剩余由滚动/下一帧加载。
-          if (!_isSearchActive &&
-              notes.length > _visibleItemsCount &&
-              _visibleItemsCount > 0) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                setState(() {
-                  _visibleItemsCount =
-                      (_visibleItemsCount + 10).clamp(0, notes.length);
-                });
-              }
-            });
-          }
-
-          // 🚀 分帧渲染：限制可见笔记数量（搜索时不限制）
-          final visibleNotes = _isSearchActive
-              ? notes.length
-              : _visibleItemsCount.clamp(0, notes.length);
           final searchQuery = _searchController.text.trim();
           final showSearchSummary = _isSearchActive && searchQuery.isNotEmpty;
 
@@ -1333,13 +1250,9 @@ class _HomeScreenState extends State<HomeScreen>
                                   controller: _scrollController, // 🚀 添加滚动控制器
                                   physics:
                                       const AlwaysScrollableScrollPhysics(), // 🎯 确保下拉刷新可用
-                                  itemCount: visibleNotes +
-                                      3, // 🚀 使用可见数量 +1头部 +1加载指示器 +1底部间距
+                                  itemCount: notes.length +
+                                      3, // +1头部 +1加载指示器 +1底部间距
                                   padding: EdgeInsets.zero,
-                                  scrollCacheExtent:
-                                      const ScrollCacheExtent.pixels(
-                                    1000,
-                                  ), // 🚀 增加缓存区域，减少重建
                                   itemBuilder: (context, index) {
                                     // 第一个item是通知栏或搜索结果摘要
                                     if (index == 0) {
@@ -1352,7 +1265,7 @@ class _HomeScreenState extends State<HomeScreen>
                                     }
 
                                     // 倒数第二个item是加载更多指示器
-                                    if (index == visibleNotes + 1) {
+                                    if (index == notes.length + 1) {
                                       if (_isSearchActive) {
                                         return const SizedBox.shrink();
                                       }
@@ -1364,17 +1277,12 @@ class _HomeScreenState extends State<HomeScreen>
                                     // 最后一个item是底部间距
                                     // 🧊 底部玻璃输入条会盖住一段，留足空间让最后一条
                                     // 笔记能滚到条下方，模糊叠加才看得见
-                                    if (index == visibleNotes + 2) {
+                                    if (index == notes.length + 2) {
                                       return const SizedBox(height: 120);
                                     }
 
                                     final noteIndex =
                                         index - 1; // 调整索引，因为第一个是通知栏
-
-                                    // 🚀 显示骨架屏占位符（分帧渲染未到达的item）
-                                    if (noteIndex >= visibleNotes) {
-                                      return _buildSkeletonCard();
-                                    }
 
                                     final note = notes[noteIndex];
                                     return RepaintBoundary(
@@ -1386,7 +1294,6 @@ class _HomeScreenState extends State<HomeScreen>
                                           'card_${note.id}',
                                         ), // 🚀 为NoteCard添加key
                                         note: note, // 🚀 直接传递Note对象，避免内部查找
-                                        referenceNotes: allVisibleNotes,
                                         highlightQuery: showSearchSummary
                                             ? searchQuery
                                             : null,
@@ -1781,63 +1688,6 @@ class _HomeScreenState extends State<HomeScreen>
               color: textColor,
               fontSize: ResponsiveUtils.responsiveFontSize(context, 14),
               fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 🚀 构建骨架屏占位符（分帧渲染）
-  Widget _buildSkeletonCard() {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final skeletonColor = isDarkMode
-        ? Colors.white.withValues(alpha: 0.1)
-        : Colors.black.withValues(alpha: 0.08);
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDarkMode ? 0.3 : 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 标题骨架
-          Container(
-            height: 16,
-            width: double.infinity * 0.7,
-            decoration: BoxDecoration(
-              color: skeletonColor,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(height: 12),
-          // 内容骨架
-          Container(
-            height: 14,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: skeletonColor,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            height: 14,
-            width: double.infinity * 0.85,
-            decoration: BoxDecoration(
-              color: skeletonColor,
-              borderRadius: BorderRadius.circular(4),
             ),
           ),
         ],

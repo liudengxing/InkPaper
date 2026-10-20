@@ -117,13 +117,18 @@ https://testflight.apple.com/join/e1v9O7jC
 
       expect(renderedText, contains('主页下划线文字不能消失'));
 
-      final underlineSpan = tester
+      // 根 TextSpan 的 plainText 也等于整段文本，因此按「文本 + 下划线」组合定位，
+      // 而不是假设只有一个同名 span。
+      final underlineSpans = tester
           .widgetList<RichText>(find.byType(RichText))
           .map((widget) => widget.text)
           .expand(_flattenSpans)
-          .where((span) => span.toPlainText() == '主页下划线文字不能消失')
-          .single;
-      expect(underlineSpan.style?.decoration, TextDecoration.underline);
+          .where(
+            (span) =>
+                span.toPlainText() == '主页下划线文字不能消失' &&
+                span.style?.decoration == TextDecoration.underline,
+          );
+      expect(underlineSpans, isNotEmpty);
     });
   });
 }

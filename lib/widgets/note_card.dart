@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
@@ -19,19 +18,18 @@ import 'package:inkpaper/services/note_actions_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart'; // 🔥 添加长期缓存管理器
 import 'package:inkpaper/utils/memos_content_helper.dart';
+import 'package:inkpaper/utils/note_preview_builder.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
-import 'package:inkpaper/utils/tag_path_utils.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:inkpaper/utils/text_style_helper.dart';
 import 'package:inkpaper/utils/todo_parser.dart';
 import 'package:inkpaper/widgets/annotations_sidebar.dart';
 import 'package:inkpaper/widgets/image_viewer_screen.dart';
-import 'package:inkpaper/widgets/memos_markdown_renderer.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
+import 'package:inkpaper/widgets/note_preview_text.dart';
 import 'package:inkpaper/widgets/saveable_image.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class NoteCard extends StatefulWidget {
   const NoteCard({
@@ -43,7 +41,6 @@ class NoteCard extends StatefulWidget {
     this.disableTagNavigation = false, // 🎯 是否禁用标签点击跳转（避免无限嵌套）
     this.onTagTap,
     this.highlightQuery,
-    this.referenceNotes,
     super.key,
   });
   final Note note; // 🚀 直接传递完整Note对象，避免查找
@@ -54,7 +51,6 @@ class NoteCard extends StatefulWidget {
   final bool disableTagNavigation; // 是否禁用标签跳转
   final ValueChanged<String>? onTagTap;
   final String? highlightQuery;
-  final List<Note>? referenceNotes;
 
   // 🚀 便捷访问属性
   String get content => note.content;
@@ -76,9 +72,8 @@ class _NoteCardState extends State<NoteCard>
   final ValueNotifier<bool> _expandedNotifier = ValueNotifier<bool>(false);
   Note? _optimisticNote;
 
-  // 🚀 精确测量文本行数的缓存
-  bool? _needsExpansionCache;
-  String? _lastMeasuredContent;
+  /// 估算「全文」按钮是否必要，不再做 TextPainter 精确测量。
+  /// 只扫描前 600 个字符：6 行预览最多用到一两百字，足够判断。
 
   Note get _effectiveNote => _optimisticNote ?? widget.note;
 
@@ -122,22 +117,23 @@ class _NoteCardState extends State<NoteCard>
     final note = _effectiveNote;
 
     final imagePaths = MemosContentHelper.extractNoteImagePaths(note);
-    final contentWithoutImages =
-        MemosContentHelper.removeMarkdownImages(note.content);
-    final previewVisibleText =
-        MemosContentHelper.previewVisibleText(contentWithoutImages);
-    final expansionText =
-        MemosContentHelper.previewTextForExpansion(contentWithoutImages);
 
-    // 检查是否有文本内容。渲染时保留用户原始换行/空格，判断时才 trim。
-    final hasTextContent = previewVisibleText.trim().isNotEmpty;
+    // 轻量预览：一次解析成纯文本 + 样式区间，渲染侧只产出一个 Text.rich。
+    final preview = NotePreviewCache.resolve(note.content);
+    final hasTextContent = !preview.isEmpty;
+
+    // 「全文」按钮的估算文本：剔除图片与纯标签行，避免把标签列表算进 6 行预览。
+    final expansionText = MemosContentHelper.previewTextForExpansion(
+      MemosContentHelper.removeMarkdownImages(note.content),
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableWidth = constraints.maxWidth;
-        final needsExpansion = _contentMightOverflow(
+        final needsExpansion = _shouldOfferExpansion(
           expansionText,
           availableWidth,
+          AppTextStyles.bodyLarge(context, height: 1.6).fontSize ?? 15,
         );
 
         // 计算图片网格尺寸
@@ -157,46 +153,22 @@ class _NoteCardState extends State<NoteCard>
                 children: [
                   ValueListenableBuilder<bool>(
                     valueListenable: _expandedNotifier,
-                    builder: (context, isExpanded, child) =>
-                        MemosMarkdownRenderer(
-                      content: contentWithoutImages,
-                      serverUrl:
-                          Provider.of<AppProvider>(context, listen: false)
-                              .appConfig
-                              .memosApiUrl,
-                      selectable: false,
-                      note: note, // 🎯 传入note对象
-                      onCheckboxTap: _toggleTodoItem, // 🎯 复选框点击回调（传递索引）
-                      mode: MemosMarkdownMode.cardPreview,
-                      highlightQuery: widget.highlightQuery,
-                      referenceNotes: widget.referenceNotes,
-                      // 🎯 标签点击 - 根据配置决定是否跳转
-                      onTagTap: widget.disableTagNavigation
-                          ? null
-                          : widget.onTagTap ??
-                              (tagName) {
-                                final tagPath =
-                                    normalizeIncomingTagPath(tagName);
-                                if (tagPath == null) {
-                                  return;
-                                }
-                                context.pushNamed(
-                                  'tag-notes',
-                                  queryParameters: {'tag': tagPath},
-                                );
-                              },
-                      // 🎯 链接点击 - 打开浏览器
-                      onLinkTap: (url) async {
-                        final uri = Uri.tryParse(url);
-                        if (uri != null && await canLaunchUrl(uri)) {
-                          await launchUrl(
-                            uri,
-                            mode: LaunchMode.externalApplication,
-                          );
-                        }
-                      },
+                    builder: (context, isExpanded, child) => NotePreviewText(
+                      content: note.content,
+                      style: AppTextStyles.bodyLarge(
+                        context,
+                        height: 1.6,
+                        color: isDarkMode
+                            ? AppTheme.darkTextPrimaryColor
+                            : AppTheme.textPrimaryColor,
+                      ),
+                      accentColor: isDarkMode
+                          ? AppTheme.primaryLightColor
+                          : AppTheme.primaryColor,
                       maxLines:
                           (!isExpanded && needsExpansion) ? _maxLines : null,
+                      highlightQuery: widget.highlightQuery,
+                      onCheckboxTap: _toggleTodoItem,
                     ),
                   ),
                   if (needsExpansion)
@@ -311,50 +283,47 @@ class _NoteCardState extends State<NoteCard>
     );
   }
 
-  bool _contentMightOverflow(String visibleText, double maxWidth) {
-    if (visibleText.trim().isEmpty || maxWidth <= 0) {
+  /// 估算文本是否超过 [_maxLines] 行。
+  ///
+  /// 用字符宽度估算替代 `TextPainter.layout`：后者每张卡片每次 build 都要
+  /// 跑一遍完整文本排版，是列表滚动时最贵的一步。这里宽度按字号折算，
+  /// 全角字符记 1 个、半角记 0.55 个，误差只影响「全文」按钮是否出现，
+  /// 不影响文本本身的截断（`Text.rich` 的 ellipsis 会兜底）。
+  bool _shouldOfferExpansion(
+    String text,
+    double maxWidth,
+    double fontSize,
+  ) {
+    if (maxWidth <= 0 || fontSize <= 0) {
       return false;
     }
 
-    final cacheKey = '$maxWidth\n$visibleText';
-
-    // 🚀 缓存优化：避免重复测量相同内容
-    if (_lastMeasuredContent == cacheKey && _needsExpansionCache != null) {
-      return _needsExpansionCache!;
+    // 只扫前 600 字符，6 行预览用不到更多
+    final sample = text.length > 600 ? text.substring(0, 600) : text;
+    final charsPerLine = (maxWidth / fontSize).floor();
+    if (charsPerLine <= 0) {
+      return false;
     }
 
-    try {
-      final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-      final textColor = isDarkMode
-          ? AppTheme.darkTextPrimaryColor
-          : AppTheme.textPrimaryColor;
-      final contentStyle = AppTextStyles.bodyLarge(
-        context,
-        height: 1.6,
-        color: textColor,
-      );
-
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: visibleText,
-          style: contentStyle,
-        ),
-        textDirection: ui.TextDirection.ltr,
-        maxLines: _maxLines,
-      );
-
-      textPainter.layout(maxWidth: maxWidth);
-
-      // 缓存结果
-      _lastMeasuredContent = cacheKey;
-      _needsExpansionCache = textPainter.didExceedMaxLines;
-
-      return _needsExpansionCache!;
-    } on Object catch (e) {
-      // 出错时回退到简单判断
-      debugPrint('⚠️ TextPainter测量失败，回退到简单判断：$e');
-      return '\n'.allMatches(visibleText).length >= _maxLines;
+    var lines = 0;
+    for (final segment in sample.split('\n')) {
+      final visual = _visualLength(segment);
+      lines += visual == 0 ? 1 : (visual / charsPerLine).ceil();
+      if (lines > _maxLines) {
+        return true;
+      }
     }
+    return false;
+  }
+
+  double _visualLength(String value) {
+    var width = 0.0;
+    for (var i = 0; i < value.length; i++) {
+      final code = value.codeUnitAt(i);
+      // 拉丁字符、数字、常见半角标点按 0.55 折算，CJK 与全角按 1
+      width += code < 0x2E80 ? 0.55 : 1.0;
+    }
+    return width;
   }
 
   // 构建统一大小的单个图片项

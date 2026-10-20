@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
@@ -145,18 +144,15 @@ class _TagNotesScreenState extends State<TagNotesScreen> {
                   mobile: _buildNotesList(
                     context,
                     currentNotes,
-                    allVisibleNotes,
                   ),
                   tablet: _buildNotesGrid(
                     context,
                     currentNotes,
-                    referenceNotes: allVisibleNotes,
                     crossAxisCount: 2,
                   ),
                   desktop: _buildNotesGrid(
                     context,
                     currentNotes,
-                    referenceNotes: allVisibleNotes,
                     crossAxisCount: 3,
                   ),
                 ),
@@ -327,14 +323,12 @@ class _TagNotesScreenState extends State<TagNotesScreen> {
   Widget _buildNotesList(
     BuildContext context,
     List<Note> notes,
-    List<Note> referenceNotes,
   ) =>
       SlidableAutoCloseBehavior(
         child: ListView.builder(
-          scrollCacheExtent: const ScrollCacheExtent.pixels(1000),
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.zero, // 🎯 与主页一致：零padding
-          itemCount: notes.length, // 🚀 性能优化：增加缓存区域
+          itemCount: notes.length,
           itemBuilder: (context, index) {
             final note = notes[index];
             return RepaintBoundary(
@@ -342,7 +336,6 @@ class _TagNotesScreenState extends State<TagNotesScreen> {
               child: NoteCard(
                 key: ValueKey('card_${note.id}'), // 🚀 与主页一致
                 note: note,
-                referenceNotes: referenceNotes,
                 onTagTap: _switchTag,
                 onEdit: () {
                   // 🎯 与主页完全一致：弹出底部编辑器
@@ -370,18 +363,16 @@ class _TagNotesScreenState extends State<TagNotesScreen> {
   Widget _buildNotesGrid(
     BuildContext context,
     List<Note> notes, {
-    required List<Note> referenceNotes,
     required int crossAxisCount,
   }) =>
       SlidableAutoCloseBehavior(
         child: ListView.builder(
-          scrollCacheExtent: const ScrollCacheExtent.pixels(1000),
           physics: const AlwaysScrollableScrollPhysics(),
           padding: ResponsiveUtils.responsivePadding(
             context,
             all: 16,
           ),
-          itemCount: notes.length, // 🚀 性能优化：增加缓存区域
+          itemCount: notes.length,
           itemBuilder: (context, index) {
             final note = notes[index];
             return Padding(
@@ -393,7 +384,6 @@ class _TagNotesScreenState extends State<TagNotesScreen> {
                 child: NoteCard(
                   key: ValueKey('card_${note.id}'), // 🚀 与主页一致
                   note: note,
-                  referenceNotes: referenceNotes,
                   onTagTap: _switchTag,
                   onEdit: () {
                     // 🎯 与主页完全一致：弹出底部编辑器

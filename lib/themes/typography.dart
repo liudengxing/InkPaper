@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intpaper/utils/responsive_utils.dart';
+import 'package:inkpaper/utils/responsive_utils.dart';
 
 class AppTypography {
   // 基础字体大小

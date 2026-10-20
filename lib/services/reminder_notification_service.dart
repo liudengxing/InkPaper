@@ -1,5 +1,5 @@
-import 'package:intpaper/models/reminder_notification_model.dart';
-import 'package:intpaper/services/database_service.dart';
+import 'package:inkpaper/models/reminder_notification_model.dart';
+import 'package:inkpaper/services/database_service.dart';
 import 'package:sqflite/sqflite.dart';
 
 /// 提醒通知服务 - 管理提醒通知的数据库存储

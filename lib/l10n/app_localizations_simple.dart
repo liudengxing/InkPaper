@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intpaper/l10n/translations.dart';
+import 'package:inkpaper/l10n/translations.dart';
 
 /// 简单的应用国际化类 - 当前正式支持简体中文和英文。
 class AppLocalizationsSimple {
@@ -420,9 +420,9 @@ class AppLocalizationsSimple {
   String get gettingStarted => _t('gettingStarted', fallback: '开始使用');
   String get quickGuide => _t('quickGuide', fallback: '快速入门指南');
   String get quickStartDescription =>
-      _t('quickStartDescription', fallback: '快速了解IntPaper-墨鸣笔记的基本功能和使用方式');
+      _t('quickStartDescription', fallback: '快速了解InkPaper-墨鸣笔记的基本功能和使用方式');
   String get noteFeaturesDescription =>
-      _t('noteFeaturesDescription', fallback: '全面了解IntPaper-墨鸣笔记的核心功能');
+      _t('noteFeaturesDescription', fallback: '全面了解InkPaper-墨鸣笔记的核心功能');
   String get noteFeatures => _t('noteFeatures', fallback: '笔记功能');
   String get tagFeatures => _t('tagFeatures', fallback: '标签功能');
   String get dataSync => _t('dataSync', fallback: '数据同步');
@@ -526,8 +526,8 @@ class AppLocalizationsSimple {
   String get uploadAvatarFailed => _t('uploadAvatarFailed', fallback: '上传头像失败');
   String get emailUpdateSuccess => _t('emailUpdateSuccess', fallback: '邮箱更新成功');
   String get emailUpdateFailed => _t('emailUpdateFailed', fallback: '邮箱更新失败');
-  String get welcomeToIntPaperShort =>
-      _t('welcomeToIntPaperShort', fallback: '欢迎使用 IntPaper');
+  String get welcomeToInkPaperShort =>
+      _t('welcomeToInkPaperShort', fallback: '欢迎使用 InkPaper');
   String get loginToUnlockFeatures =>
       _t('loginToUnlockFeatures', fallback: '登录后解锁更多精彩功能');
   String get cloudSyncFeature => _t('cloudSyncFeature', fallback: '云端同步');
@@ -810,8 +810,8 @@ class AppLocalizationsSimple {
 
   // ===== 帮助中心 =====
   String get quickStartGuide => _t('quickStartGuide', fallback: '快速入门指南');
-  String get welcomeToIntPaper =>
-      _t('welcomeToIntPaper', fallback: '欢迎使用IntPaper-墨鸣笔记');
+  String get welcomeToInkPaper =>
+      _t('welcomeToInkPaper', fallback: '欢迎使用InkPaper-墨鸣笔记');
   String get coreFeatures => _t('coreFeatures', fallback: '核心特色');
   String get minimalistDesign => _t('minimalistDesign', fallback: '极简设计');
   String get crossPlatform => _t('crossPlatform', fallback: '跨平台支持');
@@ -830,13 +830,13 @@ class AppLocalizationsSimple {
   String get createFirstNote => _t('createFirstNote', fallback: '创建首条笔记');
 
   // ===== 关于页面 =====
-  String get aboutIntPaper => _t('aboutIntPaper', fallback: '关于IntPaper');
+  String get aboutInkPaper => _t('aboutInkPaper', fallback: '关于InkPaper');
   String get appTagline =>
       _t('appTagline', fallback: '静待沉淀，蓄势而鸣。\n你的每一次落笔，都是未来生长的根源。');
   String get appIntroduction => _t(
         'appIntroduction',
         fallback:
-            'IntPaper 是一款面向个人记录和知识整理的笔记应用。你可以本地使用，也可以连接官方服务器或自部署 Memos 服务同步笔记。',
+            'InkPaper 是一款面向个人记录和知识整理的笔记应用。你可以本地使用，也可以连接官方服务器或自部署 Memos 服务同步笔记。',
       );
   String get appTechDescription => _t(
         'appTechDescription',
@@ -961,7 +961,7 @@ class AppLocalizationsSimple {
   String get termination => _t('termination', fallback: '终止');
   String get userTerminationRights => _t(
         'userTerminationRights',
-        fallback: '您可以随时停止使用IntPaper并删除应用。\n\n我们也可能在以下情况下终止您的访问权限：',
+        fallback: '您可以随时停止使用InkPaper并删除应用。\n\n我们也可能在以下情况下终止您的访问权限：',
       );
   String get postTerminationObligations =>
       _t('postTerminationObligations', fallback: '终止后，您应停止使用应用并删除所有副本。');
@@ -1099,13 +1099,13 @@ class AppLocalizationsSimple {
       _t('registrationSuccessful', fallback: '注册成功！正在为您登录...');
   String get registrationFailed =>
       _t('registrationFailed', fallback: '注册失败，请检查信息后重试');
-  String get joinIntPaper => _t('joinIntPaper', fallback: '加入 IntPaper');
+  String get joinInkPaper => _t('joinInkPaper', fallback: '加入 InkPaper');
   String get startIntelligentNoteJourney =>
       _t('startIntelligentNoteJourney', fallback: '创建你的笔记空间');
   String get startCreativeJourney =>
       _t('startCreativeJourney', fallback: '开启您的\n创作之旅');
   String get recordEachMoment =>
-      _t('recordEachMoment', fallback: '加入 IntPaper，记录每一个值得珍藏的时刻');
+      _t('recordEachMoment', fallback: '加入 InkPaper，记录每一个值得珍藏的时刻');
   String get usernameMinLength3 =>
       _t('usernameMinLength3', fallback: '用户名至少需要3个字符');
   String get usernameInvalidChars =>
@@ -1233,7 +1233,7 @@ class AppLocalizationsSimple {
   // ===== 实验室页面 =====
   String get telegramBot => _t('telegramBot', fallback: 'Telegram 助手');
   String get telegramBotDesc =>
-      _t('telegramBotDesc', fallback: '连接 IntPaper_Bot，实现跨平台笔记同步');
+      _t('telegramBotDesc', fallback: '连接 InkPaper_Bot，实现跨平台笔记同步');
   String get stableRunning => _t('stableRunning', fallback: '稳定运行');
   String get voiceToText => _t('voiceToText', fallback: '语音转文字');
   String get voiceToTextDesc =>
@@ -1243,12 +1243,12 @@ class AppLocalizationsSimple {
       _t('aiNoteAssistantDesc', fallback: '智能分析和优化您的笔记内容');
   String get expectedNextRelease =>
       _t('expectedNextRelease', fallback: '预计下个版本发布');
-  String get connectIntPaperBot =>
-      _t('connectIntPaperBot', fallback: '连接 IntPaper_Bot');
+  String get connectInkPaperBot =>
+      _t('connectInkPaperBot', fallback: '连接 InkPaper_Bot');
   String get telegramBotDialogContent => _t(
         'telegramBotDialogContent',
         fallback:
-            '在 Telegram 中搜索 @IntPaper_Bot，连接机器人后即可发送消息自动创建笔记。支持 Markdown 格式，实时同步到 IntPaper 应用。',
+            '在 Telegram 中搜索 @InkPaper_Bot，连接机器人后即可发送消息自动创建笔记。支持 Markdown 格式，实时同步到 InkPaper 应用。',
       );
   String get voiceToTextDialogContent => _t(
         'voiceToTextDialogContent',
@@ -1628,7 +1628,7 @@ class AppLocalizationsSimple {
   String get permissionInstructions => _t(
         'permissionInstructions',
         fallback:
-            '为了准时提醒您，IntPaper需要发送通知。请在iPhone设置中找到IntPaper，开启"允许通知"，并启用"时间敏感通知"。',
+            '为了准时提醒您，InkPaper需要发送通知。请在iPhone设置中找到InkPaper，开启"允许通知"，并启用"时间敏感通知"。',
       );
   String get operationSteps => _t('operationSteps', fallback: '操作步骤：');
   String get permissionStepGuide => _t(
@@ -1716,10 +1716,10 @@ class AppLocalizationsSimple {
   String get returnToSettings =>
       _t('returnToSettings', fallback: '6️⃣ 返回手机"设置"主页');
   String get enableAutoStart =>
-      _t('enableAutoStart', fallback: '7️⃣ 搜索"自启动" → 找到IntPaper → 开启✅');
+      _t('enableAutoStart', fallback: '7️⃣ 搜索"自启动" → 找到InkPaper → 开启✅');
   String get disableBatteryOptimization => _t(
         'disableBatteryOptimization',
-        fallback: '8️⃣ 搜索"电池优化" → IntPaper → 不限制✅',
+        fallback: '8️⃣ 搜索"电池优化" → InkPaper → 不限制✅',
       );
   String get autoStartWarning =>
       _t('autoStartWarning', fallback: '不开启自启动和电池优化，应用关闭后就收不到提醒！');
@@ -1871,7 +1871,7 @@ class AppLocalizationsSimple {
   String get storagePermissionMessage => _t(
         'storagePermissionMessage',
         fallback:
-            '为了能够导出备份文件，需要授予"所有文件访问权限"。\n\n请按照以下步骤操作：\n1. 点击"允许访问所有文件"\n2. 找到并允许"IntPaper-墨鸣笔记"的权限',
+            '为了能够导出备份文件，需要授予"所有文件访问权限"。\n\n请按照以下步骤操作：\n1. 点击"允许访问所有文件"\n2. 找到并允许"InkPaper-墨鸣笔记"的权限',
       );
   String get allFilesAccessRequired =>
       _t('allFilesAccessRequired', fallback: '需要"所有文件访问权限"才能导出文件');
@@ -2182,7 +2182,7 @@ class AppLocalizationsSimple {
   String get agree => _t('agree', fallback: '同意');
   String get welcomeToApp => _t(
         'welcomeToApp',
-        fallback: '欢迎使用IntPaper！\n\n我们非常重视您的隐私保护和个人信息安全。在使用我们的服务前，请您仔细阅读并充分理解',
+        fallback: '欢迎使用InkPaper！\n\n我们非常重视您的隐私保护和个人信息安全。在使用我们的服务前，请您仔细阅读并充分理解',
       );
   String get and => locale.languageCode == 'zh' ? '和' : 'and';
   String get agreeText =>
@@ -2806,7 +2806,7 @@ class AppLocalizationsSimple {
   String get preparingShareImage =>
       _t('preparingShareImage', fallback: '准备分享图片...');
   String get imageShareText =>
-      _t('imageShareText', fallback: '来自 IntPaper 的图片分享');
+      _t('imageShareText', fallback: '来自 InkPaper 的图片分享');
   String get cannotGetImageFile =>
       _t('cannotGetImageFile', fallback: '无法获取图片文件');
   String get shareImageFailed => _t('shareImageFailed', fallback: '分享图片失败');
@@ -2933,7 +2933,7 @@ class AppLocalizationsSimple {
   String get saveToAppDirectoryFailed =>
       _t('saveToAppDirectoryFailed', fallback: '保存到应用目录失败');
   String get backupShareSubject =>
-      _t('backupShareSubject', fallback: 'IntPaper-墨鸣笔记备份');
+      _t('backupShareSubject', fallback: 'InkPaper-墨鸣笔记备份');
   String backupShareText(String fileName) =>
       _t('backupShareText', fallback: '墨鸣笔记导出备份：{fileName}')
           .replaceAll('{fileName}', fileName);

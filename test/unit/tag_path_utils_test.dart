@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/utils/tag_path_utils.dart';
+import 'package:inkpaper/utils/tag_path_utils.dart';
 
 void main() {
   group('normalizeIncomingTagPath', () {

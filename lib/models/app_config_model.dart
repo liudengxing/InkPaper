@@ -1,5 +1,5 @@
-import 'package:intpaper/models/sidebar_config.dart';
-import 'package:intpaper/utils/logger.dart';
+import 'package:inkpaper/models/sidebar_config.dart';
+import 'package:inkpaper/utils/logger.dart';
 
 class AppConfig {
   AppConfig({

@@ -1,4 +1,4 @@
-import 'package:intpaper/models/load_more_state.dart';
+import 'package:inkpaper/models/load_more_state.dart';
 
 class NotesPaginationState {
   const NotesPaginationState({

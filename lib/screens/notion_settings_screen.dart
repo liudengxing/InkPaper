@@ -1,14 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/models/notion_field_mapping.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/services/notion_api_service.dart';
-import 'package:intpaper/services/notion_sync_service.dart';
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/utils/logger.dart';
-import 'package:intpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/notion_field_mapping.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/services/notion_api_service.dart';
+import 'package:inkpaper/services/notion_sync_service.dart';
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/logger.dart';
+import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:provider/provider.dart';
 
 /// Notion 设置页面

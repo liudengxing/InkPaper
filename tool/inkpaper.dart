@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 Future<void> main(List<String> args) async {
-  final cli = IntPaperCli();
+  final cli = InkPaperCli();
   exitCode = await cli.run(args);
 }
 
-class IntPaperCli {
+class InkPaperCli {
   static const String _cloudVerifyAppId = '10002';
   static const String _cloudVerifyAppKey = 'RLu4EGglybXSgRzK';
   static const String _androidReleaseCertSha256 =
@@ -97,8 +97,8 @@ class IntPaperCli {
 
     await _assertFileContains(
       'android/app/build.gradle',
-      'applicationId "com.didichou.intpaper"',
-      'Android applicationId must stay com.didichou.intpaper.',
+      'applicationId "com.didichou.inkpaper"',
+      'Android applicationId must stay com.didichou.inkpaper.',
     );
     await _assertFileContains(
       'android/app/build.gradle',
@@ -206,7 +206,7 @@ class IntPaperCli {
 
   Future<void> _release(List<String> args) async {
     if (args.length < 2) {
-      throw ToolExit(2, 'Usage: dart tool/intpaper.dart release v1.1.0');
+      throw ToolExit(2, 'Usage: dart tool/inkpaper.dart release v1.1.0');
     }
 
     final tag = args[1];
@@ -233,7 +233,7 @@ class IntPaperCli {
       throw ToolExit(2, 'Tag already exists on origin: $tag');
     }
 
-    await _run(['git', 'tag', '-a', tag, '-m', 'IntPaper $tag']);
+    await _run(['git', 'tag', '-a', tag, '-m', 'InkPaper $tag']);
     await _run(['git', 'push', 'origin', tag]);
     stdout.writeln('Release tag pushed: $tag');
     stdout.writeln('GitHub Actions will build and publish the release.');
@@ -570,10 +570,10 @@ class IntPaperCli {
 
   void _printHelp() {
     stdout.writeln('''
-IntPaper maintenance CLI
+InkPaper maintenance CLI
 
 Usage:
-  dart tool/intpaper.dart <command> [target]
+  dart tool/inkpaper.dart <command> [target]
 
 Commands:
   doctor                         Run flutter doctor -v

@@ -1,8 +1,8 @@
 import 'dart:math';
 
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/utils/memos_content_helper.dart';
-import 'package:intpaper/utils/tag_utils.dart' as tag_utils;
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/utils/memos_content_helper.dart';
+import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 
 abstract final class RandomReviewSelectorService {
   static const int allDays = 999999;

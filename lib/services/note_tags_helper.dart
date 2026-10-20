@@ -1,4 +1,4 @@
-import 'package:intpaper/models/note_model.dart';
+import 'package:inkpaper/models/note_model.dart';
 
 List<String> extractTags(String content) =>
     Note.extractTagsFromContent(content);

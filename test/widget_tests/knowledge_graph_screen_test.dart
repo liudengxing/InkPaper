@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/screens/knowledge_graph_screen_custom.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/screens/knowledge_graph_screen_custom.dart';
 import 'package:provider/provider.dart';
 
 Widget _wrap(Widget child) => ChangeNotifierProvider(

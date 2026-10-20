@@ -1,11 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/models/app_config_model.dart';
-import 'package:intpaper/services/baidu_realtime_speech_service.dart';
-import 'package:intpaper/services/baidu_speech_service.dart';
-import 'package:intpaper/services/iflytek_speech_service.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/app_config_model.dart';
+import 'package:inkpaper/services/baidu_realtime_speech_service.dart';
+import 'package:inkpaper/services/baidu_speech_service.dart';
+import 'package:inkpaper/services/iflytek_speech_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;

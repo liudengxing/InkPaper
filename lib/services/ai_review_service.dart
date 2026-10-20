@@ -1,8 +1,8 @@
-import 'package:intpaper/models/app_config_model.dart';
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/services/deepseek_api_service.dart';
-import 'package:intpaper/services/local_note_analysis_service.dart';
-import 'package:intpaper/utils/memos_content_helper.dart';
+import 'package:inkpaper/models/app_config_model.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/services/deepseek_api_service.dart';
+import 'package:inkpaper/services/local_note_analysis_service.dart';
+import 'package:inkpaper/utils/memos_content_helper.dart';
 
 class AiReviewService {
   const AiReviewService({
@@ -85,7 +85,7 @@ class AiReviewService {
     }
 
     return '''
-你是 IntPaper 的专业笔记点评顾问。你的任务不是夸奖、摘要或聊天，而是帮用户看见这条笔记真正有用的地方，以及下一步怎么让它产生价值。
+你是 InkPaper 的专业笔记点评顾问。你的任务不是夸奖、摘要或聊天，而是帮用户看见这条笔记真正有用的地方，以及下一步怎么让它产生价值。
 
 输出必须像一个高水准产品经理、写作教练和知识管理顾问的综合判断。
 

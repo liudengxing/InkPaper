@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:intpaper/config/app_config.dart' as Config;
+import 'package:inkpaper/config/app_config.dart' as Config;
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 /// 🚀 大厂标准：统一错误处理器

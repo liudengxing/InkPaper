@@ -4,8 +4,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:intpaper/services/memos_api_service_fixed.dart';
-import 'package:intpaper/utils/network_utils.dart';
+import 'package:inkpaper/services/memos_api_service_fixed.dart';
+import 'package:inkpaper/utils/network_utils.dart';
 
 /// 自定义API错误
 class ApiError implements Exception {

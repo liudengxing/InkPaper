@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:intpaper/config/app_config.dart';
-import 'package:intpaper/models/cloud_verification_models.dart';
+import 'package:inkpaper/config/app_config.dart';
+import 'package:inkpaper/models/cloud_verification_models.dart';
 
 /// 星河云验证服务
 class CloudVerificationService {

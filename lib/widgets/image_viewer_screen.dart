@@ -4,11 +4,11 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/services/memos_resource_service.dart';
-import 'package:intpaper/utils/image_cache_manager.dart';
-import 'package:intpaper/utils/image_utils.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/services/memos_resource_service.dart';
+import 'package:inkpaper/utils/image_cache_manager.dart';
+import 'package:inkpaper/utils/image_utils.dart';
 import 'package:provider/provider.dart';
 
 class ImageViewerScreen extends StatefulWidget {

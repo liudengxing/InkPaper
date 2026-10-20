@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intpaper/config/app_config.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/models/webdav_config.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/utils/responsive_utils.dart';
-import 'package:intpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/config/app_config.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/webdav_config.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/responsive_utils.dart';
+import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:provider/provider.dart';
 
 class WebDavSettingsScreen extends StatefulWidget {
@@ -1122,7 +1122,7 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
                             '3. 📁 路径错误\n'
                             '   • 同步路径必须以 / 开头和结尾\n'
                             '   • 正确：${AppConfig.defaultWebDavPath} 或 /备份/笔记/\n'
-                            '   • 错误：IntPaper 或 /IntPaper\n\n'
+                            '   • 错误：InkPaper 或 /InkPaper\n\n'
                             '4. 👤 用户名错误\n'
                             '   • 坚果云：必须填写完整邮箱\n'
                             '   • 其他服务：填写实际的登录用户名',

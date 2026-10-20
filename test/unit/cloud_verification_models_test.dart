@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/models/cloud_verification_models.dart';
+import 'package:inkpaper/models/cloud_verification_models.dart';
 
 void main() {
   group('CloudAppConfigResponse', () {

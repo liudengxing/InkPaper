@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/utils/text_style_helper.dart';
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/text_style_helper.dart';
 
 /// iOS风格的日期时间选择器
 /// 符合中国人使用习惯和应用主题风格

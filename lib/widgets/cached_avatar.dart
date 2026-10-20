@@ -4,9 +4,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:http/http.dart' as http;
-import 'package:intpaper/models/user_model.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/themes/app_theme.dart';
+import 'package:inkpaper/models/user_model.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/themes/app_theme.dart';
 import 'package:provider/provider.dart';
 
 /// 统一的缓存头像组件

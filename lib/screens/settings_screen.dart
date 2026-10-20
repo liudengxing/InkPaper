@@ -3,22 +3,22 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/screens/about_screen.dart';
-import 'package:intpaper/screens/account_deletion_screen.dart';
-import 'package:intpaper/screens/account_info_screen.dart';
-import 'package:intpaper/screens/ai_settings_screen.dart';
-import 'package:intpaper/screens/data_cleanup_screen.dart';
-import 'package:intpaper/screens/feedback_screen.dart';
-import 'package:intpaper/screens/help_screen.dart';
-import 'package:intpaper/screens/import_export_main_screen.dart';
-import 'package:intpaper/screens/laboratory_screen.dart';
-import 'package:intpaper/screens/legal_document_screen.dart';
-import 'package:intpaper/screens/preferences_screen.dart';
-import 'package:intpaper/screens/server_info_screen.dart';
-import 'package:intpaper/screens/webdav_settings_screen.dart';
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/utils/responsive_utils.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/screens/about_screen.dart';
+import 'package:inkpaper/screens/account_deletion_screen.dart';
+import 'package:inkpaper/screens/account_info_screen.dart';
+import 'package:inkpaper/screens/ai_settings_screen.dart';
+import 'package:inkpaper/screens/data_cleanup_screen.dart';
+import 'package:inkpaper/screens/feedback_screen.dart';
+import 'package:inkpaper/screens/help_screen.dart';
+import 'package:inkpaper/screens/import_export_main_screen.dart';
+import 'package:inkpaper/screens/laboratory_screen.dart';
+import 'package:inkpaper/screens/legal_document_screen.dart';
+import 'package:inkpaper/screens/preferences_screen.dart';
+import 'package:inkpaper/screens/server_info_screen.dart';
+import 'package:inkpaper/screens/webdav_settings_screen.dart';
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/responsive_utils.dart';
 
 enum SettingsPage {
   none,

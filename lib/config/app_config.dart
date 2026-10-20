@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:intpaper/config/app_identity.dart';
-import 'package:intpaper/services/app_info_service.dart';
+import 'package:inkpaper/config/app_identity.dart';
+import 'package:inkpaper/services/app_info_service.dart';
 
 /// 🚀 大厂标准：应用配置中心
 /// 统一管理所有配置常量，便于维护和切换环境
@@ -192,10 +192,10 @@ class AppConfig {
   // ==================== 🚀 Native通信配置 ====================
 
   /// MethodChannel名称 - 通知/闹钟
-  static const String channelNativeAlarm = 'com.didichou.intpaper/native_alarm';
+  static const String channelNativeAlarm = 'com.didichou.inkpaper/native_alarm';
 
   /// MethodChannel名称 - 友盟统计
-  static const String channelUmeng = 'com.didichou.intpaper/umeng';
+  static const String channelUmeng = 'com.didichou.inkpaper/umeng';
 
   // ==================== 🚀 同步配置 ====================
 
@@ -362,7 +362,7 @@ class AppConfig {
   static const int aiRelatedNotesCacheHours = 6;
 
   /// 缓存键前缀
-  static const String cacheKeyPrefix = 'intpaper_';
+  static const String cacheKeyPrefix = 'inkpaper_';
 
   /// 笔记相关缓存前缀
   static const String noteCachePrefix = 'note_related_';
@@ -427,7 +427,7 @@ class AppConfig {
   static const String supportEmail = 'rsbgbn@126.com';
 
   /// 官方网站
-  static const String officialWebsite = 'https://inkroot.cn/';
+  static const String officialWebsite = 'https://inkpaper.cn/';
 
   /// 用户反馈地址
   static const String feedbackUrl = '$apiBaseUrl/feedback';
@@ -436,7 +436,7 @@ class AppConfig {
   static const String helpDocUrl = '$officialWebsite/help';
 
   /// GitHub仓库地址
-  static const String githubRepo = 'https://github.com/yyyyymmmmm/IntPaper';
+  static const String githubRepo = 'https://github.com/yyyyymmmmm/InkPaper';
 
   // ==================== 法律文档 ====================
 

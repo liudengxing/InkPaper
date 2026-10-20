@@ -4,10 +4,10 @@ import 'dart:math';
 
 import 'package:flutter/material.dart'; // 🎨 Color 支持
 import 'package:http/http.dart' as http;
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/services/user_behavior_service.dart'; // 🧠 用户行为学习
-import 'package:intpaper/utils/tag_utils.dart' as tag_utils;
-import 'package:intpaper/utils/text_analysis_utils.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/services/user_behavior_service.dart'; // 🧠 用户行为学习
+import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
+import 'package:inkpaper/utils/text_analysis_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 🧠 智能相关笔记服务 - AI 革命性实现

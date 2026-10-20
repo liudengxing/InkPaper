@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/services/intelligent_related_notes_service.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/services/intelligent_related_notes_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

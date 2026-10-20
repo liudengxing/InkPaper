@@ -1,9 +1,9 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/services/random_review_selector_service.dart';
-import 'package:intpaper/services/widget_snapshot_service.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/services/random_review_selector_service.dart';
+import 'package:inkpaper/services/widget_snapshot_service.dart';
 
 void main() {
   Note note({

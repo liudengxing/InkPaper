@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:intpaper/services/memos_api_service_fixed.dart';
+import 'package:inkpaper/services/memos_api_service_fixed.dart';
 import 'package:path/path.dart' as path;
 
 /// Memos资源上传服务

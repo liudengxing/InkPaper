@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/services/database_service.dart';
-import 'package:intpaper/utils/snackbar_utils.dart';
-import 'package:intpaper/utils/time_utils.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/services/database_service.dart';
+import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/utils/time_utils.dart';
 import 'package:provider/provider.dart';
 
 /// 「最近删除」：软删笔记的回收站，支持恢复与彻底删除。

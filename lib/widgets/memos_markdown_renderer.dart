@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/utils/memos_content_helper.dart';
-import 'package:intpaper/widgets/simple_memo_content.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/utils/memos_content_helper.dart';
+import 'package:inkpaper/widgets/simple_memo_content.dart';
 
 enum MemosMarkdownMode {
   cardPreview,

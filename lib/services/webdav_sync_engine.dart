@@ -3,9 +3,9 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/services/database_service.dart';
-import 'package:intpaper/services/webdav_service.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/services/database_service.dart';
+import 'package:inkpaper/services/webdav_service.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// 同步状态

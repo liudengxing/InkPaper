@@ -4,7 +4,7 @@
 // ============================================================
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/services/weread_parser.dart';
+import 'package:inkpaper/services/weread_parser.dart';
 
 void main() {
   // ─────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/services/note_tags_helper.dart';
+import 'package:inkpaper/services/note_tags_helper.dart';
 
 void main() {
   test('TAGS-01 extractTags delegates to Note.extractTagsFromContent behavior',

@@ -2,8 +2,8 @@ import 'dart:convert'; // Added for jsonEncode and jsonDecode
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:intpaper/config/app_config.dart';
-import 'package:intpaper/models/note_model.dart';
+import 'package:inkpaper/config/app_config.dart';
+import 'package:inkpaper/models/note_model.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -692,7 +692,7 @@ class DatabaseService {
   /// 创建时间、更新时间、标签、提醒、批注等本地字段。
   String exportNoteToMarkdown(Note note) {
     final metadata = <String, dynamic>{
-      'IntPaperNote': true,
+      'InkPaperNote': true,
       'id': note.id,
       'createdAt': note.createdAt.toIso8601String(),
       'updatedAt': note.updatedAt.toIso8601String(),
@@ -867,7 +867,7 @@ class DatabaseService {
       }
     }
 
-    if (metadata['IntPaperNote'] != true) {
+    if (metadata['InkPaperNote'] != true) {
       return null;
     }
 

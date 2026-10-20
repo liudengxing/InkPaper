@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "appTitle": "IntPaper Notes",
+  "appTitle": "InkPaper Notes",
   "@appTitle": {
     "description": "Application title"
   },
@@ -1201,7 +1201,7 @@
     "description": "Allow notifications step"
   },
 
-  "allowNotificationsDesc": "Enable IntPaper in notification settings",
+  "allowNotificationsDesc": "Enable InkPaper in notification settings",
   "@allowNotificationsDesc": {
     "description": "Allow notifications desc"
   },
@@ -1256,7 +1256,7 @@
     "description": "Agree button"
   },
 
-  "welcomeToApp": "Welcome to IntPaper!\n\nWe value your privacy. Please read and understand our",
+  "welcomeToApp": "Welcome to InkPaper!\n\nWe value your privacy. Please read and understand our",
   "@welcomeToApp": {
     "description": "Welcome text"
   },
@@ -1991,7 +1991,7 @@
     "description": "Allow notifications step"
   },
 
-  "allowNotificationsDesc": "Enable IntPaper in notification settings",
+  "allowNotificationsDesc": "Enable InkPaper in notification settings",
   "@allowNotificationsDesc": {
     "description": "Allow notifications desc"
   },
@@ -2046,7 +2046,7 @@
     "description": "Agree button"
   },
 
-  "welcomeToApp": "Welcome to IntPaper!\n\nWe value your privacy. Please read and understand our",
+  "welcomeToApp": "Welcome to InkPaper!\n\nWe value your privacy. Please read and understand our",
   "@welcomeToApp": {
     "description": "Welcome text"
   },

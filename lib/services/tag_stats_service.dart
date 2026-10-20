@@ -1,4 +1,4 @@
-import 'package:intpaper/utils/tag_path_utils.dart';
+import 'package:inkpaper/utils/tag_path_utils.dart';
 
 /// Lightweight tag statistics for sidebar/tags page.
 ///

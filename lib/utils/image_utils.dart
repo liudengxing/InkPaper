@@ -9,10 +9,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart' as fcm;
 import 'package:http/http.dart' as http;
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
-import 'package:intpaper/config/asset_config.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/utils/image_cache_manager.dart';
-import 'package:intpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/config/asset_config.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/utils/image_cache_manager.dart';
+import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -90,7 +90,7 @@ class ImageUtils {
   static String _defaultImageFileName([String? source]) {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final extension = _imageExtensionFromSource(source);
-    return 'intpaper_$timestamp.$extension';
+    return 'inkpaper_$timestamp.$extension';
   }
 
   static String _imageExtensionFromSource(String? source) {
@@ -529,7 +529,7 @@ class ImageUtils {
   }) async {
     final l10n = AppLocalizationsSimple.of(context);
     final preparingShareImage = l10n?.preparingShareImage ?? '准备分享图片...';
-    final imageShareText = l10n?.imageShareText ?? '来自 IntPaper 的图片分享';
+    final imageShareText = l10n?.imageShareText ?? '来自 InkPaper 的图片分享';
     final cannotGetImageFile = l10n?.cannotGetImageFile ?? '无法获取图片文件';
     final shareImageFailed = l10n?.shareImageFailed ?? '分享图片失败';
     try {
@@ -561,7 +561,7 @@ class ImageUtils {
         if (response.statusCode == 200) {
           final tempDir = Directory.systemTemp;
           final fileName =
-              'intpaper_share_${DateTime.now().millisecondsSinceEpoch}.jpg';
+              'inkpaper_share_${DateTime.now().millisecondsSinceEpoch}.jpg';
           imageFile = File('${tempDir.path}/$fileName');
           await imageFile.writeAsBytes(response.bodyBytes);
         }

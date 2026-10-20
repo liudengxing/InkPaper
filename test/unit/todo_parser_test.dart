@@ -3,7 +3,7 @@
 // ============================================================
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/utils/todo_parser.dart';
+import 'package:inkpaper/utils/todo_parser.dart';
 
 void main() {
   // ─────────────────────────────────────────────────────────

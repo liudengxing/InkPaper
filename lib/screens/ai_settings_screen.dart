@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/models/app_config_model.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/services/deepseek_api_service.dart';
-import 'package:intpaper/services/iflytek_speech_service.dart';
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/utils/responsive_utils.dart';
-import 'package:intpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/app_config_model.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/services/deepseek_api_service.dart';
+import 'package:inkpaper/services/iflytek_speech_service.dart';
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/responsive_utils.dart';
+import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:provider/provider.dart';
 
 class AiSettingsScreen extends StatefulWidget {
@@ -1404,13 +1404,13 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               '1. 打开讯飞开放平台，进入控制台\n'
                   '2. 创建应用，开通“语音听写/实时语音转写”能力\n'
                   '3. 在应用详情复制 APPID、APIKey、APISecret\n'
-                  '4. 回到 IntPaper 填入上方三个字段并测试连接\n'
+                  '4. 回到 InkPaper 填入上方三个字段并测试连接\n'
                   '5. 首页长按 + 号即可语音新建，编辑器里也可点麦克风补充\n\n'
                   '注意：开启后语音会发送到讯飞接口识别，调用额度和费用由你的讯飞账号承担。',
               '1. Open iFlytek Open Platform and enter the console\n'
                   '2. Create an app and enable speech dictation / real-time ASR\n'
                   '3. Copy APPID, APIKey, and APISecret from the app detail page\n'
-                  '4. Enter them in IntPaper and test the connection\n'
+                  '4. Enter them in InkPaper and test the connection\n'
                   '5. Long-press + on Home to create a voice note; use the editor mic to add more\n\n'
                   'Note: when enabled, audio is sent to iFlytek for recognition. Quota and costs belong to your iFlytek account.',
             ),

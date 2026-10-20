@@ -4,25 +4,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:intl/date_symbol_data_local.dart';
-import 'package:intpaper/config/app_config.dart' as Config;
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/models/app_config_model.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/routes/app_router.dart';
-import 'package:intpaper/services/app_info_service.dart';
-import 'package:intpaper/services/feature_flag_service.dart';
-import 'package:intpaper/services/notification_service.dart';
-import 'package:intpaper/services/observability_service.dart';
-import 'package:intpaper/services/performance_monitor_service.dart';
-import 'package:intpaper/themes/app_theme.dart';
+import 'package:inkpaper/config/app_config.dart' as Config;
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/app_config_model.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/routes/app_router.dart';
+import 'package:inkpaper/services/app_info_service.dart';
+import 'package:inkpaper/services/feature_flag_service.dart';
+import 'package:inkpaper/services/notification_service.dart';
+import 'package:inkpaper/services/observability_service.dart';
+import 'package:inkpaper/services/performance_monitor_service.dart';
+import 'package:inkpaper/themes/app_theme.dart';
 // 🚀 大厂标准：新增工具
-import 'package:intpaper/utils/error_handler.dart';
-import 'package:intpaper/utils/image_cache_manager.dart';
-import 'package:intpaper/utils/logger.dart';
-import 'package:intpaper/utils/responsive_utils.dart';
-import 'package:intpaper/utils/shared_payload_utils.dart';
-import 'package:intpaper/utils/tag_path_utils.dart';
+import 'package:inkpaper/utils/error_handler.dart';
+import 'package:inkpaper/utils/image_cache_manager.dart';
+import 'package:inkpaper/utils/logger.dart';
+import 'package:inkpaper/utils/responsive_utils.dart';
+import 'package:inkpaper/utils/shared_payload_utils.dart';
+import 'package:inkpaper/utils/tag_path_utils.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -141,7 +141,7 @@ Future<void> _initializeApp() async {
 
   // 记录应用启动日志
   StructuredLogger().info(
-    'IntPaper application starting',
+    'InkPaper application starting',
     category: 'startup',
     context: {
       'version': Config.AppConfig.appVersion,
@@ -325,7 +325,7 @@ Future<void> _initializeApp() async {
         return;
       }
       await Future.delayed(const Duration(milliseconds: 250));
-      _handleIntPaperDeepLink(appRouter, rawUrl);
+      _handleInkPaperDeepLink(appRouter, rawUrl);
     }
   });
 
@@ -362,7 +362,7 @@ Future<void> _initializeApp() async {
     final initialDeepLink = await platform.invokeMethod('getInitialDeepLink');
     if (initialDeepLink != null && initialDeepLink is String) {
       Future.delayed(const Duration(milliseconds: 700), () {
-        _handleIntPaperDeepLink(appRouter, initialDeepLink);
+        _handleInkPaperDeepLink(appRouter, initialDeepLink);
       });
     }
   } on Object catch (_) {
@@ -379,7 +379,7 @@ Future<void> _initializeApp() async {
   PerformanceMonitorService().trackAppLaunch('app_running');
 }
 
-void _handleIntPaperDeepLink(AppRouter appRouter, String rawUrl) {
+void _handleInkPaperDeepLink(AppRouter appRouter, String rawUrl) {
   final uri = Uri.tryParse(rawUrl);
   if (uri == null) {
     return;
@@ -559,7 +559,7 @@ class _MyAppState extends State<MyApp> {
               key: ValueKey(
                 'app_${themeSelection}_$locale',
               ), // 主题和语言需要重建；字体缩放交给MediaQuery局部生效，避免路由树抖动
-              title: 'IntPaper-墨鸣笔记',
+              title: 'InkPaper-墨鸣笔记',
               themeMode: appThemeMode,
               theme: theme,
               darkTheme: darkTheme,

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intpaper/models/app_config_model.dart' as models;
+import 'package:inkpaper/models/app_config_model.dart' as models;
 
 class AppTheme {
   // 亮色模式颜色

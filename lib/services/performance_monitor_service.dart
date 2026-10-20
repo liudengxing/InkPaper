@@ -10,7 +10,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:intpaper/config/app_config.dart';
+import 'package:inkpaper/config/app_config.dart';
 
 /// 性能指标类型
 enum MetricType {

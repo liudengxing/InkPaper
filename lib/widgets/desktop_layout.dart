@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/widgets/sidebar.dart';
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/widgets/sidebar.dart';
 
 /// 桌面端固定侧边栏布局
 /// 侧边栏保持不动，只更新右侧内容

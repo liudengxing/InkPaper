@@ -5,10 +5,10 @@
 class AppIdentity {
   const AppIdentity._();
 
-  static const String name = 'IntPaper';
-  static const String displayName = 'IntPaper';
-  static const String fullName = 'IntPaper-墨鸣笔记';
-  static const String packageName = 'com.didichou.intpaper';
-  static const String defaultWebDavPath = '/IntPaper/';
-  static const String botName = 'IntPaper_Bot';
+  static const String name = 'InkPaper';
+  static const String displayName = 'InkPaper';
+  static const String fullName = 'InkPaper-墨鸣笔记';
+  static const String packageName = 'com.didichou.inkpaper';
+  static const String defaultWebDavPath = '/InkPaper/';
+  static const String botName = 'InkPaper_Bot';
 }

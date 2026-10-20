@@ -8,24 +8,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intpaper/config/app_config.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/models/app_config_model.dart' as models;
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/models/sort_order.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/services/deepseek_api_service.dart';
-import 'package:intpaper/services/preferences_service.dart';
-import 'package:intpaper/services/umeng_analytics_service.dart';
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/utils/responsive_utils.dart';
-import 'package:intpaper/utils/snackbar_utils.dart';
-import 'package:intpaper/widgets/note_card.dart';
-import 'package:intpaper/widgets/note_editor.dart';
-import 'package:intpaper/widgets/sidebar.dart';
+import 'package:inkpaper/config/app_config.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/app_config_model.dart' as models;
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/models/sort_order.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/services/deepseek_api_service.dart';
+import 'package:inkpaper/services/preferences_service.dart';
+import 'package:inkpaper/services/umeng_analytics_service.dart';
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/responsive_utils.dart';
+import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/widgets/note_card.dart';
+import 'package:inkpaper/widgets/note_editor.dart';
+import 'package:inkpaper/widgets/sidebar.dart';
 import 'package:provider/provider.dart';
 
-const bool _screenshotMode = bool.fromEnvironment('INTPAPER_SCREENSHOT_MODE');
+const bool _screenshotMode = bool.fromEnvironment('INKPAPER_SCREENSHOT_MODE');
 
 class HomeScreen extends StatefulWidget {
   // 🔥 接收分享的内容
@@ -64,6 +64,21 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isRefreshing = false;
   SortOrder _currentSortOrder = SortOrder.newest;
 
+  /// 📝 欢迎笔记文案。
+  ///
+  /// 只在「本地一条笔记都没有」时作为列表唯一的一条展示，
+  /// 不写入数据库：用户创建第一条真实笔记后它自然消失，
+  /// 也不会被同步到 Memos / WebDAV，避免污染真实数据。
+  static const String _welcomeNoteContent =
+      '小纸是一款面向个人知识记录的跨平台笔记应用。'
+      '它可以本地优先使用，也可以连接官方服务器或自托管 Memos 服务进行同步。'
+      '应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、'
+      '导入导出、系统分享、小组件和可选 AI 辅助等能力。'
+      '（本条笔记在您正式使用后会自动删除）';
+
+  /// 欢迎笔记的展示用对象（id 不会落库）
+  late final Note _welcomeNote;
+
   // 🚀 分页加载相关
   final ScrollController _scrollController = ScrollController();
   bool _isLoadingMore = false;
@@ -75,6 +90,16 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+
+    // 📝 欢迎笔记：时间取首次构建时刻，列表为空时展示
+    final welcomeTime = DateTime.now();
+    _welcomeNote = Note(
+      id: 'welcome_note_guide',
+      content: _welcomeNoteContent,
+      createdAt: welcomeTime,
+      updatedAt: welcomeTime,
+      isSynced: true,
+    );
 
     // 🚀 大厂做法：先渲染 UI，再异步初始化（不阻塞 UI）
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -928,6 +953,32 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// 📝 空列表时展示的欢迎笔记
+  ///
+  /// 复用 [NoteCard] 让观感与真实笔记完全一致；
+  /// 点击进入编辑器并预填内容，保存后它就是一条真实笔记，
+  /// 列表不再为空，这条示例也就自然消失了。
+  Widget _buildWelcomeNoteCard() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: NoteCard(
+        note: _welcomeNote,
+        referenceNotes: const <Note>[],
+        onEdit: () => _showAddNoteFormWithContent(_welcomeNoteContent),
+        onDelete: _showWelcomeNoteHint,
+        onPin: _showWelcomeNoteHint,
+      ),
+    );
+  }
+
+  /// 示例笔记不参与删除/置顶，给一句说明即可
+  void _showWelcomeNoteHint() {
+    SnackBarUtils.showSuccess(
+      context,
+      '这是示例笔记，创建第一条笔记后会自动消失',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -1270,7 +1321,11 @@ class _HomeScreenState extends State<HomeScreen>
                                                   ? _buildSearchEmptyState(
                                                       searchQuery,
                                                     )
-                                                  : _buildEmptyState(),
+                                                  // 搜索无结果仍用空状态；
+                                                  // 完全没笔记时展示欢迎笔记
+                                                  : _isSearchActive
+                                                      ? _buildEmptyState()
+                                                      : _buildWelcomeNoteCard(),
                                     ),
                                   ],
                                 )

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intpaper/utils/image_utils.dart';
+import 'package:inkpaper/utils/image_utils.dart';
 
 /// 可长按保存的图片组件
 ///

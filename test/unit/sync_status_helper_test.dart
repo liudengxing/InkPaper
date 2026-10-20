@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/services/sync_status_helper.dart';
+import 'package:inkpaper/services/sync_status_helper.dart';
 
 class _Err implements Exception {
   _Err(this.msg);

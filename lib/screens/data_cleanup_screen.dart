@@ -2,13 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/models/app_config_model.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/services/database_service.dart';
-import 'package:intpaper/services/preferences_service.dart';
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/app_config_model.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/services/database_service.dart';
+import 'package:inkpaper/services/preferences_service.dart';
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 

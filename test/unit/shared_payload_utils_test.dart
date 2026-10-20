@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/utils/shared_payload_utils.dart';
+import 'package:inkpaper/utils/shared_payload_utils.dart';
 
 void main() {
   group('sharedPayloadToContent', () {
@@ -7,9 +7,9 @@ void main() {
       expect(
         sharedPayloadToContent({
           'type': 'text',
-          'content': '摘录内容\nhttps://inkroot.cn',
+          'content': '摘录内容\nhttps://inkpaper.cn',
         }),
-        '摘录内容\nhttps://inkroot.cn',
+        '摘录内容\nhttps://inkpaper.cn',
       );
     });
 

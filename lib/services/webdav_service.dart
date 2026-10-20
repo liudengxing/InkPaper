@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:intpaper/models/webdav_config.dart';
+import 'package:inkpaper/models/webdav_config.dart';
 import 'package:webdav_client/webdav_client.dart' as webdav;
 
 /// WebDAV 客户端服务
@@ -44,8 +44,8 @@ class WebDavService {
       // 尝试列出根目录
       await _client!.readDir('/');
       final probePath =
-          '${config.fullSyncPath}.IntPaper-connection-${DateTime.now().millisecondsSinceEpoch}.txt';
-      await uploadFile(probePath, 'IntPaper WebDAV connection test');
+          '${config.fullSyncPath}.InkPaper-connection-${DateTime.now().millisecondsSinceEpoch}.txt';
+      await uploadFile(probePath, 'InkPaper WebDAV connection test');
       try {
         await deleteFile(probePath);
       } on Object {

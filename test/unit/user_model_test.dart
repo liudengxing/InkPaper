@@ -3,7 +3,7 @@
 // ============================================================
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/models/user_model.dart';
+import 'package:inkpaper/models/user_model.dart';
 
 void main() {
   group('User.fromJson', () {

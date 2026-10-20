@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/models/app_config_model.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/screens/sidebar_customization_screen.dart';
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/utils/responsive_utils.dart';
-import 'package:intpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/app_config_model.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/screens/sidebar_customization_screen.dart';
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/responsive_utils.dart';
+import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:provider/provider.dart';
 
 class PreferencesScreen extends StatefulWidget {

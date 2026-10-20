@@ -4,15 +4,15 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intpaper/config/app_config.dart'; // 🔥 导入AppConfig
-import 'package:intpaper/l10n/app_localizations.dart'; // 🌍 国际化
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/utils/image_utils.dart';
-import 'package:intpaper/utils/share_image_widget.dart'; // 🔥 导入模板枚举
-import 'package:intpaper/utils/share_utils.dart';
-import 'package:intpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/config/app_config.dart'; // 🔥 导入AppConfig
+import 'package:inkpaper/l10n/app_localizations.dart'; // 🌍 国际化
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/image_utils.dart';
+import 'package:inkpaper/utils/share_image_widget.dart'; // 🔥 导入模板枚举
+import 'package:inkpaper/utils/share_utils.dart';
+import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -598,7 +598,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
       // ✅ 直接使用已生成的预览图分享（不重新生成！）
       final tempDir = await getTemporaryDirectory();
       final fileName =
-          'intpaper_share_${DateTime.now().millisecondsSinceEpoch}.png';
+          'inkpaper_share_${DateTime.now().millisecondsSinceEpoch}.png';
       final file = File('${tempDir.path}/$fileName');
 
       await file.writeAsBytes(_previewImageBytes!);
@@ -683,7 +683,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
       await ImageUtils.saveImageBytes(
         context,
         _previewImageBytes!,
-        fileName: 'intpaper_share_${DateTime.now().millisecondsSinceEpoch}.png',
+        fileName: 'inkpaper_share_${DateTime.now().millisecondsSinceEpoch}.png',
       );
 
       // 关闭加载对话框
@@ -1501,7 +1501,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
                   // 用户名显示开关
                   _buildToggleOption(
                     '显示用户名',
-                    '在分享图片左上角显示用户名或IntPaper',
+                    '在分享图片左上角显示用户名或InkPaper',
                     Icons.person,
                     _showUser,
                     (value) {
@@ -1521,7 +1521,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
                   // 品牌信息显示开关
                   _buildToggleOption(
                     '显示版权',
-                    '在分享图片右下角显示IntPaper品牌信息',
+                    '在分享图片右下角显示InkPaper品牌信息',
                     Icons.copyright,
                     _showBrand,
                     (value) {

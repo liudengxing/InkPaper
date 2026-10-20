@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:intpaper/config/app_config.dart' as Config;
-import 'package:intpaper/models/app_config_model.dart';
-import 'package:intpaper/models/user_model.dart';
+import 'package:inkpaper/config/app_config.dart' as Config;
+import 'package:inkpaper/models/app_config_model.dart';
+import 'package:inkpaper/models/user_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PreferencesService {
@@ -38,7 +38,7 @@ class PreferencesService {
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock,
       // 🔥 关键：设置为 true，卸载时自动删除 Keychain 数据
-      accountName: 'com.intpaper.app',
+      accountName: 'com.inkpaper.app',
     ),
     aOptions: AndroidOptions(
       encryptedSharedPreferences: true,

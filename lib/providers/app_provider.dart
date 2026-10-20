@@ -6,48 +6,48 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // 添加http包
-import 'package:intpaper/config/app_config.dart' as Config;
-import 'package:intpaper/models/annotation_model.dart'; // ✅ 新增：批注模型
-import 'package:intpaper/models/app_config_model.dart';
-import 'package:intpaper/models/cloud_verification_models.dart';
-import 'package:intpaper/models/load_more_state.dart';
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/models/reminder_notification_model.dart';
-import 'package:intpaper/models/sort_order.dart';
-import 'package:intpaper/models/user_model.dart';
-import 'package:intpaper/models/webdav_config.dart';
-import 'package:intpaper/services/api_service_factory.dart';
-import 'package:intpaper/services/cloud_verification_service.dart';
-import 'package:intpaper/services/database_service.dart';
-import 'package:intpaper/services/local_reference_service.dart';
-import 'package:intpaper/services/memos_api_service_fixed.dart'; // 使用修复版API服务
-import 'package:intpaper/services/memos_resource_service.dart'; // 图片上传服务
-import 'package:intpaper/services/note_sorting_helper.dart';
-import 'package:intpaper/services/note_tags_helper.dart' as note_tags;
-import 'package:intpaper/services/notes_pagination_helper.dart' as paging;
-import 'package:intpaper/services/notification_service.dart';
-import 'package:intpaper/services/notion_sync_service.dart';
-import 'package:intpaper/services/preferences_service.dart';
-import 'package:intpaper/services/reminder_notification_service.dart';
-import 'package:intpaper/services/sync_merge_helper.dart' as sync_merge;
-import 'package:intpaper/services/sync_status_helper.dart' as sync_status;
-import 'package:intpaper/services/umeng_analytics_service.dart';
-import 'package:intpaper/services/unified_reference_manager.dart';
-import 'package:intpaper/services/webdav_service.dart';
-import 'package:intpaper/services/webdav_sync_engine.dart';
-import 'package:intpaper/services/widget_snapshot_service.dart';
-import 'package:intpaper/utils/error_handler.dart';
+import 'package:inkpaper/config/app_config.dart' as Config;
+import 'package:inkpaper/models/annotation_model.dart'; // ✅ 新增：批注模型
+import 'package:inkpaper/models/app_config_model.dart';
+import 'package:inkpaper/models/cloud_verification_models.dart';
+import 'package:inkpaper/models/load_more_state.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/models/reminder_notification_model.dart';
+import 'package:inkpaper/models/sort_order.dart';
+import 'package:inkpaper/models/user_model.dart';
+import 'package:inkpaper/models/webdav_config.dart';
+import 'package:inkpaper/services/api_service_factory.dart';
+import 'package:inkpaper/services/cloud_verification_service.dart';
+import 'package:inkpaper/services/database_service.dart';
+import 'package:inkpaper/services/local_reference_service.dart';
+import 'package:inkpaper/services/memos_api_service_fixed.dart'; // 使用修复版API服务
+import 'package:inkpaper/services/memos_resource_service.dart'; // 图片上传服务
+import 'package:inkpaper/services/note_sorting_helper.dart';
+import 'package:inkpaper/services/note_tags_helper.dart' as note_tags;
+import 'package:inkpaper/services/notes_pagination_helper.dart' as paging;
+import 'package:inkpaper/services/notification_service.dart';
+import 'package:inkpaper/services/notion_sync_service.dart';
+import 'package:inkpaper/services/preferences_service.dart';
+import 'package:inkpaper/services/reminder_notification_service.dart';
+import 'package:inkpaper/services/sync_merge_helper.dart' as sync_merge;
+import 'package:inkpaper/services/sync_status_helper.dart' as sync_status;
+import 'package:inkpaper/services/umeng_analytics_service.dart';
+import 'package:inkpaper/services/unified_reference_manager.dart';
+import 'package:inkpaper/services/webdav_service.dart';
+import 'package:inkpaper/services/webdav_sync_engine.dart';
+import 'package:inkpaper/services/widget_snapshot_service.dart';
+import 'package:inkpaper/utils/error_handler.dart';
 // 🚀 大厂标准：监控工具
-import 'package:intpaper/utils/logger.dart';
-import 'package:intpaper/utils/performance_tracker.dart';
-import 'package:intpaper/widgets/cached_avatar.dart';
+import 'package:inkpaper/utils/logger.dart';
+import 'package:inkpaper/utils/performance_tracker.dart';
+import 'package:inkpaper/widgets/cached_avatar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 part 'app_provider_sync.part.dart';
 
-const bool _screenshotMode = bool.fromEnvironment('INTPAPER_SCREENSHOT_MODE');
+const bool _screenshotMode = bool.fromEnvironment('INKPAPER_SCREENSHOT_MODE');
 
 class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   AppProvider() {
@@ -479,7 +479,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     );
     _webDavConfig = WebDavConfig(
       serverUrl: WebDavPresets.jianguoyun,
-      username: 'demo@inkroot.cn',
+      username: 'demo@inkpaper.cn',
       enabled: true,
       autoSync: true,
       lastSyncTime: DateTime(2026, 6, 17, 9, 41),
@@ -513,7 +513,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         ),
         Note(
           id: 'demo-002',
-          content: '把临时灵感先放进 IntPaper，等晚上统一整理。\n\n'
+          content: '把临时灵感先放进 InkPaper，等晚上统一整理。\n\n'
               '**重点：** 不打断当下工作流。\n\n'
               '#灵感 #效率',
           createdAt: DateTime(2026, 6, 16, 21, 15),

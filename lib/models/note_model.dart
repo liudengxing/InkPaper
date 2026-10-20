@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:intpaper/models/annotation_model.dart';
+import 'package:inkpaper/models/annotation_model.dart';
 
 class Note {
   // 提醒时间

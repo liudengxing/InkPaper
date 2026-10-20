@@ -2,8 +2,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/services/database_service.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/services/database_service.dart';
 
 /// 统一引用管理器
 ///

@@ -3,10 +3,10 @@ import 'dart:ui'; // 🪟 ImageFilter for glassmorphism
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intpaper/services/intelligent_related_notes_service.dart';
-import 'package:intpaper/services/user_behavior_service.dart'; // 🧠 用户行为记录
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/utils/tag_utils.dart' as tag_utils;
+import 'package:inkpaper/services/intelligent_related_notes_service.dart';
+import 'package:inkpaper/services/user_behavior_service.dart'; // 🧠 用户行为记录
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 
 /// 🧠 智能相关笔记底部抽屉
 ///

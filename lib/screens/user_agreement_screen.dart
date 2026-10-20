@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intpaper/config/app_config.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/themes/app_theme.dart';
+import 'package:inkpaper/config/app_config.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/themes/app_theme.dart';
 
 class UserAgreementScreen extends StatelessWidget {
   const UserAgreementScreen({super.key});
@@ -151,7 +151,7 @@ class UserAgreementScreen extends StatelessWidget {
                 '${AppLocalizationsSimple.of(context)?.dataOwnershipDeclaration ?? '重要声明：'}\n\n'
                 '• 您的所有笔记数据完全归您所有\n'
                 '• 数据存储在您自己的Memos服务器上\n'
-                '• IntPaper不会声明对您的内容拥有任何权利\n'
+                '• InkPaper不会声明对您的内容拥有任何权利\n'
                 '• 您可以随时导出、删除或迁移您的数据\n'
                 '• 我们不会访问、备份或分析您的个人数据\n\n'
                 '${AppLocalizationsSimple.of(context)?.userContentControl ?? '您保留对自己创建的所有内容的完整控制权。'}',
@@ -245,7 +245,7 @@ class UserAgreementScreen extends StatelessWidget {
               // 终止
               _buildSection(
                 AppLocalizationsSimple.of(context)?.termination ?? '终止',
-                '${AppLocalizationsSimple.of(context)?.userTerminationRights ?? '您可以随时停止使用IntPaper并删除应用。\n\n我们也可能在以下情况下终止您的访问权限：'}\n'
+                '${AppLocalizationsSimple.of(context)?.userTerminationRights ?? '您可以随时停止使用InkPaper并删除应用。\n\n我们也可能在以下情况下终止您的访问权限：'}\n'
                 '• 违反本协议的条款\n'
                 '• 滥用服务或进行有害活动\n'
                 '• 法律要求\n\n'

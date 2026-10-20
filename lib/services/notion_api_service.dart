@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:intpaper/models/notion_field_mapping.dart';
+import 'package:inkpaper/models/notion_field_mapping.dart';
 
 /// Notion API 服务
 /// 参考滴答清单的 Notion 集成实现

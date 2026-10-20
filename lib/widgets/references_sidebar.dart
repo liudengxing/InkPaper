@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/themes/app_theme.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/themes/app_theme.dart';
 import 'package:provider/provider.dart';
 
 /// 引用关系侧边栏 - 对标批注侧边栏的设计

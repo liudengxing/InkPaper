@@ -1,5 +1,5 @@
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/models/sort_order.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/models/sort_order.dart';
 
 int Function(Note a, Note b) noteComparator(SortOrder order) => (a, b) {
       // pinned first

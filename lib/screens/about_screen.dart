@@ -3,8 +3,8 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intpaper/config/app_config.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/config/app_config.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutScreen extends StatelessWidget {
@@ -33,7 +33,7 @@ class AboutScreen extends StatelessWidget {
                 onPressed: () => context.pop(),
               ),
         title: Text(
-          AppLocalizationsSimple.of(context)?.aboutUs ?? '关于 IntPaper',
+          AppLocalizationsSimple.of(context)?.aboutUs ?? '关于 InkPaper',
           style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
         ),
         centerTitle: true,
@@ -167,8 +167,8 @@ class AboutScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        AppLocalizationsSimple.of(context)?.aboutIntPaper ??
-                            '关于IntPaper',
+                        AppLocalizationsSimple.of(context)?.aboutInkPaper ??
+                            '关于InkPaper',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -180,7 +180,7 @@ class AboutScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     AppLocalizationsSimple.of(context)?.appIntroduction ??
-                        'IntPaper-墨鸣笔记是一款面向个人记录与知识沉淀的跨平台笔记应用。它保留轻量记录的速度，也提供标签、搜索、回顾、备份和同步能力，让零散内容逐步沉淀成可回看的资料库。',
+                        'InkPaper-墨鸣笔记是一款面向个人记录与知识沉淀的跨平台笔记应用。它保留轻量记录的速度，也提供标签、搜索、回顾、备份和同步能力，让零散内容逐步沉淀成可回看的资料库。',
                     style: const TextStyle(
                       fontSize: 15,
                       height: 1.6,

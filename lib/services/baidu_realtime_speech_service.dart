@@ -4,7 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
-import 'package:intpaper/services/baidu_speech_service.dart';
+import 'package:inkpaper/services/baidu_speech_service.dart';
 import 'package:record/record.dart';
 
 /// 百度实时语音识别服务（WebSocket 流式识别）

@@ -1,9 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/services/intelligent_related_notes_service.dart';
-import 'package:intpaper/utils/tag_utils.dart' as tag_utils;
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/services/intelligent_related_notes_service.dart';
+import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 🧠 用户行为学习服务

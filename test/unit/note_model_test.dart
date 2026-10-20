@@ -6,8 +6,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/models/annotation_model.dart';
-import 'package:intpaper/models/note_model.dart';
+import 'package:inkpaper/models/annotation_model.dart';
+import 'package:inkpaper/models/note_model.dart';
 
 void main() {
   // ─────────────────────────────────────────────────────────

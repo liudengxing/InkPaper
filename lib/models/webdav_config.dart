@@ -1,4 +1,4 @@
-import 'package:intpaper/config/app_config.dart';
+import 'package:inkpaper/config/app_config.dart';
 
 /// WebDAV 配置模型
 ///

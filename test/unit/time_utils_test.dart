@@ -3,7 +3,7 @@
 // ============================================================
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/utils/time_utils.dart';
+import 'package:inkpaper/utils/time_utils.dart';
 
 void main() {
   group('TimeUtils.parseTimeStamp', () {

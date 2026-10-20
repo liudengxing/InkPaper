@@ -3,12 +3,12 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intpaper/config/app_config.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/utils/responsive_utils.dart';
-import 'package:intpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/config/app_config.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/responsive_utils.dart';
+import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -1725,7 +1725,7 @@ class _LoginScreenState extends State<LoginScreen>
                           icon: Icons.edit_note_outlined,
                           iconColor: accentColor,
                           question: '这个 App 能做什么？',
-                          answer: 'IntPaper 是一款笔记 App，主要功能包括：\n\n'
+                          answer: 'InkPaper 是一款笔记 App，主要功能包括：\n\n'
                               '📝 随手记录想法，支持文字、图片\n'
                               '#️⃣ 用标签整理笔记，快速分类查找\n'
                               '🔍 全文搜索，按关键词查找内容\n'
@@ -1741,7 +1741,7 @@ class _LoginScreenState extends State<LoginScreen>
                           icon: Icons.security_outlined,
                           iconColor: primaryColor,
                           question: '我的数据安全吗？',
-                          answer: 'IntPaper 会尽量使用系统和服务器提供的安全能力：\n\n'
+                          answer: 'InkPaper 会尽量使用系统和服务器提供的安全能力：\n\n'
                               '🔐 建议使用 HTTPS 服务器地址传输数据\n'
                               '📱 密码在本地安全存储，不会明文保存\n'
                               '🏠 使用自建服务器时，远端数据由你的服务器保存和管理\n\n'

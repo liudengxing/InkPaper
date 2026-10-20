@@ -8,8 +8,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/services/memos_api_service_fixed.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/services/memos_api_service_fixed.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // ─── 帮助函数：构造 MockClient ──────────────────────────────────────────────

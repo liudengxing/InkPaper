@@ -4,7 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intpaper/widgets/animated_checkbox.dart';
+import 'package:inkpaper/widgets/animated_checkbox.dart';
 
 Widget _wrap(Widget child) => MaterialApp(
       home: Scaffold(body: Center(child: child)),

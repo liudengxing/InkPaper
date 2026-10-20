@@ -1,6 +1,6 @@
-import 'package:intpaper/models/note_model.dart';
-import 'package:intpaper/services/database_service.dart';
-import 'package:intpaper/services/unified_reference_manager.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/services/database_service.dart';
+import 'package:inkpaper/services/unified_reference_manager.dart';
 
 /// 本地引用关系管理服务
 /// 支持离线创建、管理和查看引用关系，在线时自动同步

@@ -4,50 +4,50 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/screens/about_screen.dart';
-import 'package:intpaper/screens/account_deletion_screen.dart';
-import 'package:intpaper/screens/account_info_screen.dart';
-import 'package:intpaper/screens/ai_settings_screen.dart';
-import 'package:intpaper/screens/data_cleanup_screen.dart';
-import 'package:intpaper/screens/feedback_screen.dart';
-import 'package:intpaper/screens/flomo_import_screen.dart';
-import 'package:intpaper/screens/forgot_password_screen.dart';
-import 'package:intpaper/screens/help_screen.dart';
-import 'package:intpaper/screens/home_screen.dart';
-import 'package:intpaper/screens/import_export_main_screen.dart';
-import 'package:intpaper/screens/knowledge_graph_screen_custom.dart';
-import 'package:intpaper/screens/laboratory_screen.dart';
-import 'package:intpaper/screens/legal_document_screen.dart';
-import 'package:intpaper/screens/local_backup_restore_screen.dart';
-import 'package:intpaper/screens/login_screen.dart';
-import 'package:intpaper/screens/note_detail_screen.dart';
-import 'package:intpaper/screens/notifications_screen.dart';
-import 'package:intpaper/screens/notion_settings_screen.dart';
-import 'package:intpaper/screens/onboarding_screen.dart';
-import 'package:intpaper/screens/performance_dashboard_screen.dart';
-import 'package:intpaper/screens/preferences_screen.dart';
-import 'package:intpaper/screens/privacy_policy_screen.dart';
-import 'package:intpaper/screens/random_review_screen.dart';
-import 'package:intpaper/screens/recently_deleted_screen.dart';
-import 'package:intpaper/screens/register_screen.dart';
-import 'package:intpaper/screens/server_info_screen.dart';
-import 'package:intpaper/screens/settings_screen.dart';
-import 'package:intpaper/screens/sidebar_customization_screen.dart';
-import 'package:intpaper/screens/tag_notes_screen.dart';
-// import 'package:intpaper/screens/splash_screen.dart'; // 🚀 大厂标准：不需要自定义启动页，只用Native Splash
-import 'package:intpaper/screens/tags_screen.dart';
-import 'package:intpaper/screens/user_preferences_screen.dart'; // 🧠 用户偏好可视化
-import 'package:intpaper/screens/webdav_settings_screen.dart';
-import 'package:intpaper/screens/weread_import_screen.dart';
-import 'package:intpaper/services/preferences_service.dart';
-import 'package:intpaper/utils/tag_path_utils.dart';
-import 'package:intpaper/widgets/desktop_layout.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/screens/about_screen.dart';
+import 'package:inkpaper/screens/account_deletion_screen.dart';
+import 'package:inkpaper/screens/account_info_screen.dart';
+import 'package:inkpaper/screens/ai_settings_screen.dart';
+import 'package:inkpaper/screens/data_cleanup_screen.dart';
+import 'package:inkpaper/screens/feedback_screen.dart';
+import 'package:inkpaper/screens/flomo_import_screen.dart';
+import 'package:inkpaper/screens/forgot_password_screen.dart';
+import 'package:inkpaper/screens/help_screen.dart';
+import 'package:inkpaper/screens/home_screen.dart';
+import 'package:inkpaper/screens/import_export_main_screen.dart';
+import 'package:inkpaper/screens/knowledge_graph_screen_custom.dart';
+import 'package:inkpaper/screens/laboratory_screen.dart';
+import 'package:inkpaper/screens/legal_document_screen.dart';
+import 'package:inkpaper/screens/local_backup_restore_screen.dart';
+import 'package:inkpaper/screens/login_screen.dart';
+import 'package:inkpaper/screens/note_detail_screen.dart';
+import 'package:inkpaper/screens/notifications_screen.dart';
+import 'package:inkpaper/screens/notion_settings_screen.dart';
+import 'package:inkpaper/screens/onboarding_screen.dart';
+import 'package:inkpaper/screens/performance_dashboard_screen.dart';
+import 'package:inkpaper/screens/preferences_screen.dart';
+import 'package:inkpaper/screens/privacy_policy_screen.dart';
+import 'package:inkpaper/screens/random_review_screen.dart';
+import 'package:inkpaper/screens/recently_deleted_screen.dart';
+import 'package:inkpaper/screens/register_screen.dart';
+import 'package:inkpaper/screens/server_info_screen.dart';
+import 'package:inkpaper/screens/settings_screen.dart';
+import 'package:inkpaper/screens/sidebar_customization_screen.dart';
+import 'package:inkpaper/screens/tag_notes_screen.dart';
+// import 'package:inkpaper/screens/splash_screen.dart'; // 🚀 大厂标准：不需要自定义启动页，只用Native Splash
+import 'package:inkpaper/screens/tags_screen.dart';
+import 'package:inkpaper/screens/user_preferences_screen.dart'; // 🧠 用户偏好可视化
+import 'package:inkpaper/screens/webdav_settings_screen.dart';
+import 'package:inkpaper/screens/weread_import_screen.dart';
+import 'package:inkpaper/services/preferences_service.dart';
+import 'package:inkpaper/utils/tag_path_utils.dart';
+import 'package:inkpaper/widgets/desktop_layout.dart';
 
-const bool _screenshotMode = bool.fromEnvironment('INTPAPER_SCREENSHOT_MODE');
+const bool _screenshotMode = bool.fromEnvironment('INKPAPER_SCREENSHOT_MODE');
 const String _screenshotInitialLocation = String.fromEnvironment(
-  'INTPAPER_INITIAL_LOCATION',
+  'INKPAPER_INITIAL_LOCATION',
   defaultValue: '/',
 );
 

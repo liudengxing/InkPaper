@@ -3,16 +3,16 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/providers/app_provider.dart';
-import 'package:intpaper/themes/app_theme.dart';
-import 'package:intpaper/themes/app_typography.dart';
-import 'package:intpaper/utils/logger.dart';
-import 'package:intpaper/utils/responsive_utils.dart';
-import 'package:intpaper/utils/snackbar_utils.dart';
-import 'package:intpaper/utils/tag_path_utils.dart';
-import 'package:intpaper/widgets/sidebar.dart';
-import 'package:intpaper/widgets/tag_tree_item.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/themes/app_typography.dart';
+import 'package:inkpaper/utils/logger.dart';
+import 'package:inkpaper/utils/responsive_utils.dart';
+import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/utils/tag_path_utils.dart';
+import 'package:inkpaper/widgets/sidebar.dart';
+import 'package:inkpaper/widgets/tag_tree_item.dart';
 import 'package:provider/provider.dart';
 
 class TagsScreen extends StatefulWidget {

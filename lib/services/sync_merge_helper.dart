@@ -1,4 +1,4 @@
-import 'package:intpaper/models/note_model.dart';
+import 'package:inkpaper/models/note_model.dart';
 
 /// Merge server data into an existing local note without destroying local-only
 /// state. Server timestamps win for normal refreshes so backup/restore mistakes

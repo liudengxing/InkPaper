@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intpaper/config/app_config.dart';
-import 'package:intpaper/l10n/app_localizations_simple.dart';
-import 'package:intpaper/models/reminder_notification_model.dart';
-import 'package:intpaper/services/reminder_notification_service.dart';
+import 'package:inkpaper/config/app_config.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/reminder_notification_model.dart';
+import 'package:inkpaper/services/reminder_notification_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -345,7 +345,7 @@ class NotificationService {
       if (hasPermission ?? false) {
         return true;
       } else {
-        debugPrint('   Settings → Apps → IntPaper → Alarms & reminders');
+        debugPrint('   Settings → Apps → InkPaper → Alarms & reminders');
         debugPrint('   开启 "Allow setting alarms and reminders"');
         return false;
       }
@@ -467,7 +467,7 @@ class NotificationService {
               _showPermissionDeniedDialog(
                 context,
                 '需要通知权限',
-                '为了准时提醒您，IntPaper 需要发送通知。请在系统设置中为 IntPaper 开启通知权限。',
+                '为了准时提醒您，InkPaper 需要发送通知。请在系统设置中为 InkPaper 开启通知权限。',
               );
             }
             return false;

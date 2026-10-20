@@ -31,6 +31,12 @@ import 'package:inkpaper/widgets/saveable_image.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+/// 卡片时间戳格式。
+///
+/// `DateFormat` 的构造会解析 pattern 并查 locale，放在 build 里等于每张卡片
+/// 每次重建都重新解析一遍。
+final DateFormat _cardTimestampFormat = DateFormat('yyyy-MM-dd HH:mm');
+
 class NoteCard extends StatefulWidget {
   const NoteCard({
     required this.note,
@@ -84,7 +90,9 @@ class _NoteCardState extends State<NoteCard>
       vsync: this,
       duration: const Duration(milliseconds: 150),
     );
-    _scaleAnimation = Tween<double>(begin: 1, end: 0.98).animate(
+    // 0 → 1 表示「按下程度」。旧值 1 → 0.98 会让两端的缩放差只有 0.0006，
+    // 实际表现是卡片恒定居中缩小 3%，点按时几乎没有反馈。
+    _scaleAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
   }
@@ -838,95 +846,114 @@ class _NoteCardState extends State<NoteCard>
           ),
           child: AnimatedBuilder(
             animation: _controller,
+            // 静态子树交给 child。否则按下时的缩放动画会按帧重建整棵卡片
+            // 子树：正文预览、待办 span 切分、图片网格全部重跑一遍。
+            child: _buildCardBody(
+              cardColor: cardColor,
+              cardRadius: cardRadius,
+              cardShadow: cardShadow,
+              borderColor: borderColor,
+              isDarkMode: isDarkMode,
+            ),
             builder: (context, child) => Transform.scale(
               scale: 1.0 - (_scaleAnimation.value * 0.03),
-              child: GestureDetector(
-                onTapDown: (_) => _controller.forward(),
-                onTapUp: (_) => _controller.reverse(),
-                onTapCancel: () => _controller.reverse(),
-                onTap: () {
-                  // 🎯 单击：跳转到笔记详情页（查看模式）
-                  context.push('/note/${widget.id}');
-                },
-                onLongPress: _copyNoteContent,
-                onDoubleTap: () {
-                  // 🎯 双击：直接编辑笔记
-                  widget.onEdit();
-                },
-                behavior: HitTestBehavior.translucent,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: cardColor,
-                    borderRadius: cardRadius,
-                    boxShadow: cardShadow,
-                    border: Border.all(
-                      color: borderColor,
-                      width: widget.isPinned ? 1 : 0.5,
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: cardRadius,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                DateFormat('yyyy-MM-dd HH:mm')
-                                    .format(widget.timestamp),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isDarkMode
-                                      ? Colors.grey[400]
-                                      : Colors.grey[600],
-                                ),
-                              ),
-                              Builder(
-                                builder: (btnContext) => SizedBox(
-                                  width: 44,
-                                  height: 44,
-                                  child: IconButton(
-                                    tooltip: '更多',
-                                    icon: Icon(
-                                      Icons.more_horiz,
-                                      color: isDarkMode
-                                          ? AppTheme.darkTextSecondaryColor
-                                          : AppTheme.textTertiaryColor,
-                                      size: 20,
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                    onPressed: () =>
-                                        _showMoreOptions(btnContext),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Flexible(
-                            child: _buildContent(),
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Flexible(child: _buildReferences()),
-                              _buildAnnotationBadge(),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              child: child,
             ),
           ),
         ), // 🔥 Slidable 结束
       ), // 🔥 ClipRRect 结束
+    );
+  }
+
+  /// 卡片静态内容。
+  ///
+  /// 从 build 抽出是为了让 `AnimatedBuilder` 通过 `child` 复用：按下缩放的
+  /// 每一帧只需要重建一个 `Transform`，不必重跑正文预览、span 切分和图片网格。
+  Widget _buildCardBody({
+    required Color cardColor,
+    required BorderRadius cardRadius,
+    required List<BoxShadow>? cardShadow,
+    required Color borderColor,
+    required bool isDarkMode,
+  }) {
+    return GestureDetector(
+      onTapDown: (_) => _controller.forward(),
+      onTapUp: (_) => _controller.reverse(),
+      onTapCancel: () => _controller.reverse(),
+      onTap: () {
+        // 🎯 单击：跳转到笔记详情页（查看模式）
+        context.push('/note/${widget.id}');
+      },
+      onLongPress: _copyNoteContent,
+      onDoubleTap: () {
+        // 🎯 双击：直接编辑笔记
+        widget.onEdit();
+      },
+      behavior: HitTestBehavior.translucent,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: cardRadius,
+          boxShadow: cardShadow,
+          border: Border.all(
+            color: borderColor,
+            width: widget.isPinned ? 1 : 0.5,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: cardRadius,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _cardTimestampFormat.format(widget.timestamp),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ),
+                    Builder(
+                      builder: (btnContext) => SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: IconButton(
+                          tooltip: '更多',
+                          icon: Icon(
+                            Icons.more_horiz,
+                            color: isDarkMode
+                                ? AppTheme.darkTextSecondaryColor
+                                : AppTheme.textTertiaryColor,
+                            size: 20,
+                          ),
+                          padding: EdgeInsets.zero,
+                          onPressed: () => _showMoreOptions(btnContext),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: _buildContent(),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(child: _buildReferences()),
+                    _buildAnnotationBadge(),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

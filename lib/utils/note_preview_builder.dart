@@ -61,6 +61,21 @@ class NotePreview {
 /// 解析前的字符上限。6 行预览最多用到一两百字，留足余量即可。
 const int _previewParseLimit = 2400;
 
+// 正则与 InlineSyntax 都是「编译一次、反复使用」的东西，放在函数里等于每次
+// 缓存未命中都重新编译一遍模式。
+final RegExp _todoPattern = RegExp(
+  r'^([ \t]*)[-*+][ \t]+\[([ xX])\][ \t]?',
+  multiLine: true,
+);
+final RegExp _imagePattern = RegExp(r'!\[[^\]]*\]\([^)]*\)');
+final RegExp _fencePattern = RegExp(r'^[ \t]*```[^\n]*$', multiLine: true);
+final RegExp _referencePattern = RegExp(r'\[\[([^\]]+)\]\]');
+final RegExp _referenceTextPattern = RegExp(r'\?text=([^&]*)');
+final RegExp _markdownEscapePattern = RegExp(r'[*_\[\]]');
+final RegExp _leadingSpacePattern = RegExp(r'^[ \t]+');
+final RegExp _whitespaceRunPattern = RegExp(r'\s+');
+final md.InlineSyntax _underlineSyntax = _UnderlineSyntax();
+
 /// 把一条笔记的原始 Markdown 降维成 [NotePreview]。
 ///
 /// 纯计算、无 IO，可以安全地在 isolate 里批量预跑。
@@ -74,7 +89,7 @@ NotePreview buildNotePreview(
 
   final nodes = md.Document(
     extensionSet: md.ExtensionSet.gitHubFlavored,
-    inlineSyntaxes: <md.InlineSyntax>[_UnderlineSyntax()],
+    inlineSyntaxes: <md.InlineSyntax>[_underlineSyntax],
     encodeHtml: false,
   ).parse(_prepare(_safePrefix(content, parseLimit)));
 
@@ -119,27 +134,23 @@ String _prepare(String source) {
   var text = source;
 
   // 待办列表标记 -> 勾选字符
-  final todoPattern = RegExp(
-    r'^([ \t]*)[-*+][ \t]+\[([ xX])\][ \t]?',
-    multiLine: true,
-  );
   text = text.replaceAllMapped(
-    todoPattern,
+    _todoPattern,
     (match) =>
         '${match.group(1)}${match.group(2)!.toLowerCase() == 'x' ? '☑' : '☐'} ',
   );
 
   // 图片整段移除（卡片会用独立网格展示）
-  text = text.replaceAll(RegExp(r'!\[[^\]]*\]\([^)]*\)'), '');
+  text = text.replaceAll(_imagePattern, '');
 
   // 围栏标记行去掉，保留内部文本
-  text = text.replaceAll(RegExp(r'^[ \t]*```[^\n]*$', multiLine: true), '');
+  text = text.replaceAll(_fencePattern, '');
 
   // 站内引用 [[id]] / [[id?text=xxx]]：预览不查标题表（那是 O(n) 查找，
   // 详情页仍会解析成真实标题），只保留自定义文字或一个可读占位。
-  text = text.replaceAllMapped(RegExp(r'\[\[([^\]]+)\]\]'), (match) {
+  text = text.replaceAllMapped(_referencePattern, (match) {
     final raw = match.group(1)!;
-    final custom = RegExp(r'\?text=([^&]*)').firstMatch(raw);
+    final custom = _referenceTextPattern.firstMatch(raw);
     if (custom != null) {
       var decoded = custom.group(1)!;
       if (decoded.contains('%')) {
@@ -149,7 +160,7 @@ String _prepare(String source) {
           // 非法百分号编码，按原文展示
         }
       }
-      final cleaned = decoded.replaceAll(RegExp(r'[*_\[\]]'), '').trim();
+      final cleaned = decoded.replaceAll(_markdownEscapePattern, '').trim();
       if (cleaned.isNotEmpty) {
         return cleaned;
       }
@@ -276,7 +287,7 @@ class _PreviewWalker {
   }
 
   void _walkCodeBlock(md.Element node, Set<PreviewInlineStyle> styles) {
-    final raw = node.textContent.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final raw = node.textContent.replaceAll(_whitespaceRunPattern, ' ').trim();
     if (raw.isEmpty) {
       return;
     }
@@ -339,9 +350,9 @@ class _PreviewWalker {
         _writeRaw('\n', const <PreviewInlineStyle>{});
       }
       // 行首缩进在预览里没有意义
-      content = content.replaceFirst(RegExp(r'^[ \t]+'), '');
+      content = content.replaceFirst(_leadingSpacePattern, '');
     } else if (_length == 0 || _tail == '\n') {
-      content = content.replaceFirst(RegExp(r'^[ \t]+'), '');
+      content = content.replaceFirst(_leadingSpacePattern, '');
     }
 
     if (content.isEmpty) {

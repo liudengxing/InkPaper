@@ -17,7 +17,6 @@ import 'package:inkroot/models/reminder_notification_model.dart';
 import 'package:inkroot/models/sort_order.dart';
 import 'package:inkroot/models/user_model.dart';
 import 'package:inkroot/models/webdav_config.dart';
-import 'package:inkroot/services/api_service.dart';
 import 'package:inkroot/services/api_service_factory.dart';
 import 'package:inkroot/services/cloud_verification_service.dart';
 import 'package:inkroot/services/database_service.dart';
@@ -77,7 +76,6 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   int _totalNotesCount = 0; // 数据库总笔记数
   DateTime? _lastLoadTime; // 上次加载时间
   final Stopwatch _loadStopwatch = Stopwatch(); // 性能计时器
-  ApiService? _apiService; // 保留兼容旧服务
   MemosApiServiceFixed? _memosApiService; // 使用修复版API服务
   MemosResourceService? _resourceService; // 图片上传服务
   final DatabaseService _databaseService = DatabaseService();
@@ -279,7 +277,6 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       _user != null && _user!.token != null && _user!.token!.isNotEmpty;
   bool get isLocalMode => _appConfig.isLocalMode;
   AppConfig get appConfig => _appConfig;
-  ApiService? get apiService => _apiService;
   MemosApiServiceFixed? get memosApiService => _memosApiService;
   MemosResourceService? get resourceService => _resourceService;
   DatabaseService get databaseService => _databaseService;
@@ -2240,7 +2237,6 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       await _preferencesService.saveAppConfig(_appConfig);
 
       // 清除API服务
-      _apiService = null;
       _memosApiService = null;
 
       // 重新加载本地笔记
@@ -3630,7 +3626,6 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       );
 
       // 清除API服务连接
-      _apiService = null;
       _memosApiService = null;
       _resourceService = null;
 

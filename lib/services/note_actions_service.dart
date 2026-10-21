@@ -491,7 +491,11 @@ class NoteActionsService {
       );
     } on Object catch (e) {
       if (context.mounted) {
-        SnackBarUtils.showError(context, '分享失败: $e');
+        SnackBarUtils.showError(
+          context,
+          AppLocalizationsSimple.of(context)?.shareFailedDetail(e) ??
+              '分享失败: $e',
+        );
       }
     }
   }
@@ -638,7 +642,11 @@ class NoteActionsService {
           Navigator.of(context).pop();
         }
         if (context.mounted) {
-          SnackBarUtils.showError(context, '未登录或服务器配置错误');
+          SnackBarUtils.showError(
+            context,
+            AppLocalizationsSimple.of(context)?.serverConfigMissing ??
+                '未登录或服务器配置错误',
+          );
         }
         return;
       }
@@ -731,7 +739,8 @@ class NoteActionsService {
                 } else if (result.usedFallback && context.mounted) {
                   SnackBarUtils.showInfo(
                     context,
-                    'AI暂不可用，已使用本地点评',
+                    AppLocalizationsSimple.of(context)?.localReviewUsed ??
+                        'AI暂不可用，已使用本地点评',
                   );
                 }
               });
@@ -786,7 +795,9 @@ class NoteActionsService {
                                 ? (AppLocalizationsSimple.of(context)
                                         ?.aiReviewTitle ??
                                     '给你的点评')
-                                : '本地点评',
+                                : (AppLocalizationsSimple.of(context)
+                                        ?.localReview ??
+                                    '本地点评'),
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -933,9 +944,10 @@ class NoteActionsService {
                                   ),
                                   elevation: 0,
                                 ),
-                                child: const Text(
-                                  '完成',
-                                  style: TextStyle(
+                                child: Text(
+                                  AppLocalizationsSimple.of(context)?.done ??
+                                      '完成',
+                                  style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -1574,7 +1586,11 @@ class NoteActionsService {
       updatedAt: DateTime.now(),
     );
     appProvider.updateNote(updatedNote, updatedNote.content);
-    SnackBarUtils.showSuccess(context, '已标记为已解决');
+    SnackBarUtils.showSuccess(
+      context,
+      AppLocalizationsSimple.of(context)?.annotationMarkedResolved ??
+          '已标记为已解决',
+    );
     onUpdated();
   }
 }

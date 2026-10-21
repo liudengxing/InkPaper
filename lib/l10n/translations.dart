@@ -2958,6 +2958,21 @@ class Translations {
       'en': 'This is a sample note. It disappears after you create your first note.',
     },
     'noteComposerHint': {'zh': '记点什么…', 'en': 'Write something…'},
+    // ===== 笔记操作服务提示 =====
+    'shareFailedDetail': {'zh': '分享失败: {error}', 'en': 'Share failed: {error}'},
+    'serverConfigMissing': {
+      'zh': '未登录或服务器配置错误',
+      'en': 'Not signed in, or the server is misconfigured',
+    },
+    'localReviewUsed': {
+      'zh': 'AI暂不可用，已使用本地点评',
+      'en': 'AI is unavailable, showing the local review instead',
+    },
+    'localReview': {'zh': '本地点评', 'en': 'Local review'},
+    'annotationMarkedResolved': {
+      'zh': '已标记为已解决',
+      'en': 'Marked as resolved',
+    },
     // ===== 相对时间 =====
     'relativeJustNow': {'zh': '刚刚', 'en': 'just now'},
     'relativeMinutesAgo': {'zh': '{count} 分钟前', 'en': '{count} min ago'},

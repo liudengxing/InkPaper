@@ -3027,6 +3027,18 @@ class AppLocalizationsSimple {
   String get noteComposerHint =>
       _t('noteComposerHint', fallback: '记点什么…');
 
+  // ===== 笔记操作服务提示 =====
+  String shareFailedDetail(Object error) =>
+      _t('shareFailedDetail', fallback: '分享失败: {error}')
+          .replaceAll('{error}', '$error');
+  String get serverConfigMissing =>
+      _t('serverConfigMissing', fallback: '未登录或服务器配置错误');
+  String get localReviewUsed =>
+      _t('localReviewUsed', fallback: 'AI暂不可用，已使用本地点评');
+  String get localReview => _t('localReview', fallback: '本地点评');
+  String get annotationMarkedResolved =>
+      _t('annotationMarkedResolved', fallback: '已标记为已解决');
+
   // ===== 相对时间 =====
   /// 相对时间文案（如「3 天前」），按当前语言输出。
   String relativeTime(DateTime dateTime) {

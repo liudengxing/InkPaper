@@ -47,6 +47,7 @@ class NoteCard extends StatefulWidget {
     this.disableTagNavigation = false, // 🎯 是否禁用标签点击跳转（避免无限嵌套）
     this.onTagTap,
     this.highlightQuery,
+    this.isExample = false, // 示例笔记：更多菜单里的删除也走 onDelete
     super.key,
   });
   final Note note; // 🚀 直接传递完整Note对象，避免查找
@@ -54,6 +55,7 @@ class NoteCard extends StatefulWidget {
   final VoidCallback onDelete;
   final VoidCallback onPin;
   final VoidCallback? onNoteUpdated; // 可选的笔记更新回调
+  final bool isExample; // 是否为示例笔记（未落库）
   final bool disableTagNavigation; // 是否禁用标签跳转
   final ValueChanged<String>? onTagTap;
   final String? highlightQuery;
@@ -693,6 +695,7 @@ class _NoteCardState extends State<NoteCard>
       context: context,
       note: widget.note,
       onNoteUpdated: widget.onNoteUpdated, // 传递回调
+      onDeleteOverride: widget.isExample ? widget.onDelete : null,
     );
   }
 

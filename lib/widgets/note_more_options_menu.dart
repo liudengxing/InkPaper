@@ -16,6 +16,8 @@ class NoteMoreOptionsMenu {
     required BuildContext context,
     required Note note,
     VoidCallback? onNoteUpdated,
+    // 覆盖默认删除行为（例如示例笔记只提示、不落库）。
+    VoidCallback? onDeleteOverride,
   }) {
     // 自动获取点击按钮的位置
     final renderBox = context.findRenderObject() as RenderBox?;
@@ -35,6 +37,7 @@ class NoteMoreOptionsMenu {
       note: note,
       position: position,
       onNoteUpdated: onNoteUpdated,
+      onDeleteOverride: onDeleteOverride,
     );
   }
 
@@ -44,6 +47,7 @@ class NoteMoreOptionsMenu {
     required Note note,
     required RelativeRect position,
     VoidCallback? onNoteUpdated,
+    VoidCallback? onDeleteOverride,
   }) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final localizations = AppLocalizationsSimple.of(context);
@@ -342,14 +346,22 @@ class NoteMoreOptionsMenu {
           );
           break;
         case 'delete':
-          await NoteActionsService.deleteNote(
-            context: context,
-            note: currentNote,
-            onDeleted: () {
-              onNoteUpdated?.call();
-            },
-          );
-          break;
+          {
+            // 示例笔记等特殊场景由调用方接管删除行为
+            final override = onDeleteOverride;
+            if (override != null) {
+              override();
+              break;
+            }
+            await NoteActionsService.deleteNote(
+              context: context,
+              note: currentNote,
+              onDeleted: () {
+                onNoteUpdated?.call();
+              },
+            );
+            break;
+          }
       }
     });
   }

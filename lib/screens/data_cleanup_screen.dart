@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/screens/recently_deleted_screen.dart';
 import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
@@ -621,35 +622,43 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
   }
 
   // 清理操作卡片
-  Widget _buildCleanupActionsCard(Color cardColor, Color textColor) => Card(
-        elevation: 1,
-        color: cardColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                AppLocalizationsSimple.of(context)?.cleanupOperations ?? '清理操作',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
-                ),
+  Widget _buildCleanupActionsCard(Color cardColor, Color textColor) {
+    final l10n = AppLocalizationsSimple.of(context);
+    final retentionDays = RecentlyDeletedScreen.retention.inDays;
+    return Card(
+      elevation: 1,
+      color: cardColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n?.cleanupOperations ?? '清理操作',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: textColor,
               ),
-              const SizedBox(height: 16),
-              _buildActionItem(
-                icon: Icons.restore_from_trash_outlined,
-                title: '最近删除',
-                subtitle: _deletedNotesCount == 0
-                    ? '没有已删除的笔记'
-                    : '$_deletedNotesCount 条已删除笔记，可恢复或彻底删除（保留 30 天）',
-                iconColor: Colors.teal,
-                onTap: _openRecentlyDeleted,
-              ),
+            ),
+            const SizedBox(height: 16),
+            _buildActionItem(
+              icon: Icons.restore_from_trash_outlined,
+              title: l10n?.recentlyDeleted ?? '最近删除',
+              subtitle: _deletedNotesCount == 0
+                  ? (l10n?.recentlyDeletedNoDeleted ?? '没有已删除的笔记')
+                  : (l10n?.recentlyDeletedWithCount(
+                            _deletedNotesCount,
+                            retentionDays,
+                          ) ??
+                          '$_deletedNotesCount 条已删除笔记，可恢复或彻底删除'
+                              '（保留 $retentionDays 天）'),
+              iconColor: Colors.teal,
+              onTap: _openRecentlyDeleted,
+            ),
               const Divider(),
               _buildActionItem(
                 icon: Icons.delete_outline,
@@ -683,10 +692,11 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
                 iconColor: Colors.purple,
                 onTap: _clearImportExportHistory,
               ),
-            ],
-          ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 
   // 高级操作卡片
   Widget _buildAdvancedActionsCard(Color cardColor, Color textColor) => Card(

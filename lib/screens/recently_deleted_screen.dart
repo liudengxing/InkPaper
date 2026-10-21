@@ -223,10 +223,17 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
     final l10n = AppLocalizationsSimple.of(context);
     final preview = _previewText(note.content);
     final deletedAt = note.deletedAt;
-    final subtitle = deletedAt == null
-        ? (l10n?.deletedAtUnknown ?? '删除时间未知')
-        : '${l10n?.deletedAtLabel(TimeUtils.formatDateTime(deletedAt)) ?? '删除于 ${TimeUtils.formatDateTime(deletedAt)}'}'
-            '（${TimeUtils.getRelativeTime(deletedAt)}）';
+    final String subtitle;
+    if (deletedAt == null) {
+      subtitle = l10n?.deletedAtUnknown ?? '删除时间未知';
+    } else {
+      final formatted = TimeUtils.formatDateTime(deletedAt);
+      final label = l10n?.deletedAtLabel(formatted) ?? '删除于 $formatted';
+      final relative =
+          l10n?.relativeTime(deletedAt) ?? TimeUtils.getRelativeTime(deletedAt);
+      final wrapped = l10n?.relativeTimeInParens(relative) ?? '（$relative）';
+      subtitle = '$label$wrapped';
+    }
 
     return ListTile(
       isThreeLine: true,

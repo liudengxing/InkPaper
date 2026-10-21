@@ -3000,6 +3000,52 @@ class AppLocalizationsSimple {
           .replaceAll('{count}', count.toString());
   String get untitledNote => _t('untitledNote', fallback: '无标题笔记');
   String get emptyTrashAction => _t('emptyTrashAction', fallback: '清空');
+  String get recentlyDeletedNoDeleted =>
+      _t('recentlyDeletedNoDeleted', fallback: '没有已删除的笔记');
+  String recentlyDeletedWithCount(int count, int days) => _t(
+        count == 1
+            ? 'recentlyDeletedWithCountOne'
+            : 'recentlyDeletedWithCount',
+        fallback: '{count} 条已删除笔记，可恢复或彻底删除（保留 {days} 天）',
+      )
+          .replaceAll('{count}', count.toString())
+          .replaceAll('{days}', days.toString());
+
+  // ===== 相对时间 =====
+  /// 相对时间文案（如「3 天前」），按当前语言输出。
+  String relativeTime(DateTime dateTime) {
+    final difference = DateTime.now().difference(dateTime);
+    if (difference.inDays > 365) {
+      return _t('relativeYearsAgo', fallback: '{count} 年前').replaceAll(
+        '{count}',
+        '${(difference.inDays / 365).floor()}',
+      );
+    }
+    if (difference.inDays > 30) {
+      return _t('relativeMonthsAgo', fallback: '{count} 个月前').replaceAll(
+        '{count}',
+        '${(difference.inDays / 30).floor()}',
+      );
+    }
+    if (difference.inDays > 0) {
+      return _t('relativeDaysAgo', fallback: '{count} 天前')
+          .replaceAll('{count}', '${difference.inDays}');
+    }
+    if (difference.inHours > 0) {
+      return _t('relativeHoursAgo', fallback: '{count} 小时前')
+          .replaceAll('{count}', '${difference.inHours}');
+    }
+    if (difference.inMinutes > 0) {
+      return _t('relativeMinutesAgo', fallback: '{count} 分钟前')
+          .replaceAll('{count}', '${difference.inMinutes}');
+    }
+    return _t('relativeJustNow', fallback: '刚刚');
+  }
+
+  /// 相对时间的括号包裹（中文用全角括号，英文用半角）。
+  String relativeTimeInParens(String value) =>
+      _t('relativeTimeInParens', fallback: '（{value}）')
+          .replaceAll('{value}', value);
 }
 
 class _AppLocalizationsDelegate

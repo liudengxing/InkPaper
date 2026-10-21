@@ -2925,6 +2925,28 @@ class Translations {
     'noteCharCount': {'zh': '共 {count} 字', 'en': '{count} characters'},
     'untitledNote': {'zh': '无标题笔记', 'en': 'Untitled note'},
     'emptyTrashAction': {'zh': '清空', 'en': 'Empty'},
+    'recentlyDeletedNoDeleted': {
+      'zh': '没有已删除的笔记',
+      'en': 'No deleted notes',
+    },
+    'recentlyDeletedWithCount': {
+      'zh': '{count} 条已删除笔记，可恢复或彻底删除（保留 {days} 天）',
+      'en':
+          '{count} deleted notes, restore or delete permanently (kept {days} days)',
+    },
+    'recentlyDeletedWithCountOne': {
+      'zh': '{count} 条已删除笔记，可恢复或彻底删除（保留 {days} 天）',
+      'en':
+          '{count} deleted note, restore or delete permanently (kept {days} days)',
+    },
+    // ===== 相对时间 =====
+    'relativeJustNow': {'zh': '刚刚', 'en': 'just now'},
+    'relativeMinutesAgo': {'zh': '{count} 分钟前', 'en': '{count} min ago'},
+    'relativeHoursAgo': {'zh': '{count} 小时前', 'en': '{count} h ago'},
+    'relativeDaysAgo': {'zh': '{count} 天前', 'en': '{count} d ago'},
+    'relativeMonthsAgo': {'zh': '{count} 个月前', 'en': '{count} mo ago'},
+    'relativeYearsAgo': {'zh': '{count} 年前', 'en': '{count} y ago'},
+    'relativeTimeInParens': {'zh': '（{value}）', 'en': ' ({value})'},
   };
 
   /// 获取翻译文本

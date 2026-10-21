@@ -58,8 +58,8 @@ class _NoteEditorState extends State<NoteEditor>
   // 最大显示的行数
   final int _maxLines = 10;
 
-  // 文本内容行数
-  int _lineCount = 0;
+  // 文本内容行数（用 Notifier 驱动，避免输入路径 setState 整页重建）
+  final ValueNotifier<int> _lineCountNotifier = ValueNotifier<int>(1);
 
   // 添加一个标志来防止多次保存
   bool _isSaving = false;
@@ -138,11 +138,12 @@ class _NoteEditorState extends State<NoteEditor>
     return bodyText;
   }
 
-  // 更新内容行数
+  // 更新内容行数（只更新 Notifier，不触发整页 setState）
   void _updateLineCount() {
-    setState(() {
-      _lineCount = '\n'.allMatches(_textController.text).length + 1;
-    });
+    final nextCount = '\n'.allMatches(_textController.text).length + 1;
+    if (_lineCountNotifier.value != nextCount) {
+      _lineCountNotifier.value = nextCount;
+    }
   }
 
   void _syncImageAnchorsForTextChange() {
@@ -530,6 +531,7 @@ class _NoteEditorState extends State<NoteEditor>
     }
 
     _textController.dispose();
+    _lineCountNotifier.dispose();
     _textFocusNode.dispose();
     _scrollController.dispose();
     _imageScrollController.dispose();
@@ -1100,6 +1102,14 @@ class _NoteEditorState extends State<NoteEditor>
 
   @override
   Widget build(BuildContext context) {
+    // 行数变化只重建编辑器子树，不再经 setState 触发整页重建
+    return ValueListenableBuilder<int>(
+      valueListenable: _lineCountNotifier,
+      builder: (context, lineCount, _) => _buildEditor(context, lineCount),
+    );
+  }
+
+  Widget _buildEditor(BuildContext context, int lineCount) {
     // 获取屏幕尺寸
     final mediaQuery = MediaQuery.of(context);
     final screenSize = mediaQuery.size;
@@ -1109,7 +1119,7 @@ class _NoteEditorState extends State<NoteEditor>
 
     // 计算编辑区域的自适应高度（根据行数）
     final contentHeight = math.min(
-      _lineCount * _singleLineHeight, // 根据行数计算高度
+      lineCount * _singleLineHeight, // 根据行数计算高度
       _maxLines * _singleLineHeight, // 最大高度（10行）
     );
 

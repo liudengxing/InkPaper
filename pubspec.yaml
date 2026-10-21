@@ -3,7 +3,7 @@ description: 小纸
 
 publish_to: 'none'
 
-version: 1.0.26+10026
+version: 1.0.27+10027
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -15,8 +15,6 @@ dependencies:
     sdk: flutter
   intl: any
   
-  # UI组件
-  cupertino_icons: ^1.0.6
   
   # 状态管理
   provider: ^6.1.2
@@ -29,7 +27,6 @@ dependencies:
   
   # 图片相关
   image_picker: ^1.1.2
-  flutter_image_compress: ^2.3.0
   
   # 国际化
   
@@ -38,7 +35,6 @@ dependencies:
   
   # WebDAV 同步
   webdav_client: ^1.2.2
-  xml: ^6.5.0
   
   # 设备信息
   device_info_plus: ^10.1.2
@@ -76,8 +72,6 @@ dependencies:
   # 时间格式化
   timeago: ^3.7.0
   
-  # SVG
-  flutter_svg: ^2.0.10
   
   # 启动屏
   flutter_native_splash: ^2.4.1
@@ -85,8 +79,6 @@ dependencies:
   # 滑动操作
   flutter_slidable: ^3.1.1
   
-  # 高亮代码
-  flutter_highlight: ^0.7.0
   
   # ⚠️ 移除WebView依赖（项目中未使用）
   # webview_flutter: ^4.10.0
@@ -108,8 +100,6 @@ dependencies:
   # UUID生成器
   uuid: ^4.5.1
   
-  # 图形可视化 - 知识图谱
-  graphview: ^1.5.0
   
   # Google Fonts - 免费商用字体
   google_fonts: ^6.2.1
@@ -117,8 +107,6 @@ dependencies:
   # 错误追踪和监控
   sentry_flutter: ^8.9.0
   
-  # 环境变量管理
-  flutter_dotenv: ^5.1.0
   
   # ⚠️ 移除Firebase依赖（iOS不使用，Android也未真正使用）
   # firebase_performance: ^0.10.0+7

@@ -37,8 +37,8 @@
 | — | P0 无 finding（analyze 0 error、399 测试全绿） | P0 | — | 不适用 | done |
 | STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | 子项 1 按四条验收判定 done（①✅ 1 个文件；②实测 11 条，待收敛 ≤6；③④ 仓库无 `lib/features/sync` / `SyncScope`，不适用）；子项 2 按 A 口径 done（输入路径 setState = 0）；子项 4 未开始（由 STATE-CORE-005 承接） | done |
 | STATE-CORE-005 | AppProvider 上帝对象分域拆分 | P2 | STATE-CORE-001 | 7 域全绿（认证/笔记/WebDAV/Notion/提醒/小组件/云验证，字段定义数均 0，转发 4/31/10/3/6/2/5）；AI 域 skipped（`AppProvider` 内无该域字段，命令实证） | done |
-| ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 6/7 子项验收通过（A-05 ~ A-10）；A-11 剩 1 处 `shrinkWrap`（`sidebar_customization_screen.dart:539`，需页面级 sliver 重构，超出作用域），见 BLOCKERS「A-11」 | blocked |
-| QUAL-CLEAN-003 | P3 清理批次（4 子项 + 交互态 setState 待评估） | P3 | ARCH-LAYER-002 | **缺验收**：子项 4 本地化目标值不可命令化；**前置未达成**（ARCH-LAYER-002 blocked），见 BLOCKERS | blocked |
+| ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 7/7 子项验收通过（A-05 ~ A-11；A-11 全库 `shrinkWrap: true` 9 → 0）；子项 6 release 体积对比缺 `key.properties`，已记 PROGRESS | done |
+| QUAL-CLEAN-003 | P3 清理批次（4 子项 + 交互态 setState 待评估） | P3 | ARCH-LAYER-002 | 子项 1/2/3 验收全绿（A-12 死方法 0 处、A-13 format 门禁 + 全量格式化、A-14 6/6 有 `cacheWidth`）；子项 4 本地化**缺验收**且余量约 1,300 行，转 blocked，见 BLOCKERS | blocked |
 
 阶段退出条件：Phase 1 = 全部 P0 条目终结（本版已满足）；Phase 2 = STATE-CORE-001 全部子项 done 且 release 体积已重测或已记入 BLOCKERS；Phase 3 = ARCH-LAYER-002 全部子项 done 且 `flutter analyze` 无新增 issue；Phase 4 = 全部条目终结且 `flutter analyze` 为 0 error。
 
@@ -185,7 +185,9 @@ flutter analyze                                                                 
 | 回滚 | 子项 2 格式化范围大，单独 commit；其余子项单 commit 可 revert |
 | 不许做 | 子项 2 不得与业务改动同一 commit；子项 3 不改图片视觉；子项 4 不翻译 FAQ 长正文（已决策保留中文）；不改 lint 严格模式 |
 | 待评估项 | 交互态 `setState`（`note_editor.dart` 剩余约 13 处，改前全文件 39 → 现 38）不单独开任务，仅在本批次评估：若后续 profile 显示交互路径存在明显重建开销，再按「局部化 setState」纳入；否则保持现状 |
-| 状态 | todo |
+| 状态 | blocked |
+
+**子项进度**：✅ A-12（目标死方法已在早前重构中消失，`_collectTags` 全库 0 处；现存 `_availableTags` 有 5 处调用，非死代码）｜✅ A-13（`012b94e` CI 门禁 + `b4b5f54` 全量格式化 20 文件）｜✅ A-14（`7ab0a19`，`Image.asset` 6 处 / `cacheWidth` 6 处，相等）｜⛔ A-15（`0960608` 完成 1 个文件：`forgot_password_screen.dart` 未接入 l10n 的 UI 文案 10 → 0；余 30+ 文件约 1,300 行，体量超单轮，见 BLOCKERS）
 
 **QUAL-CLEAN-003 验收命令**（改前基线：`_collectTags` 1 处 / `Image.asset` 6 处、`cacheWidth` 3 处 / webdav 文案 125）：
 

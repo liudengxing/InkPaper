@@ -309,7 +309,91 @@ $ flutter test
 - 版本：`1.0.29+10029` → `1.0.30+10030`
 - commit: `e4b3b7d`（代码），本次（文档）
 
-## 2026-10-21 · QUAL-CLEAN-003 · blocked（前置未达成）
+## 2026-10-21 · ARCH-LAYER-002 · A-11 · done（接续 blocked，走「扩大作用域」方案）
+
+- 做法：`lib/screens/sidebar_customization_screen.dart` 的 `body: ListView(children:)` 改 `CustomScrollView`；「菜单项」分组的 `ReorderableListView(shrinkWrap: true)` 换成 `DecoratedSliver(SliverPadding(SliverReorderableList))`，分组标题抽出 `_buildSectionHeader` 供 `_buildSection` 与新 sliver 复用。
+- 实测输出：
+```
+$ (Get-ChildItem lib -Recurse -Filter *.dart | Select-String -Pattern 'shrinkWrap:\s*true' | Measure-Object).Count
+0   (改前 9，期望 0)
+$ dart format lib/screens/sidebar_customization_screen.dart
+Formatted 1 file (1 changed)
+$ flutter analyze
+No issues found! (ran in 7.8s)
+$ flutter test
+00:44 +399: All tests passed!
+```
+- 版本：`1.0.30+10030` → `1.0.31+10031`
+- commit: `84bc599`（代码），`1ea41f0`（ROADMAP）
+
+## 2026-10-21 · QUAL-CLEAN-003 · A-12 · done
+
+```
+$ (Select-String -Path lib/screens/home_screen.dart -Pattern '_collectTags' | Measure-Object).Count
+0   (期望 0)
+$ 全库 collectTags 命中
+0
+$ flutter analyze
+No issues found!
+```
+- 说明：目标死方法 `_collectTags` 已在早前重构中消失（`home_screen.dart:1866` 现属 `_availableTags`，全库 5 处调用，非死代码），本次仅核对验收命令；无代码改动，无版本变更。
+- commit: 无代码，随文档提交。
+
+## 2026-10-21 · QUAL-CLEAN-003 · A-13 · done
+
+- 做法：`.github/workflows/ci.yml` 质量任务加 `dart format --output=none --set-exit-if-changed lib test tool` 步骤；随后一次性格式化全量（20 文件），并手工补 9 处 `require_trailing_commas`（formatter 与 lint 在该批表达式上不一致）。
+- 实测输出：
+```
+$ (Select-String -Path .github/workflows/ci.yml -Pattern 'dart format' | Measure-Object).Count
+2   (期望 >= 1)
+$ dart format --output=none --set-exit-if-changed lib test tool
+Formatted 199 files (0 changed)
+exit=0
+$ flutter analyze
+No issues found! (ran in 8.4s)
+$ flutter test
+00:24 +399: All tests passed!
+```
+- 版本：`1.0.31+10031` → `1.0.32+10032`
+- commit: `012b94e`（CI 门禁）、`b4b5f54`（格式化全量，单独 commit）
+
+## 2026-10-21 · QUAL-CLEAN-003 · A-14 · done
+
+- 做法：6 处 `Image.asset` 全部补 `cacheWidth`，按 `显示尺寸 × MediaQuery.devicePixelRatioOf(context)` 计算；`image_utils.loadThemeImage` 在 `width == null` 时保持原图（传 null）。
+- 实测输出：
+```
+$ Image.asset 计数 / cacheWidth（区分大小写）计数
+Image.asset=6  cacheWidth=6   （改前 3 处，且 3 处均为 memCacheWidth，不属于 Image.asset）
+$ dart format --output=none --set-exit-if-changed lib test tool
+Formatted 199 files (0 changed)
+$ flutter analyze
+No issues found! (ran in 8.8s)
+$ flutter test
+00:32 +399: All tests passed!
+```
+- 说明：验收命令原来的 `-Pattern 'cacheWidth'` 默认忽略大小写，会把 `memCacheWidth`（`cached_network_image`）算进去；已改为区分大小写口径，`6 == 6` 成立。
+- 版本：`1.0.32+10032` → `1.0.33+10033`
+- commit: `7ab0a19`
+
+## 2026-10-21 · QUAL-CLEAN-003 · A-15 · 增量 1 个文件（随即 blocked）
+
+- 完成：`lib/screens/forgot_password_screen.dart` 未接 l10n 的 UI 文案 10 → 0，新增键 `memosNoPasswordResetHint` / `memosNoPasswordResetDetail` / `rememberedPassword`（zh + en，中文 fallback 保留）。
+- 实测输出：
+```
+$ 该文件未接 l10n 的 UI 文案（排除 AppLocalizationsSimple / debugPrint / 注释）
+0
+$ 该文件原始计数（含 fallback + debugPrint）
+12  （改前 12，说明该指标无法反映本地化进度）
+$ flutter analyze
+No issues found! (ran in 9.7s)
+$ flutter test
+01:01 +399: All tests passed!
+```
+- 剩余体量（同口径 Top 10）：webdav 148 / preferences 122 / app_provider 117 / ai_settings 109 / user_agreement 99 / ai_insight_engine 98 / local_backup 89 / flomo 75 / server_info 72，合计约 1,300 行 → 转 blocked，拆分建议见 BLOCKERS。
+- 版本：`1.0.33+10033` → `1.0.34+10034`
+- commit: `0960608`
+
+## 2026-10-21 · QUAL-CLEAN-003 · blocked（A-15 余量超单轮）
 
 - 前置 `ARCH-LAYER-002` 因 A-11 blocked，未达 done；按执行合约不得跳前置开工。4 个子项相互独立，A-11 决策落定后可直接执行。
 - 状态：blocked（详见 BLOCKERS.md）

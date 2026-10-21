@@ -133,3 +133,26 @@
 5. 同步吞吐（N 条笔记的耗时），原因：需服务器与样本数据。
 6. 崩溃率 / ANR（线上），原因：需 Sentry 后台数据，仓库内无导出。
 7. 通知、语音、录音、相册等系统能力的真机行为，原因：本 Stage 为只读静态分析，未做交互测试。
+
+## 13. 收尾复核（2026-10-21，ROADMAP 全部条目 done 后）
+
+> 第 1–12 节是 Stage 1 基线快照，保留原值；本节记录本轮重构后的实测变化。
+
+| 项 | 基线（Stage 1） | 现在 | 关联条目 |
+| --- | --- | --- | --- |
+| 分支 / 版本 | `main` @ `245b9c5`，`1.0.15+10015` | `main` @ `4e2e33a`，`1.0.37+10037` | — |
+| `flutter analyze` | 0 error / 0 warning / 0 info | 0 / 0 / 0 | 全程保持 |
+| `flutter test` | 399 通过 | 399 通过 | 全程保持 |
+| `dart format` 校验 | 无 | **有**（ci.yml `quality` 任务） | A-13 |
+| release `--obfuscate` | 无 | **有**（`apk` / `apk --split-per-abi` / `appbundle` 前置 `--obfuscate` + symbols） | A-10 |
+| `shrinkWrap: true` | 9 | **0** | A-11 |
+| `Image.asset` / `cacheWidth` | 6 / 3（3 处为 `memCacheWidth`，非 asset） | 6 / **6** | A-14 |
+| `http.Client`（`network_utils.dart`） | 每次调用新建 | **1 个进程级单例** + `close()` | A-06 |
+| 未使用依赖 | 8 个声明无 import | **7 个已删**（`cupertino_icons` / `flutter_image_compress` / `flutter_svg` / `flutter_highlight` / `graphview` / `flutter_dotenv` / `xml` 直连声明；`xml` 仍由 `webdav_client` 与 `flutter_native_splash` 传递引入） | A-08 |
+| `assets/` 体积 | 3.96 MB（字体 3.94 MB） | **0.01 MB**（字体整目录删除） | A-09 |
+| `lib/` 规模 | 147 文件 / 97,053 行 | 156 文件 / 97,656 行（新增 7 个 Store + 1 个 UI 层文件，净增较少） | STATE-CORE-005 / A-05 |
+| 最大文件 | `providers/app_provider.dart` 4,434 行 | 4,537 行（字段外迁后因转发 getter/setter 与文档注释略增；**不以行数验收**） | STATE-CORE-005 |
+| 硬编码中文（可判定口径） | 约 1,500 处（旧静态计数） | **0**（`lib/screens` + `lib/widgets` 直写 widget 参数的中文字面量） | A-15 |
+| `setState(` | 349 | 348 | A-02 收尾 |
+
+仍未测量（与基线一致，原因不变）：release 包体积与 `--split-per-abi` 体积、冷启动 / 首帧 / jank、内存峰值、同步吞吐、线上崩溃率。

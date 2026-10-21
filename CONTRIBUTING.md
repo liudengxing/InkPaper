@@ -31,11 +31,11 @@ This project and everyone participating in it is governed by the [InkPaper Code 
 
 ### Reporting Bugs
 
-Before creating bug reports, please check the [existing issues](https://github.com/yyyyymmmmm/InkPaper/issues) as you might find that you don't need to create one.
+Before creating bug reports, please check the [existing issues](https://github.com/liudengxing/InkPaper/issues) as you might find that you don't need to create one.
 
 #### How to Submit a Good Bug Report
 
-Bugs are tracked as [GitHub issues](https://github.com/yyyyymmmmm/InkPaper/issues). When you are creating a bug report, please include as many details as possible:
+Bugs are tracked as [GitHub issues](https://github.com/liudengxing/InkPaper/issues). When you are creating a bug report, please include as many details as possible:
 
 - **Use a clear and descriptive title**
 - **Describe the exact steps which reproduce the problem**
@@ -74,7 +74,7 @@ Bugs are tracked as [GitHub issues](https://github.com/yyyyymmmmm/InkPaper/issue
 
 ### Suggesting Enhancements
 
-Enhancement suggestions are tracked as [GitHub issues](https://github.com/yyyyymmmmm/InkPaper/issues).
+Enhancement suggestions are tracked as [GitHub issues](https://github.com/liudengxing/InkPaper/issues).
 
 #### How to Submit a Good Enhancement Suggestion
 
@@ -111,7 +111,7 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/yyyyym
 
 #### Before Submitting a Pull Request
 
-1. **Check existing PRs** - Search the [pull requests](https://github.com/yyyyymmmmm/InkPaper/pulls) to see if the enhancement has already been suggested
+1. **Check existing PRs** - Search the [pull requests](https://github.com/liudengxing/InkPaper/pulls) to see if the enhancement has already been suggested
 2. **Discuss first** - For major changes, please open an issue first to discuss what you would like to change
 3. **Fork the repo** - Create your own fork of the repository
 4. **Create a branch** - Create a new branch for your feature or bugfix
@@ -405,8 +405,8 @@ class _MyWidgetState extends State<MyWidget> {
 
 ## 🌍 Community
 
-- **GitHub Issues**: [https://github.com/yyyyymmmmm/InkPaper/issues](https://github.com/yyyyymmmmm/InkPaper/issues)
-- **GitHub Discussions**: [https://github.com/yyyyymmmmm/InkPaper/discussions](https://github.com/yyyyymmmmm/InkPaper/discussions)
+- **GitHub Issues**: [https://github.com/liudengxing/InkPaper/issues](https://github.com/liudengxing/InkPaper/issues)
+- **GitHub Discussions**: [https://github.com/liudengxing/InkPaper/discussions](https://github.com/liudengxing/InkPaper/discussions)
 - **Email**: [rsbgbn@126.com](mailto:rsbgbn@126.com)
 - **Website**: [https://inkpaper.cn](https://inkpaper.cn)
 

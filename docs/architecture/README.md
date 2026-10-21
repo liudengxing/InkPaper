@@ -376,7 +376,7 @@ When making architectural changes:
 
 <div align="center">
 
-**Architecture Documentation** | [InkPaper](https://github.com/yyyyymmmmm/InkPaper)
+**Architecture Documentation** | [InkPaper](https://github.com/liudengxing/InkPaper)
 
 [Back to Main README](../../README.md) | [View ADRs](adr/README.md)
 

@@ -436,7 +436,7 @@ class AppConfig {
   static const String helpDocUrl = '$officialWebsite/help';
 
   /// GitHub仓库地址
-  static const String githubRepo = 'https://github.com/yyyyymmmmm/InkPaper';
+  static const String githubRepo = 'https://github.com/liudengxing/InkPaper';
 
   // ==================== 法律文档 ====================
 

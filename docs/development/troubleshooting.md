@@ -638,14 +638,14 @@ If you can't find a solution here:
    ```
 
 2. **Search Issues**: Look for similar issues
-   - [InkPaper Issues](https://github.com/yyyyymmmmm/InkPaper/issues)
+   - [InkPaper Issues](https://github.com/liudengxing/InkPaper/issues)
    - [Flutter Issues](https://github.com/flutter/flutter/issues)
    - [Stack Overflow](https://stackoverflow.com/questions/tagged/flutter)
 
 3. **Ask for Help**:
    - 📧 Email: rsbgbn@126.com
-   - 💬 [GitHub Discussions](https://github.com/yyyyymmmmm/InkPaper/discussions)
-   - 🐛 [Report Bug](https://github.com/yyyyymmmmm/InkPaper/issues/new)
+   - 💬 [GitHub Discussions](https://github.com/liudengxing/InkPaper/discussions)
+   - 🐛 [Report Bug](https://github.com/liudengxing/InkPaper/issues/new)
 
 4. **Provide Information**:
    - Flutter version (`flutter --version`)

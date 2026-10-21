@@ -661,13 +661,13 @@ void main() async {
 
 ## 🤝 贡献
 
-文档中发现错误？请[提交 issue](https://github.com/yyyyymmmmm/InkPaper/issues) 或提交 pull request。
+文档中发现错误？请[提交 issue](https://github.com/liudengxing/InkPaper/issues) 或提交 pull request。
 
 ---
 
 <div align="center">
 
-**API 文档** | [InkPaper](https://github.com/yyyyymmmmm/InkPaper)
+**API 文档** | [InkPaper](https://github.com/liudengxing/InkPaper)
 
 [返回主 README](../../README.md) | [English Version](README.md)
 

@@ -535,7 +535,7 @@ dart tool/inkpaper.dart verify --coverage
 首次拉取后：
 
 ```bash
-git clone https://github.com/yyyyymmmmm/InkPaper.git
+git clone https://github.com/liudengxing/InkPaper.git
 cd InkPaper
 dart tool/inkpaper.dart doctor
 dart tool/inkpaper.dart deps

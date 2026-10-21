@@ -936,7 +936,7 @@ docker run -d \
 - 应用内反馈：设置 → 反馈建议
 - 官方邮箱：${AppConfig.supportEmail}
 - 官方网站：${AppConfig.officialWebsite}
-- GitHub Issues：[提交问题报告](https://github.com/yyyyymmmmm/IntRoot/issues)
+- GitHub Issues：[提交问题报告](https://github.com/liudengxing/InkPaper/issues)
         ''',
         en: '''
 ### What to include
@@ -950,7 +950,7 @@ docker run -d \
 - In-app feedback: Settings → Feedback
 - Email: ${AppConfig.supportEmail}
 - Website: ${AppConfig.officialWebsite}
-- GitHub Issues: [Submit an issue](https://github.com/yyyyymmmmm/IntRoot/issues)
+- GitHub Issues: [Submit an issue](https://github.com/liudengxing/InkPaper/issues)
         ''',
       );
 

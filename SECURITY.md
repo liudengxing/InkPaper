@@ -206,7 +206,7 @@ For security-related inquiries:
 - **Subject**: `[SECURITY] Your concern here`
 
 For general inquiries:
-- **GitHub Issues**: [https://github.com/yyyyymmmmm/InkPaper/issues](https://github.com/yyyyymmmmm/InkPaper/issues)
+- **GitHub Issues**: [https://github.com/liudengxing/InkPaper/issues](https://github.com/liudengxing/InkPaper/issues)
 - **Website**: [https://inkpaper.cn](https://inkpaper.cn)
 
 ---

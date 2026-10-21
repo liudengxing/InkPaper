@@ -30,7 +30,7 @@
 | 版本 | `1.1.13+10113`（单一真源） | `pubspec.yaml:6` |
 | Dart SDK 约束 | `>=3.0.0 <4.0.0` | `pubspec.yaml:9` |
 | 本机 Flutter SDK | `Z:\flutter` = **3.47.7 / Dart 3.13.5**，stable | `.dart_tool/package_config.json` |
-| 上游关系 | 本项目是 [InkPaper](https://github.com/yyyyymmmmm/InkPaper) 的延续与重命名版本 | `README.md:5` |
+| 上游关系 | 本项目是 [InkPaper](https://github.com/liudengxing/InkPaper) 的延续与重命名版本 | `README.md:5` |
 | 当前仓库 | `github.com/liudengxing/InkPaper` | `README.md:5` |
 | 开源许可 | MIT | `LICENSE` |
 
@@ -806,7 +806,7 @@ flowchart TB
 |---|---|---|
 | Android 源码清单 | 只列 `MainActivity.kt`、`AlarmReceiver.kt`、`ReleaseLog.kt` | 漏了 `InkPaperWidgetProvider.kt`（含两个小组件 Provider）与两个 widget receiver |
 | iOS 目标 | 只提 Runner | 还有 `InkPaperWidgets`、`InkPaperShareExtension`、vendored `SDWebImageWebPCoder` |
-| clone 地址 | `yyyyymmmmm/InkPaper.git` | 仓库实际是 `liudengxing/InkPaper`（`README.md:5`） |
+| clone 地址 | `liudengxing/InkPaper.git` | 仓库实际是 `liudengxing/InkPaper`（`README.md:5`） |
 | SDK 版本 | 暗示 34/21 | 实际生效 36/24/36 |
 | 引用的文档 | `database-schema.md`、`security-design.md`、`performance.md`、`../TESTING.md` | **这些文件不存在**（`docs/architecture/` 下只有 `README.md` 与 `adr/`） |
 | ADR 列表 | 文档列出 002–005 | `docs/architecture/adr/` 下**只有 001 与 template** |

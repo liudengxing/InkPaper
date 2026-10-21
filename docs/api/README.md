@@ -657,13 +657,13 @@ void main() async {
 
 ## 🤝 Contributing
 
-Found an error in the documentation? Please [open an issue](https://github.com/yyyyymmmmm/InkPaper/issues) or submit a pull request.
+Found an error in the documentation? Please [open an issue](https://github.com/liudengxing/InkPaper/issues) or submit a pull request.
 
 ---
 
 <div align="center">
 
-**API Documentation** | [InkPaper](https://github.com/yyyyymmmmm/InkPaper)
+**API Documentation** | [InkPaper](https://github.com/liudengxing/InkPaper)
 
 [Back to Main README](../../README.md)
 

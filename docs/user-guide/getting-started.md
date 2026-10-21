@@ -8,13 +8,13 @@ Welcome! This guide will help you get up and running with InkPaper in just a few
 
 ### iOS
 
-1. Download from [GitHub Releases](https://github.com/yyyyymmmmm/InkPaper/releases)
+1. Download from [GitHub Releases](https://github.com/liudengxing/InkPaper/releases)
 2. Install via TestFlight or sideload IPA
 3. Launch InkPaper
 
 ### Android
 
-1. Download APK from [GitHub Releases](https://github.com/yyyyymmmmm/InkPaper/releases)
+1. Download APK from [GitHub Releases](https://github.com/liudengxing/InkPaper/releases)
 2. Enable "Install from Unknown Sources" if prompted
 3. Install and open InkPaper
 
@@ -312,7 +312,7 @@ Now that you're set up, explore these features:
 - 📖 Read [FAQ](faq.md)
 - 🔧 Check [Troubleshooting](troubleshooting.md)
 - 📧 Email: rsbgbn@126.com
-- 💬 GitHub: [Discussions](https://github.com/yyyyymmmmm/InkPaper/discussions)
+- 💬 GitHub: [Discussions](https://github.com/liudengxing/InkPaper/discussions)
 
 ---
 

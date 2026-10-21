@@ -567,4 +567,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-For more details, visit our [GitHub Repository](https://github.com/yyyyymmmmm/InkPaper).
+For more details, visit our [GitHub Repository](https://github.com/liudengxing/InkPaper).

@@ -2012,7 +2012,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         return false;
       }
 
-      return _memosApiService!.addMemoReference(noteId, relatedMemoId);
+      return await _memosApiService!.addMemoReference(noteId, relatedMemoId);
     } on Object {
       return false;
     }
@@ -3684,7 +3684,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       if (_memosApiService == null) {
         return false;
       }
-      return _memosApiService!.deleteAllMemoRelations(noteId);
+      return await _memosApiService!.deleteAllMemoRelations(noteId);
     } on Object {
       return false;
     }

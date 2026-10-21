@@ -115,7 +115,7 @@ class SpeechService {
   }) async {
     try {
       if (appConfig?.speechRecognitionMode == AppConfig.SPEECH_MODE_IFLYTEK) {
-        return _startIflytekListening(
+        return await _startIflytekListening(
           appConfig: appConfig!,
           onResult: onResult,
           onError: onError,

@@ -275,7 +275,7 @@ class ImageUtils {
       if (!context.mounted) {
         return false;
       }
-      return saveImageBytes(
+      return await saveImageBytes(
         context,
         imageBytes,
         fileName: _defaultImageFileName(imageUrl),

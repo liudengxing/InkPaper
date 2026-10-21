@@ -889,6 +889,11 @@ class _LoginScreenState extends State<LoginScreen>
                           : 'assets/images/logo.png',
                       width: ResponsiveUtils.responsiveIconSize(context, 40),
                       height: ResponsiveUtils.responsiveIconSize(context, 40),
+                      // A-14：按实际像素密度解码
+                      cacheWidth:
+                          (ResponsiveUtils.responsiveIconSize(context, 40) *
+                                  MediaQuery.devicePixelRatioOf(context))
+                              .round(),
                       fit: BoxFit.contain,
                     ),
                   ),

@@ -59,6 +59,10 @@ class ImageUtils {
         imageUrl,
         width: width,
         height: height,
+        // A-14：有明确显示宽度时按像素密度解码，未指定宽度则保持原图
+        cacheWidth: width == null
+            ? null
+            : (width * MediaQuery.devicePixelRatioOf(context)).round(),
         fit: fit,
       );
     }

@@ -101,6 +101,10 @@ class AboutScreen extends StatelessWidget {
                           padding: const EdgeInsets.all(12),
                           child: Image.asset(
                             'assets/images/logo.png',
+                            // A-14：按显示尺寸解码，避免整图进内存
+                            cacheWidth:
+                                (96 * MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
                             fit: BoxFit.contain,
                           ),
                         ),

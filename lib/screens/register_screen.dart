@@ -776,6 +776,9 @@ class _RegisterScreenState extends State<RegisterScreen>
                           : 'assets/images/logo.png',
                       width: 32,
                       height: 32,
+                      // A-14：按实际像素密度解码
+                      cacheWidth:
+                          (32 * MediaQuery.devicePixelRatioOf(context)).round(),
                       fit: BoxFit.contain,
                     ),
                   ),

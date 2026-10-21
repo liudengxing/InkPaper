@@ -313,6 +313,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   clipBehavior: Clip.antiAlias,
                   child: Image.asset(
                     'assets/images/logo.png',
+                    // A-14：按显示尺寸解码
+                    cacheWidth:
+                        (64 * MediaQuery.devicePixelRatioOf(context)).round(),
                     fit: BoxFit.contain,
                   ),
                 ),
@@ -676,6 +679,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           clipBehavior: Clip.antiAlias,
                           child: Image.asset(
                             'assets/images/logo.png',
+                            // A-14：按显示尺寸解码
+                            cacheWidth:
+                                (64 * MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
                             fit: BoxFit.contain,
                           ),
                         ),

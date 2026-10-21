@@ -5,7 +5,7 @@
 
 - 最后一次更新：2026-10-21
 - 当前数据库 schema：**11**
-- 静态检查基线：`dart analyze lib tool test` 4 条既有 warning（`unawaited_return_in_try_block`）、0 error
+- 静态检查基线：`dart analyze lib tool test` **0 warning / 0 error**（2026-10-21 清掉最后 4 条 `unawaited_return_in_try_block`）
 - 测试基线：`flutter test` **399** 项全通过
 - 代码规模：`lib/` 146 个 Dart 文件 / 88,287 行；`test/` 38 个文件
 - 当前版本：`1.0.12+10012`
@@ -150,7 +150,7 @@
 | P2-3 | 巨型 UI 文件 | `note_editor`（3,006）、`preferences_screen`（2,617）、`ai_settings_screen`（2,180）、`home_screen`（2,559） | 按区块抽子 Widget。注意 `home_screen` 与 P-1 同文件，排在一起改 |
 | P2-4 | 数据库明文 | `notes.db` 无加密 | 评估 SQLCipher，并同步隐私政策文案 |
 | P2-5 | 死配置残留 | `AppConfig.canaryStages` / `canaryPercentage` / `isFeatureEnabled` 零引用；`screens/user_agreement_screen.dart` 零引用但有未提交改动 | 确认后删除 |
-| P2-6 | CI 门禁 | Actions 已收敛为仅 Android APK（`46c3648`）；analyze 仍有 4 条既有 warning；`android-release-split` 尚未接入 CI（仅本地可用） | 清理 warning 后再考虑把 info/warning 纳入失败条件；若要把拆包纳入发布，需同步改 `release.yml` 的证书校验与产物命名 |
+| P2-6 | CI 门禁 | Actions 已收敛为仅 Android APK（`46c3648`）；analyze 已清零（2026-10-21）；`android-release-split` 尚未接入 CI（仅本地可用） | warning 已清，可把 analyze 纳入 CI 失败条件；若要把拆包纳入发布，需同步改 `release.yml` 的证书校验与产物命名 |
 | P2-7 | 并行改动的提交流程 | 曾出现多个会话共用工作区、暂存互相覆盖 | 大改动期间只保留一个会话执行提交 |
 
 ---
@@ -166,7 +166,7 @@
 | P3-3 | 页面自带内联双语 | `screens/account_deletion_screen.dart`（通篇 `_isZh ? … : …`） | 迁到 l10n：中英表现不变，但非中英语言不再一律退英文，同时消除双份文案维护 |
 | P3-4 | 英文残留抽样核查 | `utils/share_utils.dart`(48)、`widgets/note_editor.dart`(78)、`screens/home_screen.dart`(83)、`widgets/share_image_preview_screen.dart`(47) | 先区分 `debugPrint` 与 UI 文案，只改 UI 字符串 |
 | P3-5 | 相对时间接口未统一 | `utils/time_utils.dart#getRelativeTime` 仅回收站改走 l10n | 其余调用点迁到 `AppLocalizationsSimple.relativeTime`，迁完再删旧方法 |
-| P3-6 | 静态检查 4 条 warning | `providers/app_provider.dart:2015`、`:3687`、`services/speech_service.dart:118`、`utils/image_utils.dart:278` | 补 `await` 或调整返回方式，清到 0 warning（P2-6 的前置条件） |
+| ~~P3-6~~ ✅ | 静态检查 4 条 warning | ~~`providers/app_provider.dart:2015`、`:3687`、`services/speech_service.dart:118`、`utils/image_utils.dart:278`~~ | 已修：4 处 try 内 `return future` 改为 `return await future`，异常按原意走 `catch` 返回 `false`；`dart analyze` 现为 0 issue，**P2-6 的清 warning 前置条件已满足** |
 | P3-7 | 回收站 GC 触发点单一 | 同 P1-3（`_RecentlyDeletedScreenState._load`） | 与 P1-3 一并处理；建议按天节流，避免每次进页都写库 |
 | P3-8 | 示例笔记多入口一致性 | 滑删 / 更多菜单 / 置顶（`NoteCard.isExample` 已覆盖前两者） | 回归三入口均只提示；新增卡片类型时不要绕过 `isExample` |
 

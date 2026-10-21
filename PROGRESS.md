@@ -421,5 +421,28 @@ $ flutter test
 - A-12 死代码 / A-13 format 门禁 / A-14 图片解码 / A-15 本地化全部验收通过，索引表 4 条条目（`STATE-CORE-001`、`STATE-CORE-005`、`ARCH-LAYER-002`、`QUAL-CLEAN-003`）均为 done，Phase 1–4 退出条件全部满足。
 - 全程 `flutter analyze` 0 issue、`flutter test` 399 全绿、`dart format` 退出码 0。
 
+## 2026-10-21 · 收尾验证（Android 构建 + 重构单元测试）
+
+- 构建：
+```
+$ dart tool/inkpaper.dart build android-debug
+Running Gradle task 'assembleDebug'...  52.5s
+√ Built build\app\outputs\flutter-apk\app-debug.apk
+$ app-debug.apk 体积
+175.7 MB（基线 176.0 MB；5 个字体删除后几乎无变化，印证从未打包）
+```
+- 新增测试（16 例，399 → 415）：
+  - `test/widget_tests/sidebar_customization_screen_test.dart`（3）：A-11 后该页为 `CustomScrollView` + `SliverReorderableList`、无 `ReorderableListView`、滚动/点击开关不抛异常
+  - `test/unit/refactor_state_stores_test.dart`（6）：`AuthStore` / `NotesStore` / `WebDavStore` / `NotionStore` / `ReminderStore` 初始状态与 `clear()` 幂等
+  - `test/unit/refactor_utils_test.dart`（7）：`NetworkUtils` 共享客户端同一性 / `close()` 重建；`decodeBackupNotesJson` 正常 / 缺字段 / 类型错误 / 丢弃非对象 / 空数组
+```
+$ flutter analyze
+No issues found! (ran in 7.1s)
+$ flutter test
+00:25 +415: All tests passed!
+```
+- commit: `7ee4f9b`（页面测试）、`285bf06`（单测）、`94659bc` / `9915021`（BASELINE）
+- release 构建仍不可用：缺 `android/key.properties`，A-10 的体积对比维持「未测量」。
+
 - 前置 `ARCH-LAYER-002` 因 A-11 blocked，未达 done；按执行合约不得跳前置开工。4 个子项相互独立，A-11 决策落定后可直接执行。
 - 状态：blocked（详见 BLOCKERS.md）

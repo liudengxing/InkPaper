@@ -15,6 +15,7 @@ import 'package:inkpaper/models/reminder_notification_model.dart';
 import 'package:inkpaper/models/sort_order.dart';
 import 'package:inkpaper/models/user_model.dart';
 import 'package:inkpaper/models/webdav_config.dart';
+import 'package:inkpaper/providers/sync_store.dart';
 import 'package:inkpaper/services/api_service_factory.dart';
 import 'package:inkpaper/services/cloud_verification_service.dart';
 import 'package:inkpaper/services/database_service.dart';
@@ -106,13 +107,17 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   final NotionSyncService _notionSyncService = NotionSyncService();
   bool _isNotionSyncing = false;
 
-  // 同步相关变量
+  // 同步相关变量（同步 UI 状态已抽到 SyncStore，字段以 getter/setter 转发）
   Timer? _syncTimer;
-  bool _isSyncing = false;
-  String? _syncMessage;
+  final SyncStore _syncStore = SyncStore();
   Future<void>? _syncNotesInFlight;
-  final Set<String> _syncingNoteIds = {};
   int _widgetSnapshotUpdateId = 0;
+
+  bool get _isSyncing => _syncStore.isSyncing;
+  set _isSyncing(bool value) => _syncStore.isSyncing = value;
+  String? get _syncMessage => _syncStore.message;
+  set _syncMessage(String? value) => _syncStore.message = value;
+  Set<String> get _syncingNoteIds => _syncStore.syncingNoteIds;
 
   void _setSyncUi({bool? syncing, String? message, bool notify = true}) {
     if (syncing != null) {
@@ -2045,11 +2050,25 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       }
 
       var syncedCount = 0;
-      for (final note in unsyncedNotes) {
-        try {
-          syncedCount += await _syncUnsyncedNotesSnapshot([note]);
-        } on Object catch (e) {
-          debugPrint('AppProvider: 同步笔记失败: ${note.id}, 错误: $e');
+      // 有限并发：每批最多 3 条，兼顾吞吐与服务器压力；单条失败不影响同批其他笔记
+      const maxConcurrency = 3;
+      for (var i = 0; i < unsyncedNotes.length; i += maxConcurrency) {
+        final batch = unsyncedNotes
+            .skip(i)
+            .take(maxConcurrency)
+            .toList(growable: false);
+        final results = await Future.wait(
+          batch.map((note) async {
+            try {
+              return await _syncUnsyncedNotesSnapshot([note]);
+            } on Object catch (e) {
+              debugPrint('AppProvider: 同步笔记失败: ${note.id}, 错误: $e');
+              return 0;
+            }
+          }),
+        );
+        for (final count in results) {
+          syncedCount += count;
         }
       }
 
@@ -3091,28 +3110,41 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       Log.sync.info('Syncing notes', data: {'count': unsyncedNotes.length});
 
-      // 逐一同步到服务器
+      // 有限并发同步（每批 3 条），单条失败不影响同批其他笔记
       var successCount = 0;
-      for (final note in unsyncedNotes) {
-        try {
-          successCount += await _syncUnsyncedNotesSnapshot([note]);
-        } on Object catch (e, stackTrace) {
-          Log.sync.error(
-            'Failed to sync note',
-            error: e,
-            stackTrace: stackTrace,
-            data: {
-              'note_id': note.id,
-            },
-          );
-          await ErrorHandler.captureException(
-            e,
-            stackTrace: stackTrace,
-            context: {
-              'operation': 'sync_single_note',
-              'note_id': note.id,
-            },
-          );
+      const maxConcurrency = 3;
+      for (var i = 0; i < unsyncedNotes.length; i += maxConcurrency) {
+        final batch = unsyncedNotes
+            .skip(i)
+            .take(maxConcurrency)
+            .toList(growable: false);
+        final results = await Future.wait(
+          batch.map((note) async {
+            try {
+              return await _syncUnsyncedNotesSnapshot([note]);
+            } on Object catch (e, stackTrace) {
+              Log.sync.error(
+                'Failed to sync note',
+                error: e,
+                stackTrace: stackTrace,
+                data: {
+                  'note_id': note.id,
+                },
+              );
+              await ErrorHandler.captureException(
+                e,
+                stackTrace: stackTrace,
+                context: {
+                  'operation': 'sync_single_note',
+                  'note_id': note.id,
+                },
+              );
+              return 0;
+            }
+          }),
+        );
+        for (final count in results) {
+          successCount += count;
         }
       }
 
@@ -3167,13 +3199,22 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         await _databaseService.getUnsyncedNotes(),
       );
 
-      // 逐一同步到服务器
-      for (final note in unsyncedNotes) {
-        try {
-          await _syncUnsyncedNotesSnapshot([note]);
-        } on Object catch (e) {
-          debugPrint('同步笔记失败: ${note.id} - $e');
-        }
+      // 有限并发同步（每批 3 条），单条失败不影响同批其他笔记
+      const maxConcurrency = 3;
+      for (var i = 0; i < unsyncedNotes.length; i += maxConcurrency) {
+        final batch = unsyncedNotes
+            .skip(i)
+            .take(maxConcurrency)
+            .toList(growable: false);
+        await Future.wait(
+          batch.map((note) async {
+            try {
+              await _syncUnsyncedNotesSnapshot([note]);
+            } on Object catch (e) {
+              debugPrint('同步笔记失败: ${note.id} - $e');
+            }
+          }),
+        );
       }
 
       // 刷新内存中的列表

@@ -90,7 +90,7 @@
 | --- | --- | --- |
 | `Widget _build*` 方法定义 | 280 | 拆方法本身不减少重建，仅影响可读性 |
 | `setState(` | 349 | 分布于 StatefulWidget；`note_editor.dart` 39 次 |
-| `notifyListeners(` | 63 | 全部在 `app_provider.dart` |
+| `notifyListeners(` | 63（`app_provider.dart` 内 58） | 其余 5 处在另一个 provider 文件 |
 | `Selector<` | 4 | `main.dart:539`、`app_provider.dart:238`、`home_screen.dart:799`、`:1217` |
 | `Consumer<` | 5 | — |
 | `context.watch` | 2 | — |

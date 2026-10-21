@@ -76,7 +76,7 @@ main.dart → routes/app_router.dart → screens/* → providers/app_provider.da
 
 | 指标 | 数值 |
 | --- | --- |
-| `notifyListeners()` 调用 | 63（`lib/providers/app_provider.dart` 内） |
+| `notifyListeners()` 调用 | 63（全库；其中 `lib/providers/app_provider.dart` 内 58） |
 | `Selector<` 使用 | 4（`main.dart:539`、`app_provider.dart:238`、`home_screen.dart:799`、`home_screen.dart:1217`） |
 | `Consumer<` | 5 |
 | `context.watch` | 2 |

@@ -26,7 +26,7 @@
 
 ### A-01 `AppProvider` 单文件 4,434 行，承载全部域状态，通知面过宽（置信度：高）
 
-`lib/providers/app_provider.dart`（4,434 行）内 `notifyListeners()` 出现 **63** 次；根节点以 `.value` 注入整个实例，仅 4 处 `Selector` 收窄订阅。
+`lib/providers/app_provider.dart`（4,434 行）内 `notifyListeners()` 出现 **58** 次（全库 63 次）；根节点以 `.value` 注入整个实例，仅 4 处 `Selector` 收窄订阅。
 
 ```dart
 lib/main.dart:537

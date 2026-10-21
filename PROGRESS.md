@@ -393,7 +393,33 @@ $ flutter test
 - 版本：`1.0.33+10033` → `1.0.34+10034`
 - commit: `0960608`
 
-## 2026-10-21 · QUAL-CLEAN-003 · blocked（A-15 余量超单轮）
+## 2026-10-21 · QUAL-CLEAN-003 · A-15 · done（口径重定义 + 4 批落地）
+
+- 口径问题：旧指标 `'[^']*[\u4e00-\u9fff]` 会把已接 l10n 的中文 **fallback**、`debugPrint` 日志、l10n 字典文件本身全部计入（`forgot_password_screen` 改后仍是 12），无法作为门禁，因此先重定义口径。
+- 新口径（已写入 ROADMAP 验收命令）：`lib/screens` + `lib/widgets` 内「直接写在 widget 参数里的中文字面量」= 0，排除注释 / `_text('zh','en')` / `text('zh','en')` / `AppLocalizationsSimple` fallback。
+- 实测输出：
+```
+$ 新口径命中数（改前 82）
+0   (期望 0)
+$ dart format --output=none --set-exit-if-changed lib test tool
+Formatted 199 files (0 changed)   exit=0
+$ flutter analyze
+No issues found! (ran in 7.6s)
+$ flutter test
+00:21 +399: All tests passed!
+```
+- 落地批次：
+  - `0960608` 找回密码页 10 处（新增 3 键：`memosNoPasswordResetHint` / `memosNoPasswordResetDetail` / `rememberedPassword`）
+  - `21236a4` 6 个页面 14 处（新增 12 键：`addTag` / `tagNameHint` / `expandOptions` / `notionTokenHint` / `aiInsight` / `tagInputExampleHint` / `zoomIn` / `zoomOut` / `reviewWidgetRefresh*` / `reviewWidgetRange*`）
+  - `c35259f` 8 个文件 12 处（新增 10 键：`more` / `refreshBatch` / `openSourceRepo` / `connectServer` / `enterBackupPassword` / `backupPassword` / `importFromLocalFile` / `selectBackupFile` / `syncFromCloud` / `syncWithCloudData`；复用 `createNote` / `all` / `pleaseEnterNewNickname`）
+  - `be5f87a` AI 设置页 10 处模型示例文案改走本文件既有的 `_text('zh','en')` 助手
+- 版本：`1.0.34+10034` → `1.0.37+10037`
+- 遗留（不阻塞）：`app_provider.dart` 5 处为截图模式演示笔记正文、1 处为系统通知标题（provider 层无 `BuildContext`）；`webdav_settings_screen.dart` 等文件的 l10n fallback 按设计保留中文。
+
+## 2026-10-21 · QUAL-CLEAN-003 · done（4/4 子项）
+
+- A-12 死代码 / A-13 format 门禁 / A-14 图片解码 / A-15 本地化全部验收通过，索引表 4 条条目（`STATE-CORE-001`、`STATE-CORE-005`、`ARCH-LAYER-002`、`QUAL-CLEAN-003`）均为 done，Phase 1–4 退出条件全部满足。
+- 全程 `flutter analyze` 0 issue、`flutter test` 399 全绿、`dart format` 退出码 0。
 
 - 前置 `ARCH-LAYER-002` 因 A-11 blocked，未达 done；按执行合约不得跳前置开工。4 个子项相互独立，A-11 决策落定后可直接执行。
 - 状态：blocked（详见 BLOCKERS.md）

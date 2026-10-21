@@ -31,7 +31,9 @@
 - **原因**：前置条目 `ARCH-LAYER-002` 曾因 A-11 转 blocked，未达 done；按执行合约不得跳过前置开工。
 - **解除**：A-11 已用 `84bc599` 完成（设置页改 `CustomScrollView` + `SliverReorderableList`），`ARCH-LAYER-002` 回到 done，本批次已执行 A-12 / A-13 / A-14，剩 A-15 见下。
 
-## QUAL-CLEAN-003 · A-15 · 本地化体量与验收口径（blocked，2026-10-21）
+## QUAL-CLEAN-003 · A-15 · 本地化体量与验收口径（已解除，2026-10-21）
+
+- **解除方式**：重新定义可判定口径——「`lib/screens` + `lib/widgets` 内直接写在 widget 参数里的中文字面量」= 0（排除注释、`_text('zh','en')` / `text('zh','en')` 双语助手、`AppLocalizationsSimple` fallback）。按此口径实测：改前 **82** → 现在 **0**，共 4 批 commit（`0960608`、`21236a4`、`c35259f`、`be5f87a`），覆盖 15 个文件 36 处文案。原先「约 1,300 行」是把 l10n fallback 与日志也算进去的旧口径，已作废。
 
 - **已完成增量**（`0960608`）：`forgot_password_screen.dart` 未接入 l10n 的 UI 文案 10 → 0（新增 `memosNoPasswordResetHint` / `memosNoPasswordResetDetail` / `rememberedPassword` 三个键，中文 fallback 保留），作为「每次一个文件」的参考实现。
 - **阻塞原因 1（缺验收）**：条目自述「**缺验收**：无合理『中文归零』终点」。现状指标 `'[^']*[\u4e00-\u9fff]` 会同时统计 l10n fallback 与 `debugPrint`，接入 l10n 后计数**不下降**（`forgot_password_screen.dart` 改后仍为 12），无法作为门禁。

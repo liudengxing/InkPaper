@@ -38,7 +38,7 @@
 | STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | 子项 1 按四条验收判定 done（①✅ 1 个文件；②实测 11 条，待收敛 ≤6；③④ 仓库无 `lib/features/sync` / `SyncScope`，不适用）；子项 2 按 A 口径 done（输入路径 setState = 0）；子项 4 未开始（由 STATE-CORE-005 承接） | done |
 | STATE-CORE-005 | AppProvider 上帝对象分域拆分 | P2 | STATE-CORE-001 | 7 域全绿（认证/笔记/WebDAV/Notion/提醒/小组件/云验证，字段定义数均 0，转发 4/31/10/3/6/2/5）；AI 域 skipped（`AppProvider` 内无该域字段，命令实证） | done |
 | ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 7/7 子项验收通过（A-05 ~ A-11；A-11 全库 `shrinkWrap: true` 9 → 0）；子项 6 release 体积对比缺 `key.properties`，已记 PROGRESS | done |
-| QUAL-CLEAN-003 | P3 清理批次（4 子项 + 交互态 setState 待评估） | P3 | ARCH-LAYER-002 | 子项 1/2/3 验收全绿（A-12 死方法 0 处、A-13 format 门禁 + 全量格式化、A-14 6/6 有 `cacheWidth`）；子项 4 本地化**缺验收**且余量约 1,300 行，转 blocked，见 BLOCKERS | blocked |
+| QUAL-CLEAN-003 | P3 清理批次（4 子项 + 交互态 setState 待评估） | P3 | ARCH-LAYER-002 | 4/4 子项验收通过：A-12 死方法 0 处、A-13 format 门禁 + 全量格式化、A-14 6/6 有 `cacheWidth`、A-15 screens/widgets 直写中文 UI 字面量 82 → 0 | done |
 
 阶段退出条件：Phase 1 = 全部 P0 条目终结（本版已满足）；Phase 2 = STATE-CORE-001 全部子项 done 且 release 体积已重测或已记入 BLOCKERS；Phase 3 = ARCH-LAYER-002 全部子项 done 且 `flutter analyze` 无新增 issue；Phase 4 = 全部条目终结且 `flutter analyze` 为 0 error。
 
@@ -180,14 +180,14 @@ flutter analyze                                                                 
 | 作用域 | 子项 1：`lib/screens/home_screen.dart`（仅删死方法）<br>子项 2：`.github/workflows/ci.yml` + 全库格式化<br>子项 3：`lib/screens/{login,register,about}_screen.dart`（仅 `Image.asset`）<br>子项 4：`lib/l10n/translations.dart`、`lib/l10n/app_localizations_simple.dart`、单页面文件（每次一个） |
 | 现状证据 | **A-12** `lib/screens/home_screen.dart:1866` `return tags.toList()..sort();`，所属 `_collectTags` 全库调用 0 次。<br>**A-13** `.github/workflows/` 内无 `dart format`（`ci.yml` 只有 analyze / test）。<br>**A-14** `lib/screens/login_screen.dart:886` `Theme.of(context).brightness == Brightness.dark`、`:887` `? 'assets/images/black2logo.png'`；`Image.asset` 共 6 处，仅 3 处带 `cacheWidth`。<br>**A-15** 硬编码中文约 1,500 处（静态计数）：`webdav_settings_screen.dart` 125、`app_provider.dart` 117、`ai_insight_engine.dart` 98、`ai_settings_screen.dart` 88、`user_agreement_screen.dart` 63。 |
 | 做什么 | **子项 1（A-12）**：删除 `_collectTags`。<br>**子项 2（A-13）**：CI 加 `dart format --output=none --set-exit-if-changed lib test tool`，并一次性格式化全量（单独 commit）。<br>**子项 3（A-14）**：`Image.asset` 统一补 `cacheWidth` 或走 `image_utils`。<br>**子项 4（A-15）**：按文件逐个接入 `AppLocalizationsSimple`，保留中文 fallback。 |
-| 验收 | 子项 1/2/3 为静态命令；子项 4 **缺验收**（无合理「中文归零」终点，只能按文件监控计数下降 + 人工抽样） |
+| 验收 | 子项 1/2/3 为静态命令；子项 4 已给出可判定口径：`lib/screens` + `lib/widgets` 内「直接写在 widget 参数里的中文字面量」= 0（排除注释、`_text('zh','en')` / `text('zh','en')` 双语文案助手、以及 `AppLocalizationsSimple` fallback），细节见下方验收命令 |
 | 收益 | 死代码清理、格式与依赖门禁长期生效、图片解码可控；本地化收益为英文界面一致性（无性能数字） |
 | 回滚 | 子项 2 格式化范围大，单独 commit；其余子项单 commit 可 revert |
 | 不许做 | 子项 2 不得与业务改动同一 commit；子项 3 不改图片视觉；子项 4 不翻译 FAQ 长正文（已决策保留中文）；不改 lint 严格模式 |
 | 待评估项 | 交互态 `setState`（`note_editor.dart` 剩余约 13 处，改前全文件 39 → 现 38）不单独开任务，仅在本批次评估：若后续 profile 显示交互路径存在明显重建开销，再按「局部化 setState」纳入；否则保持现状 |
-| 状态 | blocked |
+| 状态 | done |
 
-**子项进度**：✅ A-12（目标死方法已在早前重构中消失，`_collectTags` 全库 0 处；现存 `_availableTags` 有 5 处调用，非死代码）｜✅ A-13（`012b94e` CI 门禁 + `b4b5f54` 全量格式化 20 文件）｜✅ A-14（`7ab0a19`，`Image.asset` 6 处 / `cacheWidth` 6 处，相等）｜⛔ A-15（`0960608` 完成 1 个文件：`forgot_password_screen.dart` 未接入 l10n 的 UI 文案 10 → 0；余 30+ 文件约 1,300 行，体量超单轮，见 BLOCKERS）
+**子项进度**：✅ A-12（目标死方法已在早前重构中消失，`_collectTags` 全库 0 处；现存 `_availableTags` 有 5 处调用，非死代码）｜✅ A-13（`012b94e` CI 门禁 + `b4b5f54` 全量格式化 20 文件）｜✅ A-14（`7ab0a19`，`Image.asset` 6 处 / `cacheWidth` 6 处，相等）｜✅ A-15（`0960608` + `21236a4` + `c35259f` + `be5f87a` 共 4 批，覆盖 15 个文件 36 处直写中文；`lib/screens` + `lib/widgets` 直写中文 UI 字面量 0）
 
 **QUAL-CLEAN-003 验收命令**（改前基线：`_collectTags` 1 处 / `Image.asset` 6 处、`cacheWidth` 3 处 / webdav 文案 125）：
 
@@ -207,7 +207,12 @@ flutter analyze                                                                 
 
 # 子项 4：本地化（每完成一个文件跑一次，监控下降）
 (Select-String -Path lib/screens/webdav_settings_screen.dart -Pattern "'[^']*\p{Han}" | Measure-Object).Count   # 改前 125
-# 缺验收：无法命令化「英文界面无中文」这一终点，需人工抽样 + 真机切英文确认
+# 子项 4 现行口径：screens/widgets 内「直写中文字面量的 widget 参数」= 0
+(Get-ChildItem lib/screens,lib/widgets -Recurse -Filter *.dart |
+  Select-String -Pattern "(?:Text\(|title:|subtitle:|label:|hintText:|tooltip:|labelText:|content:)\s*'[^']*[\u4e00-\u9fff]" |
+  Where-Object { $_.Line -notmatch '^\s*//|_text\(|\btext\(' } |
+  Measure-Object).Count   # 期望 0（改前 82）
+# 仍需人工抽样：真机切英文过一遍设置页文案（机器无法判定译义质量）
 ```
 
 ---

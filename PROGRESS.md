@@ -456,5 +456,24 @@ $ flutter test
   - 收尾：`settings put secure accessibility_enabled 0` 还原，设备临时截图与 `ui.xml` 已删除
 - 无代码改动，无版本变更
 
+## 2026-10-21 · ARCH-LAYER-002 · A-10 · 体积对比补测（补齐缺验收）
+
+- 解除方式：本地生成一次性签名密钥 `android/inkpaper-local-test.jks`（`keytool -genkeypair -storetype JKS -keyalg RSA -keysize 2048 -validity 10000`，dname `CN=InkPaper Local Test`），配套 `android/key.properties`；两者均命中 `android/.gitignore`（`key.properties` / `**/*.jks`），不进仓库。`storeFile` 按 `android/app` 解析，取值须为 `../inkpaper-local-test.jks`
+- 实测输出：
+```
+$ Get-ChildItem build/app/outputs/flutter-apk/*.apk,build/app/outputs/bundle/release/*.aab | 体积
+app-debug.apk                         175.7 MB   184,208,770 B
+app-release.apk（universal，混淆）      75.6 MB    79,323,714 B   # -56.9% vs debug
+app-release.aab                        69.7 MB    73,100,104 B
+app-arm64-v8a-release.apk              27.8 MB    29,202,649 B   # -84.1% vs debug universal
+app-armeabi-v7a-release.apk            25.3 MB    26,535,479 B
+app-x86_64-release.apk                 29.0 MB    30,383,632 B
+$ 混淆符号文件
+app.android-arm.symbols 5,629,632 B / app.android-arm64.symbols 6,507,864 B / app.android-x64.symbols 6,505,104 B
+```
+- 结论：release universal APK 比 debug 小 56.9%，arm64 单架构包仅为 debug 的 15.9%（debug 三架构 libflutter.so 约 125 MB 是主因）；`--obfuscate` + `--split-debug-info` 已生效（三份 symbols 产出）
+- 未做：release APK 未装机验证（签名与现有 debug 安装不同，覆盖需先卸载会清空本机数据）；`android/key.properties` 现指向一次性测试密钥，**正式发布前必须替换为正式 keystore**
+- 无代码改动，无版本变更
+
 - 前置 `ARCH-LAYER-002` 因 A-11 blocked，未达 done；按执行合约不得跳前置开工。4 个子项相互独立，A-11 决策落定后可直接执行。
 - 状态：blocked（详见 BLOCKERS.md）

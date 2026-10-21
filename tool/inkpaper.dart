@@ -253,7 +253,15 @@ class InkPaperCli {
         return;
       case 'android-release':
         // 发布用 universal APK：单个文件，不挑机型，CI 与商店渠道都依赖这个产物。
-        await _run(_flutterBuildCommand(['apk', '--release']));
+        // --obfuscate 需要配合 --split-debug-info 才有可读堆栈（symbols 落到 build/symbols）。
+        await _run(
+          _flutterBuildCommand([
+            'apk',
+            '--release',
+            '--obfuscate',
+            '--split-debug-info=build/symbols',
+          ]),
+        );
         return;
       case 'android-release-split':
         // 本机安装 / 测体积用：按 ABI 拆包，每个包只带一套 native 库。
@@ -263,6 +271,7 @@ class InkPaperCli {
             'apk',
             '--release',
             '--split-per-abi',
+            '--obfuscate',
             '--split-debug-info=build/symbols',
           ]),
         );
@@ -273,6 +282,7 @@ class InkPaperCli {
           _flutterBuildCommand([
             'appbundle',
             '--release',
+            '--obfuscate',
             '--split-debug-info=build/symbols',
           ]),
         );

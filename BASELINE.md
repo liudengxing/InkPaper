@@ -142,7 +142,7 @@
 | --- | --- | --- | --- |
 | 分支 / 版本 | `main` @ `245b9c5`，`1.0.15+10015` | `main` @ `4e2e33a`，`1.0.37+10037` | — |
 | `flutter analyze` | 0 error / 0 warning / 0 info | 0 / 0 / 0 | 全程保持 |
-| `flutter test` | 399 通过 | 402 通过（新增 `sidebar_customization_screen_test.dart` 3 例，护 A-11 sliver 化） | 全程保持 |
+| `flutter test` | 399 通过 | **415 通过**（新增 16 例：A-11 sliver 化 3 例、域 Store 初始状态 6 例、NetworkUtils / 备份解码 7 例） | 全程保持 |
 | `dart format` 校验 | 无 | **有**（ci.yml `quality` 任务） | A-13 |
 | release `--obfuscate` | 无 | **有**（`apk` / `apk --split-per-abi` / `appbundle` 前置 `--obfuscate` + symbols） | A-10 |
 | `shrinkWrap: true` | 9 | **0** | A-11 |

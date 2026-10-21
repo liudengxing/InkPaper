@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // 添加http包
 import 'package:inkpaper/config/app_config.dart' as Config;
 import 'package:inkpaper/core/state/auth_store.dart';
+import 'package:inkpaper/core/state/notes_store.dart';
 import 'package:inkpaper/models/annotation_model.dart'; // ✅ 新增：批注模型
 import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/models/cloud_verification_models.dart';
@@ -64,13 +65,20 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   User? get _user => _authStore.user;
   set _user(User? value) => _authStore.user = value;
 
-  List<Note> _notes = [];
-  bool _isLoading = false;
-  bool _isInitialized = false;
+  // 笔记域字段已迁入 NotesStore（STATE-CORE-005），此处仅保留转发
+  final NotesStore _notesStore = NotesStore();
+
+  List<Note> get _notes => _notesStore.notes;
+  set _notes(List<Note> value) => _notesStore.notes = value;
+  bool get _isLoading => _notesStore.isLoading;
+  set _isLoading(bool value) => _notesStore.isLoading = value;
+  bool get _isInitialized => _notesStore.isInitialized;
+  set _isInitialized(bool value) => _notesStore.isInitialized = value;
 
   // 🚀 大厂标准：分页加载相关
-  paging.NotesPaginationState _pagingState =
-      paging.initialNotesPaginationState();
+  paging.NotesPaginationState get _pagingState => _notesStore.pagingState;
+  set _pagingState(paging.NotesPaginationState value) =>
+      _notesStore.pagingState = value;
   static const int _pageSize = 50;
 
   /// 单条笔记连续上传失败达到这个次数后暂停自动重试。
@@ -80,7 +88,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   static const int maxUploadAttempts = 3;
 
   // 🚀 大厂标准：并发控制（防止重复加载）
-  Completer<void>? _loadMoreCompleter;
+  Completer<void>? get _loadMoreCompleter => _notesStore.loadMoreCompleter;
+  set _loadMoreCompleter(Completer<void>? value) =>
+      _notesStore.loadMoreCompleter = value;
 
   /// 最近一次同步中检测到的冲突条数。
   ///
@@ -90,9 +100,11 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   int get lastSyncConflicts => _lastSyncConflicts;
 
   // 🚀 大厂标准：性能监控
-  int _totalNotesCount = 0; // 数据库总笔记数
-  DateTime? _lastLoadTime; // 上次加载时间
-  final Stopwatch _loadStopwatch = Stopwatch(); // 性能计时器
+  int get _totalNotesCount => _notesStore.totalNotesCount; // 数据库总笔记数
+  set _totalNotesCount(int value) => _notesStore.totalNotesCount = value;
+  DateTime? get _lastLoadTime => _notesStore.lastLoadTime; // 上次加载时间
+  set _lastLoadTime(DateTime? value) => _notesStore.lastLoadTime = value;
+  Stopwatch get _loadStopwatch => _notesStore.loadStopwatch; // 性能计时器
   MemosApiServiceFixed? get _memosApiService => _authStore.apiService;
   set _memosApiService(MemosApiServiceFixed? value) =>
       _authStore.apiService = value;
@@ -101,8 +113,11 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   final PreferencesService _preferencesService = PreferencesService();
   AppConfig _appConfig = AppConfig();
   bool _mounted = true;
-  SortOrder _sortOrder = SortOrder.newest;
-  List<Note>? _visibleNotesCache;
+  SortOrder get _sortOrder => _notesStore.sortOrder;
+  set _sortOrder(SortOrder value) => _notesStore.sortOrder = value;
+  List<Note>? get _visibleNotesCache => _notesStore.visibleNotesCache;
+  set _visibleNotesCache(List<Note>? value) =>
+      _notesStore.visibleNotesCache = value;
 
   // 🚀 WebDAV 同步相关
   WebDavConfig _webDavConfig = const WebDavConfig();
@@ -199,18 +214,25 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
   }
 
-  // 🚀 删除队列相关（大厂级批量处理）
-  final List<String> _deleteQueue = [];
-  final Set<String> _pendingDeleteIds = {};
-  bool _isProcessingDelete = false;
-  Timer? _deleteDebounceTimer;
+  // 🚀 删除队列相关（大厂级批量处理；字段已迁入 NotesStore）
+  List<String> get _deleteQueue => _notesStore.deleteQueue;
+  Set<String> get _pendingDeleteIds => _notesStore.pendingDeleteIds;
+  bool get _isProcessingDelete => _notesStore.isProcessingDelete;
+  set _isProcessingDelete(bool value) => _notesStore.isProcessingDelete = value;
+  Timer? get _deleteDebounceTimer => _notesStore.deleteDebounceTimer;
+  set _deleteDebounceTimer(Timer? value) =>
+      _notesStore.deleteDebounceTimer = value;
   static const Duration deleteUndoWindow = Duration(milliseconds: 3200);
   static const Duration _deleteBatchDelay = Duration(milliseconds: 500);
 
-  // 🚀 撤销删除相关变量
-  Note? _lastDeletedNote;
-  int? _lastDeletedIndex;
-  Timer? _pendingDeleteCommitTimer;
+  // 🚀 撤销删除相关变量（字段已迁入 NotesStore）
+  Note? get _lastDeletedNote => _notesStore.lastDeletedNote;
+  set _lastDeletedNote(Note? value) => _notesStore.lastDeletedNote = value;
+  int? get _lastDeletedIndex => _notesStore.lastDeletedIndex;
+  set _lastDeletedIndex(int? value) => _notesStore.lastDeletedIndex = value;
+  Timer? get _pendingDeleteCommitTimer => _notesStore.pendingDeleteCommitTimer;
+  set _pendingDeleteCommitTimer(Timer? value) =>
+      _notesStore.pendingDeleteCommitTimer = value;
 
   // 通知相关属性
   final CloudVerificationService _cloudService = CloudVerificationService();

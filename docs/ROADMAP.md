@@ -44,6 +44,7 @@
 | `159e5e6` | P1-2 回收站文案 | 回收站页面全部文案接入 `AppLocalizationsSimple`；保留天数改读 `RecentlyDeletedScreen.retention.inDays`；新增 `relativeTime()` / `relativeTimeInParens()` 替代 `TimeUtils.getRelativeTime`（中文全角括号、英文半角）；数据清理页入口文案同步本地化 |
 | `b2540c4` | 首页文案本地化 | 示例欢迎笔记正文与提示、底部输入条占位文案（`welcomeNoteContent` / `welcomeNoteHint` / `noteComposerHint`）接入 l10n；`_welcomeNote` 改为 getter，时间戳独立保存在 `_welcomeNoteTime` |
 | `25955c0` | 示例笔记删除提示 | `NoteCard.isExample` + `NoteMoreOptionsMenu.onDeleteOverride`：示例笔记从「更多菜单 → 删除」只提示不落库，不再误报「笔记已删除」 |
+| P3-1 收口 | 服务层提示文案 | `note_actions_service.dart` 补齐 6 处：分享失败、未登录/服务器配置错误、AI 回退提示、本地点评、批注面板「完成」、「已标记为已解决」 |
 
 ### 1.1 已落地的设计约束（改动时不要破坏）
 
@@ -160,8 +161,8 @@
 
 | # | 问题 | 位置 | 建议 |
 | --- | --- | --- | --- |
-| P3-1 | 策略弹层文案硬编码中文（约 50 处，收益最大） | `services/note_actions_service.dart`：笔记可见性对话框（「笔记可见性」「当前：{status}」「已设为私有/公开」）、分享权限确认（「分享权限确认」「任何拥有链接的人都可以查看该笔记的内容」）、AI 点评（「✨ AI点评完成！」「本地点评」「点评已复制」）、提醒（「提醒时间必须在未来」「请先开启通知权限才能设置提醒」「当前桌面系统暂不支持系统级定时提醒」）、详细信息（「字数」「创建时间」「最后编辑」「笔记状态」）、分享失败提示 | 按区块分批接入 `AppLocalizationsSimple`，保留中文 fallback |
-| P3-2 | 单条 toast 漏本地化 | `screens/data_cleanup_screen.dart:443`「导入导出历史已清理」 | 新增 `importExportHistoryCleaned` 键 |
+| ~~P3-1~~ ✅ | 服务层策略/提示文案硬编码（初判约 50 处，复核后实际缺 6 处） | ~~`services/note_actions_service.dart`~~ | 已修：分享失败（`shareFailedDetail`）、未登录/服务器配置错误（`serverConfigMissing`）、AI 回退提示（`localReviewUsed`）、本地点评标题（`localReview`）、批注面板「完成」（复用 `done`）、「已标记为已解决」（`annotationMarkedResolved`）。其余可见性/分享权限/AI 点评/提醒/详细信息文案原本已带 l10n + 中文 fallback |
+| ~~P3-2~~ ✅ | 单条 toast 疑漏本地化（复核为误报） | ~~`screens/data_cleanup_screen.dart:443`~~ | 原文已使用 `historyCleanedSuccess` + 中文 fallback，无需改动 |
 | P3-3 | 页面自带内联双语 | `screens/account_deletion_screen.dart`（通篇 `_isZh ? … : …`） | 迁到 l10n：中英表现不变，但非中英语言不再一律退英文，同时消除双份文案维护 |
 | P3-4 | 英文残留抽样核查 | `utils/share_utils.dart`(48)、`widgets/note_editor.dart`(78)、`screens/home_screen.dart`(83)、`widgets/share_image_preview_screen.dart`(47) | 先区分 `debugPrint` 与 UI 文案，只改 UI 字符串 |
 | P3-5 | 相对时间接口未统一 | `utils/time_utils.dart#getRelativeTime` 仅回收站改走 l10n | 其余调用点迁到 `AppLocalizationsSimple.relativeTime`，迁完再删旧方法 |

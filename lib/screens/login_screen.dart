@@ -1006,14 +1006,18 @@ class _LoginScreenState extends State<LoginScreen>
                           primaryColor: primaryColor,
                           isDarkMode: isDarkMode,
                           validator: (value) {
+                            final l10n = AppLocalizationsSimple.of(context);
                             if (value == null || value.trim().isEmpty) {
-                              return '请填写用户名，不能为空';
+                              return l10n?.usernameRequired ??
+                                  '请填写用户名，不能为空';
                             }
                             if (value.trim().length < 2) {
-                              return '用户名太短了，至少需要 2 个字符';
+                              return l10n?.usernameTooShort ??
+                                  '用户名太短了，至少需要 2 个字符';
                             }
                             if (value.contains(' ')) {
-                              return '用户名里不能有空格，请去掉空格再试';
+                              return l10n?.usernameNoSpaces ??
+                                  '用户名里不能有空格，请去掉空格再试';
                             }
                             return null;
                           },
@@ -1050,11 +1054,12 @@ class _LoginScreenState extends State<LoginScreen>
                             },
                           ),
                           validator: (value) {
+                            final l10n = AppLocalizationsSimple.of(context);
                             if (value == null || value.isEmpty) {
-                              return '请填写密码，不能为空';
+                              return l10n?.passwordRequired ?? '请填写密码，不能为空';
                             }
                             if (value.length < 6) {
-                              return '密码太短了，至少需要 6 位';
+                              return l10n?.passwordTooShort ?? '密码太短了，至少需要 6 位';
                             }
                             return null;
                           },
@@ -1117,12 +1122,16 @@ class _LoginScreenState extends State<LoginScreen>
             keyboardType: TextInputType.url,
             onChanged: _onCustomServerUrlChanged,
             validator: (value) {
+              final l10n = AppLocalizationsSimple.of(context);
               if (value == null || value.trim().isEmpty) {
-                return '请填写服务器地址，例如：https://demo.memos.app';
+                return l10n?.serverUrlRequired ??
+                    '请填写服务器地址，例如：https://demo.memos.app';
               }
               if (!value.startsWith('http://') &&
                   !value.startsWith('https://')) {
-                return '地址格式不对，需要以 https:// 开头\n示例：https://demo.memos.app';
+                return l10n?.serverUrlInvalid ??
+                    '地址格式不对，需要以 https:// 开头\n'
+                        '示例：https://demo.memos.app';
               }
               return null;
             },
@@ -1500,9 +1509,10 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    '✅ 支持常见 Memos 版本，并按检测结果选择接口\n'
-                    '🔒 建议使用 HTTPS，登录凭证会保存在系统安全存储中\n'
-                    '📱 登录并同步成功后，可在多个设备查看笔记',
+                    AppLocalizationsSimple.of(context)?.loginServerTips ??
+                        '✅ 支持常见 Memos 版本，并按检测结果选择接口\n'
+                            '🔒 建议使用 HTTPS，登录凭证会保存在系统安全存储中\n'
+                            '📱 登录并同步成功后，可在多个设备查看笔记',
                     style: TextStyle(
                       fontSize: 12,
                       color: textSecondary,
@@ -1511,7 +1521,8 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '遇到问题？点右上角 ? 查看常见问题解答',
+                    AppLocalizationsSimple.of(context)?.loginHelpHint ??
+                        '遇到问题？点右上角 ? 查看常见问题解答',
                     style: TextStyle(
                       fontSize: 11,
                       color: textSecondary.withValues(alpha: 0.8),
@@ -1777,7 +1788,9 @@ class _LoginScreenState extends State<LoginScreen>
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '还有其他问题？',
+                          AppLocalizationsSimple.of(context)
+                                  ?.loginMoreQuestions ??
+                              '还有其他问题？',
                           style: TextStyle(
                             color: textSecondary,
                             fontSize: 14,
@@ -1797,9 +1810,11 @@ class _LoginScreenState extends State<LoginScreen>
                             vertical: 8,
                           ),
                         ),
-                        child: const Text(
-                          '查看帮助中心',
-                          style: TextStyle(
+                        child: Text(
+                          AppLocalizationsSimple.of(context)
+                                  ?.loginViewHelpCenter ??
+                              '查看帮助中心',
+                          style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),

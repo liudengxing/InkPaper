@@ -3027,6 +3027,38 @@ class AppLocalizationsSimple {
   String get noteComposerHint =>
       _t('noteComposerHint', fallback: '记点什么…');
 
+  // ===== 登录页校验与提示 =====
+  String get usernameRequired =>
+      _t('usernameRequired', fallback: '请填写用户名，不能为空');
+  String get usernameTooShort =>
+      _t('usernameTooShort', fallback: '用户名太短了，至少需要 2 个字符');
+  String get passwordRequired =>
+      _t('passwordRequired', fallback: '请填写密码，不能为空');
+  String get passwordTooShort =>
+      _t('passwordTooShort', fallback: '密码太短了，至少需要 6 位');
+  String get serverUrlRequired => _t(
+        'serverUrlRequired',
+        fallback: '请填写服务器地址，例如：https://demo.memos.app',
+      );
+  String get serverUrlInvalid => _t(
+        'serverUrlInvalid',
+        fallback: '地址格式不对，需要以 https:// 开头\n示例：https://demo.memos.app',
+      );
+  String get loginServerTips => _t(
+        'loginServerTips',
+        fallback: '✅ 支持常见 Memos 版本，并按检测结果选择接口\n'
+            '🔒 建议使用 HTTPS，登录凭证会保存在系统安全存储中\n'
+            '📱 登录并同步成功后，可在多个设备查看笔记',
+      );
+  String get loginHelpHint => _t(
+        'loginHelpHint',
+        fallback: '遇到问题？点右上角 ? 查看常见问题解答',
+      );
+  String get loginMoreQuestions =>
+      _t('loginMoreQuestions', fallback: '还有其他问题？');
+  String get loginViewHelpCenter =>
+      _t('loginViewHelpCenter', fallback: '查看帮助中心');
+
   // ===== 笔记操作服务提示 =====
   String shareFailedDetail(Object error) =>
       _t('shareFailedDetail', fallback: '分享失败: {error}')

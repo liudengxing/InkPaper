@@ -2958,6 +2958,46 @@ class Translations {
       'en': 'This is a sample note. It disappears after you create your first note.',
     },
     'noteComposerHint': {'zh': '记点什么…', 'en': 'Write something…'},
+    // ===== 登录页校验与提示 =====
+    'usernameRequired': {
+      'zh': '请填写用户名，不能为空',
+      'en': 'Please enter a username',
+    },
+    'usernameTooShort': {
+      'zh': '用户名太短了，至少需要 2 个字符',
+      'en': 'Username must be at least 2 characters',
+    },
+    'passwordRequired': {
+      'zh': '请填写密码，不能为空',
+      'en': 'Please enter a password',
+    },
+    'passwordTooShort': {
+      'zh': '密码太短了，至少需要 6 位',
+      'en': 'Password must be at least 6 characters',
+    },
+    'serverUrlRequired': {
+      'zh': '请填写服务器地址，例如：https://demo.memos.app',
+      'en': 'Please enter the server address, e.g. https://demo.memos.app',
+    },
+    'serverUrlInvalid': {
+      'zh': '地址格式不对，需要以 https:// 开头\n示例：https://demo.memos.app',
+      'en':
+          'Invalid address, it must start with https://\ne.g. https://demo.memos.app',
+    },
+    'loginServerTips': {
+      'zh': '✅ 支持常见 Memos 版本，并按检测结果选择接口\n'
+          '🔒 建议使用 HTTPS，登录凭证会保存在系统安全存储中\n'
+          '📱 登录并同步成功后，可在多个设备查看笔记',
+      'en': '✅ Works with common Memos versions, picking the API automatically\n'
+          '🔒 HTTPS is recommended; credentials are stored in secure storage\n'
+          '📱 After signing in and syncing, your notes are available on all devices',
+    },
+    'loginHelpHint': {
+      'zh': '遇到问题？点右上角 ? 查看常见问题解答',
+      'en': 'Having trouble? Tap ? in the top-right corner for FAQ',
+    },
+    'loginMoreQuestions': {'zh': '还有其他问题？', 'en': 'More questions?'},
+    'loginViewHelpCenter': {'zh': '查看帮助中心', 'en': 'Visit help center'},
     // ===== 笔记操作服务提示 =====
     'shareFailedDetail': {'zh': '分享失败: {error}', 'en': 'Share failed: {error}'},
     'serverConfigMissing': {

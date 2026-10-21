@@ -2939,6 +2939,25 @@ class Translations {
       'en':
           '{count} deleted note, restore or delete permanently (kept {days} days)',
     },
+    // ===== 首页欢迎笔记 =====
+    'welcomeNoteContent': {
+      'zh': '小纸是一款面向个人知识记录的跨平台笔记应用。'
+          '它可以本地优先使用，也可以连接官方服务器或自托管 Memos 服务进行同步。'
+          '应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、'
+          '导入导出、系统分享、小组件和可选 AI 辅助等能力。'
+          '（本条笔记在您正式使用后会自动删除）',
+      'en': 'InkPaper is a cross-platform note app for personal knowledge. '
+          'It works local-first, and can sync with the official server or '
+          'self-hosted Memos. It supports Memos-compatible Markdown, images, '
+          'tags, reminders, search, WebDAV backup, import/export, system share, '
+          'widgets, and optional AI assistance. '
+          '(This note disappears once you start using the app.)',
+    },
+    'welcomeNoteHint': {
+      'zh': '这是示例笔记，创建第一条笔记后会自动消失',
+      'en': 'This is a sample note. It disappears after you create your first note.',
+    },
+    'noteComposerHint': {'zh': '记点什么…', 'en': 'Write something…'},
     // ===== 相对时间 =====
     'relativeJustNow': {'zh': '刚刚', 'en': 'just now'},
     'relativeMinutesAgo': {'zh': '{count} 分钟前', 'en': '{count} min ago'},

@@ -90,8 +90,21 @@ class _HomeScreenState extends State<HomeScreen>
       '导入导出、系统分享、小组件和可选 AI 辅助等能力。'
       '（本条笔记在您正式使用后会自动删除）';
 
-  /// 欢迎笔记的展示用对象（id 不会落库）
-  late final Note _welcomeNote;
+  /// 欢迎笔记的首次构建时刻（文案随语言变化，时间保持不变）
+  late final DateTime _welcomeNoteTime;
+
+  /// 欢迎笔记的展示用对象（id 不会落库），文案随系统语言变化。
+  Note get _welcomeNote {
+    final content = AppLocalizationsSimple.of(context)?.welcomeNoteContent ??
+        _welcomeNoteContent;
+    return Note(
+      id: 'welcome_note_guide',
+      content: content,
+      createdAt: _welcomeNoteTime,
+      updatedAt: _welcomeNoteTime,
+      isSynced: true,
+    );
+  }
 
   // 🚀 分页加载相关
   final ScrollController _scrollController = ScrollController();
@@ -105,14 +118,7 @@ class _HomeScreenState extends State<HomeScreen>
     super.initState();
 
     // 📝 欢迎笔记：时间取首次构建时刻，列表为空时展示
-    final welcomeTime = DateTime.now();
-    _welcomeNote = Note(
-      id: 'welcome_note_guide',
-      content: _welcomeNoteContent,
-      createdAt: welcomeTime,
-      updatedAt: welcomeTime,
-      isSynced: true,
-    );
+    _welcomeNoteTime = DateTime.now();
 
     // 🚀 大厂做法：先渲染 UI，再异步初始化（不阻塞 UI）
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -927,11 +933,13 @@ class _HomeScreenState extends State<HomeScreen>
   /// 点击进入编辑器并预填内容，保存后它就是一条真实笔记，
   /// 列表不再为空，这条示例也就自然消失了。
   Widget _buildWelcomeNoteCard() {
+    final note = _welcomeNote;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: NoteCard(
-        note: _welcomeNote,
-        onEdit: () => _showAddNoteFormWithContent(_welcomeNoteContent),
+        note: note,
+        isExample: true,
+        onEdit: () => _showAddNoteFormWithContent(note.content),
         onDelete: _showWelcomeNoteHint,
         onPin: _showWelcomeNoteHint,
       ),
@@ -942,7 +950,8 @@ class _HomeScreenState extends State<HomeScreen>
   void _showWelcomeNoteHint() {
     SnackBarUtils.showSuccess(
       context,
-      '这是示例笔记，创建第一条笔记后会自动消失',
+      AppLocalizationsSimple.of(context)?.welcomeNoteHint ??
+          '这是示例笔记，创建第一条笔记后会自动消失',
     );
   }
 
@@ -1553,7 +1562,9 @@ class _HomeScreenState extends State<HomeScreen>
                               height: barHeight,
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                '记点什么…',
+                                AppLocalizationsSimple.of(context)
+                                        ?.noteComposerHint ??
+                                    '记点什么…',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(

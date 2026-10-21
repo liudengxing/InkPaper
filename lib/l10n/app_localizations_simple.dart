@@ -3011,6 +3011,22 @@ class AppLocalizationsSimple {
           .replaceAll('{count}', count.toString())
           .replaceAll('{days}', days.toString());
 
+  // ===== 首页欢迎笔记 =====
+  String get welcomeNoteContent => _t(
+        'welcomeNoteContent',
+        fallback: '小纸是一款面向个人知识记录的跨平台笔记应用。'
+            '它可以本地优先使用，也可以连接官方服务器或自托管 Memos 服务进行同步。'
+            '应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、'
+            '导入导出、系统分享、小组件和可选 AI 辅助等能力。'
+            '（本条笔记在您正式使用后会自动删除）',
+      );
+  String get welcomeNoteHint => _t(
+        'welcomeNoteHint',
+        fallback: '这是示例笔记，创建第一条笔记后会自动消失',
+      );
+  String get noteComposerHint =>
+      _t('noteComposerHint', fallback: '记点什么…');
+
   // ===== 相对时间 =====
   /// 相对时间文案（如「3 天前」），按当前语言输出。
   String relativeTime(DateTime dateTime) {

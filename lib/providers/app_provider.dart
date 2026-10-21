@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http; // 添加http包
 import 'package:inkpaper/config/app_config.dart' as Config;
 import 'package:inkpaper/core/state/auth_store.dart';
 import 'package:inkpaper/core/state/notes_store.dart';
+import 'package:inkpaper/core/state/notion_store.dart';
 import 'package:inkpaper/core/state/webdav_store.dart';
 import 'package:inkpaper/models/annotation_model.dart'; // ✅ 新增：批注模型
 import 'package:inkpaper/models/app_config_model.dart';
@@ -137,9 +138,12 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   set _hasPerformedStartupBackup(bool value) =>
       _webDavStore.hasPerformedStartupBackup = value;
 
-  // 🚀 Notion 同步相关
-  final NotionSyncService _notionSyncService = NotionSyncService();
-  bool _isNotionSyncing = false;
+  // 🚀 Notion 同步相关（字段已迁入 NotionStore，此处仅保留转发）
+  final NotionStore _notionStore = NotionStore();
+
+  NotionSyncService get _notionSyncService => _notionStore.syncService;
+  bool get _isNotionSyncing => _notionStore.isSyncing;
+  set _isNotionSyncing(bool value) => _notionStore.isSyncing = value;
 
   // 同步相关变量（同步 UI 状态已抽到 SyncStore，字段以 getter/setter 转发）
   Timer? _syncTimer;

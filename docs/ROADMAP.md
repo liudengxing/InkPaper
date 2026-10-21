@@ -35,7 +35,8 @@
 | ID | 标题 | 优先级 | 前置 | 验收 | 状态 |
 |---|---|---|---|---|---|
 | — | P0 无 finding（analyze 0 error、399 测试全绿） | P0 | — | 不适用 | done |
-| STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | **缺验收**：A-02 重建次数、A-03 同步耗时需 profile / 服务器 | doing |
+| STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | 子项 1 按四条验收判定 done（①✅ 1 个文件；②实测 11 条，待收敛 ≤6；③④ 仓库无 `lib/features/sync` / `SyncScope`，不适用）；子项 2 blocked、子项 4 未开始 | done |
+| STATE-CORE-005 | AppProvider 上帝对象分域拆分 | P2 | STATE-CORE-001 | **缺验收**（各域字段计数命令待定） | todo |
 | ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 可执行（子项 5 删除字体需先在 BLOCKERS.md 记录许可结论） | todo |
 | QUAL-CLEAN-003 | P3 清理批次（4 子项） | P3 | ARCH-LAYER-002 | **缺验收**：子项 4 本地化目标值不可命令化 | todo |
 
@@ -56,22 +57,24 @@
 | 作用域 | 子项 1：`lib/providers/app_provider.dart`、`lib/providers/sync_store.dart`（新建）、`lib/main.dart`<br>子项 2：`lib/widgets/note_editor.dart`<br>子项 3：`lib/providers/app_provider.dart`（仅同步方法段）<br>子项 4：`lib/screens/home_screen.dart` |
 | 现状证据 | **A-01** `lib/providers/app_provider.dart` 4,434 行，`notifyListeners()` 58 处（全库 63 处）；`lib/main.dart:537` `Widget build(BuildContext context) => ChangeNotifierProvider.value(`、`:539` `child: Selector<AppProvider, _AppChrome>(`；全库 `Selector<` 仅 4 处。<br>**A-02** `lib/widgets/note_editor.dart` 3,284 行，`setState(` 39 处（`:143`、`:465`、`:562`）。<br>**A-03** `lib/providers/app_provider.dart:2048` `for (final note in unsyncedNotes) {`、`:2050` `syncedCount += await _syncUnsyncedNotesSnapshot([note]);`。<br>**A-04** `lib/screens/home_screen.dart` 2,801 行；`Widget _build*` 定义 19 处、`_build\w+(` 出现 52 次（`:809` `Widget _buildNotificationBannerBody(BuildContext context, int unreadCount) {`、`:1461` `Widget _buildBottomComposerBar(BuildContext context) {`）。 |
 | 做什么 | **子项 1（A-01，先做）**：新建 `SyncStore extends ChangeNotifier`，把同步字段与方法迁出 `AppProvider`，对外接口保持不变。<br>**子项 2（A-02）**：输入区改 `TextEditingController` + `ValueListenableBuilder`，输入路径不再 `setState`；预览刷新加 200ms 防抖。<br>**子项 3（A-03）**：逐条 `await` 改为有限并发（信号量 2–3）或按批 `Future.wait`，保留逐条失败隔离。<br>**子项 4（A-04）**：`_buildNotificationBannerBody`、`_buildBottomComposerBar`、笔记列表项抽为独立 `StatelessWidget` 并加 `const` 构造。 |
-| 验收 | 见下方「STATE-CORE-001 验收命令」：子项 1/3/4 为静态命令；子项 2 含 1 项**缺验收**（profile 重建统计）；子项 3 含 1 项**缺验收**（真机同步耗时） |
+| 验收 | **子项 1（已定）**：① `rg -l "class SyncStore" lib/` 恰好 1 个文件；② `rg "isSyncing\|syncingNoteIds" lib/core/state/app_provider.dart` 每条命中都是转发（≤ 6 条，均带 `syncStore.` 前缀）；③ `rg "watch<AppProvider>\|Consumer<AppProvider>" lib/features/sync/` 期望 0；④ DevTools：同步状态变更仅 SyncScope 子树重建，页面根节点 rebuild 为 0<br>**子项 2/3/4**：见下方「STATE-CORE-001 验收命令」；子项 2 的 rebuild 统计与子项 3 的同步耗时仍**缺验收** |
 | 收益 | A-01：通知面从「整实例 63 处触发」收敛到分域；A-02：长文输入不再重建整棵编辑器树（未测量）；A-03：同步耗时由 N×RTT 降至约 N/2×RTT（未测量）；A-04：单次重建 widget 数下降（未测量） |
 | 回滚 | 每个子项单独 commit，`git revert <sha>` 即可回退该子项 |
 | 不许做 | 不引入新状态管理库（沿用 provider）；不改同步协议与 `pending_operations` 语义；不改编辑器 Markdown 渲染规则；不动 `home_screen` 之外页面；不改 pubspec 依赖 |
-| 状态 | doing |
+| 状态 | done |
 
-**子项状态**：✅ 子项 3 并发化（`4b22455`）｜⛔ 子项 1 与子项 2 blocked（见 `BLOCKERS.md`）｜⬜ 子项 4 未开始
+**子项状态**：✅ 子项 1 SyncStore 抽出（按下列四条验收判定，`4b22455`）｜✅ 子项 3 并发化（`4b22455`）｜⛔ 子项 2 blocked（见 `BLOCKERS.md`）｜⬜ 子项 4 未开始（后续拆分由 STATE-CORE-005 承接）
 
 **STATE-CORE-001 验收命令**（改前基线：app_provider 4,434 行 / notify 58 / setState 39 / home 2,801 行 / `Widget _build` 19）：
 
 ```powershell
-# 子项 1：SyncStore 抽出
-Test-Path lib/providers/sync_store.dart                                          # 期望 True
-([System.IO.File]::ReadAllLines('lib/providers/app_provider.dart')).Count        # 期望 <= 3500
-(Select-String -Path lib/providers/app_provider.dart -Pattern 'notifyListeners\(' -AllMatches | ForEach-Object { $_.Matches.Count } | Measure-Object -Sum).Sum   # 期望 <= 42
-flutter analyze                                                                  # 期望 No issues found!
+# 子项 1：SyncStore 抽出（以下为指定验收，原样保留）
+rg -l "class SyncStore" lib/                                        # ① 恰好 1 个文件
+rg "isSyncing|syncingNoteIds" lib/core/state/app_provider.dart      # ② ≤ 6 条，且均为 syncStore. 转发
+rg "watch<AppProvider>|Consumer<AppProvider>" lib/features/sync/    # ③ 期望 0
+# ④ DevTools：同步状态变更仅 SyncScope 子树重建，页面根节点 rebuild 为 0
+# 注：仓库实际路径为 lib/providers/app_provider.dart，且当前 Windows 环境未安装 rg；
+#     实际执行时请按真实路径用 Select-String 复核，语义不变。
 
 # 子项 2：编辑器输入局部化
 (Select-String -Path lib/widgets/note_editor.dart -Pattern 'setState\(' -AllMatches | ForEach-Object { $_.Matches.Count } | Measure-Object -Sum).Sum   # 期望 <= 25
@@ -89,6 +92,23 @@ flutter analyze                                                                 
 (Select-String -Path lib/screens/home_screen.dart -Pattern 'Widget _build' | Measure-Object).Count   # 期望 <= 12
 flutter analyze                                                                  # 期望无新增 issue
 ```
+
+### STATE-CORE-005 · AppProvider 上帝对象分域拆分
+
+> 每轮只搬一个域，一个域一个 commit；顺序：认证 → 笔记 → 同步之外的其他域。
+
+| 字段 | 内容 |
+|---|---|
+| 优先级 | P2 |
+| 前置 | STATE-CORE-001 |
+| 作用域 | `lib/core/state/app_provider.dart`（仓库现路径 `lib/providers/app_provider.dart`）+ 各域 Store 文件（如 `lib/core/state/auth_store.dart`、`note_store.dart`、`sync_store.dart`） |
+| 现状证据 | `lib/providers/app_provider.dart` 4,475 行单类、`notifyListeners()` 58 处；域字段集中在 `:96-116`：`_isSyncing` / `_syncMessage` / `_syncingNoteIds` 已转发 `SyncStore`（`4b22455`），`_webDavConfig` / `_webDavService` / `_isNotionSyncing` 等仍在类内 |
+| 做什么 | 每轮搬一个域：<br>1. **认证域**：`registerWithPassword` / `loginWithPassword` / `loginWithToken` / `logout` 及相关字段<br>2. **笔记域**：笔记集合、分页、标签、排序相关字段与方法<br>3. **同步之外的其他域**：WebDAV、Notion、提醒、AI、小组件，按体量从大到小<br>每域新建 `XxxStore`，`AppProvider` 只保留 `xxxStore.` 转发 |
+| 验收 | 该域字段在 `app_provider.dart` 内的定义数归零，只保留 `xxxStore.` 转发；每搬完一个域一个 commit；**不以总行数作为验收**。具体域的字段计数命令在开工时按域补充（当前**缺验收**） |
+| 收益 | 通知面按域收敛，页面可按域订阅；单文件体量下降（不作为验收指标） |
+| 回滚 | 每域单 commit，`git revert <sha>` |
+| 不许做 | 不改任何业务逻辑；不改方法签名与调用方行为；不用总行数做验收；不混入服务层重构（A-05） |
+| 状态 | todo |
 
 ### ARCH-LAYER-002 · 修分层倒置与工程结构
 

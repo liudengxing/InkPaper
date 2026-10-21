@@ -475,5 +475,23 @@ app.android-arm.symbols 5,629,632 B / app.android-arm64.symbols 6,507,864 B / ap
 - 未做：release APK 未装机验证（签名与现有 debug 安装不同，覆盖需先卸载会清空本机数据）；`android/key.properties` 现指向一次性测试密钥，**正式发布前必须替换为正式 keystore**
 - 无代码改动，无版本变更
 
+## 2026-10-21 · 真机复验发现并修复 2 个 UI 缺陷
+
+- 缺陷 1（首页欢迎卡片溢出）：设备 1200×2670 上首页出现 `BOTTOM OVERFLOWED BY 21 PIXELS`。根因：`home_screen.dart` 空列表分支把欢迎卡片塞进 `SizedBox(height: 屏高 - 240)`，卡片实际需要约 752pt、约束只有约 731pt。改法：固定高度只留给「搜索加载 / 搜索空态 / 普通空态」三个分支，欢迎卡片改为按内容自适应。
+  - 验证：重装 debug 包后首页截图无溢出条，卡片高度随内容收缩
+  - commit `3d8dba4`，版本 `1.0.40+10040` → `1.0.41+10041`
+- 缺陷 2（侧边栏拖动代理缺 Material）：补 `SB-04` widget 测试（`tester.timedDrag` 拖手柄）时暴露 `No Material widget found. ListTile widgets require a Material widget ancestor` —— `SliverReorderableList` 的拖动代理插在 Overlay，脱离 Scaffold 的 Material，debug 下拖动即抛异常中断。
+  - 修复：`SliverReorderableList.proxyDecorator` 包一层 `Material(color: transparent, elevation: 6)`；`SB-01..SB-04` 4 例全绿，拖动后「随机回顾」下移且 AppBar 亮出「保存」
+  - commit `46bc8c1`，版本 `1.0.39+10039` → `1.0.40+10040`
+- 仍未自动化验证：真机长按拖动排序。`input draganddrop`（手柄真实坐标 100,1607 → 100,1990，800ms）、`input swipe`（同起止 800ms）、`input motionevent` 逐事件序列三种注入方式均未触发重排（该 HyperOS 设备疑似过滤注入的拖拽事件）；重排逻辑本身已由 widget 测试覆盖，真机拖动仍需人工长按确认
+- 验收输出：
+```
+$ flutter analyze --no-pub
+No issues found! (ran in 11.1s)
+$ flutter test
+00:38 +416: All tests passed!
+```
+- 设备侧调试手段（本次踩坑记录）：`settings put secure accessibility_enabled 1` 让 Flutter 输出语义树以便取准确 bounds（用完还原 `0`）；`settings put system screen_off_timeout 1800000` + `svc power stayon true` 防息屏（黑屏截图仅 18,948 字节即息屏，此时 tap 全部无效）；`wm dismiss-keyguard` 解锁；手柄命中区只有 32×32dp，坐标偏差会落到菜单图标上导致拖动无响应
+
 - 前置 `ARCH-LAYER-002` 因 A-11 blocked，未达 done；按执行合约不得跳前置开工。4 个子项相互独立，A-11 决策落定后可直接执行。
 - 状态：blocked（详见 BLOCKERS.md）

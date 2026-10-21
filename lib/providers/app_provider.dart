@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http; // 添加http包
 import 'package:inkpaper/config/app_config.dart' as Config;
 import 'package:inkpaper/core/state/auth_store.dart';
 import 'package:inkpaper/core/state/notes_store.dart';
+import 'package:inkpaper/core/state/webdav_store.dart';
 import 'package:inkpaper/models/annotation_model.dart'; // ✅ 新增：批注模型
 import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/models/cloud_verification_models.dart';
@@ -119,12 +120,22 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   set _visibleNotesCache(List<Note>? value) =>
       _notesStore.visibleNotesCache = value;
 
-  // 🚀 WebDAV 同步相关
-  WebDavConfig _webDavConfig = const WebDavConfig();
-  WebDavService? _webDavService;
-  WebDavSyncEngine? _webDavSyncEngine;
-  Timer? _webDavBackupTimer; // WebDAV 定时备份计时器
-  bool _hasPerformedStartupBackup = false; // 是否已执行过启动备份
+  // 🚀 WebDAV 同步相关（字段已迁入 WebDavStore，此处仅保留转发）
+  final WebDavStore _webDavStore = WebDavStore();
+
+  WebDavConfig get _webDavConfig => _webDavStore.config;
+  set _webDavConfig(WebDavConfig value) => _webDavStore.config = value;
+  WebDavService? get _webDavService => _webDavStore.service;
+  set _webDavService(WebDavService? value) => _webDavStore.service = value;
+  WebDavSyncEngine? get _webDavSyncEngine => _webDavStore.syncEngine;
+  set _webDavSyncEngine(WebDavSyncEngine? value) =>
+      _webDavStore.syncEngine = value;
+  Timer? get _webDavBackupTimer => _webDavStore.backupTimer; // WebDAV 定时备份计时器
+  set _webDavBackupTimer(Timer? value) => _webDavStore.backupTimer = value;
+  bool get _hasPerformedStartupBackup =>
+      _webDavStore.hasPerformedStartupBackup; // 是否已执行过启动备份
+  set _hasPerformedStartupBackup(bool value) =>
+      _webDavStore.hasPerformedStartupBackup = value;
 
   // 🚀 Notion 同步相关
   final NotionSyncService _notionSyncService = NotionSyncService();

@@ -14,7 +14,6 @@ import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/screens/note_detail_screen.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
-import 'package:inkpaper/services/note_actions_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart'; // 🔥 添加长期缓存管理器
 import 'package:inkpaper/utils/memos_content_helper.dart';
@@ -25,6 +24,7 @@ import 'package:inkpaper/utils/text_style_helper.dart';
 import 'package:inkpaper/utils/todo_parser.dart';
 import 'package:inkpaper/widgets/annotations_sidebar.dart';
 import 'package:inkpaper/widgets/image_viewer_screen.dart';
+import 'package:inkpaper/widgets/note_actions_ui.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
 import 'package:inkpaper/widgets/note_preview_text.dart';
 import 'package:inkpaper/widgets/saveable_image.dart';
@@ -795,7 +795,7 @@ class _NoteCardState extends State<NoteCard>
                   } else {
                     // 没有提醒，打开设置
                     final result =
-                        await NoteActionsService.showReminderSettings(
+                        await NoteActionsUi.showReminderSettings(
                       context: stableContext,
                       note: widget.note,
                       onUpdated: () {
@@ -1481,7 +1481,7 @@ class _NoteCardState extends State<NoteCard>
 
   // 📝 显示引用关系侧边栏
   void _showReferencesSheet(Note note) {
-    NoteActionsService.showReferences(
+    NoteActionsUi.showReferences(
       context: context,
       note: note,
     );

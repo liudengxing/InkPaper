@@ -3,8 +3,8 @@ import 'package:inkpaper/config/app_config.dart' as Config;
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
-import 'package:inkpaper/services/note_actions_service.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/widgets/note_actions_ui.dart';
 import 'package:provider/provider.dart';
 
 /// 🎨 笔记更多选项菜单组件（Popup菜单版）
@@ -244,13 +244,13 @@ class NoteMoreOptionsMenu {
 
       switch (value) {
         case 'share':
-          await NoteActionsService.showShareOptions(
+          await NoteActionsUi.showShareOptions(
             context: context,
             note: currentNote,
           );
           break;
         case 'edit':
-          await NoteActionsService.editNote(
+          await NoteActionsUi.editNote(
             context: context,
             note: currentNote,
             onUpdated: () {
@@ -260,7 +260,7 @@ class NoteMoreOptionsMenu {
           );
           break;
         case 'annotations':
-          await NoteActionsService.showAnnotations(
+          await NoteActionsUi.showAnnotations(
             context: context,
             note: currentNote,
             onUpdated: () {
@@ -270,7 +270,7 @@ class NoteMoreOptionsMenu {
           );
           break;
         case 'pin':
-          await NoteActionsService.togglePin(
+          await NoteActionsUi.togglePin(
             context: context,
             note: currentNote,
             onUpdated: () {
@@ -280,13 +280,13 @@ class NoteMoreOptionsMenu {
           );
           break;
         case 'ai':
-          await NoteActionsService.showAiReview(
+          await NoteActionsUi.showAiReview(
             context: context,
             note: currentNote,
           );
           break;
         case 'link':
-          await NoteActionsService.copyShareLink(
+          await NoteActionsUi.copyShareLink(
             context: context,
             note: currentNote,
             onUpdated: () {
@@ -296,13 +296,13 @@ class NoteMoreOptionsMenu {
           );
           break;
         case 'reference':
-          await NoteActionsService.showReferences(
+          await NoteActionsUi.showReferences(
             context: context,
             note: currentNote,
           );
           break;
         case 'reminder':
-          final result = await NoteActionsService.showReminderSettings(
+          final result = await NoteActionsUi.showReminderSettings(
             context: context,
             note: currentNote,
             onUpdated: () {
@@ -320,7 +320,7 @@ class NoteMoreOptionsMenu {
           }
           break;
         case 'visibility':
-          await NoteActionsService.showVisibilitySelector(
+          await NoteActionsUi.showVisibilitySelector(
             context: context,
             note: currentNote,
             onUpdated: () {
@@ -340,7 +340,7 @@ class NoteMoreOptionsMenu {
           );
           break;
         case 'info':
-          await NoteActionsService.showNoteDetails(
+          await NoteActionsUi.showNoteDetails(
             context: context,
             note: currentNote,
           );
@@ -353,7 +353,7 @@ class NoteMoreOptionsMenu {
               override();
               break;
             }
-            await NoteActionsService.deleteNote(
+            await NoteActionsUi.deleteNote(
               context: context,
               note: currentNote,
               onDeleted: () {

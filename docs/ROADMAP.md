@@ -36,7 +36,7 @@
 |---|---|---|---|---|---|
 | — | P0 无 finding（analyze 0 error、399 测试全绿） | P0 | — | 不适用 | done |
 | STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | 子项 1 按四条验收判定 done（①✅ 1 个文件；②实测 11 条，待收敛 ≤6；③④ 仓库无 `lib/features/sync` / `SyncScope`，不适用）；子项 2 按 A 口径 done（输入路径 setState = 0）；子项 4 未开始（由 STATE-CORE-005 承接） | done |
-| STATE-CORE-005 | AppProvider 上帝对象分域拆分 | P2 | STATE-CORE-001 | 认证域可判定（字段定义数 0、转发 4）；笔记域及其余域**缺验收**（命令待补） | doing |
+| STATE-CORE-005 | AppProvider 上帝对象分域拆分 | P2 | STATE-CORE-001 | 认证域、笔记域可判定（字段定义数 0/0，转发 4/31）；WebDAV、Notion、提醒、AI、小组件**缺验收**（命令待补） | doing |
 | ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 可执行（子项 5 删除字体需先在 BLOCKERS.md 记录许可结论） | todo |
 | QUAL-CLEAN-003 | P3 清理批次（4 子项 + 交互态 setState 待评估） | P3 | ARCH-LAYER-002 | **缺验收**：子项 4 本地化目标值不可命令化 | todo |
 
@@ -106,15 +106,15 @@ flutter analyze                                                                 
 | 优先级 | P2 |
 | 前置 | STATE-CORE-001 |
 | 作用域 | `lib/core/state/app_provider.dart`（仓库现路径 `lib/providers/app_provider.dart`）+ 各域 Store 文件（如 `lib/core/state/auth_store.dart`、`note_store.dart`、`sync_store.dart`） |
-| 现状证据 | `lib/providers/app_provider.dart` 单类、`notifyListeners()` 58 处；域字段集中在 `:96-116`：`_isSyncing` / `_syncMessage` / `_syncingNoteIds` 已转发 `SyncStore`（`4b22455`）；**认证域已迁出**（`f25a829`）：`_user` / `_memosApiService` 在 `lib/core/state/auth_store.dart`，AppProvider 仅 4 处 `_authStore.` 转发；`_webDavConfig` / `_webDavService` / `_isNotionSyncing` 等仍在类内 |
+| 现状证据 | `lib/providers/app_provider.dart` 单类、`notifyListeners()` 58 处；`_isSyncing` / `_syncMessage` / `_syncingNoteIds` 已转发 `SyncStore`（`4b22455`）；**认证域已迁出**（`f25a829`）：`_user` / `_memosApiService` → `lib/core/state/auth_store.dart`，AppProvider 4 处 `_authStore.` 转发；**笔记域已迁出**（`2e8be5c`）：17 个字段（`_notes` / `_isLoading` / `_isInitialized` / `_pagingState` / `_loadMoreCompleter` / `_totalNotesCount` / `_lastLoadTime` / `_loadStopwatch` / `_sortOrder` / `_visibleNotesCache` / 删除队列与撤销 7 字段）→ `lib/core/state/notes_store.dart`，AppProvider 31 处 `_notesStore.` 转发；`_webDavConfig` / `_webDavService` / `_isNotionSyncing` 等仍在类内 |
 | 做什么 | 每轮搬一个域：<br>1. **认证域**：`registerWithPassword` / `loginWithPassword` / `loginWithToken` / `logout` 及相关字段<br>2. **笔记域**：笔记集合、分页、标签、排序相关字段与方法<br>3. **同步之外的其他域**：WebDAV、Notion、提醒、AI、小组件，按体量从大到小<br>每域新建 `XxxStore`，`AppProvider` 只保留 `xxxStore.` 转发 |
-| 验收 | 该域字段在 `app_provider.dart` 内的定义数归零，只保留 `xxxStore.` 转发；每搬完一个域一个 commit；**不以总行数作为验收**。<br>**认证域（已定，`f25a829`）**：`(Select-String -Path lib/providers/app_provider.dart -Pattern '^\s{2}User\?\s+_user;\|^\s{2}MemosApiServiceFixed\?\s+_memosApiService;' \| Measure-Object).Count` → 0；`_authStore.` 转发 ≥ 4；`class AuthStore` 唯一文件 = 1<br>**笔记域 / 其他域**：开工时按域补充字段计数命令 |
+| 验收 | 该域字段在 `app_provider.dart` 内的定义数归零，只保留 `xxxStore.` 转发；每搬完一个域一个 commit；**不以总行数作为验收**。<br>**认证域（已定，`f25a829`）**：`(Select-String -Path lib/providers/app_provider.dart -Pattern '^\s{2}User\?\s+_user;\|^\s{2}MemosApiServiceFixed\?\s+_memosApiService;' \| Measure-Object).Count` → 0；`_authStore.` 转发 ≥ 4；`class AuthStore` 唯一文件 = 1<br>**笔记域（已定，`2e8be5c`）**：`Select-String -Path lib/providers/app_provider.dart -Pattern '^\s{2}(?:final\s+)?[A-Za-z_][\w<>.,?\s]*?\s+(?<![A-Za-z0-9_.])(?:_notes\|_isLoading\|_isInitialized\|_pagingState\|_loadMoreCompleter\|_totalNotesCount\|_lastLoadTime\|_loadStopwatch\|_sortOrder\|_visibleNotesCache\|_deleteQueue\|_pendingDeleteIds\|_isProcessingDelete\|_deleteDebounceTimer\|_lastDeletedNote\|_lastDeletedIndex\|_pendingDeleteCommitTimer)\s*(?:=\|;)' \| Where-Object { $_.Line -notmatch '=>' } \| Measure-Object \| Select -Expand Count` → 0（旧版实测 17，可反向校验正则有效性）；`_notesStore.` 转发 ≥ 31；`class NotesStore` 唯一文件 = 1<br>**WebDAV / Notion / 提醒 / AI / 小组件**：开工时按域补充字段计数命令 |
 | 收益 | 通知面按域收敛，页面可按域订阅；单文件体量下降（不作为验收指标） |
 | 回滚 | 每域单 commit，`git revert <sha>` |
 | 不许做 | 不改任何业务逻辑；不改方法签名与调用方行为；不用总行数做验收；不混入服务层重构（A-05） |
 | 状态 | doing |
 
-**域进度**：✅ 认证域（`f25a829`，`_user` / `_memosApiService` → `AuthStore`，字段定义数 0、转发 4）｜⬜ 笔记域｜⬜ WebDAV｜⬜ Notion｜⬜ 提醒｜⬜ AI｜⬜ 小组件
+**域进度**：✅ 认证域（`f25a829`，`_user` / `_memosApiService` → `AuthStore`，字段定义数 0、转发 4）｜✅ 笔记域（`2e8be5c`，17 字段 → `NotesStore`，字段定义数 0、转发 31）｜⬜ WebDAV｜⬜ Notion｜⬜ 提醒｜⬜ AI｜⬜ 小组件
 
 ### ARCH-LAYER-002 · 修分层倒置与工程结构
 

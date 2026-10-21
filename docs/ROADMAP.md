@@ -3,12 +3,12 @@
 本文件记录代码优化中已落地的改动、待处理问题与验收标准，用于指导后续迭代。
 每条问题都标了代码位置（以符号名为准，行号可能随重构变化）。
 
-- 最后一次更新：2026-10-20
+- 最后一次更新：2026-10-21
 - 当前数据库 schema：**11**
 - 静态检查基线：`dart analyze lib tool test` 4 条既有 warning（`unawaited_return_in_try_block`）、0 error
 - 测试基线：`flutter test` **399** 项全通过
 - 代码规模：`lib/` 146 个 Dart 文件 / 88,287 行；`test/` 38 个文件
-- 当前版本：`1.0.8+10008`
+- 当前版本：`1.0.12+10012`
 
 ---
 
@@ -41,6 +41,9 @@
 | `252def0` | P0-2 提示保留 | 同步结束清状态时保留「已暂停重试」文案 |
 | `514312f` | P0-3 冲突统计 | `isMergeConflict` + Memos 上传回显比对 + WebDAV 三方判断，冲突条数落盘并在服务器信息页提示 |
 | `165cca6` | P0-4 备份语义 | `toJson` / `fromJson` 对称处理 `deletedAt`，明确备份不含回收站 |
+| `159e5e6` | P1-2 回收站文案 | 回收站页面全部文案接入 `AppLocalizationsSimple`；保留天数改读 `RecentlyDeletedScreen.retention.inDays`；新增 `relativeTime()` / `relativeTimeInParens()` 替代 `TimeUtils.getRelativeTime`（中文全角括号、英文半角）；数据清理页入口文案同步本地化 |
+| `b2540c4` | 首页文案本地化 | 示例欢迎笔记正文与提示、底部输入条占位文案（`welcomeNoteContent` / `welcomeNoteHint` / `noteComposerHint`）接入 l10n；`_welcomeNote` 改为 getter，时间戳独立保存在 `_welcomeNoteTime` |
+| `25955c0` | 示例笔记删除提示 | `NoteCard.isExample` + `NoteMoreOptionsMenu.onDeleteOverride`：示例笔记从「更多菜单 → 删除」只提示不落库，不再误报「笔记已删除」 |
 
 ### 1.1 已落地的设计约束（改动时不要破坏）
 
@@ -64,6 +67,8 @@
 - [ ] **主页滚动**：profile 模式下连续滚动 30 秒，无掉帧、无白块；长笔记（数千字）卡片展开/收起正常。
 - [ ] **卡片预览还原度**：粗体、斜体、行内代码、删除线、`<u>` 下划线、`☑/☐` 待办、引用块灰字都显示；待办点按能改回笔记。
 - [ ] **拆包产物**：`build android-release-split` 出的三个 APK 可分别安装（arm64 真机 + 模拟器），`build/symbols` 有产物。
+- [ ] **英文界面首屏**：示例笔记正文、底部输入条占位、更多菜单、回收站、数据清理页全部为英文（无中文残留）。
+- [ ] **示例笔记删除**：滑删与「更多菜单 → 删除」都只弹提示，不出现「笔记已删除」误报；冷启动后示例笔记仍在。
 
 ---
 
@@ -84,7 +89,7 @@
 | # | 问题 | 位置 | 建议方案 |
 | --- | --- | --- | --- |
 | ~~P1-1~~ ✅ | 删除/撤销删除后 `totalNotesCount` 不更新 | ~~`AppProvider._totalNotesCount` 仅在加载路径赋值~~ | 已在删除与撤销两处改为库操作后重新取 COUNT（`91eb1ab`）。回收站恢复走 `loadNotesFromLocal`，本来就会重算 |
-| P1-2 | 回收站页面文案硬编码中文 | `lib/screens/recently_deleted_screen.dart` | 并入 i18n 收敛（P2-1） |
+| ~~P1-2~~ ✅ | 回收站页面文案硬编码中文 | ~~`lib/screens/recently_deleted_screen.dart`~~ | 已修复（`159e5e6`）：全页文案走 `AppLocalizationsSimple`，保留天数动态取 `retention.inDays`，相对时间按语言输出 |
 | P1-3 | 回收站 GC 仅在进入页面时触发 | `_RecentlyDeletedScreenState._load` | 也可挂到启动幂等任务或数据清理页 |
 | P1-4 | 缺少删除链路的组件/集成测试 | `test/` 目前以 unit 为主 | 补「删除 → 回收站出现 → 恢复 → 列表中有」的 widget 测试 |
 | P1-5 | `AppProvider` 过大 | `providers/app_provider.dart` **3,781 行 / 约 104 方法 / 61 处 `notifyListeners`**，根级单 Provider 包住 `MaterialApp.router` | 按 `PrefsStore → SyncStore → AuthStore → NoteStore` 顺序拆分，最后换 `MultiProvider` + `Selector`。`PrefsStore` 风险最低，建议先做。根节点 `Selector` 已落地（只隔离了 MaterialApp 外壳），真正的重建根因见 **P-1** |
@@ -149,6 +154,23 @@
 
 ---
 
+## 五之二、P3：本地化收尾与遗留体验
+
+> 目标：**英文界面不出现中文**；同时收敛真机验证时暴露的体验瑕疵。回收站链路（`159e5e6` / `b2540c4` / `25955c0`）已收口。
+
+| # | 问题 | 位置 | 建议 |
+| --- | --- | --- | --- |
+| P3-1 | 策略弹层文案硬编码中文（约 50 处，收益最大） | `services/note_actions_service.dart`：笔记可见性对话框（「笔记可见性」「当前：{status}」「已设为私有/公开」）、分享权限确认（「分享权限确认」「任何拥有链接的人都可以查看该笔记的内容」）、AI 点评（「✨ AI点评完成！」「本地点评」「点评已复制」）、提醒（「提醒时间必须在未来」「请先开启通知权限才能设置提醒」「当前桌面系统暂不支持系统级定时提醒」）、详细信息（「字数」「创建时间」「最后编辑」「笔记状态」）、分享失败提示 | 按区块分批接入 `AppLocalizationsSimple`，保留中文 fallback |
+| P3-2 | 单条 toast 漏本地化 | `screens/data_cleanup_screen.dart:443`「导入导出历史已清理」 | 新增 `importExportHistoryCleaned` 键 |
+| P3-3 | 页面自带内联双语 | `screens/account_deletion_screen.dart`（通篇 `_isZh ? … : …`） | 迁到 l10n：中英表现不变，但非中英语言不再一律退英文，同时消除双份文案维护 |
+| P3-4 | 英文残留抽样核查 | `utils/share_utils.dart`(48)、`widgets/note_editor.dart`(78)、`screens/home_screen.dart`(83)、`widgets/share_image_preview_screen.dart`(47) | 先区分 `debugPrint` 与 UI 文案，只改 UI 字符串 |
+| P3-5 | 相对时间接口未统一 | `utils/time_utils.dart#getRelativeTime` 仅回收站改走 l10n | 其余调用点迁到 `AppLocalizationsSimple.relativeTime`，迁完再删旧方法 |
+| P3-6 | 静态检查 4 条 warning | `providers/app_provider.dart:2015`、`:3687`、`services/speech_service.dart:118`、`utils/image_utils.dart:278` | 补 `await` 或调整返回方式，清到 0 warning（P2-6 的前置条件） |
+| P3-7 | 回收站 GC 触发点单一 | 同 P1-3（`_RecentlyDeletedScreenState._load`） | 与 P1-3 一并处理；建议按天节流，避免每次进页都写库 |
+| P3-8 | 示例笔记多入口一致性 | 滑删 / 更多菜单 / 置顶（`NoteCard.isExample` 已覆盖前两者） | 回归三入口均只提示；新增卡片类型时不要绕过 `isExample` |
+
+---
+
 ## 六、待拍板的决策
 
 1. **备份是否包含回收站**：建议不包含（导出时跳过 `DELETED`），回收站属于本地临时态。
@@ -162,7 +184,7 @@
 ## 七、尚未验证的部分
 
 - 未运行 `dart tool/inkpaper.dart verify`（仅跑了 `dart analyze` 与 `flutter test`）。
-- 未在真机/模拟器验证 UI 链路（删除刷新、分页、回收站、下拉刷新）。
+- ~~未在真机/模拟器验证 UI 链路（删除刷新、分页、回收站、下拉刷新）~~ **部分已验（2026-10-21，真机 Android）**：删除 → 回收站出现 → 恢复 → 彻底删除 → 清空、空状态文案与 30 天保留期文案、中英双语切换均通过；分页与下拉刷新仍未验证。
 - **P0-1 只有代码修复，没有集成验证**：需要构造「设备 A 删除 → 设备 B 从回收站恢复 → 同步」的真实链路，确认重建后本地 id 收敛、引用关系不断裂、旧记录不残留。
 - **P0-1 + P0-5 的联合场景未验证**：设备 A 删除 → 设备 B（旧 id 有未上传改动）同步 → 上传 404 重建 → 再同步。要确认最终只剩一条、置顶/批注/引用都还在。`findDuplicateLocalCopies` 只有纯函数单测，没有跑过真实同步链路。
 - **P0-2 的暂停重试未验证**：需要构造一条必定失败的笔记（例如让服务端返回 413/422，或断网后重试），确认第 4 次同步被跳过、提示保留、编辑后重新入队。`pending_note_operations` 的新方法还没有 DB 层单测（sqflite 测试基础设施尚未搭）。

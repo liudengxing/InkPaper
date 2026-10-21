@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // 添加http包
 import 'package:inkpaper/config/app_config.dart' as Config;
+import 'package:inkpaper/core/state/auth_store.dart';
 import 'package:inkpaper/models/annotation_model.dart'; // ✅ 新增：批注模型
 import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/models/cloud_verification_models.dart';
@@ -57,7 +58,12 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
   }
 
-  User? _user;
+  // 认证域字段已迁入 AuthStore（STATE-CORE-005），此处仅保留转发
+  final AuthStore _authStore = AuthStore();
+
+  User? get _user => _authStore.user;
+  set _user(User? value) => _authStore.user = value;
+
   List<Note> _notes = [];
   bool _isLoading = false;
   bool _isInitialized = false;
@@ -87,7 +93,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   int _totalNotesCount = 0; // 数据库总笔记数
   DateTime? _lastLoadTime; // 上次加载时间
   final Stopwatch _loadStopwatch = Stopwatch(); // 性能计时器
-  MemosApiServiceFixed? _memosApiService; // 使用修复版API服务
+  MemosApiServiceFixed? get _memosApiService => _authStore.apiService;
+  set _memosApiService(MemosApiServiceFixed? value) =>
+      _authStore.apiService = value;
   MemosResourceService? _resourceService; // 图片上传服务
   final DatabaseService _databaseService = DatabaseService();
   final PreferencesService _preferencesService = PreferencesService();

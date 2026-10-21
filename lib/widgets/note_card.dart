@@ -925,7 +925,8 @@ class _NoteCardState extends State<NoteCard>
                         width: 44,
                         height: 44,
                         child: IconButton(
-                          tooltip: '更多',
+                          tooltip:
+                              AppLocalizationsSimple.of(context)?.more ?? '更多',
                           icon: Icon(
                             Icons.more_horiz,
                             color: isDarkMode

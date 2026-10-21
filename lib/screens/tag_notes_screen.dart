@@ -162,7 +162,7 @@ class _TagNotesScreenState extends State<TagNotesScreen> {
               _showAddNoteDialog(context);
             },
             backgroundColor: AppTheme.primaryColor,
-            tooltip: '创建笔记',
+            tooltip: AppLocalizationsSimple.of(context)?.createNote ?? '创建笔记',
             child: const Icon(
               Icons.add,
               color: Colors.white,

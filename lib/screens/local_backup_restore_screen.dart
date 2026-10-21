@@ -1437,12 +1437,17 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('输入备份密码'),
+          title: Text(
+            AppLocalizationsSimple.of(context)?.enterBackupPassword ?? '输入备份密码',
+          ),
           content: TextField(
             controller: controller,
             obscureText: true,
             autofocus: true,
-            decoration: const InputDecoration(labelText: '备份密码'),
+            decoration: InputDecoration(
+              labelText:
+                  AppLocalizationsSimple.of(context)?.backupPassword ?? '备份密码',
+            ),
           ),
           actions: [
             TextButton(
@@ -1483,8 +1488,10 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
             const SizedBox(height: 24),
             _buildImportOption(
               icon: Icons.file_copy,
-              title: '从本地文件导入',
-              subtitle: '选择设备上的备份文件',
+              title: AppLocalizationsSimple.of(context)?.importFromLocalFile ??
+                  '从本地文件导入',
+              subtitle: AppLocalizationsSimple.of(context)?.selectBackupFile ??
+                  '选择设备上的备份文件',
               onTap: () {
                 Navigator.pop(context);
                 _importFromLocalFile();
@@ -1493,8 +1500,10 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
             const Divider(),
             _buildImportOption(
               icon: Icons.cloud_sync,
-              title: '从云端同步',
-              subtitle: '与云端数据同步',
+              title:
+                  AppLocalizationsSimple.of(context)?.syncFromCloud ?? '从云端同步',
+              subtitle: AppLocalizationsSimple.of(context)?.syncWithCloudData ??
+                  '与云端数据同步',
               onTap: () {
                 Navigator.pop(context);
                 _syncFromCloud();

@@ -423,7 +423,8 @@ class AboutScreen extends StatelessWidget {
                   _buildContactItem(
                     context,
                     icon: Icons.code_outlined,
-                    label: '开源仓库',
+                    label: AppLocalizationsSimple.of(context)?.openSourceRepo ??
+                        '开源仓库',
                     value: AppConfig.githubRepo,
                     onTap: () => _launchURL(AppConfig.githubRepo),
                   ),

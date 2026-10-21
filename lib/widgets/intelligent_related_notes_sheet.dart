@@ -3,6 +3,7 @@ import 'dart:ui'; // 🪟 ImageFilter for glassmorphism
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/services/intelligent_related_notes_service.dart';
 import 'package:inkpaper/services/user_behavior_service.dart'; // 🧠 用户行为记录
 import 'package:inkpaper/themes/app_theme.dart';
@@ -355,7 +356,7 @@ class _IntelligentRelatedNotesSheetState
           children: [
             // "全部"选项
             _buildTypeChip(
-              label: '全部',
+              label: AppLocalizationsSimple.of(context)?.all ?? '全部',
               emoji: '📑',
               count: widget.result.allRelations.length,
               isSelected: _selectedType == null,

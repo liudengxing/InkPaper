@@ -255,7 +255,9 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
           controller: controller,
           decoration: InputDecoration(
             labelText: AppLocalizationsSimple.of(context)?.nickname ?? '昵称',
-            hintText: '请输入新的昵称',
+            hintText:
+                AppLocalizationsSimple.of(context)?.pleaseEnterNewNickname ??
+                    '请输入新的昵称',
           ),
           autofocus: true,
         ),

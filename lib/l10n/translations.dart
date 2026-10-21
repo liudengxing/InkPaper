@@ -1024,6 +1024,22 @@ class Translations {
       'zh': '控制小组件优先从多久以前的笔记里抽取',
       'en': 'How far back the widget picks notes from',
     },
+    'more': {'zh': '更多', 'en': 'More'},
+    'refreshBatch': {'zh': '换一批', 'en': 'Shuffle'},
+    'openSourceRepo': {'zh': '开源仓库', 'en': 'Source Repository'},
+    'connectServer': {'zh': '接入服务器', 'en': 'Connect Server'},
+    'enterBackupPassword': {'zh': '输入备份密码', 'en': 'Enter backup password'},
+    'backupPassword': {'zh': '备份密码', 'en': 'Backup password'},
+    'importFromLocalFile': {
+      'zh': '从本地文件导入',
+      'en': 'Import from local file',
+    },
+    'selectBackupFile': {
+      'zh': '选择设备上的备份文件',
+      'en': 'Pick a backup file on this device',
+    },
+    'syncFromCloud': {'zh': '从云端同步', 'en': 'Sync from cloud'},
+    'syncWithCloudData': {'zh': '与云端数据同步', 'en': 'Sync with cloud data'},
 
     // ===== 导入导出页面补充 =====
     'importDescription': {'zh': '导入说明', 'en': 'Import Description'},

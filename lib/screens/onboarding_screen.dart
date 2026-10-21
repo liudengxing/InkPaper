@@ -543,7 +543,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               Expanded(
                 child: _buildModernSecondaryButton(
                   icon: Icons.cloud_outlined,
-                  label: '接入服务器',
+                  label: AppLocalizationsSimple.of(context)?.connectServer ??
+                      '接入服务器',
                   onPressed: _navigateToLogin,
                   isDarkMode: isDarkMode,
                 ),
@@ -833,8 +834,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 child: TextButton.icon(
                   onPressed: _navigateToLogin,
                   icon: const Icon(Icons.cloud_outlined, size: 18),
-                  label: const Text(
-                    '接入服务器',
+                  label: Text(
+                    AppLocalizationsSimple.of(context)?.connectServer ??
+                        '接入服务器',
                     overflow: TextOverflow.ellipsis,
                   ),
                   style: TextButton.styleFrom(

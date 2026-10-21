@@ -899,7 +899,7 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
         actions: [
           // 🔀 换一批：重新随机抽样
           IconButton(
-            tooltip: '换一批',
+            tooltip: AppLocalizationsSimple.of(context)?.refreshBatch ?? '换一批',
             icon: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(

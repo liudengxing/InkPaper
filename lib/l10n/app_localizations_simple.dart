@@ -1047,6 +1047,18 @@ class AppLocalizationsSimple {
       _t('reviewWidgetRangeTitle', fallback: '随机回顾范围');
   String get reviewWidgetRangeSubtitle =>
       _t('reviewWidgetRangeSubtitle', fallback: '控制小组件优先从多久以前的笔记里抽取');
+  String get more => _t('more', fallback: '更多');
+  String get refreshBatch => _t('refreshBatch', fallback: '换一批');
+  String get openSourceRepo => _t('openSourceRepo', fallback: '开源仓库');
+  String get connectServer => _t('connectServer', fallback: '接入服务器');
+  String get enterBackupPassword =>
+      _t('enterBackupPassword', fallback: '输入备份密码');
+  String get backupPassword => _t('backupPassword', fallback: '备份密码');
+  String get importFromLocalFile =>
+      _t('importFromLocalFile', fallback: '从本地文件导入');
+  String get selectBackupFile => _t('selectBackupFile', fallback: '选择设备上的备份文件');
+  String get syncFromCloud => _t('syncFromCloud', fallback: '从云端同步');
+  String get syncWithCloudData => _t('syncWithCloudData', fallback: '与云端数据同步');
 
   // ===== 服务器信息页面 =====
   String get initializingServerConnection =>

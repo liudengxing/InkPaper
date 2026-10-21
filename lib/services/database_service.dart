@@ -9,6 +9,30 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+/// 解析备份 JSON 的 `notes` 数组（`ARCH-LAYER-002 / A-07`）。
+///
+/// 必须是顶层函数才能交给 `compute` 在后台 isolate 执行；只做解码与结构校验，
+/// 不构造 `Note`，保证跨 isolate 传输的都是 Map / List / 基本类型。
+///
+/// 结构非法时抛出 `Exception('Invalid backup file format')`，由调用方包装成
+/// 「导入JSON笔记失败」。
+List<Map<String, dynamic>> decodeBackupNotesJson(String rawJson) {
+  final data = jsonDecode(rawJson) as Map<String, dynamic>;
+  if (!data.containsKey('notes') || data['notes'] is! List) {
+    throw Exception('Invalid backup file format'); // 无效的备份文件格式
+  }
+
+  final notes = <Map<String, dynamic>>[];
+  for (final item in data['notes'] as List) {
+    if (item is Map<String, dynamic>) {
+      notes.add(item);
+    } else if (item is Map) {
+      notes.add(Map<String, dynamic>.from(item));
+    }
+  }
+  return notes;
+}
+
 class DatabaseService {
   factory DatabaseService() => _instance;
 
@@ -795,22 +819,16 @@ class DatabaseService {
     bool asNewNotes = true,
   }) async {
     try {
-      final Map<String, dynamic> data = jsonDecode(jsonData);
-      if (!data.containsKey('notes') || data['notes'] is! List) {
-        throw Exception('Invalid backup file format'); // 无效的备份文件格式
-      }
+      // 大备份文件动辄几十 MB，jsonDecode 放到后台 isolate，避免卡住 UI。
+      final jsonNotes = await compute(decodeBackupNotesJson, jsonData);
 
-      final List<dynamic> jsonNotes = data['notes'];
       final notes = <Note>[];
-
       for (final item in jsonNotes) {
-        if (item is Map<String, dynamic>) {
-          try {
-            final note = Note.fromJson(item);
-            notes.add(note);
-          } on Object catch (e) {
-            debugPrint('解析笔记失败: $e');
-          }
+        try {
+          final note = Note.fromJson(item);
+          notes.add(note);
+        } on Object catch (e) {
+          debugPrint('解析笔记失败: $e');
         }
       }
 

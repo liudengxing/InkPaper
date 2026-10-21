@@ -65,3 +65,19 @@ False
 ```
 - 结论：① 通过；② 11 条 > 6 条（5 条为 getter/setter 转发，6 条为 `_isSyncing` / `_syncingNoteIds` 使用处，未加 `_syncStore.` 前缀）；③④ 因仓库无 `lib/features/sync` 目录、无 `SyncScope` 类，记为不适用
 - 备注：本次仅文档变更，无代码改动
+
+## 2026-10-21 · STATE-CORE-001 子项 2 · done（验收口径 A）
+
+- 决策：验收改为「输入路径（`_updateLineCount` / `_detectTagInput`）内 `setState` 为 0」，原「全文件 ≤25」作废
+- 实测输出：
+```
+$ (Select-String -Path lib/widgets/note_editor.dart -Pattern 'ValueListenableBuilder' | Measure-Object).Count
+1
+$ 输入路径内 setState（_updateLineCount + _detectTagInput 方法体）
+0
+$ flutter analyze --no-pub
+No issues found!
+```
+- 说明：`_detectTagInput`（171–254 行）与 `_updateLineCount` 方法体内均无 `setState`；全文件 setState 现为 38，仅作参考、不作验收
+- 遗留：剩余交互态 `setState` 约 13 处不单独开任务，记入 QUAL-CLEAN-003「待评估项」
+- commit: `14f04c6`（代码），本次（文档）

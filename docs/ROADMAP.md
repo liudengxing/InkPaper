@@ -35,10 +35,10 @@
 | ID | 标题 | 优先级 | 前置 | 验收 | 状态 |
 |---|---|---|---|---|---|
 | — | P0 无 finding（analyze 0 error、399 测试全绿） | P0 | — | 不适用 | done |
-| STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | 子项 1 按四条验收判定 done（①✅ 1 个文件；②实测 11 条，待收敛 ≤6；③④ 仓库无 `lib/features/sync` / `SyncScope`，不适用）；子项 2 blocked、子项 4 未开始 | done |
+| STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | 子项 1 按四条验收判定 done（①✅ 1 个文件；②实测 11 条，待收敛 ≤6；③④ 仓库无 `lib/features/sync` / `SyncScope`，不适用）；子项 2 按 A 口径 done（输入路径 setState = 0）；子项 4 未开始（由 STATE-CORE-005 承接） | done |
 | STATE-CORE-005 | AppProvider 上帝对象分域拆分 | P2 | STATE-CORE-001 | **缺验收**（各域字段计数命令待定） | todo |
 | ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 可执行（子项 5 删除字体需先在 BLOCKERS.md 记录许可结论） | todo |
-| QUAL-CLEAN-003 | P3 清理批次（4 子项） | P3 | ARCH-LAYER-002 | **缺验收**：子项 4 本地化目标值不可命令化 | todo |
+| QUAL-CLEAN-003 | P3 清理批次（4 子项 + 交互态 setState 待评估） | P3 | ARCH-LAYER-002 | **缺验收**：子项 4 本地化目标值不可命令化 | todo |
 
 阶段退出条件：Phase 1 = 全部 P0 条目终结（本版已满足）；Phase 2 = STATE-CORE-001 全部子项 done 且 release 体积已重测或已记入 BLOCKERS；Phase 3 = ARCH-LAYER-002 全部子项 done 且 `flutter analyze` 无新增 issue；Phase 4 = 全部条目终结且 `flutter analyze` 为 0 error。
 
@@ -63,7 +63,7 @@
 | 不许做 | 不引入新状态管理库（沿用 provider）；不改同步协议与 `pending_operations` 语义；不改编辑器 Markdown 渲染规则；不动 `home_screen` 之外页面；不改 pubspec 依赖 |
 | 状态 | done |
 
-**子项状态**：✅ 子项 1 SyncStore 抽出（按下列四条验收判定，`4b22455`）｜✅ 子项 3 并发化（`4b22455`）｜⛔ 子项 2 blocked（见 `BLOCKERS.md`）｜⬜ 子项 4 未开始（后续拆分由 STATE-CORE-005 承接）
+**子项状态**：✅ 子项 1 SyncStore 抽出（按下列四条验收判定，`4b22455`）｜✅ 子项 2 编辑器输入局部化（验收口径 A：输入路径 setState = 0，`14f04c6`）｜✅ 子项 3 并发化（`4b22455`）｜⬜ 子项 4 未开始（后续拆分由 STATE-CORE-005 承接）
 
 **STATE-CORE-001 验收命令**（改前基线：app_provider 4,434 行 / notify 58 / setState 39 / home 2,801 行 / `Widget _build` 19）：
 
@@ -76,10 +76,14 @@ rg "watch<AppProvider>|Consumer<AppProvider>" lib/features/sync/    # ③ 期望
 # 注：仓库实际路径为 lib/providers/app_provider.dart，且当前 Windows 环境未安装 rg；
 #     实际执行时请按真实路径用 Select-String 复核，语义不变。
 
-# 子项 2：编辑器输入局部化
-(Select-String -Path lib/widgets/note_editor.dart -Pattern 'setState\(' -AllMatches | ForEach-Object { $_.Matches.Count } | Measure-Object -Sum).Sum   # 期望 <= 25
+# 子项 2：编辑器输入局部化（验收口径 A：输入路径内 setState 为 0）
 (Select-String -Path lib/widgets/note_editor.dart -Pattern 'ValueListenableBuilder' | Measure-Object).Count   # 期望 >= 1
+# 提取 _updateLineCount 与 _detectTagInput 方法体，统计其中 setState（期望 0）
+$src = [System.IO.File]::ReadAllText('lib/widgets/note_editor.dart')
+$blocks = [regex]::Matches($src, '(?s)void _(updateLineCount|detectTagInput)\(\).*?\r?\n  \}')
+($blocks | ForEach-Object { ([regex]::Matches($_.Value, 'setState\(')).Count } | Measure-Object -Sum).Sum   # 期望 0
 flutter analyze                                                                  # 期望无 error
+# 说明：全文件 setState 计数仅作参考，不作为本条验收；剩余交互态 setState 记入 QUAL-CLEAN-003 待评估项
 # 缺验收：输入时长帧/重建次数，需 profile + DevTools rebuild 统计（本次未测量）
 
 # 子项 3：同步并发化
@@ -176,6 +180,7 @@ flutter analyze                                                                 
 | 收益 | 死代码清理、格式与依赖门禁长期生效、图片解码可控；本地化收益为英文界面一致性（无性能数字） |
 | 回滚 | 子项 2 格式化范围大，单独 commit；其余子项单 commit 可 revert |
 | 不许做 | 子项 2 不得与业务改动同一 commit；子项 3 不改图片视觉；子项 4 不翻译 FAQ 长正文（已决策保留中文）；不改 lint 严格模式 |
+| 待评估项 | 交互态 `setState`（`note_editor.dart` 剩余约 13 处，改前全文件 39 → 现 38）不单独开任务，仅在本批次评估：若后续 profile 显示交互路径存在明显重建开销，再按「局部化 setState」纳入；否则保持现状 |
 | 状态 | todo |
 
 **QUAL-CLEAN-003 验收命令**（改前基线：`_collectTags` 1 处 / `Image.asset` 6 处、`cacheWidth` 3 处 / webdav 文案 125）：

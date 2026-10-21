@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // 添加http包
 import 'package:inkpaper/config/app_config.dart' as Config;
 import 'package:inkpaper/core/state/auth_store.dart';
+import 'package:inkpaper/core/state/cloud_verification_store.dart';
 import 'package:inkpaper/core/state/notes_store.dart';
 import 'package:inkpaper/core/state/notion_store.dart';
 import 'package:inkpaper/core/state/reminder_store.dart';
@@ -257,7 +258,6 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       _notesStore.pendingDeleteCommitTimer = value;
 
   // 通知相关属性（提醒/通知域字段已迁入 ReminderStore，此处仅保留转发）
-  final CloudVerificationService _cloudService = CloudVerificationService();
   final ReminderStore _reminderStore = ReminderStore();
 
   NotificationService get _notificationService =>
@@ -275,9 +275,16 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   set _unreadAnnouncementsCount(int value) =>
       _reminderStore.unreadAnnouncementsCount = value;
 
-  // 云验证相关
-  CloudAppConfigData? _cloudAppConfig;
-  DateTime? _lastCloudVerificationTime; // 🚀 上次加载云验证数据的时间
+  // 云验证相关（字段已迁入 CloudVerificationStore，此处仅保留转发）
+  final CloudVerificationStore _cloudStore = CloudVerificationStore();
+
+  CloudVerificationService get _cloudService => _cloudStore.service;
+  CloudAppConfigData? get _cloudAppConfig => _cloudStore.appConfig;
+  set _cloudAppConfig(CloudAppConfigData? value) => _cloudStore.appConfig = value;
+  // 🚀 上次加载云验证数据的时间
+  DateTime? get _lastCloudVerificationTime => _cloudStore.lastVerificationTime;
+  set _lastCloudVerificationTime(DateTime? value) =>
+      _cloudStore.lastVerificationTime = value;
   static const Duration _cloudVerificationCacheDuration =
       Duration(minutes: 5); // 🚀 缓存5分钟
 

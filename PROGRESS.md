@@ -444,5 +444,13 @@ $ flutter test
 - commit: `7ee4f9b`（页面测试）、`285bf06`（单测）、`94659bc` / `9915021`（BASELINE）
 - release 构建仍不可用：缺 `android/key.properties`，A-10 的体积对比维持「未测量」。
 
+## 2026-10-21 · 真机冒烟（Android 10+ 设备 `192.168.0.108:39911`）
+
+- 安装：`adb install -r app-debug.apk` → `Success`（175.7 MB debug 包）
+- 启动：`monkey -p com.didichou.inkpaper -c android.intent.category.LAUNCHER 1` → 进程存活（pid 22648），首页正常渲染（本地模式欢迎笔记可见，底栏输入框/侧边栏入口正常）
+- 崩溃检查：`adb logcat -d | Select-String 'FATAL EXCEPTION|E/flutter|ANR in com.didichou'` → **无命中**
+- 未完成：`/settings` → 「侧边栏自定义」页面的真机点击链路（该页无独立深链，盲点坐标误触到第三方 App；A-11 页面已由 `sidebar_customization_screen_test.dart` 覆盖渲染与交互，真机视觉仍需手动过一遍）
+- 无代码改动，无版本变更
+
 - 前置 `ARCH-LAYER-002` 因 A-11 blocked，未达 done；按执行合约不得跳前置开工。4 个子项相互独立，A-11 决策落定后可直接执行。
 - 状态：blocked（详见 BLOCKERS.md）

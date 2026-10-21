@@ -1056,16 +1056,8 @@ class _ServerInfoScreenState extends State<ServerInfoScreen> {
                                 ?.withValues(alpha: 0.6),
                           ),
                         ),
-                        /* 这里可以添加实际的日志显示逻辑
-                        ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _logs.length,
-                          itemBuilder: (context, index) {
-                            return Text(_logs[index]);
-                          },
-                        ),
-                        */
+                        /* 这里可以添加实际的日志显示逻辑（A-11：原嵌套 shrinkWrap 列表已移除，
+                           需要时用下方的「连接日志」容器，它已有 maxHeight 约束） */
                       ],
                     ),
                   ),
@@ -1167,7 +1159,6 @@ class _ServerInfoScreenState extends State<ServerInfoScreen> {
                           constraints: const BoxConstraints(maxHeight: 200),
                           child: ListView.builder(
                             itemCount: _logs.length,
-                            shrinkWrap: true,
                             itemBuilder: (context, index) {
                               final log = _logs[index];
                               return Padding(

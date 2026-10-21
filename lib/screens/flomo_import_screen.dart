@@ -701,61 +701,60 @@ class _FlomoImportScreenState extends State<FlomoImportScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _previewNotes.length > 5 ? 5 : _previewNotes.length,
-                separatorBuilder: (context, index) => const Divider(),
-                itemBuilder: (context, index) {
-                  final note = _previewNotes[index];
-                  final content = note['content'] as String;
-                  final tags = note['tags'] as List<String>;
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          content.length > 100
-                              ? '${content.substring(0, 100)}...'
-                              : content,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: textColor,
-                          ),
-                        ),
-                        if (tags.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            children: tags
-                                .map(
-                                  (tag) => Chip(
-                                    label: Text(
-                                      '#$tag',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                    backgroundColor: AppTheme.primaryColor
-                                        .withValues(alpha: 0.1),
-                                    padding: EdgeInsets.zero,
-                                    labelPadding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                          ),
-                        ],
-                      ],
-                    ),
-                  );
-                },
+              // 预览最多 5 条，直接排 Column（A-11：不再用嵌套 shrinkWrap 列表）
+              Column(
+                children: [
+                  for (final (index, note) in _previewNotes.take(5).indexed) ...[
+                    if (index > 0) const Divider(),
+                    _buildPreviewNoteItem(note, textColor),
+                  ],
+                ],
               ),
             ],
           ),
         ),
       );
+
+  Widget _buildPreviewNoteItem(Map<String, dynamic> note, Color textColor) {
+    final content = note['content'] as String;
+    final tags = note['tags'] as List<String>;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            content.length > 100 ? '${content.substring(0, 100)}...' : content,
+            style: TextStyle(
+              fontSize: 14,
+              color: textColor,
+            ),
+          ),
+          if (tags.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: tags
+                  .map(
+                    (tag) => Chip(
+                      label: Text(
+                        '#$tag',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      backgroundColor:
+                          AppTheme.primaryColor.withValues(alpha: 0.1),
+                      padding: EdgeInsets.zero,
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _buildImportButton(bool isDarkMode) => ElevatedButton(
         onPressed: _isImporting ? null : _startImport,
@@ -1802,8 +1801,9 @@ class _FlomoImportScreenState extends State<FlomoImportScreen> {
         ),
         content: SizedBox(
           width: double.maxFinite,
+          // A-11：给列表有限高度（内部滚动），不再用 shrinkWrap 全量测量
+          height: (skipped.length * 72.0).clamp(72.0, 320.0),
           child: ListView.separated(
-            shrinkWrap: true,
             itemCount: skipped.length,
             separatorBuilder: (context, index) => const Divider(),
             itemBuilder: (context, index) {
@@ -2001,10 +2001,9 @@ class _DuplicateConfirmDialogState extends State<_DuplicateConfirmDialog> {
 
           const Divider(height: 1),
 
-          // 重复笔记列表
+          // 重复笔记列表（Flexible 已提供有限高度，A-11 去掉 shrinkWrap）
           Flexible(
             child: ListView.separated(
-              shrinkWrap: true,
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: _duplicates.length,
               separatorBuilder: (context, index) =>

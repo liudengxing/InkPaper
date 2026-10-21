@@ -3076,7 +3076,6 @@ class _NoteReferenceDialogState extends State<_NoteReferenceDialog> {
                           ),
                           Expanded(
                             child: ListView.builder(
-                              shrinkWrap: true,
                               itemCount: _filteredNotes.length,
                               itemBuilder: (context, index) {
                                 final note = _filteredNotes[index];

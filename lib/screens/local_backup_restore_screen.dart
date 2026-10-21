@@ -682,55 +682,55 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
                   ),
                 )
               else
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _importHistory.length,
-                  itemBuilder: (context, index) {
-                    final history = _importHistory[index];
-                    final importDate =
-                        DateTime.parse(history['date'] as String);
-                    final formattedDate =
-                        DateFormat('yyyy-MM-dd HH:mm').format(importDate);
-                    final format = history['format'] as String? ??
-                        (AppLocalizationsSimple.of(context)?.unknown ?? '未知');
-
-                    IconData formatIcon;
-                    switch (format.toLowerCase()) {
-                      case 'json':
-                        formatIcon = Icons.data_object;
-                        break;
-                      case 'markdown':
-                        formatIcon = Icons.article;
-                        break;
-                      case 'txt':
-                        formatIcon = Icons.text_snippet;
-                        break;
-                      case 'html':
-                        formatIcon = Icons.code;
-                        break;
-                      default:
-                        formatIcon = Icons.insert_drive_file;
-                    }
-
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: CircleAvatar(
-                        backgroundColor:
-                            AppTheme.primaryColor.withValues(alpha: 0.1),
-                        child: Icon(formatIcon, color: AppTheme.primaryColor),
-                      ),
-                      title: Text(history['source'] as String),
-                      subtitle: Text(
-                        '$formattedDate · 导入 ${history['count']} 条笔记 · $format',
-                      ),
-                    );
-                  },
+                // A-11：最多展示 20 条历史，直接排 Column（不再用嵌套 shrinkWrap 列表）
+                Column(
+                  children: _importHistory
+                      .take(20)
+                      .map(_buildHistoryTile)
+                      .toList(),
                 ),
             ],
           ),
         ),
       );
+
+  // 单条导入历史（A-11：从 ListView.builder 的 itemBuilder 抽出，供 Column 复用）
+  Widget _buildHistoryTile(Map<String, dynamic> history) {
+    final importDate = DateTime.parse(history['date'] as String);
+    final formattedDate = DateFormat('yyyy-MM-dd HH:mm').format(importDate);
+    final format = history['format'] as String? ??
+        (AppLocalizationsSimple.of(context)?.unknown ?? '未知');
+
+    IconData formatIcon;
+    switch (format.toLowerCase()) {
+      case 'json':
+        formatIcon = Icons.data_object;
+        break;
+      case 'markdown':
+        formatIcon = Icons.article;
+        break;
+      case 'txt':
+        formatIcon = Icons.text_snippet;
+        break;
+      case 'html':
+        formatIcon = Icons.code;
+        break;
+      default:
+        formatIcon = Icons.insert_drive_file;
+    }
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
+        child: Icon(formatIcon, color: AppTheme.primaryColor),
+      ),
+      title: Text(history['source'] as String),
+      subtitle: Text(
+        '$formattedDate · 导入 ${history['count']} 条笔记 · $format',
+      ),
+    );
+  }
 
   // 导入按钮
   Widget _buildImportButton() => ElevatedButton(

@@ -354,45 +354,36 @@ class _HeatmapState extends State<Heatmap> {
         ),
         const SizedBox(height: 8),
 
-        // 热力图网格 - 使用固定尺寸
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 7,
-            crossAxisSpacing: spacing,
-            mainAxisSpacing: spacing,
-            mainAxisExtent: cellSize, // 固定格子高度
-          ),
-          itemCount: dates.length,
-          itemBuilder: (context, index) {
-            final date = dates[index];
-            final dateKey = _keyDateFormat.format(date);
-            final count = dailyCounts[dateKey] ?? 0;
-            final isDisplayMonth = date.month == _displayMonth.month &&
-                date.year == _displayMonth.year;
-
-            return Tooltip(
-              message:
-                  '${_getFullDateFormat(context).format(date)}: ${AppLocalizationsSimple.of(context)?.notesCountFormatted(count) ?? '$count 条笔记'}',
-              child: Center(
-                child: Container(
-                  width: cellSize,
-                  height: cellSize,
-                  decoration: BoxDecoration(
-                    color: isDisplayMonth
-                        ? _getHeatmapColor(count, maxCount, isDarkMode)
-                        : (widget.cellColor ??
-                                (isDarkMode
-                                    ? darkModeColors[0]
-                                    : lightModeColors[0]))
-                            .withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(3.5), // 圆角方块
-                  ),
-                ),
+        // 热力图网格 - 固定尺寸，按 7 列直接用 Row/Column 布局
+        // （A-11：不再用 GridView + shrinkWrap，避免嵌套滚动体全量测量）
+        Column(
+          children: [
+            for (var rowStart = 0; rowStart < dates.length; rowStart += 7)
+              Row(
+                children: [
+                  for (var i = rowStart;
+                      i < rowStart + 7 && i < dates.length;
+                      i++)
+                    Padding(
+                      padding: EdgeInsets.only(
+                        right: (i - rowStart) == 6 ? 0 : spacing,
+                        bottom: rowStart + 7 < dates.length ? spacing : 0,
+                      ),
+                      child: SizedBox(
+                        width: cellSize,
+                        height: cellSize,
+                        child: _buildHeatCell(
+                          context: context,
+                          date: dates[i],
+                          dailyCounts: dailyCounts,
+                          maxCount: maxCount,
+                          isDarkMode: isDarkMode,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            );
-          },
+          ],
         ),
 
         const SizedBox(height: 5),
@@ -529,6 +520,37 @@ class _HeatmapState extends State<Heatmap> {
     }
 
     return dates;
+  }
+
+  /// 单个热力格（A-11：从 GridView.builder 的 itemBuilder 抽出，供 Row/Column 复用）
+  Widget _buildHeatCell({
+    required BuildContext context,
+    required DateTime date,
+    required Map<String, int> dailyCounts,
+    required int maxCount,
+    required bool isDarkMode,
+  }) {
+    final dateKey = _keyDateFormat.format(date);
+    final count = dailyCounts[dateKey] ?? 0;
+    final isDisplayMonth =
+        date.month == _displayMonth.month && date.year == _displayMonth.year;
+
+    return Tooltip(
+      message:
+          '${_getFullDateFormat(context).format(date)}: ${AppLocalizationsSimple.of(context)?.notesCountFormatted(count) ?? '$count 条笔记'}',
+      child: Center(
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDisplayMonth
+                ? _getHeatmapColor(count, maxCount, isDarkMode)
+                : (widget.cellColor ??
+                        (isDarkMode ? darkModeColors[0] : lightModeColors[0]))
+                    .withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(3.5), // 圆角方块
+          ),
+        ),
+      ),
+    );
   }
 
   Color _getHeatmapColor(int count, int maxCount, bool isDarkMode) {

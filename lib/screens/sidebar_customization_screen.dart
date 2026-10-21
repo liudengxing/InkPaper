@@ -162,118 +162,134 @@ class _SidebarCustomizationScreenState
         ],
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          children: [
-            // 头部组件显示开关
-            _buildSection(
-              title: AppLocalizationsSimple.of(context)?.headerComponents ??
-                  '头部组件',
-              children: [
-                _buildSwitchTile(
-                  icon: Icons.account_circle_outlined,
-                  title:
-                      AppLocalizationsSimple.of(context)?.showProfileCenter ??
-                          '显示个人中心',
-                  subtitle:
-                      AppLocalizationsSimple.of(context)?.avatarUsernameLogin ??
-                          '头像、用户名和登录按钮',
-                  value: _showProfile,
-                  onChanged: (value) {
-                    // 🎯 验证：如果关闭个人中心，设置菜单必须显示
-                    if (!value && !_visibleIds.contains('settings')) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              const Icon(
-                                Icons.warning,
-                                color: Colors.white,
-                                size: 20,
+        child: CustomScrollView(
+          slivers: [
+            // 头部组件 + 其余设置项（A-11：页面主体改 sliver 结构，
+            // 菜单项排序列表用 SliverReorderableList，不再嵌套 shrinkWrap 列表）
+            SliverPadding(
+              padding: const EdgeInsets.only(top: 20, bottom: 32),
+              sliver: SliverList.list(
+                children: [
+                  // 头部组件显示开关
+                  _buildSection(
+                    title:
+                        AppLocalizationsSimple.of(context)?.headerComponents ??
+                            '头部组件',
+                    children: [
+                      _buildSwitchTile(
+                        icon: Icons.account_circle_outlined,
+                        title: AppLocalizationsSimple.of(context)
+                                ?.showProfileCenter ??
+                            '显示个人中心',
+                        subtitle: AppLocalizationsSimple.of(context)
+                                ?.avatarUsernameLogin ??
+                            '头像、用户名和登录按钮',
+                        value: _showProfile,
+                        onChanged: (value) {
+                          // 🎯 验证：如果关闭个人中心，设置菜单必须显示
+                          if (!value && !_visibleIds.contains('settings')) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.warning,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      AppLocalizationsSimple.of(context)
+                                              ?.profileOrSettingsRequired ??
+                                          '个人中心和设置至少保留一个',
+                                    ),
+                                  ],
+                                ),
+                                duration: const Duration(seconds: 2),
+                                behavior: SnackBarBehavior.floating,
+                                backgroundColor: Colors.orange,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                              const SizedBox(width: 12),
-                              Text(
-                                AppLocalizationsSimple.of(context)
-                                        ?.profileOrSettingsRequired ??
-                                    '个人中心和设置至少保留一个',
-                              ),
-                            ],
-                          ),
-                          duration: const Duration(seconds: 2),
-                          behavior: SnackBarBehavior.floating,
-                          backgroundColor: Colors.orange,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-                    setState(() {
-                      _showProfile = value;
-                      _hasChanges = true;
-                    });
-                  },
-                  isDarkMode: isDarkMode,
-                ),
-                const SizedBox(height: 12),
-                _buildSwitchTile(
-                  icon: Icons.calendar_today_rounded,
-                  title: AppLocalizationsSimple.of(context)?.showActivityLog ??
-                      '显示活动记录',
-                  subtitle: AppLocalizationsSimple.of(context)
-                          ?.showNoteCreationCalendar ??
-                      '展示笔记创建活动日历',
-                  value: _showHeatmap,
-                  onChanged: (value) {
-                    setState(() {
-                      _showHeatmap = value;
-                      _hasChanges = true;
-                    });
-                  },
-                  isDarkMode: isDarkMode,
-                ),
-              ],
+                            );
+                            return;
+                          }
+                          setState(() {
+                            _showProfile = value;
+                            _hasChanges = true;
+                          });
+                        },
+                        isDarkMode: isDarkMode,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildSwitchTile(
+                        icon: Icons.calendar_today_rounded,
+                        title: AppLocalizationsSimple.of(context)
+                                ?.showActivityLog ??
+                            '显示活动记录',
+                        subtitle: AppLocalizationsSimple.of(context)
+                                ?.showNoteCreationCalendar ??
+                            '展示笔记创建活动日历',
+                        value: _showHeatmap,
+                        onChanged: (value) {
+                          setState(() {
+                            _showHeatmap = value;
+                            _hasChanges = true;
+                          });
+                        },
+                        isDarkMode: isDarkMode,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-
-            const SizedBox(height: 32),
-
-            // 菜单项自定义
-            _buildSection(
-              title: AppLocalizationsSimple.of(context)?.menuItems ?? '菜单项',
-              subtitle:
-                  AppLocalizationsSimple.of(context)?.longPressDragToReorder ??
-                      '长按拖动可调整顺序',
-              children: [
-                _buildReorderableList(isDarkMode),
-              ],
-            ),
-
-            const SizedBox(height: 20),
-
-            // 提示信息
-            Padding(
+            // 菜单项自定义：标题 + sliver 版可排序列表
+            SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                AppLocalizationsSimple.of(context)?.allNotesIsDefaultHome ??
-                    '💡 "全部笔记"是默认首页，无法隐藏或移动',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[600],
-                  height: 1.4,
+              sliver: SliverToBoxAdapter(
+                child: _buildSectionHeader(
+                  title: AppLocalizationsSimple.of(context)?.menuItems ?? '菜单项',
+                  subtitle: AppLocalizationsSimple.of(context)
+                          ?.longPressDragToReorder ??
+                      '长按拖动可调整顺序',
                 ),
               ),
             ),
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            _buildReorderableSliver(isDarkMode),
+            SliverPadding(
+              padding: const EdgeInsets.only(top: 20),
+              sliver: SliverList.list(
+                children: [
+                  // 提示信息
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Text(
+                      AppLocalizationsSimple.of(context)
+                              ?.allNotesIsDefaultHome ??
+                          '💡 "全部笔记"是默认首页，无法隐藏或移动',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
 
-            const SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
-            // 恢复默认按钮
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _buildResetButton(isDarkMode),
+                  // 恢复默认按钮
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _buildResetButton(isDarkMode),
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
-
-            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -443,6 +459,36 @@ class _SidebarCustomizationScreenState
   }
 
   /// 构建分组
+  /// 分组标题（A-11：`_buildSection` 与 sliver 版菜单项分组共用）
+  Widget _buildSectionHeader({required String title, String? subtitle}) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey,
+                letterSpacing: 0.5,
+              ),
+            ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[500],
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+
   Widget _buildSection({
     required String title,
     required List<Widget> children,
@@ -451,33 +497,7 @@ class _SidebarCustomizationScreenState
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          _buildSectionHeader(title: title, subtitle: subtitle),
           const SizedBox(height: 12),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -534,37 +554,40 @@ class _SidebarCustomizationScreenState
         ),
       );
 
-  /// 构建可排序列表
-  Widget _buildReorderableList(bool isDarkMode) => ReorderableListView(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        buildDefaultDragHandles: false,
-        onReorderItem: (oldIndex, newIndex) {
-          setState(() {
-            final item = _items.removeAt(oldIndex);
-            _items.insert(newIndex, item);
-            _hasChanges = true;
-          });
-        },
-        children: _items.asMap().entries.map((entry) {
-          final index = entry.key;
-          final item = entry.value;
-          final isFirst = index == 0;
-          final isLast = index == _items.length - 1;
-          final isVisible = _visibleIds.contains(item.id);
-          final canHide = item.canHide;
-
-          return _buildMenuItem(
-            key: ValueKey(item.id),
-            item: item,
-            isFirst: isFirst,
-            isLast: isLast,
-            isVisible: isVisible,
-            canHide: canHide,
-            isDarkMode: isDarkMode,
-            index: index,
-          );
-        }).toList(),
+  /// 构建可排序列表（A-11：sliver 版，替掉嵌套 `ReorderableListView` + `shrinkWrap`）
+  Widget _buildReorderableSliver(bool isDarkMode) => DecoratedSliver(
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFF1C1C1E)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        sliver: SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverReorderableList(
+            itemCount: _items.length,
+            onReorderItem: (oldIndex, newIndex) {
+              setState(() {
+                final item = _items.removeAt(oldIndex);
+                _items.insert(newIndex, item);
+                _hasChanges = true;
+              });
+            },
+            itemBuilder: (context, index) {
+              final item = _items[index];
+              return _buildMenuItem(
+                key: ValueKey(item.id),
+                item: item,
+                isFirst: index == 0,
+                isLast: index == _items.length - 1,
+                isVisible: _visibleIds.contains(item.id),
+                canHide: item.canHide,
+                isDarkMode: isDarkMode,
+                index: index,
+              );
+            },
+          ),
+        ),
       );
 
   /// 构建菜单项

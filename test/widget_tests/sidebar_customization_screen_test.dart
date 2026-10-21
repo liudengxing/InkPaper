@@ -52,5 +52,27 @@ void main() {
       expect(find.byType(SidebarCustomizationScreen), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('SB-04 拖动手柄可重排菜单项并亮出「保存」', (tester) async {
+      await tester.pumpWidget(_wrap(const SidebarCustomizationScreen()));
+      await tester.pump();
+
+      final handle = find.byIcon(Icons.drag_handle_rounded).first;
+      final beforeY = tester.getTopLeft(find.text('随机回顾')).dy;
+
+      // ReorderableDragStartListener 按下即开始拖动，需跨过一行高度才会换位
+      await tester.timedDrag(
+        handle,
+        const Offset(0, 180),
+        const Duration(milliseconds: 600),
+      );
+      await tester.pumpAndSettle();
+
+      final afterY = tester.getTopLeft(find.text('随机回顾')).dy;
+      expect(afterY, greaterThan(beforeY));
+      // 顺序变化必须进入「有未保存改动」状态
+      expect(find.text('保存'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

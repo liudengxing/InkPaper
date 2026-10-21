@@ -566,6 +566,15 @@ class _SidebarCustomizationScreenState
           padding: const EdgeInsets.symmetric(horizontal: 16),
           sliver: SliverReorderableList(
             itemCount: _items.length,
+            // 拖动中的代理项被插入到 Overlay，脱离 Scaffold 的 Material 祖先，
+            // 项内 ListTile 会触发 "No Material widget found"；这里补一层 Material
+            proxyDecorator: (child, index, animation) => Material(
+              color: Colors.transparent,
+              elevation: 6,
+              shadowColor: Colors.black26,
+              borderRadius: BorderRadius.circular(12),
+              child: child,
+            ),
             onReorderItem: (oldIndex, newIndex) {
               setState(() {
                 final item = _items.removeAt(oldIndex);

@@ -429,8 +429,14 @@ void main() {
     });
 
     test('DB-23 标签中的 LIKE 通配符不会被当成模式', () async {
-      await _saveNote(db, _makeNote(id: 'pct', content: '含百分号标签', tags: const ['100%_test']));
-      await _saveNote(db, _makeNote(id: 'other', content: '普通标签', tags: const ['100xxtest']));
+      await _saveNote(
+        db,
+        _makeNote(id: 'pct', content: '含百分号标签', tags: const ['100%_test']),
+      );
+      await _saveNote(
+        db,
+        _makeNote(id: 'other', content: '普通标签', tags: const ['100xxtest']),
+      );
 
       final maps = await db.rawQuery(
         'SELECT * FROM notes WHERE ${DatabaseService.tagMatchWhereClause}',
@@ -497,8 +503,7 @@ void main() {
           .purgeDeletedNotesOlderThan(const Duration(days: 30), executor: db);
 
       expect(removed, 1);
-      final ids =
-          (await db.query('notes')).map((row) => row['id']).toList();
+      final ids = (await db.query('notes')).map((row) => row['id']).toList();
       expect(ids, containsAll(<String>['fresh', 'alive']));
       expect(ids, isNot(contains('old')));
     });
@@ -507,7 +512,8 @@ void main() {
       await _saveNote(db, _makeNote(id: 'keep', content: '正常'));
       await DatabaseService().purgeDeletedNote('keep', executor: db);
 
-      final rows = await db.query('notes', where: 'id = ?', whereArgs: ['keep']);
+      final rows =
+          await db.query('notes', where: 'id = ?', whereArgs: ['keep']);
       expect(rows, hasLength(1));
     });
   });

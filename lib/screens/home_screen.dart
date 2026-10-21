@@ -83,8 +83,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// 只在「本地一条笔记都没有」时作为列表唯一的一条展示，
   /// 不写入数据库：用户创建第一条真实笔记后它自然消失，
   /// 也不会被同步到 Memos / WebDAV，避免污染真实数据。
-  static const String _welcomeNoteContent =
-      '小纸是一款面向个人知识记录的跨平台笔记应用。'
+  static const String _welcomeNoteContent = '小纸是一款面向个人知识记录的跨平台笔记应用。'
       '它可以本地优先使用，也可以连接官方服务器或自托管 Memos 服务进行同步。'
       '应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、'
       '导入导出、系统分享、小组件和可选 AI 辅助等能力。'
@@ -833,7 +832,8 @@ class _HomeScreenState extends State<HomeScreen>
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: isDarkMode ? 0.3 : 0.05),
+                  color:
+                      Colors.black.withValues(alpha: isDarkMode ? 0.3 : 0.05),
                   offset: const Offset(0, 1),
                   blurRadius: 3,
                 ),
@@ -1287,8 +1287,8 @@ class _HomeScreenState extends State<HomeScreen>
                                   controller: _scrollController, // 🚀 添加滚动控制器
                                   physics:
                                       const AlwaysScrollableScrollPhysics(), // 🎯 确保下拉刷新可用
-                                  itemCount: notes.length +
-                                      3, // +1头部 +1加载指示器 +1底部间距
+                                  itemCount:
+                                      notes.length + 3, // +1头部 +1加载指示器 +1底部间距
                                   padding: EdgeInsets.zero,
                                   itemBuilder: (context, index) {
                                     // 第一个item是通知栏或搜索结果摘要
@@ -1577,8 +1577,7 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                         // 右：语音（先占位，点击复用编辑器的语音入口）
                         InkWell(
-                          onTap: () =>
-                              _showAddNoteForm(startWithSpeech: true),
+                          onTap: () => _showAddNoteForm(startWithSpeech: true),
                           borderRadius: radius,
                           splashColor: iconColor.withValues(alpha: 0.12),
                           highlightColor: iconColor.withValues(alpha: 0.06),

@@ -104,7 +104,10 @@ void main() {
       ),
     );
 
-    expect(await _indexes(db, 'notes'), isNot(contains('idx_notes_created_at')));
+    expect(
+      await _indexes(db, 'notes'),
+      isNot(contains('idx_notes_created_at')),
+    );
 
     await DatabaseService.upgradeSchema(db, oldVersion: 8, newVersion: 9);
 
@@ -148,7 +151,10 @@ void main() {
     );
 
     final cols = await _columns(db, 'notes');
-    expect(cols, containsAll(<String>['annotations', 'rowStatus', 'last_sync_time']));
+    expect(
+      cols,
+      containsAll(<String>['annotations', 'rowStatus', 'last_sync_time']),
+    );
     final indexes = await _indexes(db, 'notes');
     expect(indexes, contains('idx_notes_created_at'));
     expect(indexes, contains('idx_notes_is_synced'));

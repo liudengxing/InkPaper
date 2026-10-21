@@ -280,7 +280,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
   CloudVerificationService get _cloudService => _cloudStore.service;
   CloudAppConfigData? get _cloudAppConfig => _cloudStore.appConfig;
-  set _cloudAppConfig(CloudAppConfigData? value) => _cloudStore.appConfig = value;
+  set _cloudAppConfig(CloudAppConfigData? value) =>
+      _cloudStore.appConfig = value;
   // 🚀 上次加载云验证数据的时间
   DateTime? get _lastCloudVerificationTime => _cloudStore.lastVerificationTime;
   set _lastCloudVerificationTime(DateTime? value) =>
@@ -2120,10 +2121,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 有限并发：每批最多 3 条，兼顾吞吐与服务器压力；单条失败不影响同批其他笔记
       const maxConcurrency = 3;
       for (var i = 0; i < unsyncedNotes.length; i += maxConcurrency) {
-        final batch = unsyncedNotes
-            .skip(i)
-            .take(maxConcurrency)
-            .toList(growable: false);
+        final batch =
+            unsyncedNotes.skip(i).take(maxConcurrency).toList(growable: false);
         final results = await Future.wait(
           batch.map((note) async {
             try {
@@ -3181,10 +3180,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       var successCount = 0;
       const maxConcurrency = 3;
       for (var i = 0; i < unsyncedNotes.length; i += maxConcurrency) {
-        final batch = unsyncedNotes
-            .skip(i)
-            .take(maxConcurrency)
-            .toList(growable: false);
+        final batch =
+            unsyncedNotes.skip(i).take(maxConcurrency).toList(growable: false);
         final results = await Future.wait(
           batch.map((note) async {
             try {
@@ -3269,10 +3266,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 有限并发同步（每批 3 条），单条失败不影响同批其他笔记
       const maxConcurrency = 3;
       for (var i = 0; i < unsyncedNotes.length; i += maxConcurrency) {
-        final batch = unsyncedNotes
-            .skip(i)
-            .take(maxConcurrency)
-            .toList(growable: false);
+        final batch =
+            unsyncedNotes.skip(i).take(maxConcurrency).toList(growable: false);
         await Future.wait(
           batch.map((note) async {
             try {

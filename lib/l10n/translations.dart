@@ -371,7 +371,10 @@ class Translations {
       'zh': '退出当前账号并返回登录页',
       'en': 'Logout and return to login page',
     },
-    'welcomeToInkPaperShort': {'zh': '欢迎使用 InkPaper', 'en': 'Welcome to InkPaper'},
+    'welcomeToInkPaperShort': {
+      'zh': '欢迎使用 InkPaper',
+      'en': 'Welcome to InkPaper',
+    },
     'loginToUnlockFeatures': {
       'zh': '登录后解锁更多精彩功能',
       'en': 'Login to unlock more features',
@@ -1395,7 +1398,10 @@ class Translations {
       'en': 'Intelligently analyze and optimize your notes',
     },
     'expectedNextRelease': {'zh': '预计下个版本发布', 'en': 'Expected in next release'},
-    'connectInkPaperBot': {'zh': '连接 InkPaper_Bot', 'en': 'Connect InkPaper_Bot'},
+    'connectInkPaperBot': {
+      'zh': '连接 InkPaper_Bot',
+      'en': 'Connect InkPaper_Bot',
+    },
     'telegramBotDialogContent': {
       'zh':
           '在 Telegram 中搜索 @InkPaper_Bot，连接机器人后即可发送消息自动创建笔记。支持 Markdown 格式，实时同步到 InkPaper 应用。',
@@ -1792,7 +1798,8 @@ class Translations {
       'en': 'Notification Permission Required',
     },
     'permissionInstructions': {
-      'zh': '为了准时提醒您，InkPaper需要发送通知。请在iPhone设置中找到InkPaper，开启"允许通知"，并启用"时间敏感通知"。',
+      'zh':
+          '为了准时提醒您，InkPaper需要发送通知。请在iPhone设置中找到InkPaper，开启"允许通知"，并启用"时间敏感通知"。',
       'en':
           'To send you timely reminders, InkPaper needs notification permission. Please find InkPaper in iPhone Settings, enable "Allow Notifications" and turn on "Time Sensitive Notifications".',
     },
@@ -2955,7 +2962,8 @@ class Translations {
     },
     'welcomeNoteHint': {
       'zh': '这是示例笔记，创建第一条笔记后会自动消失',
-      'en': 'This is a sample note. It disappears after you create your first note.',
+      'en':
+          'This is a sample note. It disappears after you create your first note.',
     },
     'noteComposerHint': {'zh': '记点什么…', 'en': 'Write something…'},
     // ===== 登录页校验与提示 =====

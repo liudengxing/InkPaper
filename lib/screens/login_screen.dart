@@ -920,7 +920,6 @@ class _LoginScreenState extends State<LoginScreen>
                   letterSpacing: 0.1,
                 ),
               ),
-
             ],
           ),
         ),
@@ -1008,8 +1007,7 @@ class _LoginScreenState extends State<LoginScreen>
                           validator: (value) {
                             final l10n = AppLocalizationsSimple.of(context);
                             if (value == null || value.trim().isEmpty) {
-                              return l10n?.usernameRequired ??
-                                  '请填写用户名，不能为空';
+                              return l10n?.usernameRequired ?? '请填写用户名，不能为空';
                             }
                             if (value.trim().length < 2) {
                               return l10n?.usernameTooShort ??
@@ -1676,7 +1674,8 @@ class _LoginScreenState extends State<LoginScreen>
                           icon: Icons.dns_outlined,
                           iconColor: accentColor,
                           question: '服务器地址填什么？',
-                          answer: '请填写你的 Memos 服务器完整地址，格式如：\nhttps://你的域名.com\n\n'
+                          answer:
+                              '请填写你的 Memos 服务器完整地址，格式如：\nhttps://你的域名.com\n\n'
                               '如果服务器使用非标准端口，请一并写上，例如：\nhttps://你的域名.com:5230\n\n'
                               '不确定地址时，请联系你的服务器管理员获取。',
                           isDarkMode: isDarkMode,

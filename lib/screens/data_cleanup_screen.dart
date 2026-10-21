@@ -46,8 +46,7 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
     try {
       // 获取笔记数量
       final notesCount = await _databaseService.getNotesCount();
-      final deletedNotesCount =
-          await _databaseService.getDeletedNotesCount();
+      final deletedNotesCount = await _databaseService.getDeletedNotesCount();
 
       // 获取数据库大小
       final dbSize = await _databaseService.getDatabaseSize();
@@ -651,47 +650,47 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
               subtitle: _deletedNotesCount == 0
                   ? (l10n?.recentlyDeletedNoDeleted ?? '没有已删除的笔记')
                   : (l10n?.recentlyDeletedWithCount(
-                            _deletedNotesCount,
-                            retentionDays,
-                          ) ??
-                          '$_deletedNotesCount 条已删除笔记，可恢复或彻底删除'
-                              '（保留 $retentionDays 天）'),
+                        _deletedNotesCount,
+                        retentionDays,
+                      ) ??
+                      '$_deletedNotesCount 条已删除笔记，可恢复或彻底删除'
+                          '（保留 $retentionDays 天）'),
               iconColor: Colors.teal,
               onTap: _openRecentlyDeleted,
             ),
-              const Divider(),
-              _buildActionItem(
-                icon: Icons.delete_outline,
-                title: AppLocalizationsSimple.of(context)?.cleanCache ?? '清理缓存',
-                subtitle:
-                    AppLocalizationsSimple.of(context)?.cleanCacheDescription ??
-                        '删除临时文件和缓存，不会影响笔记数据',
-                iconColor: Colors.orange,
-                onTap: _clearCache,
-              ),
-              const Divider(),
-              _buildActionItem(
-                icon: Icons.image_not_supported_outlined,
-                title: AppLocalizationsSimple.of(context)?.cleanUnusedImages ??
-                    '清理未使用图片',
-                subtitle: AppLocalizationsSimple.of(context)
-                        ?.cleanUnusedImagesDescription ??
-                    '删除未被笔记引用的图片文件',
-                iconColor: Colors.blue,
-                onTap: _clearImages,
-              ),
-              const Divider(),
-              _buildActionItem(
-                icon: Icons.history,
-                title: AppLocalizationsSimple.of(context)
-                        ?.cleanImportExportHistory ??
-                    '清理导入导出历史',
-                subtitle: AppLocalizationsSimple.of(context)
-                        ?.deleteAllHistorySubtitle ??
-                    '删除所有导入导出的历史记录',
-                iconColor: Colors.purple,
-                onTap: _clearImportExportHistory,
-              ),
+            const Divider(),
+            _buildActionItem(
+              icon: Icons.delete_outline,
+              title: AppLocalizationsSimple.of(context)?.cleanCache ?? '清理缓存',
+              subtitle:
+                  AppLocalizationsSimple.of(context)?.cleanCacheDescription ??
+                      '删除临时文件和缓存，不会影响笔记数据',
+              iconColor: Colors.orange,
+              onTap: _clearCache,
+            ),
+            const Divider(),
+            _buildActionItem(
+              icon: Icons.image_not_supported_outlined,
+              title: AppLocalizationsSimple.of(context)?.cleanUnusedImages ??
+                  '清理未使用图片',
+              subtitle: AppLocalizationsSimple.of(context)
+                      ?.cleanUnusedImagesDescription ??
+                  '删除未被笔记引用的图片文件',
+              iconColor: Colors.blue,
+              onTap: _clearImages,
+            ),
+            const Divider(),
+            _buildActionItem(
+              icon: Icons.history,
+              title: AppLocalizationsSimple.of(context)
+                      ?.cleanImportExportHistory ??
+                  '清理导入导出历史',
+              subtitle: AppLocalizationsSimple.of(context)
+                      ?.deleteAllHistorySubtitle ??
+                  '删除所有导入导出的历史记录',
+              iconColor: Colors.purple,
+              onTap: _clearImportExportHistory,
+            ),
           ],
         ),
       ),

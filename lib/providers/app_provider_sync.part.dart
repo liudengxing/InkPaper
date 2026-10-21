@@ -68,14 +68,13 @@ extension AppProviderSyncPart on AppProvider {
         final localNote = localNotesById[serverNote.id];
 
         if (localNote != null) {
-          mergedNotes
-              .add(
-          _mergeServerNoteWithLocalState(
-            serverNote,
-            localNote,
-            keepLocalPendingChanges: true,
-          ),
-        );
+          mergedNotes.add(
+            _mergeServerNoteWithLocalState(
+              serverNote,
+              localNote,
+              keepLocalPendingChanges: true,
+            ),
+          );
         } else {
           mergedNotes.add(serverNote);
         }
@@ -107,8 +106,8 @@ extension AppProviderSyncPart on AppProvider {
           // 同内容、不同 id：多半是「远端被删后重建」在本机留下的旧副本。
           // 剪枝会跳过未同步行，如果只是跳过，库里会同时存在两条一样的笔记。
           // 把本地增强数据（置顶、批注、引用）并到服务端那条上，再删掉旧副本。
-          final index =
-              mergedNotes.indexWhere((merged) => merged.id == duplicateTarget.id);
+          final index = mergedNotes
+              .indexWhere((merged) => merged.id == duplicateTarget.id);
           if (index != -1) {
             mergedNotes[index] = _mergeServerNoteWithLocalState(
               duplicateTarget,

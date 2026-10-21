@@ -624,7 +624,11 @@ class MemosApiServiceFixed {
         return Note.fromJson(json.decode(resp.body) as Map<String, dynamic>);
       }
       if (resp.statusCode == 404) {
-        return _recreateMissingMemo(id, content: content, visibility: visibility);
+        return _recreateMissingMemo(
+          id,
+          content: content,
+          visibility: visibility,
+        );
       }
       throw Exception(
         '更新备忘录失败: ${resp.statusCode} – ${_parseError(resp.body)}',
@@ -643,7 +647,11 @@ class MemosApiServiceFixed {
         return Note.fromJson(json.decode(resp.body) as Map<String, dynamic>);
       }
       if (resp.statusCode == 404) {
-        return _recreateMissingMemo(id, content: content, visibility: visibility);
+        return _recreateMissingMemo(
+          id,
+          content: content,
+          visibility: visibility,
+        );
       }
       throw Exception('更新备忘录失败: ${resp.statusCode}');
     }

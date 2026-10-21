@@ -54,7 +54,11 @@ class NoteActionsUi {
             try {
               final appProvider =
                   Provider.of<AppProvider>(context, listen: false);
-              await NoteActionsService.updateContent(appProvider, note, content);
+              await NoteActionsService.updateContent(
+                appProvider,
+                note,
+                content,
+              );
               onUpdated();
               if (context.mounted) {
                 SnackBarUtils.showSuccess(
@@ -1503,10 +1507,10 @@ class NoteActionsUi {
                     updatedAt: DateTime.now(),
                   );
                   NoteActionsService.updateContent(
-                      appProvider,
-                      updatedNote,
-                      updatedNote.content,
-                    );
+                    appProvider,
+                    updatedNote,
+                    updatedNote.content,
+                  );
                   Navigator.pop(context);
                   SnackBarUtils.showSuccess(
                     context,
@@ -1557,10 +1561,10 @@ class NoteActionsUi {
                 updatedAt: DateTime.now(),
               );
               NoteActionsService.updateContent(
-                      appProvider,
-                      updatedNote,
-                      updatedNote.content,
-                    );
+                appProvider,
+                updatedNote,
+                updatedNote.content,
+              );
               Navigator.pop(context);
               SnackBarUtils.showSuccess(
                 context,
@@ -1598,14 +1602,13 @@ class NoteActionsUi {
       updatedAt: DateTime.now(),
     );
     NoteActionsService.updateContent(
-                      appProvider,
-                      updatedNote,
-                      updatedNote.content,
-                    );
+      appProvider,
+      updatedNote,
+      updatedNote.content,
+    );
     SnackBarUtils.showSuccess(
       context,
-      AppLocalizationsSimple.of(context)?.annotationMarkedResolved ??
-          '已标记为已解决',
+      AppLocalizationsSimple.of(context)?.annotationMarkedResolved ?? '已标记为已解决',
     );
     onUpdated();
   }

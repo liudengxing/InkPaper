@@ -704,7 +704,8 @@ class _FlomoImportScreenState extends State<FlomoImportScreen> {
               // 预览最多 5 条，直接排 Column（A-11：不再用嵌套 shrinkWrap 列表）
               Column(
                 children: [
-                  for (final (index, note) in _previewNotes.take(5).indexed) ...[
+                  for (final (index, note)
+                      in _previewNotes.take(5).indexed) ...[
                     if (index > 0) const Divider(),
                     _buildPreviewNoteItem(note, textColor),
                   ],

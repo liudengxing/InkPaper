@@ -794,8 +794,7 @@ class _NoteCardState extends State<NoteCard>
                     }
                   } else {
                     // 没有提醒，打开设置
-                    final result =
-                        await NoteActionsUi.showReminderSettings(
+                    final result = await NoteActionsUi.showReminderSettings(
                       context: stableContext,
                       note: widget.note,
                       onUpdated: () {

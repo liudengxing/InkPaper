@@ -99,9 +99,8 @@ class _NotePreviewTextState extends State<NotePreviewText> {
     return Text.rich(
       TextSpan(children: spans),
       maxLines: widget.maxLines,
-      overflow: widget.maxLines == null
-          ? TextOverflow.clip
-          : TextOverflow.ellipsis,
+      overflow:
+          widget.maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis,
       softWrap: true,
       style: widget.style,
     );

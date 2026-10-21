@@ -183,8 +183,7 @@ class Note {
           _parseTimestamp(json['reminderTime'] ?? json['reminder_time']),
       lastSyncTime:
           _parseTimestamp(json['lastSyncTime'] ?? json['last_sync_time']),
-      deletedAt:
-          _parseTimestamp(json['deletedAt'] ?? json['deleted_at']),
+      deletedAt: _parseTimestamp(json['deletedAt'] ?? json['deleted_at']),
     );
   }
   final String id;

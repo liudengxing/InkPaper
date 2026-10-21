@@ -2988,13 +2988,10 @@ class AppLocalizationsSimple {
   String get restoreAction => _t('restoreAction', fallback: '恢复');
   String get restoreFailedRetry =>
       _t('restoreFailedRetry', fallback: '恢复失败，请重试');
-  String get deleteFailedRetry =>
-      _t('deleteFailedRetry', fallback: '删除失败，请重试');
+  String get deleteFailedRetry => _t('deleteFailedRetry', fallback: '删除失败，请重试');
   String deletedAtLabel(String time) =>
-      _t('deletedAtLabel', fallback: '删除于 {time}')
-          .replaceAll('{time}', time);
-  String get deletedAtUnknown =>
-      _t('deletedAtUnknown', fallback: '删除时间未知');
+      _t('deletedAtLabel', fallback: '删除于 {time}').replaceAll('{time}', time);
+  String get deletedAtUnknown => _t('deletedAtUnknown', fallback: '删除时间未知');
   String noteCharCount(int count) =>
       _t('noteCharCount', fallback: '共 {count} 字')
           .replaceAll('{count}', count.toString());
@@ -3003,9 +3000,7 @@ class AppLocalizationsSimple {
   String get recentlyDeletedNoDeleted =>
       _t('recentlyDeletedNoDeleted', fallback: '没有已删除的笔记');
   String recentlyDeletedWithCount(int count, int days) => _t(
-        count == 1
-            ? 'recentlyDeletedWithCountOne'
-            : 'recentlyDeletedWithCount',
+        count == 1 ? 'recentlyDeletedWithCountOne' : 'recentlyDeletedWithCount',
         fallback: '{count} 条已删除笔记，可恢复或彻底删除（保留 {days} 天）',
       )
           .replaceAll('{count}', count.toString())
@@ -3024,16 +3019,14 @@ class AppLocalizationsSimple {
         'welcomeNoteHint',
         fallback: '这是示例笔记，创建第一条笔记后会自动消失',
       );
-  String get noteComposerHint =>
-      _t('noteComposerHint', fallback: '记点什么…');
+  String get noteComposerHint => _t('noteComposerHint', fallback: '记点什么…');
 
   // ===== 登录页校验与提示 =====
   String get usernameRequired =>
       _t('usernameRequired', fallback: '请填写用户名，不能为空');
   String get usernameTooShort =>
       _t('usernameTooShort', fallback: '用户名太短了，至少需要 2 个字符');
-  String get passwordRequired =>
-      _t('passwordRequired', fallback: '请填写密码，不能为空');
+  String get passwordRequired => _t('passwordRequired', fallback: '请填写密码，不能为空');
   String get passwordTooShort =>
       _t('passwordTooShort', fallback: '密码太短了，至少需要 6 位');
   String get serverUrlRequired => _t(

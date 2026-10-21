@@ -684,10 +684,8 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
               else
                 // A-11：最多展示 20 条历史，直接排 Column（不再用嵌套 shrinkWrap 列表）
                 Column(
-                  children: _importHistory
-                      .take(20)
-                      .map(_buildHistoryTile)
-                      .toList(),
+                  children:
+                      _importHistory.take(20).map(_buildHistoryTile).toList(),
                 ),
             ],
           ),

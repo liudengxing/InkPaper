@@ -37,6 +37,8 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
       - run: dart tool/inkpaper.dart store-check
+      - name: 格式门禁（dart format）
+        run: dart format --output=none --set-exit-if-changed lib test tool
       - run: dart tool/inkpaper.dart verify --coverage
       - name: Upload coverage
         uses: actions/upload-artifact@v4

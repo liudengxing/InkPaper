@@ -11,6 +11,7 @@ import 'package:inkpaper/core/state/notes_store.dart';
 import 'package:inkpaper/core/state/notion_store.dart';
 import 'package:inkpaper/core/state/reminder_store.dart';
 import 'package:inkpaper/core/state/webdav_store.dart';
+import 'package:inkpaper/core/state/widget_store.dart';
 import 'package:inkpaper/models/annotation_model.dart'; // ✅ 新增：批注模型
 import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/models/cloud_verification_models.dart';
@@ -150,7 +151,12 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   Timer? _syncTimer;
   final SyncStore _syncStore = SyncStore();
   Future<void>? _syncNotesInFlight;
-  int _widgetSnapshotUpdateId = 0;
+
+  // 小组件域字段已迁入 WidgetStore，此处仅保留转发
+  final WidgetStore _widgetStore = WidgetStore();
+  int get _widgetSnapshotUpdateId => _widgetStore.snapshotUpdateId;
+  set _widgetSnapshotUpdateId(int value) =>
+      _widgetStore.snapshotUpdateId = value;
 
   bool get _isSyncing => _syncStore.isSyncing;
   set _isSyncing(bool value) => _syncStore.isSyncing = value;

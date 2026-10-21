@@ -81,3 +81,60 @@ No issues found!
 - 说明：`_detectTagInput`（171–254 行）与 `_updateLineCount` 方法体内均无 `setState`；全文件 setState 现为 38，仅作参考、不作验收
 - 遗留：剩余交互态 `setState` 约 13 处不单独开任务，记入 QUAL-CLEAN-003「待评估项」
 - commit: `14f04c6`（代码），本次（文档）
+
+## 2026-10-21 · STATE-CORE-005 · WebDAV 域 · done
+
+- 作用域：`lib/providers/app_provider.dart`、`lib/core/state/webdav_store.dart`（新建）
+- 迁移字段（5）：`_webDavConfig` / `_webDavService` / `_webDavSyncEngine` / `_webDavBackupTimer` / `_hasPerformedStartupBackup` → `WebDavStore`（`config` / `service` / `syncEngine` / `backupTimer` / `hasPerformedStartupBackup`）
+- 实测输出：
+```
+$ 字段定义数（旧版基线反向校验 / 新版）
+webdav decl 旧=5 新=0
+$ _webDavStore. 转发数
+10
+$ flutter analyze lib/core/state/webdav_store.dart lib/providers/app_provider.dart
+No issues found! (ran in 3.3s)
+$ flutter test test/unit
+00:15 +328: All tests passed!
+```
+- 版本：`1.0.18+10018` → `1.0.19+10019`
+- commit: `a5ee318`（代码），本次（文档）
+
+## 2026-10-21 · STATE-CORE-005 · Notion 域 · done
+
+- 作用域：`lib/providers/app_provider.dart`、`lib/core/state/notion_store.dart`（新建）
+- 迁移字段（2）：`_notionSyncService` / `_isNotionSyncing` → `NotionStore`（`syncService` / `isSyncing`）
+- 实测输出：
+```
+$ 字段定义数（旧版基线反向校验 / 新版）
+notion decl 旧=2 新=0
+$ _notionStore. 转发数
+3
+$ flutter analyze lib/core/state/notion_store.dart lib/providers/app_provider.dart
+No issues found! (ran in 2.0s)
+$ flutter test test/unit
+00:14 +328: All tests passed!
+```
+- 版本：`1.0.19+10019` → `1.0.20+10020`
+- commit: `57cb3db`（代码），本次（文档）
+
+## 2026-10-21 · STATE-CORE-005 · 提醒/通知域 · done
+
+- 作用域：`lib/providers/app_provider.dart`、`lib/core/state/reminder_store.dart`（新建）
+- 迁移字段（4）：`_reminderNotificationService` / `_notificationService` / `_notificationServiceInitialized` / `_unreadAnnouncementsCount` → `ReminderStore`（`reminderService` / `appNotificationService` / `appNotificationInitialized` / `unreadAnnouncementsCount`）
+- 实测输出：
+```
+$ 字段定义数（旧版基线反向校验 / 新版）
+reminder decl 旧=4 新=0
+$ _reminderStore. 转发数
+6
+$ flutter analyze lib/core/state/reminder_store.dart lib/providers/app_provider.dart
+No issues found! (ran in 1.8s)
+$ flutter analyze（全项目）
+No issues found! (ran in 7.7s)
+$ flutter test test/unit
+00:15 +328: All tests passed!
+```
+- 版本：`1.0.20+10020` → `1.0.21+10021`
+- commit: `1d5ae86`（代码），本次（文档）
+- 遗留：AI 域在 `AppProvider` 内无独立字段（仅方法），小组件仅 `_widgetSnapshotUpdateId`；下一轮需先判定这两域是否值得单独建 Store，或并入通用基建字段后终结 STATE-CORE-005

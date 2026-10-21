@@ -131,9 +131,9 @@ flutter analyze                                                                 
 | 收益 | A-05：服务层可脱离 `BuildContext` 单测；A-06：减少重复 TLS 握手（未测量）；A-07：大备份导入不再阻塞 UI isolate（未测量）；A-08：依赖树缩小（未测量）；A-09：仓库减 3.94 MB；A-10：符号不随包（未测量）；A-11：嵌套列表首帧不再全量布局（未测量） |
 | 回滚 | 子项 2/3/6/7 单 commit revert；子项 4/5 涉及删除，回退需 `git revert` + `flutter pub get` |
 | 不许做 | 不改同步协议、DB schema、备份 JSON 格式；不动 `assets/images/`；不引入新网络库；除任务列出的依赖外不增删任何包 |
-| 状态 | blocked |
+| 状态 | done |
 
-**子项进度**：✅ A-05（`7c62862`，UI import 7 → 0；UI 编排移至 `lib/widgets/note_actions_ui.dart`，服务层仅留数据层 5 个方法）｜✅ A-06（`63e1b7d`，`http.Client()` 2 → 1，新增 `close()`）｜✅ A-07（`a2f1436`，`jsonDecode(jsonData)` → `compute`，插入本就在单事务内）｜✅ A-08（`02bb3b5`，删 7 个无引用依赖；`xml` 仍由 `webdav_client` / `flutter_native_splash` 传递引入）｜✅ A-09（`7c0039f`，删 5 字体 3.94 MB，许可结论已记 BLOCKERS）｜✅ A-10（`a9dbe45`，`--obfuscate` + symbols）｜⛔ A-11（`e4b3b7d`，8/9 处已消除；剩 `sidebar_customization_screen.dart:539` 需页面级 sliver 重构，见 BLOCKERS）
+**子项进度**：✅ A-05（`7c62862`，UI import 7 → 0；UI 编排移至 `lib/widgets/note_actions_ui.dart`，服务层仅留数据层 5 个方法）｜✅ A-06（`63e1b7d`，`http.Client()` 2 → 1，新增 `close()`）｜✅ A-07（`a2f1436`，`jsonDecode(jsonData)` → `compute`，插入本就在单事务内）｜✅ A-08（`02bb3b5`，删 7 个无引用依赖；`xml` 仍由 `webdav_client` / `flutter_native_splash` 传递引入）｜✅ A-09（`7c0039f`，删 5 字体 3.94 MB，许可结论已记 BLOCKERS）｜✅ A-10（`a9dbe45`，`--obfuscate` + symbols）｜✅ A-11（`e4b3b7d` 清 8 处 + `84bc599` 设置页改 `CustomScrollView` / `SliverReorderableList`，全库 `shrinkWrap: true` 9 → 0）
 
 **ARCH-LAYER-002 验收命令**（改前基线：UI import 7 / `http.Client()` 2 / `jsonDecode(jsonData)` 1 / 无 import 依赖 7 / 字体 5 个 3.94 MB / `shrinkWrap` 9）：
 

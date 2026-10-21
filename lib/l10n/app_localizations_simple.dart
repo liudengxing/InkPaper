@@ -1028,6 +1028,26 @@ class AppLocalizationsSimple {
       );
   String get rememberedPassword => _t('rememberedPassword', fallback: '想起密码了？');
 
+  // ===== P3 清理批次：补全直写中文的 UI 文案 =====
+  String get addTag => _t('addTag', fallback: '添加标签');
+  String get tagNameHint => _t('tagNameHint', fallback: '输入标签名称...');
+  String get expandOptions => _t('expandOptions', fallback: '展开选项');
+  String get notionTokenHint =>
+      _t('notionTokenHint', fallback: '输入 Notion Integration Token');
+  String get aiInsight => _t('aiInsight', fallback: 'AI洞察');
+  String get tagInputExampleHint =>
+      _t('tagInputExampleHint', fallback: '例如：工作、学习、思考...');
+  String get zoomIn => _t('zoomIn', fallback: '放大');
+  String get zoomOut => _t('zoomOut', fallback: '缩小');
+  String get reviewWidgetRefreshTitle =>
+      _t('reviewWidgetRefreshTitle', fallback: '随机回顾刷新');
+  String get reviewWidgetRefreshSubtitle =>
+      _t('reviewWidgetRefreshSubtitle', fallback: '控制随机回顾小组件多久换一条内容');
+  String get reviewWidgetRangeTitle =>
+      _t('reviewWidgetRangeTitle', fallback: '随机回顾范围');
+  String get reviewWidgetRangeSubtitle =>
+      _t('reviewWidgetRangeSubtitle', fallback: '控制小组件优先从多久以前的笔记里抽取');
+
   // ===== 服务器信息页面 =====
   String get initializingServerConnection =>
       _t('initializingServerConnection', fallback: '初始化服务器连接页面...');

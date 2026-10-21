@@ -788,7 +788,7 @@ class _KnowledgeGraphScreenCustomState
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            tooltip: '放大',
+            tooltip: AppLocalizationsSimple.of(context)?.zoomIn ?? '放大',
             visualDensity: VisualDensity.compact,
             icon: Icon(Icons.add_rounded, color: iconColor),
             onPressed: () => _zoomGraph(1.22),
@@ -801,7 +801,7 @@ class _KnowledgeGraphScreenCustomState
             ),
           ),
           IconButton(
-            tooltip: '缩小',
+            tooltip: AppLocalizationsSimple.of(context)?.zoomOut ?? '缩小',
             visualDensity: VisualDensity.compact,
             icon: Icon(Icons.remove_rounded, color: iconColor),
             onPressed: () => _zoomGraph(1 / 1.22),

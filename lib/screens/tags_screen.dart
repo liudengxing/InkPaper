@@ -551,7 +551,9 @@ class _TagsScreenState extends State<TagsScreen>
                         controller: _searchController,
                         autofocus: true,
                         decoration: InputDecoration(
-                          hintText: '搜索标签',
+                          hintText:
+                              AppLocalizationsSimple.of(context)?.searchTags ??
+                                  '搜索标签',
                           hintStyle: TextStyle(
                             color: isDarkMode
                                 ? const Color(0xFF8E8E93)
@@ -740,7 +742,8 @@ class _TagsScreenState extends State<TagsScreen>
                 color: iconColor,
               ),
             ),
-            tooltip: '展开选项',
+            tooltip:
+                AppLocalizationsSimple.of(context)?.expandOptions ?? '展开选项',
             onSelected: (value) {
               setState(() {
                 _expandAll = value == 'expand';

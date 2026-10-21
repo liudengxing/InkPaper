@@ -996,6 +996,35 @@ class Translations {
     },
     'rememberedPassword': {'zh': '想起密码了？', 'en': 'Remembered it?'},
 
+    // ===== P3 清理批次：补全直写中文的 UI 文案 =====
+    'addTag': {'zh': '添加标签', 'en': 'Add tag'},
+    'tagNameHint': {'zh': '输入标签名称...', 'en': 'Enter tag name...'},
+    'expandOptions': {'zh': '展开选项', 'en': 'More options'},
+    'notionTokenHint': {
+      'zh': '输入 Notion Integration Token',
+      'en': 'Enter Notion Integration Token',
+    },
+    'aiInsight': {'zh': 'AI洞察', 'en': 'AI Insight'},
+    'tagInputExampleHint': {
+      'zh': '例如：工作、学习、思考...',
+      'en': 'e.g. Work, Study, Ideas...',
+    },
+    'zoomIn': {'zh': '放大', 'en': 'Zoom in'},
+    'zoomOut': {'zh': '缩小', 'en': 'Zoom out'},
+    'reviewWidgetRefreshTitle': {
+      'zh': '随机回顾刷新',
+      'en': 'Random Review Refresh',
+    },
+    'reviewWidgetRefreshSubtitle': {
+      'zh': '控制随机回顾小组件多久换一条内容',
+      'en': 'How often the random review widget shows a new note',
+    },
+    'reviewWidgetRangeTitle': {'zh': '随机回顾范围', 'en': 'Random Review Range'},
+    'reviewWidgetRangeSubtitle': {
+      'zh': '控制小组件优先从多久以前的笔记里抽取',
+      'en': 'How far back the widget picks notes from',
+    },
+
     // ===== 导入导出页面补充 =====
     'importDescription': {'zh': '导入说明', 'en': 'Import Description'},
     'supportedFormatsDescription': {

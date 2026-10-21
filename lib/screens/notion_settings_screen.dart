@@ -414,7 +414,8 @@ class _NotionSettingsScreenState extends State<NotionSettingsScreen> {
               secondaryTextColor,
               iconColor,
             ),
-            tooltip: '常见问题',
+            tooltip:
+                AppLocalizationsSimple.of(context)?.commonQuestions ?? '常见问题',
           ),
           TextButton(
             onPressed: _saveSettings,
@@ -531,7 +532,9 @@ class _NotionSettingsScreenState extends State<NotionSettingsScreen> {
                     obscureText: true,
                     style: TextStyle(color: textColor),
                     decoration: InputDecoration(
-                      hintText: '输入 Notion Integration Token',
+                      hintText:
+                          AppLocalizationsSimple.of(context)?.notionTokenHint ??
+                              '输入 Notion Integration Token',
                       hintStyle: TextStyle(
                         color: secondaryTextColor.withValues(alpha: 0.5),
                       ),

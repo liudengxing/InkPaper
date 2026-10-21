@@ -1172,7 +1172,7 @@ class _HomeScreenState extends State<HomeScreen>
                   color: AppTheme.primaryColor,
                 ),
               ),
-              tooltip: 'AI洞察',
+              tooltip: AppLocalizationsSimple.of(context)?.aiInsight ?? 'AI洞察',
               onPressed: _showAiInsightDialog,
             ),
             SizedBox(
@@ -1981,7 +1981,9 @@ class _AiInsightScreenState extends State<_AiInsightScreen> {
                     controller: _keywordController,
                     style: TextStyle(color: textColor),
                     decoration: InputDecoration(
-                      hintText: '例如：工作、学习、思考...',
+                      hintText: AppLocalizationsSimple.of(context)
+                              ?.tagInputExampleHint ??
+                          '例如：工作、学习、思考...',
                       hintStyle:
                           TextStyle(color: subTextColor.withValues(alpha: 0.5)),
                       prefixIcon: const Icon(

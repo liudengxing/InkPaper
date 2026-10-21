@@ -569,7 +569,10 @@ class _WeReadImportScreenState extends State<WeReadImportScreen> {
                                     controller: _tagController,
                                     style: TextStyle(color: textColor),
                                     decoration: InputDecoration(
-                                      hintText: '输入标签名称...',
+                                      hintText:
+                                          AppLocalizationsSimple.of(context)
+                                                  ?.tagNameHint ??
+                                              '输入标签名称...',
                                       hintStyle: TextStyle(
                                         color: secondaryTextColor.withValues(
                                           alpha: 0.5,
@@ -621,7 +624,9 @@ class _WeReadImportScreenState extends State<WeReadImportScreen> {
                                     color: iconColor,
                                     size: 32,
                                   ),
-                                  tooltip: '添加标签',
+                                  tooltip: AppLocalizationsSimple.of(context)
+                                          ?.addTag ??
+                                      '添加标签',
                                 ),
                               ],
                             ),

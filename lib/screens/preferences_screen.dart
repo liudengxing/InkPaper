@@ -164,8 +164,11 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
     return _buildChoiceSetting(
       context,
       icon: Icons.schedule_rounded,
-      title: '随机回顾刷新',
-      subtitle: '控制随机回顾小组件多久换一条内容',
+      title: AppLocalizationsSimple.of(context)?.reviewWidgetRefreshTitle ??
+          '随机回顾刷新',
+      subtitle:
+          AppLocalizationsSimple.of(context)?.reviewWidgetRefreshSubtitle ??
+              '控制随机回顾小组件多久换一条内容',
       options: options,
       selectedValue: appConfig.widgetReviewRefreshIntervalMinutes,
       labelBuilder: (value) => value < 60 ? '$value分钟' : '${value ~/ 60}小时',
@@ -185,8 +188,10 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
     return _buildChoiceSetting(
       context,
       icon: Icons.history_rounded,
-      title: '随机回顾范围',
-      subtitle: '控制小组件优先从多久以前的笔记里抽取',
+      title: AppLocalizationsSimple.of(context)?.reviewWidgetRangeTitle ??
+          '随机回顾范围',
+      subtitle: AppLocalizationsSimple.of(context)?.reviewWidgetRangeSubtitle ??
+          '控制小组件优先从多久以前的笔记里抽取',
       options: options,
       selectedValue: appConfig.widgetReviewRangeDays,
       labelBuilder: (value) => switch (value) {

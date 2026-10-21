@@ -449,7 +449,11 @@ $ flutter test
 - 安装：`adb install -r app-debug.apk` → `Success`（175.7 MB debug 包）
 - 启动：`monkey -p com.didichou.inkpaper -c android.intent.category.LAUNCHER 1` → 进程存活（pid 22648），首页正常渲染（本地模式欢迎笔记可见，底栏输入框/侧边栏入口正常）
 - 崩溃检查：`adb logcat -d | Select-String 'FATAL EXCEPTION|E/flutter|ANR in com.didichou'` → **无命中**
-- 未完成：`/settings` → 「侧边栏自定义」页面的真机点击链路（该页无独立深链，盲点坐标误触到第三方 App；A-11 页面已由 `sidebar_customization_screen_test.dart` 覆盖渲染与交互，真机视觉仍需手动过一遍）
+- A-11 页面真机链路（改用语义树定位，不再盲点坐标）：`adb shell settings put secure accessibility_enabled 1` 让 Flutter 输出语义树 → `uiautomator dump` 取控件 bounds → 依次点击 汉堡(84,218) → 侧边栏「设置」→「偏好设置」→「侧边栏 / 调整菜单显示与排序」→ 到达「自定义侧边栏」
+  - 渲染：头部组件（显示个人中心 / 显示活动记录 两开关）+ 菜单项（全部笔记带锁不可动 + 随机回顾 / 全部标签 / 知识图谱 / 帮助 / 设置 各带拖动手柄与开关）+ 底部提示「全部笔记是默认首页，无法隐藏或移动」全部正常
+  - 交互：关闭「显示活动记录」→ AppBar 出现「保存」，点「保存」后按钮消失；`am force-stop` 重启后侧边栏不再有「活动记录」；再次开启并保存后恢复正常 —— 配置读写与持久化 OK
+  - 未通过自动化验证：菜单项拖动排序。`input draganddrop`（手柄 195,812 → 195,1330/1440，1200/1500ms）与慢速 `input swipe` 均未触发 `SliverReorderableList` 重排，顺序保持原样，需人工长按拖动确认
+  - 收尾：`settings put secure accessibility_enabled 0` 还原，设备临时截图与 `ui.xml` 已删除
 - 无代码改动，无版本变更
 
 - 前置 `ARCH-LAYER-002` 因 A-11 blocked，未达 done；按执行合约不得跳前置开工。4 个子项相互独立，A-11 决策落定后可直接执行。

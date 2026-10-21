@@ -1,197 +1,247 @@
-# 优化路线图 / Roadmap
+# ROADMAP
 
-本文件记录代码优化中已落地的改动、待处理问题与验收标准，用于指导后续迭代。
-每条问题都标了代码位置（以符号名为准，行号可能随重构变化）。
+> 本文件是任务唯一真相。AI 每轮开工先读第 0 节执行合约，再读第 2 节索引表取任务，只加载该条目详情与作用域内文件。
+>
+> 本版由 `AUDIT.md`（Stage 2，`main@c24777c`）按 `ROADMAP_SPEC.md` 第 5 节转换生成；上一版历史完成项见 `git show c24777c:docs/ROADMAP.md`。
 
-- 最后一次更新：2026-10-21
-- 当前数据库 schema：**11**
-- 静态检查基线：`dart analyze lib tool test` **0 warning / 0 error**（2026-10-21 清掉最后 4 条 `unawaited_return_in_try_block`）
-- 测试基线：`flutter test` **399** 项全通过
-- 代码规模：`lib/` 146 个 Dart 文件 / 88,287 行；`test/` 38 个文件
-- 当前版本：`1.0.12+10012`
+## 0. 执行合约（优先级高于其他一切）
 
----
+```
+1. 读本文件，找状态为 doing 的条目；没有则取索引表中第一条 todo 且前置已全部 done 的。
+2. 只加载该条目的「作用域」内文件，不重读全项目。
+3. 完成后按条目「验收」实际执行命令，把真实输出追加到 PROGRESS.md。
+4. 验收通过 → 状态改 done → 立刻取下一项，不汇报、不询问。
+5. 验收不通过 → 最多尝试修复 2 次；仍失败则改 blocked，写 BLOCKERS.md
+   （含已尝试方案 + 具体报错），跳过继续下一项。
+6. 禁止：中途总结进度、询问"是否继续"、改作用域外代码、跳过验收命令。
+7. 只在全部条目终结、或连续 3 条 blocked 时，才输出文字汇报。
+```
 
-## 一、已完成
+**环境约定**：Windows / PowerShell，环境中**没有 `rg`**。验收命令统一用 `Select-String` 与 `[System.IO.File]::ReadAllLines` 写法，全部放在代码块内，可整段复制执行；计数均指「出现次数」而非文件数。
 
-| 提交 | 范围 | 说明 |
-| --- | --- | --- |
-| `74cc6b5` | M0 死代码清理 | 删除 8 个零引用服务与 6 个零引用 Widget，共 -4,522 行；移除 `AppProvider._apiService` 残留 |
-| `bbfcd2a` | M1 数据层 | schema 9：`notes` 增加 `idx_notes_created_at` / `idx_notes_is_synced`；`getNotesByTag` 改为逗号边界整词匹配；修正 v7 迁移位置 |
-| `0b423b2` | 软删除基础 | schema 10：新增 `deleted_at` 列与 `active_notes` 视图；列表/分页/搜索/标签/总数/未同步查询统一切到视图 |
-| `857233e` | 删除链路 | `deleteNote` / `deleteNoteLocal` / 后台删除队列改软删；撤销改为解除软删标记 |
-| `f6b5051` | 回收站 | 新增「最近删除」页面、`/recently-deleted` 路由、数据清理页入口 |
-| `257b9bf` | 同步正确性 | 本地 id 判定收敛到 `Note.isLocalId`（只认 `local_` 前缀），修掉 UUID 笔记更新/删除被静默跳过 |
-| `e411a69` | 删除重试 | schema 11：`pending_note_operations` 表；远端删除入队，同步前后补交，失败累加 `attempts` |
-| `111cd1c` | 同步收敛 | 下拉刷新复用 `fetchNotesFromServer`；删除 `IncrementalSyncService` 与 `AppConfig.prefKeyLastSyncTime` |
-| `0e9dd00` | 合并保护 | 拉取合并新增 `keepLocalPendingChanges`，本地待上传改动不再被服务端旧内容覆盖 |
-| `aa7dca6` | 卡片渲染降维 | 新增 `utils/note_preview_builder.dart` + `widgets/note_preview_text.dart`：Markdown AST → 纯文本 + 样式区间，整卡只产出一个 `Text.rich`；`NotePreviewCache` LRU 400 条。同时删除 `_visibleItemsCount` 分帧递增、骨架屏、`scrollCacheExtent: 1000` |
-| `864e6fa` | 根节点重建收窄 | 根级 `Consumer` → `Selector<AppProvider, _AppChrome>` |
-| `2a3e837` | 引用解析索引化 | `SimpleMemoContent` 的 `indexWhere` 全表扫描改为 id→Note 索引缓存 |
-| `8490e1a` | Android 拆包构建 | `tool/inkpaper.dart` 新增 `android-release-split`（`--split-per-abi` + `--split-debug-info`），发布用 universal 包不变 |
-| `5b1cccc` | P0-1 同步修复 | `updateMemo` 遇 404 回退 `createMemo`，恢复的笔记不再永久上传失败 |
-| `2ab768f` | P-5 缩略图解码 | 卡片图片按格子实际像素宽度解码，`memCacheWidth` 不再固定 720 |
-| `4b54c01` | P-2 字体 | Android 上思源黑体/宋体走系统字体族，去掉 google_fonts 运行时下载 |
-| `0c8ec83` | P-1 状态通知分家 | 新增 `notifyUiStateChanged()`；主页 `Selector<_FeedSnapshot>`、未读条 `Selector<int>` |
-| `2419d4e` | P-6 基线采集 | `BUILD_AND_DEVICE_TESTING.md` §3.1 写入采集步骤与目标值 |
-| `11f46f5` | 卡片按压动画 | `AnimatedBuilder` 接上 `child`，缩放不再整卡重建；修掉恒定居中缩小 3% 的曲线错误；`DateFormat` 与预览正则静态化 |
-| `91eb1ab` | P1-1 计数修复 | 删除与撤销删除后重新取 `viewActiveNotes` 的 COUNT |
-| `bd89ba4` | P0-5 重复笔记 | `utils/note_dedupe.dart`：同内容未同步副本合并增强数据后物理删除，两条同步路径都接上 |
-| `a25bd7e` | P0-2 上传退避 | `operation='upsert'` 记录失败次数，连续 3 次后暂停重试，编辑后清零 |
-| `252def0` | P0-2 提示保留 | 同步结束清状态时保留「已暂停重试」文案 |
-| `514312f` | P0-3 冲突统计 | `isMergeConflict` + Memos 上传回显比对 + WebDAV 三方判断，冲突条数落盘并在服务器信息页提示 |
-| `165cca6` | P0-4 备份语义 | `toJson` / `fromJson` 对称处理 `deletedAt`，明确备份不含回收站 |
-| `159e5e6` | P1-2 回收站文案 | 回收站页面全部文案接入 `AppLocalizationsSimple`；保留天数改读 `RecentlyDeletedScreen.retention.inDays`；新增 `relativeTime()` / `relativeTimeInParens()` 替代 `TimeUtils.getRelativeTime`（中文全角括号、英文半角）；数据清理页入口文案同步本地化 |
-| `b2540c4` | 首页文案本地化 | 示例欢迎笔记正文与提示、底部输入条占位文案（`welcomeNoteContent` / `welcomeNoteHint` / `noteComposerHint`）接入 l10n；`_welcomeNote` 改为 getter，时间戳独立保存在 `_welcomeNoteTime` |
-| `25955c0` | 示例笔记删除提示 | `NoteCard.isExample` + `NoteMoreOptionsMenu.onDeleteOverride`：示例笔记从「更多菜单 → 删除」只提示不落库，不再误报「笔记已删除」 |
-| P3-1 收口 | 服务层提示文案 | `note_actions_service.dart` 补齐 6 处：分享失败、未登录/服务器配置错误、AI 回退提示、本地点评、批注面板「完成」、「已标记为已解决」 |
+## 1. 项目元信息
 
-### 1.1 已落地的设计约束（改动时不要破坏）
+| 项 | 值 |
+|---|---|
+| 项目 | InkPaper（Flutter 笔记应用，Android 为主） |
+| Flutter / Dart | 3.47.7 / 3.13.5 |
+| 审计基线 | 见 `BASELINE.md`：analyze 0 issue、测试 399 通过、覆盖率 14.1%、release 体积未测量 |
+| 本轮目标 | 完成 Phase 1 + Phase 2 + Phase 4 |
+| 单轮任务上限 | 1 个子项（P1 / P2 / P3 均为批次任务） |
+| 验收环境限制 | release 构建不可用（缺 `android/key.properties`）；无 profile 运行时采集 |
 
-1. **写库不能用 `ConflictAlgorithm.replace`**：REPLACE 会删行重插，冲掉 `deleted_at`。统一走 `DatabaseService.upsertNote`（先 UPDATE 后 INSERT，且 UPDATE 跳过软删行）。
-2. **删除状态是黏性的**：只有 `restoreDeletedNote` 能解除，任何保存/导入/sync 回写都不能把 `DELETED` 改回 `NORMAL`。
-3. **读笔记统一查 `active_notes` 视图**：新增查询必须走 `DatabaseService.viewActiveNotes`，避免软删笔记泄漏。
-4. **同步剪枝要跳过软删行**：`deleteSyncedNotesNotIn` 已带 `rowStatus <> 'DELETED'` 条件。
-5. **列表卡片不得走 `MemosMarkdownRenderer`**：`flutter_markdown` 的 `MarkdownBody` 会为每个 `p/strong/em/li` 建 widget 节点，且需 `TextPainter` 预测量行数。卡片统一走 `NotePreviewText`（单 `Text.rich`），详情页 / 编辑器才用完整渲染。新增卡片样式请扩展 `note_preview_builder.dart` 的 `PreviewInlineStyle`，不要引入 widget 级 span。
+## 2. 索引表（AI 靠这张表选任务，不必先读详情）
+
+| ID | 标题 | 优先级 | 前置 | 验收 | 状态 |
+|---|---|---|---|---|---|
+| — | P0 无 finding（analyze 0 error、399 测试全绿） | P0 | — | 不适用 | done |
+| STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | **缺验收**：A-02 重建次数、A-03 同步耗时需 profile / 服务器 | todo |
+| ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 可执行（子项 5 删除字体需先在 BLOCKERS.md 记录许可结论） | todo |
+| QUAL-CLEAN-003 | P3 清理批次（4 子项） | P3 | ARCH-LAYER-002 | **缺验收**：子项 4 本地化目标值不可命令化 | todo |
+
+阶段退出条件：Phase 1 = 全部 P0 条目终结（本版已满足）；Phase 2 = STATE-CORE-001 全部子项 done 且 release 体积已重测或已记入 BLOCKERS；Phase 3 = ARCH-LAYER-002 全部子项 done 且 `flutter analyze` 无新增 issue；Phase 4 = 全部条目终结且 `flutter analyze` 为 0 error。
 
 ---
 
-## 二、验收清单（发布前至少跑一遍）
+## 3. 任务详情
 
-- [ ] **全新安装**：建库 v11，回收站入口存在且为空。
-- [ ] **旧库升级**：用真实 v8/v9 用户库升级，启动不崩、索引/视图/队列表均创建、历史笔记完整。
-- [ ] **删除 → 回收站**：列表立即消失；回收站出现该条；显示删除时间。
-- [ ] **回收站恢复**：恢复到列表，总数与分页正确。
-- [ ] **离线编辑 → 联网同步**：本地内容不被服务端旧版本覆盖（`0e9dd00` 的行为）。
-- [ ] **下拉刷新**：已删笔记不会重新出现。
-- [ ] **回收站恢复「服务端已删」的笔记**：验证 P0-1 是否触发上传永久失败。
-- [ ] **主页滚动**：profile 模式下连续滚动 30 秒，无掉帧、无白块；长笔记（数千字）卡片展开/收起正常。
-- [ ] **卡片预览还原度**：粗体、斜体、行内代码、删除线、`<u>` 下划线、`☑/☐` 待办、引用块灰字都显示；待办点按能改回笔记。
-- [ ] **拆包产物**：`build android-release-split` 出的三个 APK 可分别安装（arm64 真机 + 模拟器），`build/symbols` 有产物。
-- [ ] **英文界面首屏**：示例笔记正文、底部输入条占位、更多菜单、回收站、数据清理页全部为英文（无中文残留）。
-- [ ] **示例笔记删除**：滑删与「更多菜单 → 删除」都只弹提示，不出现「笔记已删除」误报；冷启动后示例笔记仍在。
+### STATE-CORE-001 · 收敛状态通知与高频重建
+
+> 批次任务，含 4 个子项（A-01 ~ A-04）。**单轮只做一个子项**；子项验收全绿才算该子项 done，4 个子项全 done 才算本条 done。
+
+| 字段 | 内容 |
+|---|---|
+| 优先级 | P1 |
+| 前置 | 无 |
+| 作用域 | 子项 1：`lib/providers/app_provider.dart`、`lib/providers/sync_store.dart`（新建）、`lib/main.dart`<br>子项 2：`lib/widgets/note_editor.dart`<br>子项 3：`lib/providers/app_provider.dart`（仅同步方法段）<br>子项 4：`lib/screens/home_screen.dart` |
+| 现状证据 | **A-01** `lib/providers/app_provider.dart` 4,434 行，`notifyListeners()` 58 处（全库 63 处）；`lib/main.dart:537` `Widget build(BuildContext context) => ChangeNotifierProvider.value(`、`:539` `child: Selector<AppProvider, _AppChrome>(`；全库 `Selector<` 仅 4 处。<br>**A-02** `lib/widgets/note_editor.dart` 3,284 行，`setState(` 39 处（`:143`、`:465`、`:562`）。<br>**A-03** `lib/providers/app_provider.dart:2048` `for (final note in unsyncedNotes) {`、`:2050` `syncedCount += await _syncUnsyncedNotesSnapshot([note]);`。<br>**A-04** `lib/screens/home_screen.dart` 2,801 行；`Widget _build*` 定义 19 处、`_build\w+(` 出现 52 次（`:809` `Widget _buildNotificationBannerBody(BuildContext context, int unreadCount) {`、`:1461` `Widget _buildBottomComposerBar(BuildContext context) {`）。 |
+| 做什么 | **子项 1（A-01，先做）**：新建 `SyncStore extends ChangeNotifier`，把同步字段与方法迁出 `AppProvider`，对外接口保持不变。<br>**子项 2（A-02）**：输入区改 `TextEditingController` + `ValueListenableBuilder`，输入路径不再 `setState`；预览刷新加 200ms 防抖。<br>**子项 3（A-03）**：逐条 `await` 改为有限并发（信号量 2–3）或按批 `Future.wait`，保留逐条失败隔离。<br>**子项 4（A-04）**：`_buildNotificationBannerBody`、`_buildBottomComposerBar`、笔记列表项抽为独立 `StatelessWidget` 并加 `const` 构造。 |
+| 验收 | 见下方「STATE-CORE-001 验收命令」：子项 1/3/4 为静态命令；子项 2 含 1 项**缺验收**（profile 重建统计）；子项 3 含 1 项**缺验收**（真机同步耗时） |
+| 收益 | A-01：通知面从「整实例 63 处触发」收敛到分域；A-02：长文输入不再重建整棵编辑器树（未测量）；A-03：同步耗时由 N×RTT 降至约 N/2×RTT（未测量）；A-04：单次重建 widget 数下降（未测量） |
+| 回滚 | 每个子项单独 commit，`git revert <sha>` 即可回退该子项 |
+| 不许做 | 不引入新状态管理库（沿用 provider）；不改同步协议与 `pending_operations` 语义；不改编辑器 Markdown 渲染规则；不动 `home_screen` 之外页面；不改 pubspec 依赖 |
+| 状态 | todo |
+
+**STATE-CORE-001 验收命令**（改前基线：app_provider 4,434 行 / notify 58 / setState 39 / home 2,801 行 / `Widget _build` 19）：
+
+```powershell
+# 子项 1：SyncStore 抽出
+Test-Path lib/providers/sync_store.dart                                          # 期望 True
+([System.IO.File]::ReadAllLines('lib/providers/app_provider.dart')).Count        # 期望 <= 3500
+(Select-String -Path lib/providers/app_provider.dart -Pattern 'notifyListeners\(' -AllMatches | ForEach-Object { $_.Matches.Count } | Measure-Object -Sum).Sum   # 期望 <= 42
+flutter analyze                                                                  # 期望 No issues found!
+
+# 子项 2：编辑器输入局部化
+(Select-String -Path lib/widgets/note_editor.dart -Pattern 'setState\(' -AllMatches | ForEach-Object { $_.Matches.Count } | Measure-Object -Sum).Sum   # 期望 <= 25
+(Select-String -Path lib/widgets/note_editor.dart -Pattern 'ValueListenableBuilder' | Measure-Object).Count   # 期望 >= 1
+flutter analyze                                                                  # 期望无 error
+# 缺验收：输入时长帧/重建次数，需 profile + DevTools rebuild 统计（本次未测量）
+
+# 子项 3：同步并发化
+(Select-String -Path lib/providers/app_provider.dart -Pattern 'for \(final note in unsyncedNotes\)' | Measure-Object).Count   # 期望 0
+(Select-String -Path lib/providers/app_provider.dart -Pattern 'Future\.wait|Semaphore' | Measure-Object).Count                # 期望 >= 1
+# 缺验收：50 / 200 条笔记同步总耗时对比，需可用服务器（本次未测量）
+
+# 子项 4：首页拆分
+([System.IO.File]::ReadAllLines('lib/screens/home_screen.dart')).Count           # 期望 <= 2200
+(Select-String -Path lib/screens/home_screen.dart -Pattern 'Widget _build' | Measure-Object).Count   # 期望 <= 12
+flutter analyze                                                                  # 期望无新增 issue
+```
+
+### ARCH-LAYER-002 · 修分层倒置与工程结构
+
+> 批次任务，含 7 个子项（A-05 ~ A-11）。**单轮只做一个子项**；子项 5 执行前必须先在 `BLOCKERS.md` 记录字体许可结论。
+
+| 字段 | 内容 |
+|---|---|
+| 优先级 | P2 |
+| 前置 | STATE-CORE-001 |
+| 作用域 | 子项 1：`lib/services/note_actions_service.dart` + 调用方页面的回调参数<br>子项 2：`lib/utils/network_utils.dart`<br>子项 3：`lib/services/database_service.dart`<br>子项 4：`pubspec.yaml`<br>子项 5：`assets/fonts/**`、`lib/screens/preferences_screen.dart`（仅字体选项）<br>子项 6：`tool/inkpaper.dart`<br>子项 7：`lib/screens/flomo_import_screen.dart`、`lib/screens/local_backup_restore_screen.dart` |
+| 现状证据 | **A-05** `lib/services/note_actions_service.dart:10` `import 'package:inkpaper/screens/note_detail_screen.dart';`、`:16` `import 'package:inkpaper/widgets/note_editor.dart';`（同文件 `:14`、`:15`、`:17`、`:18`、`:19` 合计 7 条 UI import）。<br>**A-06** `lib/utils/network_utils.dart:10` `static http.Client createOptimizedClient() {`、`:11` `final client = http.Client();`（`:16-19` 同样新建）。<br>**A-07** `lib/services/database_service.dart:798` `final Map<String, dynamic> data = jsonDecode(jsonData);`。<br>**A-08** `pubspec.yaml:41` `xml: ^6.5.0`、`:80` `flutter_svg: ^2.0.10`、`:89` `flutter_highlight: ^0.7.0`，加 `:19`、`:32`、`:112`、`:121` 共 7 个无 import 依赖。<br>**A-09** `pubspec.yaml:178-179` `assets:` / `- assets/images/`，无 `fonts:` 段；`assets/fonts/` 5 文件 3.94 MB。<br>**A-10** `tool/inkpaper.dart:265` `'--split-per-abi',`、`:266` `'--split-debug-info=build/symbols',`，无 `--obfuscate`。<br>**A-11** `lib/screens/flomo_import_screen.dart:704-706` `ListView.separated(` / `shrinkWrap: true,` / `physics: const NeverScrollableScrollPhysics(),`；`lib/screens/local_backup_restore_screen.dart:685-687` 同模式；全库 `shrinkWrap: true` 共 9 处。 |
+| 做什么 | **子项 1（A-05）**：弹窗/导航从服务层剥离，改为返回意图对象或接收回调；服务层不再 import `screens/`、`widgets/`。<br>**子项 2（A-06）**：`NetworkUtils` 复用单例 `http.Client` 并提供 `close()`。<br>**子项 3（A-07）**：`importBackup` 的 `jsonDecode` 移到 `compute()`，插入包在单事务内。<br>**子项 4（A-08）**：删除 6 个确认无引用依赖；`xml` 先跑 `flutter pub deps --style=compact` 复核，确认非 `webdav_client` 必需后再删。<br>**子项 5（A-09）**：许可确认后删除 `assets/fonts/` 5 个字体，并核对 `preferences_screen` 字体选项。<br>**子项 6（A-10）**：release 构建参数加 `--obfuscate`。<br>**子项 7（A-11）**：嵌套 `shrinkWrap` 列表改 `CustomScrollView + SliverList`，或限制预览条数。 |
+| 验收 | 见下方「ARCH-LAYER-002 验收命令」：子项 1/2/3/4/5/7 全为静态命令；子项 6 含 1 项**缺验收**（release 体积需签名文件） |
+| 收益 | A-05：服务层可脱离 `BuildContext` 单测；A-06：减少重复 TLS 握手（未测量）；A-07：大备份导入不再阻塞 UI isolate（未测量）；A-08：依赖树缩小（未测量）；A-09：仓库减 3.94 MB；A-10：符号不随包（未测量）；A-11：嵌套列表首帧不再全量布局（未测量） |
+| 回滚 | 子项 2/3/6/7 单 commit revert；子项 4/5 涉及删除，回退需 `git revert` + `flutter pub get` |
+| 不许做 | 不改同步协议、DB schema、备份 JSON 格式；不动 `assets/images/`；不引入新网络库；除任务列出的依赖外不增删任何包 |
+| 状态 | todo |
+
+**ARCH-LAYER-002 验收命令**（改前基线：UI import 7 / `http.Client()` 2 / `jsonDecode(jsonData)` 1 / 无 import 依赖 7 / 字体 5 个 3.94 MB / `shrinkWrap` 9）：
+
+```powershell
+# 子项 1：服务层去 UI 依赖
+(Select-String -Path lib/services/note_actions_service.dart -Pattern "package:inkpaper/(screens|widgets)/" | Measure-Object).Count   # 期望 0
+flutter analyze                                                                  # 期望无 error
+
+# 子项 2：http.Client 复用
+(Select-String -Path lib/utils/network_utils.dart -Pattern 'http\.Client\(\)' | Measure-Object).Count   # 期望 <= 1
+(Select-String -Path lib/utils/network_utils.dart -Pattern 'close\(\)' | Measure-Object).Count          # 期望 >= 1
+
+# 子项 3：备份解码移出主线程
+(Select-String -Path lib/services/database_service.dart -Pattern 'jsonDecode\(jsonData\)' | Measure-Object).Count   # 期望 0
+(Select-String -Path lib/services/database_service.dart -Pattern 'compute\(|Isolate\.run' | Measure-Object).Count   # 期望 >= 1
+
+# 子项 4：删除未用依赖
+flutter pub deps --style=compact | Select-String -Pattern '^xml|flutter_svg|flutter_highlight|graphview'   # 先复核 xml 是否传递依赖
+(Select-String -Path pubspec.yaml -Pattern '^\s{2}(cupertino_icons|flutter_image_compress|flutter_svg|flutter_highlight|graphview|flutter_dotenv):' | Measure-Object).Count   # 期望 0
+flutter pub get                                                                  # 期望成功
+flutter analyze                                                                  # 期望无 error
+
+# 子项 5：删除未使用字体（先写 BLOCKERS.md 记录许可结论）
+(Get-ChildItem assets/fonts -File -ErrorAction SilentlyContinue | Measure-Object).Count   # 期望 0
+[math]::Round(((Get-ChildItem assets -Recurse -File | Measure-Object -Property Length -Sum).Sum/1MB),2)   # 期望 <= 0.1（改前 3.96）
+
+# 子项 6：release 加混淆
+(Select-String -Path tool/inkpaper.dart -Pattern '--obfuscate' | Measure-Object).Count   # 期望 >= 1
+# 缺验收：release 体积对比，需 android/key.properties（当前缺失，未测量）
+
+# 子项 7：去嵌套 shrinkWrap
+(Get-ChildItem lib -Recurse -Filter *.dart | Select-String -Pattern 'shrinkWrap:\s*true' | Measure-Object).Count   # 期望 0
+flutter analyze                                                                  # 期望无 error
+```
+
+### QUAL-CLEAN-003 · P3 清理批次
+
+> 批次任务，含 4 个子项（A-12 ~ A-15）。每个子项独立 commit。
+
+| 字段 | 内容 |
+|---|---|
+| 优先级 | P3 |
+| 前置 | ARCH-LAYER-002 |
+| 作用域 | 子项 1：`lib/screens/home_screen.dart`（仅删死方法）<br>子项 2：`.github/workflows/ci.yml` + 全库格式化<br>子项 3：`lib/screens/{login,register,about}_screen.dart`（仅 `Image.asset`）<br>子项 4：`lib/l10n/translations.dart`、`lib/l10n/app_localizations_simple.dart`、单页面文件（每次一个） |
+| 现状证据 | **A-12** `lib/screens/home_screen.dart:1866` `return tags.toList()..sort();`，所属 `_collectTags` 全库调用 0 次。<br>**A-13** `.github/workflows/` 内无 `dart format`（`ci.yml` 只有 analyze / test）。<br>**A-14** `lib/screens/login_screen.dart:886` `Theme.of(context).brightness == Brightness.dark`、`:887` `? 'assets/images/black2logo.png'`；`Image.asset` 共 6 处，仅 3 处带 `cacheWidth`。<br>**A-15** 硬编码中文约 1,500 处（静态计数）：`webdav_settings_screen.dart` 125、`app_provider.dart` 117、`ai_insight_engine.dart` 98、`ai_settings_screen.dart` 88、`user_agreement_screen.dart` 63。 |
+| 做什么 | **子项 1（A-12）**：删除 `_collectTags`。<br>**子项 2（A-13）**：CI 加 `dart format --output=none --set-exit-if-changed lib test tool`，并一次性格式化全量（单独 commit）。<br>**子项 3（A-14）**：`Image.asset` 统一补 `cacheWidth` 或走 `image_utils`。<br>**子项 4（A-15）**：按文件逐个接入 `AppLocalizationsSimple`，保留中文 fallback。 |
+| 验收 | 子项 1/2/3 为静态命令；子项 4 **缺验收**（无合理「中文归零」终点，只能按文件监控计数下降 + 人工抽样） |
+| 收益 | 死代码清理、格式与依赖门禁长期生效、图片解码可控；本地化收益为英文界面一致性（无性能数字） |
+| 回滚 | 子项 2 格式化范围大，单独 commit；其余子项单 commit 可 revert |
+| 不许做 | 子项 2 不得与业务改动同一 commit；子项 3 不改图片视觉；子项 4 不翻译 FAQ 长正文（已决策保留中文）；不改 lint 严格模式 |
+| 状态 | todo |
+
+**QUAL-CLEAN-003 验收命令**（改前基线：`_collectTags` 1 处 / `Image.asset` 6 处、`cacheWidth` 3 处 / webdav 文案 125）：
+
+```powershell
+# 子项 1：删死代码
+(Select-String -Path lib/screens/home_screen.dart -Pattern '_collectTags' | Measure-Object).Count   # 期望 0
+flutter analyze                                                                  # 期望 No issues found!
+
+# 子项 2：format 门禁
+(Select-String -Path .github/workflows/ci.yml -Pattern 'dart format' | Measure-Object).Count   # 期望 >= 1
+dart format --output=none --set-exit-if-changed lib test tool                    # 期望退出码 0
+
+# 子项 3：图片解码尺寸
+(Get-ChildItem lib -Recurse -Filter *.dart | Select-String -Pattern 'Image\.asset' | Measure-Object).Count   # 期望 == cacheWidth 相关处数
+(Get-ChildItem lib -Recurse -Filter *.dart | Select-String -Pattern 'cacheWidth' -AllMatches | ForEach-Object { $_.Matches.Count } | Measure-Object -Sum).Sum   # 改前 3
+flutter analyze                                                                  # 期望无 issue
+
+# 子项 4：本地化（每完成一个文件跑一次，监控下降）
+(Select-String -Path lib/screens/webdav_settings_screen.dart -Pattern "'[^']*\p{Han}" | Measure-Object).Count   # 改前 125
+# 缺验收：无法命令化「英文界面无中文」这一终点，需人工抽样 + 真机切英文确认
+```
 
 ---
 
-## 三、P0：正确性 / 数据风险
+## 附录 A · 审计 finding 索引
 
-| # | 问题 | 位置 | 影响 | 建议方案 |
-| --- | --- | --- | --- | --- |
-| ~~P0-1~~ ✅ | 从回收站恢复时若远端已删除，上传会永久失败 | ~~`MemosApiServiceFixed.updateMemo`（非 200 一律 throw，含 404）~~ | 已修复：404 回退 `createMemo`，上层 `_syncUnsyncedNoteToMemos` 已有的 id 变更处理会自动重写引用并物理删除旧记录。待真机验证（见「七」） | — |
-| ~~P0-2~~ ✅ | 上传失败无退避、无上限、无提示 | ~~`AppProvider.syncWithServer` 的上传循环~~ | 已修复（`a25bd7e` / `252def0`）：复用 `pending_note_operations` 的 `operation='upsert'` + 已有 `attempts`/`last_error`，连续失败 3 次后暂停重试，提示在同步结束后保留；用户编辑笔记时清零。仍缺的是**指数退避**与**设置页可查看失败清单** | 后续可加：失败清单 UI、退避间隔 |
-| ~~P0-3~~ ✅ | 冲突静默 LWW | ~~`SyncStats.conflicts` 从未赋值~~ | 已按**统计版**落地（`514312f`）：Memos 路径在上传回显内容不一致时计数，WebDAV 引擎以 `lastSyncTime` 做三方判断填 `conflicts`；条数落盘并在服务器信息页提示。合并策略仍是服务端优先，**不做自动合并**（见「待拍板」第 4 条已决） |
-| ~~P0-4~~ ✅ | 备份与回收站语义未对齐 | ~~`Note.toJson` 无 `deletedAt`~~ | 已修复（`165cca6`）：`toJson` 补 `deletedAt`、`fromJson` 对称读回。导出本来就走 `active_notes` 视图，「备份不含回收站」是既定行为，已在代码注释中写明 |
-| ~~P0-5~~ ✅ | 远端"删除后重建"产生重复笔记 | ~~`deleteSyncedNotesNotIn` 仅按 id 剪枝~~ | 已修复（`bd89ba4`）：新增 `utils/note_dedupe.dart`，`fetchNotesFromServer` / `syncWithServer` 会把同内容的未同步副本的本地增强数据并到服务端那条，再物理删除旧副本。注意这条风险随 P0-1 的自愈加重 —— 现在 404 会自动重建并换新 id | — |
+| finding | 内容 | 任务 / 子项 |
+|---|---|---|
+| A-01 | 单一 4,434 行 `AppProvider`，63 次 `notifyListeners` | STATE-CORE-001 子项 1 |
+| A-02 | `note_editor` 39 处 `setState` | STATE-CORE-001 子项 2 |
+| A-03 | 同步串行 `await` | STATE-CORE-001 子项 3 |
+| A-04 | `_buildXxx` 拆方法不减少重建 | STATE-CORE-001 子项 4 |
+| A-05 | 服务层反向依赖 UI（7 条 import） | ARCH-LAYER-002 子项 1 |
+| A-06 | 每次新建 `http.Client` | ARCH-LAYER-002 子项 2 |
+| A-07 | 主线程 `jsonDecode` 整包备份 | ARCH-LAYER-002 子项 3 |
+| A-08 | 7 个无 import 依赖 | ARCH-LAYER-002 子项 4 |
+| A-09 | 3.94 MB 字体未声明未使用 | ARCH-LAYER-002 子项 5 |
+| A-10 | 缺 `--obfuscate` | ARCH-LAYER-002 子项 6 |
+| A-11 | 9 处嵌套 `shrinkWrap` | ARCH-LAYER-002 子项 7 |
+| A-12 | 死方法 `_collectTags` | QUAL-CLEAN-003 子项 1 |
+| A-13 | 无 `dart format` 门禁 | QUAL-CLEAN-003 子项 2 |
+| A-14 | 图片未统一 `cacheWidth` | QUAL-CLEAN-003 子项 3 |
+| A-15 | 约 1,500 处硬编码中文 | QUAL-CLEAN-003 子项 4 |
 
----
+## 附录 B · PROGRESS.md 格式（AI 只 append，不改旧行）
 
-## 四、P1：一致性与体验
+一条任务占一段，命令输出必须贴真实的，不许写"验收通过"四个字了事：
 
-| # | 问题 | 位置 | 建议方案 |
-| --- | --- | --- | --- |
-| ~~P1-1~~ ✅ | 删除/撤销删除后 `totalNotesCount` 不更新 | ~~`AppProvider._totalNotesCount` 仅在加载路径赋值~~ | 已在删除与撤销两处改为库操作后重新取 COUNT（`91eb1ab`）。回收站恢复走 `loadNotesFromLocal`，本来就会重算 |
-| ~~P1-2~~ ✅ | 回收站页面文案硬编码中文 | ~~`lib/screens/recently_deleted_screen.dart`~~ | 已修复（`159e5e6`）：全页文案走 `AppLocalizationsSimple`，保留天数动态取 `retention.inDays`，相对时间按语言输出 |
-| P1-3 | 回收站 GC 仅在进入页面时触发 | `_RecentlyDeletedScreenState._load` | 也可挂到启动幂等任务或数据清理页 |
-| P1-4 | 缺少删除链路的组件/集成测试 | `test/` 目前以 unit 为主 | 补「删除 → 回收站出现 → 恢复 → 列表中有」的 widget 测试 |
-| P1-5 | `AppProvider` 过大 | `providers/app_provider.dart` **3,781 行 / 约 104 方法 / 61 处 `notifyListeners`**，根级单 Provider 包住 `MaterialApp.router` | 按 `PrefsStore → SyncStore → AuthStore → NoteStore` 顺序拆分，最后换 `MultiProvider` + `Selector`。`PrefsStore` 风险最低，建议先做。根节点 `Selector` 已落地（只隔离了 MaterialApp 外壳），真正的重建根因见 **P-1** |
+```markdown
+## 2026-10-21 15:40 · STATE-CORE-001 子项 1 · done
+- 改动：新建 sync_store.dart；app_provider.dart 迁出同步段
+- 验收输出：
+  $ Test-Path lib/providers/sync_store.dart
+  True
+  $ ([System.IO.File]::ReadAllLines('lib/providers/app_provider.dart')).Count
+  3712
+  $ flutter analyze
+  No issues found!
+- 备注：对外方法保留转发，页面改动留到子项 4
+- commit: a3f9c21
+```
 
-### 4.1 性能专项（Android 为主战场）
+失败或跳过的也要记，理由是下次恢复现场的依据：
 
-目标是「中端安卓机（骁龙 7 系 / 天玑 8000 档）主页滚动不掉帧、冷启动 ≤1.5s」。性能问题是实现层面的，**不建议为此重写为纯 Kotlin**（理由见 4.3）。
+```markdown
+## 2026-10-21 16:05 · ARCH-LAYER-002 子项 5 · blocked
+- 已尝试：核对 pubspec 无 fonts 声明、lib 无引用，删除后构建正常
+- 报错：无技术报错；等待字体许可结论
+- 需决策：见 BLOCKERS.md
+```
 
-已完成：
+## 附录 C · BLOCKERS.md 格式
 
-| 项 | 做法 |
-| --- | --- |
-| 卡片渲染降维 | `NotePreviewText` + `NotePreviewCache`，整卡一个 `Text.rich`，去掉逐卡 `MarkdownBody` 与 `TextPainter` 测量 |
-| 列表分帧机制 | 删除 `_visibleItemsCount` 递增、骨架屏占位、`scrollCacheExtent: 1000`，交回 `ListView.builder` |
-| 引用解析 | `SimpleMemoContent` 用 id→Note 索引缓存替代逐条 `indexWhere` |
-| 根节点重建 | `main.dart` 根级 `Consumer` → `Selector<AppProvider, _AppChrome>` |
-| **P-1** | 新增 `notifyUiStateChanged()`：同步进度、加载指示、未读数变化不清 `notes` 缓存。主页 body → `Selector<_FeedSnapshot>`，未读通知条 → `Selector<int>` |
-| **P-2** | Android 上思源黑体/宋体改走 `sans-serif` / `serif` 系统族，去掉 google_fonts 运行时下载（装饰字体保留） |
-| **P-5** | 卡片缩略图按格子实际像素宽度解码（`memCacheWidth` 不再固定 720） |
-| **P-6** | 基线采集方法与目标值写入 `BUILD_AND_DEVICE_TESTING.md` §3.1，数值待真机采集 |
-| 拆包构建 | `android-release-split`（`--split-per-abi` + `--split-debug-info`） |
-| 卡片按压动画 | `AnimatedBuilder` 接上 `child` 复用静态子树，每帧只重建 `Transform`；顺带修掉 `Tween(1→0.98)` 导致卡片恒定居中缩小 3% 的问题 |
-| 格式与正则 | 卡片时间 `DateFormat`、预览解析用的 `RegExp` / `InlineSyntax` 全部提到静态，不再每条笔记重新编译 |
+只有 `blocked` 状态的条目才进这里，`skipped` 不进。每条必须能被一眼决策：
 
-待办：
+```markdown
+## ARCH-LAYER-002 子项 5 · 2026-10-21 16:05
+**问题**：assets/fonts/ 下 5 个 SF Pro 字体是否可删除（Apple 字体许可）
+**已尝试**：核对 pubspec 无 fonts 声明、lib 无引用，删除不影响构建
+**要你决定**：
+- A. 直接删除（影响：仓库减 3.94 MB，历史版本仍可追溯）
+- B. 保留但补来源说明（影响：仓库体积不变）
+**影响**：阻塞该子项，已跳过，继续做子项 6
+```
 
-| # | 项 | 位置 | 预期收益 | 成本 |
-| --- | --- | --- | --- | --- |
-| P-3 | `AppProvider` 拆分（同 P1-5） | `providers/app_provider.dart` | 消除全局重建根因，也是 P2-3 大文件拆分的主战场 | 高 |
-| P-4 | SQLite 结果 → `Note` 反序列化在主 isolate | `services/database_service.dart` / `AppProvider.loadNotesFromLocal` | 千条笔记首屏 -100~300ms；全项目仅 5 处 `compute()` | 中 |
+## 附录 D · 每轮开工的自检三问
 
-执行顺序：先真机采一轮基线（P-6 的方法），再动 P-3；P-4 随手做。
-
-并行约束：P-3 与「三、P0」剩余项都动 `app_provider.dart`，**不要同时开两个会话**，遵守 P2-7。
-
-### 4.2 性能验收标准
-
-- 主页连续滚动 30 秒，`frame_build` 99 分位 < 16ms，无超过 2 帧的卡顿尖峰。
-- 1000 条笔记冷启动到首屏可交互 ≤ 1.5s（中端机，profile 模式）。
-- 同一台机器 `note_preview_builder` 的 LRU 命中率 > 90%（`NotePreviewCache.hitRate`）。
-- `flutter build apk --release --split-per-abi` 的 `arm64-v8a` 包 < 25MB。
-
-### 4.3 已否决的方案
-
-- **重写为纯 Kotlin/Compose 原生工程**：`lib/services` 的 15,137 行（WebDAV 同步引擎、Memos API、Notion 同步、三种语音识别、AI 洞察、导入导出、FTS 搜索、小组件快照）与 UI 框架无关，重写需 3-6 人月且必然重踩已修好的坑（通知冷启动、分享载荷兼容等）。原生收益仅冷启动 -200~400ms、包体 -10~15MB，不足以抵消成本。
-- **`--obfuscate`**：项目在用 Sentry 上报异常，混淆后堆栈不可读；对 AOT 产物仅 3-5% 体积收益，不划算。保留 `--split-debug-info` 以便后续需要时启用。
-- **`scrollCacheExtent: 1000`**：不是缓存命中率参数，而是「预构建多少像素外的 item」。调大会让首屏多构建数屏卡片、内存上升，已回退到框架默认值。
-
----
-
-## 五、P2：技术债与工程化
-
-| # | 问题 | 现状 | 建议 |
-| --- | --- | --- | --- |
-| P2-1 | i18n 两套实现 | `l10n/app_localizations_simple.dart`（2,802 行）+ `l10n/translations.dart`（2,801 行） | 收敛到 ARB 生成式 |
-| P2-2 | 重复实现 | 日志、typography 各有多套；Markdown 渲染已分成「卡片轻量预览」与「详情页完整渲染」两条路径，属于有意为之，不要再合并 | 日志与 typography 各收敛为一套 |
-| P2-3 | 巨型 UI 文件 | `note_editor`（3,006）、`preferences_screen`（2,617）、`ai_settings_screen`（2,180）、`home_screen`（2,559） | 按区块抽子 Widget。注意 `home_screen` 与 P-1 同文件，排在一起改 |
-| P2-4 | 数据库明文 | `notes.db` 无加密 | 评估 SQLCipher，并同步隐私政策文案 |
-| P2-5 | 死配置残留 | `AppConfig.canaryStages` / `canaryPercentage` / `isFeatureEnabled` 零引用；`screens/user_agreement_screen.dart` 零引用但有未提交改动 | 确认后删除 |
-| P2-6 | CI 门禁 | Actions 已收敛为仅 Android APK（`46c3648`）；analyze 已清零（2026-10-21）；`android-release-split` 尚未接入 CI（仅本地可用） | warning 已清，可把 analyze 纳入 CI 失败条件；若要把拆包纳入发布，需同步改 `release.yml` 的证书校验与产物命名 |
-| P2-7 | 并行改动的提交流程 | 曾出现多个会话共用工作区、暂存互相覆盖 | 大改动期间只保留一个会话执行提交 |
-
----
-
-## 五之二、P3：本地化收尾与遗留体验
-
-> 目标：**英文界面不出现中文**；同时收敛真机验证时暴露的体验瑕疵。回收站链路（`159e5e6` / `b2540c4` / `25955c0`）已收口。
-
-| # | 问题 | 位置 | 建议 |
-| --- | --- | --- | --- |
-| ~~P3-1~~ ✅ | 服务层策略/提示文案硬编码（初判约 50 处，复核后实际缺 6 处） | ~~`services/note_actions_service.dart`~~ | 已修：分享失败（`shareFailedDetail`）、未登录/服务器配置错误（`serverConfigMissing`）、AI 回退提示（`localReviewUsed`）、本地点评标题（`localReview`）、批注面板「完成」（复用 `done`）、「已标记为已解决」（`annotationMarkedResolved`）。其余可见性/分享权限/AI 点评/提醒/详细信息文案原本已带 l10n + 中文 fallback |
-| ~~P3-2~~ ✅ | 单条 toast 疑漏本地化（复核为误报） | ~~`screens/data_cleanup_screen.dart:443`~~ | 原文已使用 `historyCleanedSuccess` + 中文 fallback，无需改动 |
-| P3-3 | 页面自带内联双语 | `screens/account_deletion_screen.dart`（通篇 `_isZh ? … : …`） | 迁到 l10n：中英表现不变，但非中英语言不再一律退英文，同时消除双份文案维护 |
-| P3-4 | 英文残留抽样核查 | 全库扫描（排除注释 / 日志 / 已带 l10n 的 fallback）约 **1,500 处**：`webdav_settings_screen`(125)、`app_provider`(117)、`ai_insight_engine`(98)、`ai_settings_screen`(88)、`user_agreement_screen`(63)、`intelligent_related_notes_service`(58) | 已收口 `login_screen`：表单校验 7 条、服务器提示 3 条、FAQ 底部入口 2 条；FAQ 正文约 30 条长文案**暂不翻译**。其余按页面排期 |
-| P3-5 | 相对时间接口未统一 | `utils/time_utils.dart#getRelativeTime` 仅回收站改走 l10n | 其余调用点迁到 `AppLocalizationsSimple.relativeTime`，迁完再删旧方法 |
-| ~~P3-6~~ ✅ | 静态检查 4 条 warning | ~~`providers/app_provider.dart:2015`、`:3687`、`services/speech_service.dart:118`、`utils/image_utils.dart:278`~~ | 已修：4 处 try 内 `return future` 改为 `return await future`，异常按原意走 `catch` 返回 `false`；`dart analyze` 现为 0 issue，**P2-6 的清 warning 前置条件已满足** |
-| P3-7 | 回收站 GC 触发点单一 | 同 P1-3（`_RecentlyDeletedScreenState._load`） | 与 P1-3 一并处理；建议按天节流，避免每次进页都写库 |
-| P3-8 | 示例笔记多入口一致性 | 滑删 / 更多菜单 / 置顶（`NoteCard.isExample` 已覆盖前两者） | 回归三入口均只提示；新增卡片类型时不要绕过 `isExample` |
-| P3-9 | 横屏/平板下示例笔记卡底部溢出 | 1024 宽真机截图出现 `BOTTOM OVERFLOWED BY 21 PIXELS`（中文 5 行文案） | 排查 `NoteCard` 文本区 `Flexible` 与底部操作行的高度分配；或对示例笔记单独限制 `maxLines`，避免窄高比布局溢出 |
-
----
-
-## 六、待拍板的决策
-
-1. **备份是否包含回收站**：建议不包含（导出时跳过 `DELETED`），回收站属于本地临时态。
-2. **撤销档位**：当前是 3.2 秒内存窗口 + 30 天回收站；是否需要"永久撤销 toast"或调整回收站保留期。
-3. **数据库加密**：是否引入 SQLCipher（影响启动耗时与备份兼容性）。
-4. ~~**冲突处理策略**~~ **已决（2026-10-20）**：先做统计版 —— 计数 + 服务器信息页提示，合并仍以服务端为准。"冲突副本"式人工合并等有真实用户反馈再评估，因为它要引入一个新概念和一套新 UI。
-5. **卡片预览的交互边界**：当前预览里的标签/链接/引用不可点（块级结构已拍平，没有点击区域），点卡片进详情页。是否需要给链接单独挂 `TapGestureRecognizer`。参见 4.3。
-
----
-
-## 七、尚未验证的部分
-
-- 未运行 `dart tool/inkpaper.dart verify`（仅跑了 `dart analyze` 与 `flutter test`）。
-- ~~未在真机/模拟器验证 UI 链路（删除刷新、分页、回收站、下拉刷新）~~ **部分已验（2026-10-21，真机 Android）**：删除 → 回收站出现 → 恢复 → 彻底删除 → 清空、空状态文案与 30 天保留期文案、中英双语切换均通过；分页与下拉刷新仍未验证。
-- **P0-1 只有代码修复，没有集成验证**：需要构造「设备 A 删除 → 设备 B 从回收站恢复 → 同步」的真实链路，确认重建后本地 id 收敛、引用关系不断裂、旧记录不残留。
-- **P0-1 + P0-5 的联合场景未验证**：设备 A 删除 → 设备 B（旧 id 有未上传改动）同步 → 上传 404 重建 → 再同步。要确认最终只剩一条、置顶/批注/引用都还在。`findDuplicateLocalCopies` 只有纯函数单测，没有跑过真实同步链路。
-- **P0-2 的暂停重试未验证**：需要构造一条必定失败的笔记（例如让服务端返回 413/422，或断网后重试），确认第 4 次同步被跳过、提示保留、编辑后重新入队。`pending_note_operations` 的新方法还没有 DB 层单测（sqflite 测试基础设施尚未搭）。
-- **P0-3 的冲突计数只有纯函数单测**：`isMergeConflict` 覆盖了四种判定，但「上传回显不一致 → 计数 → 落盘 → 服务器信息页显示」这条链没有端到端验证，需要在真机上制造一次双端并发编辑。WebDAV 的三方判断同样没有集成测试。
-- 未在真机上采集性能基线（见 §4.1 P-6）：滚动帧耗时、冷启动、`NotePreviewCache.hitRate` 均无实测数据。
-- 未执行 `build android-release-split` 验证拆包产物与 `--split-debug-info` 输出路径。
-- 迁移测试使用手工构造的 schema，未覆盖真实用户库中的脏数据（例如 `rowStatus` 为 NULL、`createdAt` 非 ISO 格式）。
-- `docs/architecture/ARCHITECTURE_OVERVIEW.md` 是 v1.1.13 时期的历史快照（记为 102,042 行 / `AppProvider` 4,613 行），与当前 88,287 行 / 3,781 行不符，引用数据时以本文件为准。
+1. 索引表里有没有两条以上 `doing`？有 → 说明上一轮没收尾，先修正状态，别开始新任务。
+2. 选中的任务「前置」是否全部 `done`？有 `blocked` 在链上 → 跳到无关任务，别硬上。
+3. 任务「验收」能不能直接复制执行？不能 → 说明条目不合格，先补验收再动手。

@@ -35,7 +35,7 @@
 | ID | 标题 | 优先级 | 前置 | 验收 | 状态 |
 |---|---|---|---|---|---|
 | — | P0 无 finding（analyze 0 error、399 测试全绿） | P0 | — | 不适用 | done |
-| STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | **缺验收**：A-02 重建次数、A-03 同步耗时需 profile / 服务器 | todo |
+| STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | **缺验收**：A-02 重建次数、A-03 同步耗时需 profile / 服务器 | doing |
 | ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 可执行（子项 5 删除字体需先在 BLOCKERS.md 记录许可结论） | todo |
 | QUAL-CLEAN-003 | P3 清理批次（4 子项） | P3 | ARCH-LAYER-002 | **缺验收**：子项 4 本地化目标值不可命令化 | todo |
 
@@ -60,7 +60,9 @@
 | 收益 | A-01：通知面从「整实例 63 处触发」收敛到分域；A-02：长文输入不再重建整棵编辑器树（未测量）；A-03：同步耗时由 N×RTT 降至约 N/2×RTT（未测量）；A-04：单次重建 widget 数下降（未测量） |
 | 回滚 | 每个子项单独 commit，`git revert <sha>` 即可回退该子项 |
 | 不许做 | 不引入新状态管理库（沿用 provider）；不改同步协议与 `pending_operations` 语义；不改编辑器 Markdown 渲染规则；不动 `home_screen` 之外页面；不改 pubspec 依赖 |
-| 状态 | todo |
+| 状态 | doing |
+
+**子项状态**：✅ 子项 3 并发化（`4b22455`）｜⛔ 子项 1 与子项 2 blocked（见 `BLOCKERS.md`）｜⬜ 子项 4 未开始
 
 **STATE-CORE-001 验收命令**（改前基线：app_provider 4,434 行 / notify 58 / setState 39 / home 2,801 行 / `Widget _build` 19）：
 

@@ -164,11 +164,12 @@
 | ~~P3-1~~ ✅ | 服务层策略/提示文案硬编码（初判约 50 处，复核后实际缺 6 处） | ~~`services/note_actions_service.dart`~~ | 已修：分享失败（`shareFailedDetail`）、未登录/服务器配置错误（`serverConfigMissing`）、AI 回退提示（`localReviewUsed`）、本地点评标题（`localReview`）、批注面板「完成」（复用 `done`）、「已标记为已解决」（`annotationMarkedResolved`）。其余可见性/分享权限/AI 点评/提醒/详细信息文案原本已带 l10n + 中文 fallback |
 | ~~P3-2~~ ✅ | 单条 toast 疑漏本地化（复核为误报） | ~~`screens/data_cleanup_screen.dart:443`~~ | 原文已使用 `historyCleanedSuccess` + 中文 fallback，无需改动 |
 | P3-3 | 页面自带内联双语 | `screens/account_deletion_screen.dart`（通篇 `_isZh ? … : …`） | 迁到 l10n：中英表现不变，但非中英语言不再一律退英文，同时消除双份文案维护 |
-| P3-4 | 英文残留抽样核查 | `utils/share_utils.dart`(48)、`widgets/note_editor.dart`(78)、`screens/home_screen.dart`(83)、`widgets/share_image_preview_screen.dart`(47) | 先区分 `debugPrint` 与 UI 文案，只改 UI 字符串 |
+| P3-4 | 英文残留抽样核查 | 全库扫描（排除注释 / 日志 / 已带 l10n 的 fallback）约 **1,500 处**：`webdav_settings_screen`(125)、`app_provider`(117)、`ai_insight_engine`(98)、`ai_settings_screen`(88)、`user_agreement_screen`(63)、`intelligent_related_notes_service`(58) | 已收口 `login_screen`：表单校验 7 条、服务器提示 3 条、FAQ 底部入口 2 条；FAQ 正文约 30 条长文案**暂不翻译**。其余按页面排期 |
 | P3-5 | 相对时间接口未统一 | `utils/time_utils.dart#getRelativeTime` 仅回收站改走 l10n | 其余调用点迁到 `AppLocalizationsSimple.relativeTime`，迁完再删旧方法 |
 | ~~P3-6~~ ✅ | 静态检查 4 条 warning | ~~`providers/app_provider.dart:2015`、`:3687`、`services/speech_service.dart:118`、`utils/image_utils.dart:278`~~ | 已修：4 处 try 内 `return future` 改为 `return await future`，异常按原意走 `catch` 返回 `false`；`dart analyze` 现为 0 issue，**P2-6 的清 warning 前置条件已满足** |
 | P3-7 | 回收站 GC 触发点单一 | 同 P1-3（`_RecentlyDeletedScreenState._load`） | 与 P1-3 一并处理；建议按天节流，避免每次进页都写库 |
 | P3-8 | 示例笔记多入口一致性 | 滑删 / 更多菜单 / 置顶（`NoteCard.isExample` 已覆盖前两者） | 回归三入口均只提示；新增卡片类型时不要绕过 `isExample` |
+| P3-9 | 横屏/平板下示例笔记卡底部溢出 | 1024 宽真机截图出现 `BOTTOM OVERFLOWED BY 21 PIXELS`（中文 5 行文案） | 排查 `NoteCard` 文本区 `Flexible` 与底部操作行的高度分配；或对示例笔记单独限制 `maxLines`，避免窄高比布局溢出 |
 
 ---
 

@@ -1018,6 +1018,15 @@ class AppLocalizationsSimple {
       );
   String get backToLogin => _t('backToLogin', fallback: '返回登录');
   String get learnMore => _t('learnMore', fallback: '了解详情');
+  String get memosNoPasswordResetHint => _t(
+        'memosNoPasswordResetHint',
+        fallback: 'Memos暂不支持在线密码重置\n点击下方按钮查看解决方案',
+      );
+  String get memosNoPasswordResetDetail => _t(
+        'memosNoPasswordResetDetail',
+        fallback: 'Memos服务器目前不支持自动密码重置功能。如果您忘记了密码，建议联系服务器管理员或通过后台管理界面进行重置。',
+      );
+  String get rememberedPassword => _t('rememberedPassword', fallback: '想起密码了？');
 
   // ===== 服务器信息页面 =====
   String get initializingServerConnection =>

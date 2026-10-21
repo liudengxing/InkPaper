@@ -166,7 +166,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       const SizedBox(height: 12),
                       Center(
                         child: Text(
-                          'Memos暂不支持在线密码重置\n点击下方按钮查看解决方案',
+                          AppLocalizationsSimple.of(context)
+                                  ?.memosNoPasswordResetHint ??
+                              'Memos暂不支持在线密码重置\n点击下方按钮查看解决方案',
                           style: TextStyle(
                             fontSize: 16,
                             color: secondaryTextColor,
@@ -197,7 +199,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'Memos服务器目前不支持自动密码重置功能。如果您忘记了密码，建议联系服务器管理员或通过后台管理界面进行重置。',
+                                AppLocalizationsSimple.of(context)
+                                        ?.memosNoPasswordResetDetail ??
+                                    'Memos服务器目前不支持自动密码重置功能。如果您忘记了密码，建议联系服务器管理员或通过后台管理界面进行重置。',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: textColor,
@@ -272,7 +276,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            '想起密码了？',
+                            AppLocalizationsSimple.of(context)
+                                    ?.rememberedPassword ??
+                                '想起密码了？',
                             style: TextStyle(
                               fontSize: 14,
                               color: secondaryTextColor,
@@ -287,7 +293,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                             child: Text(
-                              '返回登录',
+                              AppLocalizationsSimple.of(context)?.backToLogin ??
+                                  '返回登录',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: accentColor,

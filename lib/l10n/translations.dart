@@ -984,6 +984,17 @@ class Translations {
     },
     'backToLogin': {'zh': '返回登录', 'en': 'Back to Login'},
     'learnMore': {'zh': '了解详情', 'en': 'Learn More'},
+    'memosNoPasswordResetHint': {
+      'zh': 'Memos暂不支持在线密码重置\n点击下方按钮查看解决方案',
+      'en':
+          'Memos does not support online password reset\nTap the button below for solutions',
+    },
+    'memosNoPasswordResetDetail': {
+      'zh': 'Memos服务器目前不支持自动密码重置功能。如果您忘记了密码，建议联系服务器管理员或通过后台管理界面进行重置。',
+      'en':
+          'Memos servers do not currently support automatic password reset. If you forgot your password, contact the server administrator or reset it through the backend management interface.',
+    },
+    'rememberedPassword': {'zh': '想起密码了？', 'en': 'Remembered it?'},
 
     // ===== 导入导出页面补充 =====
     'importDescription': {'zh': '导入说明', 'en': 'Import Description'},

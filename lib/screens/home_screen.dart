@@ -1264,23 +1264,37 @@ class _HomeScreenState extends State<HomeScreen>
                                   children: [
                                     if (!_isSearchActive)
                                       _buildNotificationBanner(),
-                                    SizedBox(
-                                      height:
-                                          MediaQuery.of(context).size.height -
-                                              240,
-                                      child:
-                                          showSearchSummary && _isSearchLoading
-                                              ? _buildSearchLoadingState()
-                                              : showSearchSummary
-                                                  ? _buildSearchEmptyState(
-                                                      searchQuery,
-                                                    )
-                                                  // 搜索无结果仍用空状态；
-                                                  // 完全没笔记时展示欢迎笔记
-                                                  : _isSearchActive
-                                                      ? _buildEmptyState()
-                                                      : _buildWelcomeNoteCard(),
-                                    ),
+                                    // 固定高度只给需要撑满首屏的空态/加载态；
+                                    // 欢迎卡片必须按内容自适应，否则小屏/大字号下
+                                    // 会被「屏幕高度 - 240」压出 RenderFlex 溢出
+                                    if (showSearchSummary && _isSearchLoading)
+                                      SizedBox(
+                                        height: MediaQuery.of(context)
+                                                .size
+                                                .height -
+                                            240,
+                                        child: _buildSearchLoadingState(),
+                                      )
+                                    else if (showSearchSummary)
+                                      SizedBox(
+                                        height: MediaQuery.of(context)
+                                                .size
+                                                .height -
+                                            240,
+                                        child:
+                                            _buildSearchEmptyState(searchQuery),
+                                      )
+                                    else if (_isSearchActive)
+                                      SizedBox(
+                                        height: MediaQuery.of(context)
+                                                .size
+                                                .height -
+                                            240,
+                                        child: _buildEmptyState(),
+                                      )
+                                    // 搜索无结果仍用空状态；完全没笔记时展示欢迎笔记
+                                    else
+                                      _buildWelcomeNoteCard(),
                                   ],
                                 )
                               : ListView.builder(

@@ -36,7 +36,7 @@
 |---|---|---|---|---|---|
 | — | P0 无 finding（analyze 0 error、399 测试全绿） | P0 | — | 不适用 | done |
 | STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | 子项 1 按四条验收判定 done（①✅ 1 个文件；②实测 11 条，待收敛 ≤6；③④ 仓库无 `lib/features/sync` / `SyncScope`，不适用）；子项 2 按 A 口径 done（输入路径 setState = 0）；子项 4 未开始（由 STATE-CORE-005 承接） | done |
-| STATE-CORE-005 | AppProvider 上帝对象分域拆分 | P2 | STATE-CORE-001 | 5 域可判定且全绿（认证/笔记/WebDAV/Notion/提醒，字段定义数均 0，转发 4/31/10/3/6）；AI、小组件、云验证**缺验收**（AI 域在 AppProvider 内无独立字段，小组件仅 1 字段） | doing |
+| STATE-CORE-005 | AppProvider 上帝对象分域拆分 | P2 | STATE-CORE-001 | 7 域全绿（认证/笔记/WebDAV/Notion/提醒/小组件/云验证，字段定义数均 0，转发 4/31/10/3/6/2/5）；AI 域 skipped（`AppProvider` 内无该域字段，命令实证） | done |
 | ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 可执行（子项 5 删除字体需先在 BLOCKERS.md 记录许可结论） | todo |
 | QUAL-CLEAN-003 | P3 清理批次（4 子项 + 交互态 setState 待评估） | P3 | ARCH-LAYER-002 | **缺验收**：子项 4 本地化目标值不可命令化 | todo |
 
@@ -112,9 +112,9 @@ flutter analyze                                                                 
 | 收益 | 通知面按域收敛，页面可按域订阅；单文件体量下降（不作为验收指标） |
 | 回滚 | 每域单 commit，`git revert <sha>` |
 | 不许做 | 不改任何业务逻辑；不改方法签名与调用方行为；不用总行数做验收；不混入服务层重构（A-05） |
-| 状态 | doing |
+| 状态 | done |
 
-**域进度**：✅ 认证域（`f25a829`，`_user` / `_memosApiService` → `AuthStore`，字段定义数 0、转发 4）｜✅ 笔记域（`2e8be5c`，17 字段 → `NotesStore`，字段定义数 0、转发 31）｜✅ WebDAV（`a5ee318`，5 字段 → `WebDavStore`，定义数 0、转发 10）｜✅ Notion（`57cb3db`，2 字段 → `NotionStore`，定义数 0、转发 3）｜✅ 提醒/通知（`1d5ae86`，4 字段 → `ReminderStore`，定义数 0、转发 6）｜⬜ AI｜⬜ 小组件（仅 `_widgetSnapshotUpdateId`，可考虑并入通用基建而非单独建 Store）
+**域进度**：✅ 认证域（`f25a829`，`_user` / `_memosApiService` → `AuthStore`，字段定义数 0、转发 4）｜✅ 笔记域（`2e8be5c`，17 字段 → `NotesStore`，定义数 0、转发 31）｜✅ WebDAV（`a5ee318`，5 字段 → `WebDavStore`，定义数 0、转发 10）｜✅ Notion（`57cb3db`，2 字段 → `NotionStore`，定义数 0、转发 3）｜✅ 提醒/通知（`1d5ae86`，4 字段 → `ReminderStore`，定义数 0、转发 6）｜✅ 小组件（`b127e62`，1 字段 → `WidgetStore`，定义数 0、转发 2）｜✅ 云验证（`db3d7b2`，3 字段 → `CloudVerificationStore`，定义数 0、转发 5）｜⏭️ AI（skipped：`AppProvider` 内无 AI 域字段，AI 能力通过 `aiEnabled` / `aiApiUrl` 配置与页面层调用，无可迁字段）
 
 ### ARCH-LAYER-002 · 修分层倒置与工程结构
 

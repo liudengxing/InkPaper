@@ -138,3 +138,54 @@ $ flutter test test/unit
 - 版本：`1.0.20+10020` → `1.0.21+10021`
 - commit: `1d5ae86`（代码），本次（文档）
 - 遗留：AI 域在 `AppProvider` 内无独立字段（仅方法），小组件仅 `_widgetSnapshotUpdateId`；下一轮需先判定这两域是否值得单独建 Store，或并入通用基建字段后终结 STATE-CORE-005
+
+## 2026-10-21 · STATE-CORE-005 · 小组件域 · done
+
+- 作用域：`lib/providers/app_provider.dart`、`lib/core/state/widget_store.dart`（新建）
+- 迁移字段（1）：`_widgetSnapshotUpdateId` → `WidgetStore.snapshotUpdateId`（快照调度版本号，防抖 350ms 期间丢弃过期快照）
+- 实测输出：
+```
+$ 字段定义数（旧版基线反向校验 / 新版）
+widget decl 旧=1 新=0
+$ _widgetStore. 转发数
+2
+$ flutter analyze lib/core/state/widget_store.dart lib/providers/app_provider.dart
+No issues found! (ran in 2.3s)   # 首轮报 directives_ordering，调整 webdav/widget import 先后后清零
+$ flutter test test/unit
+00:15 +328: All tests passed!
+```
+- 版本：`1.0.21+10021` → `1.0.22+10022`
+- commit: `b127e62`（代码），本次（文档）
+
+## 2026-10-21 · STATE-CORE-005 · 云验证域 · done
+
+- 作用域：`lib/providers/app_provider.dart`、`lib/core/state/cloud_verification_store.dart`（新建）
+- 迁移字段（3）：`_cloudService` / `_cloudAppConfig` / `_lastCloudVerificationTime` → `CloudVerificationStore`（`service` / `appConfig` / `lastVerificationTime`）
+- 实测输出：
+```
+$ 字段定义数（旧版基线反向校验 / 新版）
+cloud decl 旧=3 新=0
+$ _cloudStore. 转发数
+5
+$ flutter analyze lib/core/state/cloud_verification_store.dart lib/providers/app_provider.dart
+No issues found! (ran in 1.8s)
+$ flutter test test/unit
+00:14 +328: All tests passed!
+```
+- 版本：`1.0.22+10022` → `1.0.23+10023`
+- commit: `db3d7b2`（代码），本次（文档）
+
+## 2026-10-21 · STATE-CORE-005 · 终结（AI 域 skipped）
+
+- AI 域验收取证（无字段可迁）：
+```
+$ Select-String -Path lib/providers/app_provider.dart -Pattern '(?i)\b(AI|LLM|OpenAI|Ollama|Gemini|Anthropic|DeepSeek|Prompt)\w*'
+572: aiEnabled: true,
+573: aiApiUrl: AppConfig.DEEPSEEK_API_URL,
+644: content: 'AI 点评要给出具体反馈，而不是模板话。\n\n'
+646: '#AI #产品/体验',
+649: tags: const ['AI', '产品/体验'],
+```
+  → 命中仅截图演示数据与 `aiEnabled` / `aiApiUrl` 配置调用，无 AI 域字段声明，判 skipped（不新建空 Store）
+- 结论：STATE-CORE-005 的 7 个域全部迁出，`AppProvider` 内已无域字段定义（仅通用基建字段：`_appConfig` / `_mounted` / `_resourceService` / `_databaseService` / `_preferencesService` / `_authStore` 等 Store 持有者本身）
+- 状态：done

@@ -9,6 +9,7 @@ import 'package:inkpaper/config/app_config.dart' as Config;
 import 'package:inkpaper/core/state/auth_store.dart';
 import 'package:inkpaper/core/state/notes_store.dart';
 import 'package:inkpaper/core/state/notion_store.dart';
+import 'package:inkpaper/core/state/reminder_store.dart';
 import 'package:inkpaper/core/state/webdav_store.dart';
 import 'package:inkpaper/models/annotation_model.dart'; // ✅ 新增：批注模型
 import 'package:inkpaper/models/app_config_model.dart';
@@ -249,19 +250,24 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   set _pendingDeleteCommitTimer(Timer? value) =>
       _notesStore.pendingDeleteCommitTimer = value;
 
-  // 通知相关属性
+  // 通知相关属性（提醒/通知域字段已迁入 ReminderStore，此处仅保留转发）
   final CloudVerificationService _cloudService = CloudVerificationService();
-  final NotificationService _notificationService = NotificationService();
+  final ReminderStore _reminderStore = ReminderStore();
+
+  NotificationService get _notificationService =>
+      _reminderStore.appNotificationService;
   // 🔥 暴露notificationService供main.dart使用
   NotificationService get notificationService => _notificationService;
-  final ReminderNotificationService _reminderNotificationService =
-      ReminderNotificationService();
+  ReminderNotificationService get _reminderNotificationService =>
+      _reminderStore.reminderService;
   // 🔥 暴露reminderNotificationService供main.dart使用
   ReminderNotificationService get reminderNotificationService =>
       _reminderNotificationService;
   // 🎯 大厂标准：暴露preferencesService供登录/注册页使用
   PreferencesService get preferencesService => _preferencesService;
-  int _unreadAnnouncementsCount = 0;
+  int get _unreadAnnouncementsCount => _reminderStore.unreadAnnouncementsCount;
+  set _unreadAnnouncementsCount(int value) =>
+      _reminderStore.unreadAnnouncementsCount = value;
 
   // 云验证相关
   CloudAppConfigData? _cloudAppConfig;
@@ -382,7 +388,10 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   // 初始化应用
   /// 🔥 单独初始化通知服务（在应用启动时立即调用）
   // 🚀 懒加载：只在需要时初始化
-  bool _notificationServiceInitialized = false;
+  bool get _notificationServiceInitialized =>
+      _reminderStore.appNotificationInitialized;
+  set _notificationServiceInitialized(bool value) =>
+      _reminderStore.appNotificationInitialized = value;
 
   Future<void> initializeNotificationService() async {
     if (_notificationServiceInitialized) {

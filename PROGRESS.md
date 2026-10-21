@@ -189,3 +189,127 @@ $ Select-String -Path lib/providers/app_provider.dart -Pattern '(?i)\b(AI|LLM|Op
   → 命中仅截图演示数据与 `aiEnabled` / `aiApiUrl` 配置调用，无 AI 域字段声明，判 skipped（不新建空 Store）
 - 结论：STATE-CORE-005 的 7 个域全部迁出，`AppProvider` 内已无域字段定义（仅通用基建字段：`_appConfig` / `_mounted` / `_resourceService` / `_databaseService` / `_preferencesService` / `_authStore` 等 Store 持有者本身）
 - 状态：done
+
+## 2026-10-21 · ARCH-LAYER-002 · A-05 · done
+
+- 作用域：`lib/services/note_actions_service.dart`、新建 `lib/widgets/note_actions_ui.dart`、调用方 `lib/widgets/note_card.dart`、`lib/widgets/note_more_options_menu.dart`
+- 做法：整份 UI 编排（弹窗/对话框/导航/SnackBar，1,700+ 行）平移到 widgets 层的 `NoteActionsUi`；服务层重写为纯数据层 `NoteActionsService`（`updateContent` / `delete` / `restore` / `togglePin` / `setVisibility`），不 import `screens/`、`widgets/`、不碰 `BuildContext`。两个调用方只改 import 与类名，调用参数不变。
+- 实测输出：
+```
+$ (Select-String -Path lib/services/note_actions_service.dart -Pattern "package:inkpaper/(screens|widgets)/" | Measure-Object).Count
+0
+$ flutter analyze
+No issues found! (ran in 6.9s)
+$ flutter test
+00:26 +399: All tests passed!
+```
+- 版本：`1.0.23+10023` → `1.0.24+10024`
+- commit: `7c62862`（代码），`e5c388f`（文档）
+
+## 2026-10-21 · ARCH-LAYER-002 · A-06 · done
+
+- 做法：`NetworkUtils` 改为进程级共享 `http.Client`（懒加载 `sharedClient`），`createOptimizedClient` / `createDirectClient` 返回同一实例；删除每个请求里的 `client.close()`（否则会关掉共享客户端），新增 `NetworkUtils.close()` 供退出/teardown 调用。
+- 实测输出：
+```
+$ http.Client() 计数
+1   (期望 <= 1)
+$ close() 计数
+4   (期望 >= 1)
+$ flutter analyze
+No issues found! (ran in 11.4s)
+$ flutter test test/unit
+00:14 +328: All tests passed!
+```
+- 版本：`1.0.24+10024` → `1.0.25+10025`
+- commit: `63e1b7d`
+
+## 2026-10-21 · ARCH-LAYER-002 · A-07 · done
+
+- 做法：新增顶层函数 `decodeBackupNotesJson(String rawJson)`（供 `compute` 调用），只做解码 + 结构校验，返回 `List<Map<String, dynamic>>`；`importNotesFromJson` 改 `await compute(...)`，`Note.fromJson` 仍在主 isolate。`_importNotes` 原本就是单个 `db.transaction`，插入包事务无需改动。
+- 实测输出：
+```
+$ jsonDecode(jsonData) 计数
+0   (期望 0)
+$ compute(|Isolate.run 计数
+1   (期望 >= 1)
+$ flutter analyze lib/services/database_service.dart
+No issues found! (ran in 1.0s)
+$ flutter test test/unit
+00:15 +328: All tests passed!
+```
+- 版本：`1.0.25+10025` → `1.0.26+10026`
+- commit: `a2f1436`
+
+## 2026-10-21 · ARCH-LAYER-002 · A-08 · done
+
+- 做法：删除 `cupertino_icons` / `flutter_image_compress` / `flutter_svg` / `flutter_highlight` / `graphview` / `flutter_dotenv` 六个无引用依赖，并删 `xml` 直连声明（`flutter pub deps` 显示 `xml 6.6.1` 由 `webdav_client 1.2.2` 与 `flutter_native_splash` 传递引入，删直连不影响解析）。
+- 实测输出：
+```
+$ flutter pub deps --style=compact
+- webdav_client 1.2.2 [dio xml convert]
+- xml 6.6.1 [collection meta petitparser]
+$ 已删依赖计数
+0   (期望 0)
+$ flutter pub get
+Got dependencies!（1 package is discontinued）
+$ flutter analyze
+No issues found! (ran in 8.6s)
+$ flutter test
+00:23 +399: All tests passed!
+```
+- 版本：`1.0.26+10026` → `1.0.27+10027`
+- commit: `02bb3b5`（含 `pubspec.lock`）
+
+## 2026-10-21 · ARCH-LAYER-002 · A-09 · done
+
+- 前置：许可结论先写入 `BLOCKERS.md`（SF Pro / SF Mono 不可再分发；且 `pubspec.yaml` 无 `fonts:` 段、`assets:` 仅 `assets/images/`，这 5 个文件从未打包）。
+- 实测输出：
+```
+$ (Get-ChildItem assets/fonts -File -ErrorAction SilentlyContinue | Measure-Object).Count
+0   (期望 0)
+$ assets 递归总大小
+0.01 MB   (期望 <= 0.1，改前 3.96)
+$ flutter analyze
+No issues found! (ran in 7.5s)
+$ flutter test
+00:30 +399: All tests passed!
+```
+- 版本：`1.0.27+10027` → `1.0.28+10028`
+- commit: `7c0039f`
+
+## 2026-10-21 · ARCH-LAYER-002 · A-10 · done
+
+- 做法：`android-release` / `android-release-split` / `android-appbundle` 三条 release 构建参数加 `--obfuscate`；原本缺 `--split-debug-info` 的 universal APK 一并补上（否则混淆后堆栈不可读）。
+- 实测输出：
+```
+$ --obfuscate 计数
+4   (期望 >= 1)
+$ dart analyze tool/inkpaper.dart
+No issues found!
+$ dart tool/inkpaper.dart --help
+android-debug | android-release | android-release-split | android-aab
+```
+- 缺验收（按条目原文）：release 体积对比需 `android/key.properties`，当前缺失，未测量。
+- 版本：`1.0.28+10028` → `1.0.29+10029`
+- commit: `a9dbe45`
+
+## 2026-10-21 · ARCH-LAYER-002 · A-11 · blocked（8/9 处已消除）
+
+- 实测输出：
+```
+$ (Get-ChildItem lib -Recurse -Filter *.dart | Select-String -Pattern 'shrinkWrap:\s*true' | Measure-Object).Count
+1   (改前 9，期望 0)
+$ flutter analyze
+No issues found! (ran in 7.0s)
+$ flutter test
+00:31 +399: All tests passed!
+```
+- 已处理：`flomo_import_screen.dart` ×3、`local_backup_restore_screen.dart` ×1、`server_info_screen.dart` ×2、`heatmap.dart` ×1、`note_editor.dart` ×1（细节见 BLOCKERS）
+- 阻塞点：`sidebar_customization_screen.dart:539` 的 `ReorderableListView(shrinkWrap: true)` 嵌在 `ListView` 内；已试 3 种方案（直接删参数 / Column+拖拽监听器 / SliverReorderableList）均不可行或需页面级 sliver 重构，且该文件不在 A-11 作用域。
+- 版本：`1.0.29+10029` → `1.0.30+10030`
+- commit: `e4b3b7d`（代码），本次（文档）
+
+## 2026-10-21 · QUAL-CLEAN-003 · blocked（前置未达成）
+
+- 前置 `ARCH-LAYER-002` 因 A-11 blocked，未达 done；按执行合约不得跳前置开工。4 个子项相互独立，A-11 决策落定后可直接执行。
+- 状态：blocked（详见 BLOCKERS.md）

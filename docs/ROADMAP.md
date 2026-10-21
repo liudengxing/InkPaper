@@ -37,8 +37,8 @@
 | — | P0 无 finding（analyze 0 error、399 测试全绿） | P0 | — | 不适用 | done |
 | STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | 子项 1 按四条验收判定 done（①✅ 1 个文件；②实测 11 条，待收敛 ≤6；③④ 仓库无 `lib/features/sync` / `SyncScope`，不适用）；子项 2 按 A 口径 done（输入路径 setState = 0）；子项 4 未开始（由 STATE-CORE-005 承接） | done |
 | STATE-CORE-005 | AppProvider 上帝对象分域拆分 | P2 | STATE-CORE-001 | 7 域全绿（认证/笔记/WebDAV/Notion/提醒/小组件/云验证，字段定义数均 0，转发 4/31/10/3/6/2/5）；AI 域 skipped（`AppProvider` 内无该域字段，命令实证） | done |
-| ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 可执行（子项 5 删除字体需先在 BLOCKERS.md 记录许可结论） | todo |
-| QUAL-CLEAN-003 | P3 清理批次（4 子项 + 交互态 setState 待评估） | P3 | ARCH-LAYER-002 | **缺验收**：子项 4 本地化目标值不可命令化 | todo |
+| ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 6/7 子项验收通过（A-05 ~ A-10）；A-11 剩 1 处 `shrinkWrap`（`sidebar_customization_screen.dart:539`，需页面级 sliver 重构，超出作用域），见 BLOCKERS「A-11」 | blocked |
+| QUAL-CLEAN-003 | P3 清理批次（4 子项 + 交互态 setState 待评估） | P3 | ARCH-LAYER-002 | **缺验收**：子项 4 本地化目标值不可命令化；**前置未达成**（ARCH-LAYER-002 blocked），见 BLOCKERS | blocked |
 
 阶段退出条件：Phase 1 = 全部 P0 条目终结（本版已满足）；Phase 2 = STATE-CORE-001 全部子项 done 且 release 体积已重测或已记入 BLOCKERS；Phase 3 = ARCH-LAYER-002 全部子项 done 且 `flutter analyze` 无新增 issue；Phase 4 = 全部条目终结且 `flutter analyze` 为 0 error。
 
@@ -131,9 +131,9 @@ flutter analyze                                                                 
 | 收益 | A-05：服务层可脱离 `BuildContext` 单测；A-06：减少重复 TLS 握手（未测量）；A-07：大备份导入不再阻塞 UI isolate（未测量）；A-08：依赖树缩小（未测量）；A-09：仓库减 3.94 MB；A-10：符号不随包（未测量）；A-11：嵌套列表首帧不再全量布局（未测量） |
 | 回滚 | 子项 2/3/6/7 单 commit revert；子项 4/5 涉及删除，回退需 `git revert` + `flutter pub get` |
 | 不许做 | 不改同步协议、DB schema、备份 JSON 格式；不动 `assets/images/`；不引入新网络库；除任务列出的依赖外不增删任何包 |
-| 状态 | doing |
+| 状态 | blocked |
 
-**子项进度**：✅ A-05（`7c62862`，UI import 7 → 0；UI 编排移至 `lib/widgets/note_actions_ui.dart`，服务层仅留数据层 5 个方法）｜⬜ A-06｜⬜ A-07｜⬜ A-08｜⬜ A-09｜⬜ A-10｜⬜ A-11
+**子项进度**：✅ A-05（`7c62862`，UI import 7 → 0；UI 编排移至 `lib/widgets/note_actions_ui.dart`，服务层仅留数据层 5 个方法）｜✅ A-06（`63e1b7d`，`http.Client()` 2 → 1，新增 `close()`）｜✅ A-07（`a2f1436`，`jsonDecode(jsonData)` → `compute`，插入本就在单事务内）｜✅ A-08（`02bb3b5`，删 7 个无引用依赖；`xml` 仍由 `webdav_client` / `flutter_native_splash` 传递引入）｜✅ A-09（`7c0039f`，删 5 字体 3.94 MB，许可结论已记 BLOCKERS）｜✅ A-10（`a9dbe45`，`--obfuscate` + symbols）｜⛔ A-11（`e4b3b7d`，8/9 处已消除；剩 `sidebar_customization_screen.dart:539` 需页面级 sliver 重构，见 BLOCKERS）
 
 **ARCH-LAYER-002 验收命令**（改前基线：UI import 7 / `http.Client()` 2 / `jsonDecode(jsonData)` 1 / 无 import 依赖 7 / 字体 5 个 3.94 MB / `shrinkWrap` 9）：
 

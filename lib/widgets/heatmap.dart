@@ -69,8 +69,8 @@ class _StatCardWidget extends StatelessWidget {
 }
 
 class _HeatmapState extends State<Heatmap> {
-  // 每页展示的周数：半年级别的连续时间轴（GitHub / flomo 那种小方格）
-  static const int _weeksPerPage = 26;
+  // 每页展示的自然月数：三个月窗口
+  static const int _monthsPerPage = 3;
   static const double _cellGap = 2.0;
 
   // 0 = 最近一页，1 = 再往前翻一页
@@ -111,18 +111,26 @@ class _HeatmapState extends State<Heatmap> {
     Color(0xFF306E4F), // 中绿色 - 级别4
   ];
 
-  // 区间末尾（含）：最近一页是今天，往前翻按整页回退
+  // 区间末尾（含）：最近一页是今天，往前翻按整页（3 个自然月）回退
   DateTime get _rangeEnd {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    return today.subtract(Duration(days: _pageOffset * _weeksPerPage * 7));
+    if (_pageOffset == 0) {
+      return today;
+    }
+    // 上一页的最后一天 = 当前月往前 (offset*3 - 1) 个月的月末
+    return DateTime(
+      today.year,
+      today.month - _pageOffset * _monthsPerPage + 1,
+      0,
+    );
   }
 
-  // 区间起始：向前取满 26 周并对齐到周一（列 = 周，行 = 周一…周日）
+  // 区间起始：末尾往前推 3 个自然月，再对齐到周一（列 = 周，行 = 周一…周日）
   DateTime get _rangeStart {
-    final rawStart =
-        _rangeEnd.subtract(const Duration(days: _weeksPerPage * 7 - 1));
-    return rawStart.subtract(Duration(days: rawStart.weekday - 1));
+    final end = _rangeEnd;
+    final firstOfMonth = DateTime(end.year, end.month - (_monthsPerPage - 1));
+    return firstOfMonth.subtract(Duration(days: firstOfMonth.weekday - 1));
   }
 
   int get _weekCount {
@@ -368,8 +376,9 @@ class _HeatmapState extends State<Heatmap> {
             const weekdayLabelWidth = 16.0;
             final columns = _weekCount;
             final gridWidth = constraints.maxWidth - weekdayLabelWidth;
+            // 13 列时格宽约 22dp；上限给到 26 保证仍然铺满，不回到留白状态
             final cell = ((gridWidth - _cellGap * (columns - 1)) / columns)
-                .clamp(7.0, 18.0);
+                .clamp(7.0, 26.0);
             final start = _rangeStart;
             final end = _rangeEnd;
 
@@ -381,13 +390,19 @@ class _HeatmapState extends State<Heatmap> {
             // 标签比格子宽，必须用 Stack 绝对定位 —— 放进 Row 会把行撑爆。
             final monthLabels = <int, String>{};
             var lastMonthKey = '';
+            final startIsMonthStart = start.day == 1;
             for (var week = 0; week < columns; week++) {
               final first = dateAt(week, 0);
               final key = '${first.year}-${first.month}';
-              if (key != lastMonthKey) {
-                monthLabels[week] = _monthShortLabel(context, first);
-                lastMonthKey = key;
+              if (key == lastMonthKey) {
+                continue;
               }
+              lastMonthKey = key;
+              // 起始月只占了半周时不标，保证顶部只出现 3 个月份
+              if (week == 0 && !startIsMonthStart) {
+                continue;
+              }
+              monthLabels[week] = _monthShortLabel(context, first);
             }
 
             return Column(
@@ -566,10 +581,13 @@ class _HeatmapState extends State<Heatmap> {
     return isZh ? '${date.month}月' : DateFormat('MMM', 'en_US').format(date);
   }
 
-  /// 区间标题：同一月只显示一次，跨月显示「起始月 - 结束月」。
+  /// 区间标题：与顶部月份标签保持一致，起始月残缺时从下一个整月算起。
   String _rangeLabel(BuildContext context) {
     final format = _getDateFormat(context);
-    final start = _rangeStart;
+    var start = _rangeStart;
+    if (start.day != 1) {
+      start = DateTime(start.year, start.month + 1);
+    }
     final end = _rangeEnd;
     if (start.year == end.year && start.month == end.month) {
       return format.format(end);

@@ -1,3 +1,28 @@
+## 2026-10-23 · release 包体积瘦身 · done
+
+- 体积构成（拆开 release universal APK 实测，75.6 MB）：
+```
+lib/x86_64       25.68 MB
+lib/arm64-v8a    24.53 MB
+lib/armeabi-v7a  22.01 MB
+classes.dex       6.84 MB
+assets           0.24 MB
+resources.arsc    0.22 MB
+```
+  - arm64 内部：`libapp.so` 11.5（Dart AOT）、`libflutter.so` 11.2（引擎）、`libsentry.so` 1.16、`libumeng-spy.so` 0.52
+- 改动：`tool/inkpaper.dart` 的 `android-release` 加 `--target-platform=android-arm,android-arm64`（x86_64 只有模拟器需要）
+- 结果：universal APK **75.6 MB → 51.3 MB（−24.3 MB，−32%）**
+- 尝试后回退：想在 `defaultConfig` 加 `ndk { abiFilters }` 再裁掉插件自带的 1.36 MB x86_64 so，但 release 增量构建一直判 up-to-date、未重新打包，无法验证是否生效，且会让 Android 模拟器装不上 → 回退，留作已知项
+- 分发建议：真机安装走 `android-release-split`（arm64 ≈27.8 MB）或商店上传 AAB（69.7 MB，按设备下发）
+- 验收输出：
+```
+$ flutter analyze --no-pub
+No issues found! (ran in 15.1s)
+$ dart tool/inkpaper.dart build android-release
+√ Built build\app\outputs\flutter-apk\app-release.apk (51.3MB)
+```
+- 版本：`1.0.48+10048` → `1.0.49+10049`
+
 ## 2026-10-23 · 侧边栏对齐 flomo（热力图去卡片化 / 菜单块收窄） · done
 
 - 结构确认：抽屉顶部是账号卡（头像 + 昵称 + 在线态），下面依次为「活动记录」热力图与「功能菜单」，无需调整顺序

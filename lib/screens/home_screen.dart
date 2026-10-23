@@ -1481,10 +1481,8 @@ class _HomeScreenState extends State<HomeScreen>
     final brightness = isDarkMode ? Brightness.dark : Brightness.light;
     // floating_control_icon
     final iconColor = isDarkMode ? Colors.white : const Color(0xFF2E2E2E);
-    // 占位文案：比图标弱一级，不抢注意力
-    final hintColor = isDarkMode
-        ? Colors.white.withValues(alpha: 0.55)
-        : Colors.black.withValues(alpha: 0.38);
+    // 占位文案：玻璃上要能读清，浅色用黑字、深色用白字
+    final hintColor = isDarkMode ? Colors.white : Colors.black;
     const barHeight = 58.0;
     const shapeRadius = 26.0;
     final radius = BorderRadius.circular(shapeRadius);

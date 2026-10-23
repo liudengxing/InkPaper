@@ -106,4 +106,129 @@ void main() {
       expect(copies['old-2']!.id, 'new-2');
     });
   });
+
+  group('findContentDuplicate（跨同步通道去重）', () {
+    Note timed(String id, String content, DateTime createdAt) => Note(
+          id: id,
+          content: content,
+          createdAt: createdAt,
+          updatedAt: createdAt,
+        );
+
+    test('同内容、创建时间接近 → 认为是同一条（WebDAV 旧 id vs Memos uid）', () {
+      final t = DateTime(2026, 10, 20, 7, 54);
+      final pool = groupNotesByContentHash([timed('memos-uid', '同一段正文', t)]);
+
+      final twin = findContentDuplicate(
+        candidate: timed('old-uuid', '同一段正文', t.add(const Duration(seconds: 30))),
+        poolByHash: pool,
+      );
+
+      expect(twin, isNotNull);
+      expect(twin!.id, 'memos-uid');
+    });
+
+    test('同内容但创建时间相差超过容差 → 视为两条独立笔记', () {
+      final t = DateTime(2026, 10, 20, 7, 54);
+      final pool = groupNotesByContentHash([timed('a', '同一段正文', t)]);
+
+      final twin = findContentDuplicate(
+        candidate: timed('b', '同一段正文', t.add(const Duration(hours: 2))),
+        poolByHash: pool,
+      );
+
+      expect(twin, isNull);
+    });
+
+    test('同 id 不走内容匹配（交给 id 匹配逻辑）', () {
+      final t = DateTime(2026, 10, 20, 7, 54);
+      final pool = groupNotesByContentHash([timed('same', '正文', t)]);
+
+      expect(
+        findContentDuplicate(candidate: timed('same', '正文', t), poolByHash: pool),
+        isNull,
+      );
+    });
+
+    test('内容不同 → 不命中', () {
+      final t = DateTime(2026, 10, 20, 7, 54);
+      final pool = groupNotesByContentHash([timed('a', '内容 A', t)]);
+
+      expect(
+        findContentDuplicate(candidate: timed('b', '内容 B', t), poolByHash: pool),
+        isNull,
+      );
+    });
+  });
+
+  group('dedupeDuplicateNotes（库内合并副本）', () {
+    Note at(
+      String id,
+      String content,
+      DateTime createdAt, {
+      bool isPinned = false,
+      DateTime? reminderTime,
+    }) =>
+        Note(
+          id: id,
+          content: content,
+          createdAt: createdAt,
+          updatedAt: createdAt,
+          isPinned: isPinned,
+          reminderTime: reminderTime,
+        );
+
+    test('同内容 + 时间接近 → 合并为一条并给出待删 id', () {
+      final t = DateTime(2026, 10, 20, 7, 54);
+      final result = dedupeDuplicateNotes([
+        at('memos-uid', '同一段正文', t),
+        at('webdav-uuid', '同一段正文', t.add(const Duration(minutes: 2))),
+      ]);
+
+      expect(result.notes, hasLength(1));
+      expect(result.notes.single.id, 'memos-uid'); // 保留创建时间最早的一条
+      expect(result.removedIds, ['webdav-uuid']);
+    });
+
+    test('合并时元数据取并集（置顶 / 提醒）', () {
+      final t = DateTime(2026, 10, 20, 7, 54);
+      final result = dedupeDuplicateNotes([
+        at('keep', '正文', t),
+        at(
+          'copy',
+          '正文',
+          t.add(const Duration(seconds: 40)),
+          isPinned: true,
+          reminderTime: DateTime(2026, 10, 21, 9),
+        ),
+      ]);
+
+      final merged = result.notes.single;
+      expect(merged.isPinned, isTrue);
+      expect(merged.reminderTime, DateTime(2026, 10, 21, 9));
+      expect(result.updatedNotes, hasLength(1));
+    });
+
+    test('同内容但创建时间相差很多 → 两条都保留', () {
+      final t = DateTime(2026, 10, 20, 7, 54);
+      final result = dedupeDuplicateNotes([
+        at('a', '正文', t),
+        at('b', '正文', t.add(const Duration(days: 3))),
+      ]);
+
+      expect(result.notes, hasLength(2));
+      expect(result.removedIds, isEmpty);
+    });
+
+    test('内容不同 → 不动', () {
+      final t = DateTime(2026, 10, 20, 7, 54);
+      final result = dedupeDuplicateNotes([
+        at('a', '正文 A', t),
+        at('b', '正文 B', t),
+      ]);
+
+      expect(result.notes, hasLength(2));
+      expect(result.removedIds, isEmpty);
+    });
+  });
 }

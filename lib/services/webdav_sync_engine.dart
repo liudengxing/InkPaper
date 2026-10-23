@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/webdav_service.dart';
+import 'package:inkpaper/utils/note_dedupe.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// 同步状态
@@ -290,22 +291,72 @@ class WebDavSyncEngine {
     }
 
     // 处理远程独有的笔记（可能是其他设备新增的）
+    //
+    // 注意：远程「独有」只是 id 不在本地，不代表笔记是新的。
+    // 同时开启 Memos 同步时，服务端会给同一条笔记重新签发 id（uid），
+    // 云端 notes.json 里仍是上一次的本地 uuid —— 只按 id 匹配就会把同一条
+    // 笔记再插一份，用户看到的就是「两份一样的笔记」。
+    // 这里先按「内容哈希 + 创建时间接近」认领，命中就保留本地 id，
+    // 只把远程的内容与本地元数据合并，不新增记录。
+    final mergedByHash = groupNotesByContentHash(mergedMap.values);
     for (final remoteNote in remoteNotes) {
-      if (!mergedMap.containsKey(remoteNote.id)) {
-        final syncedNote = remoteNote.copyWith(lastSyncTime: now);
-        mergedMap[remoteNote.id] = syncedNote;
-        await _databaseService.saveNote(syncedNote);
-        downloaded++;
+      if (mergedMap.containsKey(remoteNote.id)) {
+        continue;
       }
+
+      final localTwin = findContentDuplicate(
+        candidate: remoteNote,
+        poolByHash: mergedByHash,
+      );
+      if (localTwin != null) {
+        final reconciled = remoteNote.copyWith(
+          id: localTwin.id,
+          isPinned: localTwin.isPinned,
+          annotations: localTwin.annotations,
+          reminderTime: localTwin.reminderTime,
+          relations: localTwin.relations.isNotEmpty
+              ? localTwin.relations
+              : remoteNote.relations,
+          lastSyncTime: now,
+        );
+        mergedMap[localTwin.id] = reconciled;
+        await _databaseService.saveNote(reconciled);
+
+        // 更新索引，避免同一条被认领两次
+        final bucket = mergedByHash[noteContentHash(remoteNote)];
+        if (bucket != null) {
+          bucket
+            ..removeWhere((note) => note.id == localTwin.id)
+            ..add(reconciled);
+        }
+        downloaded++;
+        continue;
+      }
+
+      final syncedNote = remoteNote.copyWith(lastSyncTime: now);
+      mergedMap[remoteNote.id] = syncedNote;
+      await _databaseService.saveNote(syncedNote);
+      downloaded++;
+    }
+
+    // 库内自去重：把「同内容、不同 id」的历史残留合并成一条并清掉副本。
+    // 只对「内容完全一致 + 创建时间相差 ≤5 分钟」的组合生效。
+    final deduped = dedupeDuplicateNotes(mergedMap.values.toList());
+    for (final note in deduped.updatedNotes) {
+      await _databaseService.saveNote(note);
+    }
+    for (final id in deduped.removedIds) {
+      await _databaseService.deleteNote(id);
     }
 
     _stats = SyncStats(
       uploaded: uploaded,
       downloaded: downloaded,
+      deleted: deduped.removedIds.length,
       conflicts: conflicts,
     );
 
-    return mergedMap.values.toList();
+    return deduped.notes;
   }
 
   /// 同步图片资源并返回可恢复的资源清单。

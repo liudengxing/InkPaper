@@ -10,6 +10,133 @@ import 'package:inkpaper/models/note_model.dart';
 String noteContentHash(Note note) =>
     sha256.convert(utf8.encode(note.content)).toString();
 
+/// 按内容哈希分组，避免在批量匹配时对同一条笔记反复做 sha256。
+Map<String, List<Note>> groupNotesByContentHash(Iterable<Note> notes) {
+  final groups = <String, List<Note>>{};
+  for (final note in notes) {
+    groups.putIfAbsent(noteContentHash(note), () => <Note>[]).add(note);
+  }
+  return groups;
+}
+
+/// 在候选池里找「内容一致、创建时间接近」的同一条笔记。
+///
+/// 场景：同一条笔记在不同同步通道里拿到了不同 id —— WebDAV 快照里是上一个
+/// 本地 uuid，Memos 重新签发后是服务端 uid。只按 id 匹配会把它当成新笔记
+/// 再插一份，于是同一段内容在列表里出现两条。
+///
+/// 用「内容哈希 + 创建时间容差」而不是只比内容：用户完全可能在两个时间点
+/// 写两段一模一样的正文，那种情况必须保留两条。
+Note? findContentDuplicate({
+  required Note candidate,
+  required Map<String, List<Note>> poolByHash,
+  Duration tolerance = const Duration(minutes: 5),
+}) {
+  final bucket = poolByHash[noteContentHash(candidate)];
+  if (bucket == null || bucket.isEmpty) {
+    return null;
+  }
+  for (final other in bucket) {
+    if (other.id == candidate.id) {
+      return null; // 同 id 不在这里处理，交给 id 匹配逻辑
+    }
+    if (candidate.createdAt.difference(other.createdAt).abs() <= tolerance) {
+      return other;
+    }
+  }
+  return null;
+}
+
+/// 库内自去重的结果：保留的笔记 + 需要删除的副本 id + 被合并改动过的保留条。
+class DedupeResult {
+  const DedupeResult({
+    required this.notes,
+    required this.removedIds,
+    required this.updatedNotes,
+  });
+
+  final List<Note> notes;
+  final List<String> removedIds;
+
+  /// 元数据被并入过、需要回写的保留条。
+  final List<Note> updatedNotes;
+}
+
+/// 把同一段内容、创建时间接近的多条笔记合并成一条。
+///
+/// 解决「Memos 同步 + WebDAV 同步同时开启」后同一笔记在列表里出现两份：
+/// 两条的 id 不同（一条是 WebDAV 快照里的本地 uuid，一条是 Memos 服务端 uid），
+/// 只按 id 合并永远碰不到一起。
+///
+/// 保留哪条：创建时间最早的那条（通常是最初写入的原始记录），元数据取并集。
+/// 只合并「内容完全一致且创建时间相差 ≤ 5 分钟」的组合，用户在两个时间点写的
+/// 相同正文不会被误删。
+DedupeResult dedupeDuplicateNotes(
+  List<Note> notes, {
+  Duration tolerance = const Duration(minutes: 5),
+}) {
+  final removedIds = <String>[];
+  final updatedNotes = <Note>[];
+  final kept = <Note>[];
+
+  final groups = groupNotesByContentHash(notes);
+  for (final bucket in groups.values) {
+    if (bucket.length < 2) {
+      kept.addAll(bucket);
+      continue;
+    }
+
+    final sorted = [...bucket]
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final survivors = <Note>[];
+    for (final note in sorted) {
+      Note? mergedInto;
+      var mergedIndex = -1;
+      for (var i = 0; i < survivors.length; i++) {
+        if (note.createdAt
+                .difference(survivors[i].createdAt)
+                .abs() <=
+            tolerance) {
+          mergedInto = survivors[i];
+          mergedIndex = i;
+          break;
+        }
+      }
+
+      if (mergedInto == null) {
+        survivors.add(note);
+        continue;
+      }
+
+      final merged = mergedInto.copyWith(
+        isPinned: mergedInto.isPinned || note.isPinned,
+        annotations: mergedInto.annotations.isNotEmpty
+            ? mergedInto.annotations
+            : note.annotations,
+        reminderTime: mergedInto.reminderTime ?? note.reminderTime,
+        relations: mergedInto.relations.isNotEmpty
+            ? mergedInto.relations
+            : note.relations,
+        tags: {...mergedInto.tags, ...note.tags}.toList(),
+        updatedAt: note.updatedAt.isAfter(mergedInto.updatedAt)
+            ? note.updatedAt
+            : mergedInto.updatedAt,
+        isSynced: mergedInto.isSynced && note.isSynced,
+      );
+      survivors[mergedIndex] = merged;
+      updatedNotes.add(merged);
+      removedIds.add(note.id);
+    }
+    kept.addAll(survivors);
+  }
+
+  return DedupeResult(
+    notes: kept,
+    removedIds: removedIds,
+    updatedNotes: updatedNotes,
+  );
+}
+
 /// 找出「内容与服务端某条完全一致、但 id 不同」的本地未同步副本。
 ///
 /// 典型来源：另一台设备删掉笔记后重建（拿到新 id），本机这条旧 id 还有未上传

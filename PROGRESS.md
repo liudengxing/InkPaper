@@ -1,3 +1,23 @@
+## 2026-10-23 · 卡片时间行收紧 · done
+
+- 反馈：时间文字本身已经够小，但时间行到正文的留白还是偏高
+- flomo 依据：`view_memo_card_surface.xml` 的 `card_header` 是 `layout_marginBottom="4dp"`，时间行紧贴正文
+- 改动（`lib/widgets/note_card.dart`）：
+  - 卡片上内边距 `14 → 10`（`EdgeInsets.fromLTRB(16, 10, 16, 16)`）
+  - 时间文字加 `height: 1.1`，行高不再由 10sp 的默认行距撑开
+  - 「更多」按钮容器 `32 → 28`、图标 `18 → 16`，并加 `visualDensity: compact` + 空 `BoxConstraints`，不再由 IconButton 决定整行高度
+  - 时间行与正文间距 `8 → 4`
+- 效果：时间行总高约 40dp → 32dp，一屏可见笔记从约 4 条变成 5 条
+- 验收输出：
+```
+$ flutter analyze --no-pub
+No issues found! (ran in 14.5s)
+$ flutter test
+01:05 +424: All tests passed!
+```
+- 真机：`1.0.53+10053` debug 已安装，截图确认时间紧贴卡片顶部、与正文间距明显变小
+- 版本：`1.0.52+10052` → `1.0.53+10053`
+
 ## 2026-10-23 · 编辑浮层毛玻璃背景 · done
 
 - 需求：点底部输入框弹出编辑器时，背景做模糊（参考 flomo 的玻璃表面）

@@ -147,7 +147,7 @@ class _NoteCardState extends State<NoteCard>
         );
 
         // 计算图片网格尺寸
-        const spacing = 4.0;
+        const spacing = 6.0;
         final imageWidth = (availableWidth - spacing * 2) / 3;
         final imageCount = imagePaths.length > 9 ? 9 : imagePaths.length;
         final rowsNeeded = ((imageCount - 1) ~/ 3 + 1).clamp(0, 3);
@@ -236,7 +236,7 @@ class _NoteCardState extends State<NoteCard>
               ),
             if (imagePaths.isNotEmpty)
               Padding(
-                padding: EdgeInsets.only(top: hasTextContent ? 8.0 : 0),
+                padding: EdgeInsets.only(top: hasTextContent ? 10.0 : 0),
                 child: SizedBox(
                   width: availableWidth,
                   height: gridHeight,
@@ -273,7 +273,7 @@ class _NoteCardState extends State<NoteCard>
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: Colors.black.withValues(alpha: 0.6),
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                   alignment: Alignment.center,
                                   child: Text(
@@ -361,11 +361,11 @@ class _NoteCardState extends State<NoteCard>
           width: double.infinity,
           height: 120, // 添加明确的高度
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(8),
             color: Colors.grey[200],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(8),
             child: _buildImageWidget(
               imagePath,
               context,
@@ -381,7 +381,7 @@ class _NoteCardState extends State<NoteCard>
       return DecoratedBox(
         decoration: BoxDecoration(
           color: Colors.grey[300],
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Center(child: Icon(Icons.broken_image, color: Colors.grey[600])),
       );
@@ -712,7 +712,8 @@ class _NoteCardState extends State<NoteCard>
               offset: const Offset(0, 1),
             ),
           ];
-    final cardRadius = BorderRadius.circular(8);
+    // 圆角对齐 flomo：卡片=cornerRadiusLarge(12)，图片=cornerRadiusMedium(6)
+    final cardRadius = BorderRadius.circular(12);
     final borderColor = widget.isPinned
         ? AppTheme.primaryColor.withValues(alpha: isDarkMode ? 0.5 : 0.32)
         : (isDarkMode
@@ -720,11 +721,12 @@ class _NoteCardState extends State<NoteCard>
             : Colors.black.withValues(alpha: 0.05));
 
     return Container(
+      // 间距对齐 flomo：左右 12dp，卡片之间 12dp（原 10/8）
       margin: const EdgeInsets.fromLTRB(
-        10,
+        12,
         0,
-        10,
-        8,
+        12,
+        12,
       ),
       child: ClipRRect(
         borderRadius: cardRadius,
@@ -905,7 +907,8 @@ class _NoteCardState extends State<NoteCard>
         child: ClipRRect(
           borderRadius: cardRadius,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+            // 内边距同步放大一档，和更大的圆角/卡片间距配套
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,

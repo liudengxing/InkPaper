@@ -254,10 +254,12 @@ class InkPaperCli {
       case 'android-release':
         // 发布用 universal APK：单个文件，不挑机型，CI 与商店渠道都依赖这个产物。
         // --obfuscate 需要配合 --split-debug-info 才有可读堆栈（symbols 落到 build/symbols）。
+        // 只打 arm/arm64：x86_64 仅模拟器需要，留着会给每个包白加约 25MB。
         await _run(
           _flutterBuildCommand([
             'apk',
             '--release',
+            '--target-platform=android-arm,android-arm64',
             '--obfuscate',
             '--split-debug-info=build/symbols',
           ]),

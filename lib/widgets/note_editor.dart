@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
@@ -1188,20 +1189,33 @@ class _NoteEditorState extends State<NoteEditor>
                   child: Container(
                     height: editorHeight,
                     decoration: BoxDecoration(
-                      color: backgroundColor,
+                      // 颜色交给内层 ColoredBox（半透明），这里只留圆角与投影
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(20),
                         topRight: Radius.circular(20),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 10,
+                          color: Colors.black.withValues(alpha: 0.12),
+                          blurRadius: 16,
                           spreadRadius: 2,
                         ),
                       ],
                     ),
-                    child: Column(
+                    // flomo 式玻璃卡片：半透明底 + 自身 BackdropFilter，
+                    // 卡片边缘后面也是模糊背景，而不是一整块实心白
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        topRight: Radius.circular(20),
+                      ),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                        child: ColoredBox(
+                          color: isDarkMode
+                              ? const Color(0xE01C1C1E)
+                              : Colors.white.withValues(alpha: 0.9),
+                          child: Column(
                       children: [
                         // 顶部灰条 - 类似于iOS的拖动指示器
                         Container(
@@ -1241,6 +1255,9 @@ class _NoteEditorState extends State<NoteEditor>
                                           AppLocalizationsSimple.of(context)
                                                   ?.editorPlaceholder ??
                                               '现在的想法是...',
+                                      // 全局主题给输入框设了 filled:true，
+                                      // 玻璃卡片上会糊出一块实心白，这里关掉
+                                      filled: false,
                                       border: InputBorder.none,
                                       contentPadding: EdgeInsets.zero,
                                       hintStyle: TextStyle(
@@ -1774,6 +1791,9 @@ class _NoteEditorState extends State<NoteEditor>
                           ),
                         ),
                       ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),

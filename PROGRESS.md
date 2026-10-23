@@ -1,3 +1,25 @@
+## 2026-10-23 · 首页样式对齐 flomo · done
+
+- 参考源：`友商 APK/反编译/flomo/resources/res/`（flomo 5.5.5 脱壳工程，见 `_flomo脱壳报告.md`）
+- 取证：
+  - 卡片背景 `drawable/bg_card.xml` → `<corners android:radius="@dimen/cornerRadiusLarge"/>`，`cornerRadiusLarge = 12dp`
+  - 九宫格图片 `layout/view_grid_image_item.xml` → `app:roundedCornerRadius="@dimen/cornerRadiusMedium"`（6dp）+ `viewAspectRatio=1`
+  - 卡片外边距 `view_memo_card.xml` 中 `MemoView` 左右 `12dp`；卡片垂直间距 `memoCardVerticalInset = 8dp`（相邻两条共 16dp）
+- 改动（`lib/widgets/note_card.dart`）：
+  - 卡片圆角 `8 → 12`
+  - 九宫格图片圆角 `4 → 8`（flomo 为 6dp，按「要更明显」的诉求上调一档；含 `+N` 遮罩与兜底占位）
+  - 卡片外边距 `10/0/10/8 → 12/0/12/12`，卡片内边距 `16,12,16,14 → 16,14,16,16`
+  - 九宫格间距 `4 → 6`，图文间距 `8 → 10`
+- 验收输出：
+```
+$ flutter analyze --no-pub
+No issues found! (ran in 14.5s)
+$ flutter test
+01:13 +416: All tests passed!
+```
+- 真机：`1.0.44+10044` profile 包装到 `192.168.0.108:33717`，截图确认卡片更圆润、间距拉开、单图/多图圆角明显
+- 版本：`1.0.43+10043` → `1.0.44+10044`
+
 ## 2026-10-23 · 侧边栏热力图宽度修复 · done
 
 - 现象：侧边栏「活动记录」热力图只占卡片左半边（用户连续两次反馈「没占满」）

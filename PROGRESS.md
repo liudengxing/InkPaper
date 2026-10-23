@@ -1,3 +1,34 @@
+## 2026-10-23 · 移除友盟统计 + abiFilters 瘦身验证 · done
+
+- 决策：只保留 Dart 侧错误上报（ErrorHandler / GlobalErrorCatcher / Sentry），不集成任何第三方统计 SDK
+- 移除友盟：
+  - Dart：删除 `lib/services/umeng_analytics_service.dart`；`home_screen` / `privacy_policy_screen` / `app_provider` 的初始化与埋点调用改为本地日志；`AppConfig` 删除 `UMENG_*` 常量与 `channelUmeng`
+  - Android：`build.gradle` 去掉 umeng/gson 依赖与 manifestPlaceholders；`MainActivity` 删除 `com.didichou.inkpaper/umeng` 通道（桥接通道从 2 条回到 1 条）；`AndroidManifest` 删除 UMENG_APPKEY/CHANNEL；`proguard-rules.pro` 删除 umeng keep 规则
+  - 构建脚本：`tool/inkpaper.dart` 的可选 dart-define 只剩 `SENTRY_DSN`
+- 体积：release universal APK 51.3 MB → 48.9 MB（移除友盟约 −1.0 MB，abiFilters 裁掉 x86_64 插件 so 约 −1.4 MB）
+- abiFilters 结论（原「已知项」）：
+  - `buildTypes.release` 内的 `ndk { abiFilters }` 不生效；Flutter Gradle 插件在 apply 时已把 `defaultConfig.ndk.abiFilters` 垫成全平台
+  - Groovy 的 `abiFilters 'a','b'` 是**追加**而非覆盖，必须先 `abiFilters.clear()` 再 `addAll`
+  - 最终：`defaultConfig.ndk` 里 clear 后按 `isReleaseTask` 分支，release 只留 `armeabi-v7a/arm64-v8a`，debug 保留 `x86_64` 供模拟器
+- 验证（`flutter clean` 后全量构建）：
+  - release APK 的 `lib/` 仅含 `arm64-v8a`、`armeabi-v7a`
+  - debug APK 仍含 `arm64-v8a`、`armeabi-v7a`、`x86_64`（174.5 MB）
+- `--analyze-size`（android-arm64）libapp.so 13.56 MB 构成：
+```
+package:flutter              4.16 MB   框架，动不了
+package:inkpaper             2.80 MB   自有代码（screens 1.12 / widgets 0.47 / l10n 0.42 / services 0.39）
+@unknown                     1.26 MB
+package:timezone             0.55 MB   timezone/data/latest_all.dart（全球时区数据）
+dart:mixin_deduplication     0.48 MB
+@shared                      0.47 MB
+package:flutter_localizations 0.41 MB
+dart:core / dart:ui          0.60 MB
+package:sentry(+flutter)     0.38 MB
+package:html / markdown      0.34 MB
+```
+- 后续可优化项：`timezone` 换 `latest_10y.dart`（约省 0.5 MB）、`l10n` 双套本地化（`translations.dart` 252 KB + `app_localizations_simple.dart` 166 KB）只保留一套
+- 版本：`1.0.58+10058` → `1.0.59+10059`
+
 ## 2026-10-23 · 编辑卡片玻璃化 · done
 
 - 需求：编辑浮层卡片本身也做半透明 + 自身模糊，去掉「硬白块」边界

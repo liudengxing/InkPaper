@@ -65,8 +65,7 @@ dart tool/inkpaper.dart all            # 构建当前宿主可构建的全部 de
 | --- | --- |
 | `ENVIRONMENT` | 运行环境，缺省 `production` |
 | `CLOUD_VERIFY_APP_KEY` | 云校验 AppKey |
-| `UMENG_ANDROID_APPKEY` / `UMENG_IOS_APPKEY` / `UMENG_CHANNEL` | 友盟统计 |
-| `SENTRY_DSN` | 崩溃上报 |
+| `SENTRY_DSN` | 崩溃上报（可选，Dart 侧错误上报） |
 
 界面截图/自动化时还可以用 `INKPAPER_SCREENSHOT_MODE=true` 与 `INKPAPER_INITIAL_LOCATION=/path` 固定初始路由（见 `.env.example`）。
 

@@ -63,7 +63,7 @@ We release security updates for the following versions:
 #### What We Collect
 - Official server account profile and user content only when you choose to sign in to the official server
 - Feedback content and diagnostic context only when you submit feedback or enable related diagnostics
-- Android analytics or crash diagnostics only when enabled by the build and app settings
+- Crash diagnostics only when the build enables error reporting
 
 #### What We DON'T Collect
 - ❌ We do not sell personal information
@@ -76,15 +76,14 @@ For more details, see our [Privacy Policy](https://inkpaper.cn/privacy.html)
 
 InkPaper uses the following third-party services:
 
-1. **Umeng Analytics** (Android only when enabled)
-   - Purpose: Usage statistics and crash reporting
-   - Privacy Policy: [https://www.umeng.com/policy](https://www.umeng.com/policy)
-
-2. **Sentry** (Android only)
+1. **Sentry** (Android only, optional)
    - Purpose: Error monitoring
    - Privacy Policy: [https://sentry.io/privacy/](https://sentry.io/privacy/)
 
-3. **DeepSeek AI** (Optional)
+   InkPaper does **not** integrate any third-party analytics SDK. Usage data stays
+   on-device; the only telemetry is optional Dart-side error reporting.
+
+2. **DeepSeek AI** (Optional)
    - Purpose: AI-powered note enhancement
    - Only used when explicitly enabled by user
    - Only sends note content when user requests AI features

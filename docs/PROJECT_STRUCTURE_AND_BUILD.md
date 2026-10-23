@@ -151,8 +151,7 @@ InkPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台�
 - `lib/services/intelligent_related_notes_service.dart`：相关笔记计算。
 - `lib/services/local_note_analysis_service.dart`：本地笔记分析。
 - `lib/services/tag_ai_service.dart`：标签推荐和标签洞察。
-- `lib/services/umeng_analytics_service.dart`：友盟统计，目前主要用于 Android。
-- `lib/services/sentry_monitoring_service.dart`：Sentry 监控。
+- `lib/services/sentry_monitoring_service.dart`：Sentry 监控（Dart 侧错误上报，可选）。
 
 ## lib 文件速查表
 
@@ -283,7 +282,6 @@ InkPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台�
 - `sync_status_helper.dart`：同步状态展示辅助。
 - `tag_ai_service.dart`：标签推荐和标签洞察。
 - `tag_stats_service.dart`：标签统计。
-- `umeng_analytics_service.dart`：友盟统计封装。
 - `unified_reference_manager.dart`：双向引用关系管理。
 - `user_behavior_service.dart`：用户点击、偏好学习和个性化权重。
 - `webdav_service.dart`：WebDAV 基础请求、目录、上传下载。
@@ -763,9 +761,6 @@ Release 工作流至少需要这些 Secrets：
 
 可选构建参数：
 
-- `UMENG_ANDROID_APPKEY`
-- `UMENG_IOS_APPKEY`
-- `UMENG_CHANNEL`
 - `SENTRY_DSN`
 
 这些值只放在 GitHub Repository Secrets 或本机环境变量里，不写入仓库文档，不写入源码注释，不写入 issue，不写入 commit。
@@ -773,10 +768,7 @@ Release 工作流至少需要这些 Secrets：
 本地临时构建可以用环境变量传入可选参数：
 
 ```bash
-UMENG_ANDROID_APPKEY=xxx \
-UMENG_CHANNEL=official \
-SENTRY_DSN=xxx \
-dart tool/inkpaper.dart build android-release
+SENTRY_DSN=xxx dart tool/inkpaper.dart build android-release
 ```
 
 ## 不要提交的内容

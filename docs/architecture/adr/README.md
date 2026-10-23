@@ -27,7 +27,7 @@ An Architecture Decision Record (ADR) documents an important architectural decis
 | [004](004-material-design-3.md) | Adopt Material Design 3 | Accepted | 2025-03-10 |
 | [005](005-layered-architecture.md) | Implement Layered Architecture | Accepted | 2025-03-15 |
 | [006](006-deepseek-ai-integration.md) | Integrate DeepSeek AI for Smart Features | Accepted | 2025-09-20 |
-| [007](007-umeng-analytics.md) | Use Umeng for Analytics | Accepted | 2025-10-01 |
+| 007 | Use Umeng for Analytics | Superseded (removed 2026-10-23, Dart-side error reporting only) | 2025-10-01 |
 
 ---
 

@@ -91,7 +91,7 @@ flowchart TB
         direction LR
         E1["Memos 官方/自托管<br/>WebDAV · Notion"]
         E2["DeepSeek / OpenAI 兼容<br/>百度 / 讯飞语音"]
-        E3["api.didichou.site<br/>Sentry · 友盟"]
+        E3["api.didichou.site<br/>Sentry"]
     end
 
     P <--> S
@@ -185,7 +185,7 @@ sequenceDiagram
 
 **关键设计点**
 
-1. **配置是编译期注入，不是运行时 `.env`。** `flutter_dotenv` 虽在 `pubspec.yaml:121` 声明，但 `lib/` 内**零引用**；所有配置走 `String.fromEnvironment` + `--dart-define`（`.env.example` 明确说明了这一点）。可注入项：`ENVIRONMENT`、`CLOUD_VERIFY_APP_KEY`、`SENTRY_DSN`、`UMENG_*`、`BAIDU_SPEECH_*`、`FEATURE_FLAG_URL`、`CANARY_PERCENTAGE`、`ASSET_CDN_BASE_URL`、`INKPAPER_SCREENSHOT_MODE`。
+1. **配置是编译期注入，不是运行时 `.env`。** `flutter_dotenv` 虽在 `pubspec.yaml:121` 声明，但 `lib/` 内**零引用**；所有配置走 `String.fromEnvironment` + `--dart-define`（`.env.example` 明确说明了这一点）。可注入项：`ENVIRONMENT`、`CLOUD_VERIFY_APP_KEY`、`SENTRY_DSN`、`BAIDU_SPEECH_*`、`FEATURE_FLAG_URL`、`CANARY_PERCENTAGE`、`ASSET_CDN_BASE_URL`、`INKPAPER_SCREENSHOT_MODE`。
 
 2. **权限按需申请**（模仿微信/支付宝）：启动时**不申请任何权限**，麦克风/通知/相机/相册都在用户触发对应功能时才请求（`main.dart:169-174`）。
 
@@ -405,7 +405,7 @@ flowchart TB
 | 通知/提醒 | `notification_service` `alert_service`* |
 | 监控/日志 | `logger_service`* `observability_service` `performance_monitor_service` `sentry_monitoring_service`* |
 | 权限 | `permission_manager`* `simple_permission_service`* `ios_permission_service`* |
-| 领域辅助 | `note_actions_service` `note_sorting_helper` `note_tags_helper` `notes_pagination_helper` `tag_stats_service` `umeng_analytics_service` |
+| 领域辅助 | `note_actions_service` `note_sorting_helper` `note_tags_helper` `notes_pagination_helper` `tag_stats_service` |
 | 引用/图谱 | `local_reference_service` `unified_reference_manager` `graph_data_service`* `graph_isolate_service` |
 | 其它 | `random_review_selector_service` `widget_snapshot_service` `feature_flag_service` `ios_update_service`* `weread_parser` |
 
@@ -570,14 +570,13 @@ flowchart LR
 
 ![Android 原生层桥接与关键数据流](images/android-bridge-and-flows.png)
 
-### 8.1 桥接契约（只有 2 条 MethodChannel，无 EventChannel）
+### 8.1 桥接契约（只有 1 条 MethodChannel，无 EventChannel）
 
 | 通道 | 名称 | 用途 |
 |---|---|---|
 | 通道 1 | `com.didichou.inkpaper/native_alarm` | 提醒闹钟、小组件快照、冷启动载荷、权限检查 |
-| 通道 2 | `com.didichou.inkpaper/umeng` | 友盟埋点（默认关闭） |
 
-**Dart → 原生**（`MainActivity.kt:110-168`）
+**Dart → 原生**（`MainActivity.kt` 的 `configureFlutterEngine`）
 
 | 方法 | 参数 | 原生行为 |
 |---|---|---|
@@ -721,7 +720,7 @@ flowchart TB
 | 性能监控 | `PerformanceMonitorService` 被 `enablePerformanceLogging`（**恒 false**）挡住，默认不启用 | 看板页 `/performance-dashboard` 仍在 |
 | 功能开关 | `FeatureFlagService` 在 `main.dart:133` 初始化，但**全项目没有任何代码读 flag** | 整套 feature flag 是摆设 |
 | 权限 | 三套权限服务**全部为死代码**（`permission_manager`、`simple_permission_service`、`ios_permission_service`）；实际请求逻辑散在 `permission_dialog.dart` / `permission_guide_dialog.dart` | 重复实现 4 处权限弹窗 |
-| 统计 | 友盟 U-App：Android 走 MethodChannel；`enableAnalytics = false` 使其默认关闭 | `enableUmengAnalytics` 恒 false |
+| 统计 | 不集成任何第三方统计 SDK；遥测只有可选的 Dart 侧错误上报 | 2026-10-23 移除友盟 |
 | 测试 | 30 个单元测试 + 7 个 Widget 测试 + 1 个 integration test（6,277 行，约为 lib 代码量的 6%） | 覆盖模型、DB 迁移、Memos API、同步合并、标签、待办解析、Markdown 渲染 |
 
 ---

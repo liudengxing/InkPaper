@@ -1,3 +1,21 @@
+## 2026-10-23 · 侧边栏热力图宽度修复 · done
+
+- 现象：侧边栏「活动记录」热力图只占卡片左半边（用户连续两次反馈「没占满」）
+- 根因：A-11 把 `GridView` 换成 `Row/Column` 时写死 `cellSize = 18.0`，7 列 + 6 间距只有 138pt，而卡片内容宽约 300pt
+- 尝试 1（`bf55a6f`）：改 `LayoutBuilder` 按宽度算 `cellSize`，但 `clamp(12, 26)` 的**上限 26** 仍让总宽只有 194pt，依旧没铺满
+- 最终（`4390b9a`）：每行固定 7 个 `Expanded` + `AspectRatio(1)`，宽度由父容器平分、高度跟随宽度；空位用 `SizedBox.shrink()` 占位；星期标签同样改 `Expanded`，与格子一一对齐
+- 附带修复：`Heatmap` 的 `ValueKey` 在 `notes.isEmpty` 时用 `DateTime.now().millisecondsSinceEpoch`，key 每次 build 都变 → 42 个 Tooltip + 6 张统计卡整棵重建；改为固定 `0`
+- 验收输出：
+```
+$ flutter analyze --no-pub
+No issues found! (ran in 20.2s)
+$ flutter test
+01:20 +416: All tests passed!
+```
+- 真机：设备 `23127PN0CC`（`192.168.0.108:33717`）安装 `1.0.43+10043` profile 包，截图确认 7 列铺满卡片、星期标签对齐
+- 版本：`1.0.41+10041` → `1.0.42+10042`（尝试 1）→ `1.0.43+10043`（最终）
+- 记录：debug 包（175.7 MB）在真机上「空数据也卡」属 JIT 开销，已构建 profile 包（109.2 MB，AOT）供对比
+
 ## 2026-10-23 · ROADMAP 状态与文档对齐 · done
 
 - 触发：`docs/ROADMAP.md` 索引表 5 条全部 `done`，但元信息与验收描述仍停留在「release 构建不可用」，与 A-10 补测结果不符

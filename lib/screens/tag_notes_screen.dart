@@ -376,8 +376,9 @@ class _TagNotesScreenState extends State<TagNotesScreen> {
           itemBuilder: (context, index) {
             final note = notes[index];
             return Padding(
+              // 与 NoteCard 自带 margin 叠加后，桌面端总间距 16dp（原 28dp）
               padding: EdgeInsets.only(
-                bottom: ResponsiveUtils.responsiveSpacing(context, 16),
+                bottom: ResponsiveUtils.responsiveSpacing(context, 8),
               ),
               child: RepaintBoundary(
                 key: ValueKey(note.id), // 🚀 性能优化：避免不必要的重建

@@ -749,12 +749,12 @@ class _NoteCardState extends State<NoteCard>
             : Colors.black.withValues(alpha: 0.05));
 
     return Container(
-      // 间距对齐 flomo：左右 12dp，卡片之间 12dp（原 10/8）
+      // 间距对齐 flomo：左右 12dp，卡片之间 8dp（flomo 的卡片是紧贴的窄缝）
       margin: const EdgeInsets.fromLTRB(
         12,
         0,
         12,
-        12,
+        8,
       ),
       child: ClipRRect(
         borderRadius: cardRadius,

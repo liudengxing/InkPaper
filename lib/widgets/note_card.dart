@@ -935,8 +935,8 @@ class _NoteCardState extends State<NoteCard>
         child: ClipRRect(
           borderRadius: cardRadius,
           child: Padding(
-            // 内边距同步放大一档，和更大的圆角/卡片间距配套
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            // 顶部收窄：时间行本身很薄，14 的留白会把正文整体压下去
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -949,6 +949,7 @@ class _NoteCardState extends State<NoteCard>
                       style: TextStyle(
                         // 对齐 flomo：fontTiny 10sp + textSubtle(#949494)，比正文更小更细
                         fontSize: 10,
+                        height: 1.1,
                         fontWeight: FontWeight.w300,
                         letterSpacing: 0.2,
                         color: isDarkMode
@@ -958,9 +959,9 @@ class _NoteCardState extends State<NoteCard>
                     ),
                     Builder(
                       builder: (btnContext) => SizedBox(
-                        // 头部做薄：44 → 32，避免时间行被按钮撑高
-                        width: 32,
-                        height: 32,
+                        // 头部做薄：32 → 28，按钮不再决定整行高度
+                        width: 28,
+                        height: 28,
                         child: IconButton(
                           tooltip:
                               AppLocalizationsSimple.of(context)?.more ?? '更多',
@@ -969,16 +970,19 @@ class _NoteCardState extends State<NoteCard>
                             color: isDarkMode
                                 ? AppTheme.darkTextSecondaryColor
                                 : AppTheme.textTertiaryColor,
-                            size: 18,
+                            size: 16,
                           ),
                           padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(),
                           onPressed: () => _showMoreOptions(btnContext),
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                // flomo 的 card_header marginBottom 是 4dp，这里同步收紧
+                const SizedBox(height: 4),
                 Flexible(
                   child: _buildContent(),
                 ),

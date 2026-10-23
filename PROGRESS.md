@@ -1,3 +1,24 @@
+## 2026-10-23 · 热力图改为连续时间轴（flomo 式小方格） · done
+
+- 决策：不再走「一个月 7 列铺满 → 单格 44dp」或「限宽居中 → 两侧留白」，改为**连续时间轴**：列 = 周、行 = 周一…周日，一屏展示最近 26 周（半年），格宽 = 可用宽 / 26 ≈ 10.7dp
+- 改动（`lib/widgets/heatmap.dart`）：
+  - 状态 `_monthOffset` → `_pageOffset`，按整页（26 周）向前翻；区间末尾为今天，起始对齐到周一
+  - `_calculateDailyCounts` 改为按 `[_rangeStart, _rangeEnd]` 区间统计（仍只按创建日）
+  - 网格：`LayoutBuilder` 计算格宽 `clamp(7, 18)`，7 行 × N 列；删除 `_generateMonthDates`
+  - 月份标签用 `Stack + Positioned` 绝对定位（放进 `Row` 会把行撑爆，实测 `RIGHT OVERFLOWED BY 20 PIXELS`），文案缩为「5月」；`_rangeLabel` 显示「2026年4月 - 2026年10月」
+  - 星期标签改为左侧竖排（一/三/五/日），底部横排会与新的「列=周」语义冲突
+  - `_buildHeatCell` 增加 `inRange` 参数（区间外补齐日淡显）
+  - `lib/widgets/sidebar.dart`：无活动格颜色 `grey[100] → #E6E8EB`（26 列下原色太淡糊成一片），暗色 `#3A3A3C`
+- 验收输出：
+```
+$ flutter analyze --no-pub
+No issues found! (ran in 13.0s)
+$ flutter test
+00:55 +424: All tests passed!   # 含 UI-21 热力图只按创建日统计
+```
+- 真机：`1.0.50+10050` debug 已安装，截图确认 26 列小方格铺满、月份标签不重叠不溢出
+- 版本：`1.0.49+10049` → `1.0.50+10050`
+
 ## 2026-10-23 · release 包体积瘦身 · done
 
 - 体积构成（拆开 release universal APK 实测，75.6 MB）：

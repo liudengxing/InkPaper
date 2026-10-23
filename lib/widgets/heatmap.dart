@@ -232,8 +232,10 @@ class _HeatmapState extends State<Heatmap> {
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
 
     // 生成一个更可靠的key，同时考虑笔记数量和最近的更新时间以及月份偏移
+    // 注意：无笔记时必须用固定值，用 now() 会让 key 每次 build 都变，
+    // 导致热力图整棵子树（42 个 Tooltip + 三张统计卡）反复重建
     final latestUpdateTime = widget.notes.isEmpty
-        ? DateTime.now().millisecondsSinceEpoch
+        ? 0
         : widget.notes
             .map((note) => note.updatedAt.millisecondsSinceEpoch)
             .reduce((max, time) => time > max ? time : max);
@@ -247,15 +249,24 @@ class _HeatmapState extends State<Heatmap> {
         dailyCounts.values.fold(0, (max, count) => count > max ? count : max);
     final dates = _generateMonthDates();
 
-    // 计算单个格子的大小和间距
-    const cellSize = 18.0;
+    // 格子尺寸随可用宽度自适应：固定 18pt 在侧边栏里只占左边一半
     const spacing = 2.0;
+    const minCellSize = 12.0;
+    const maxCellSize = 26.0;
 
-    return Column(
-      key: uniqueKey,
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
+        final cellSize = availableWidth.isFinite
+            ? ((availableWidth - spacing * 6) / 7)
+                .clamp(minCellSize, maxCellSize)
+            : 18.0;
+
+        return Column(
+          key: uniqueKey,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
         // 总体统计卡片 - 清晰版
         Row(
           children: [
@@ -464,7 +475,9 @@ class _HeatmapState extends State<Heatmap> {
             ),
           ],
         ),
-      ],
+          ],
+        );
+      },
     );
   }
 

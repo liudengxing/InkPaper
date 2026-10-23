@@ -537,8 +537,6 @@ class AppLocalizationsSimple {
       _t('aiAssistantDesc', fallback: '智能总结、扩展、改进笔记内容');
   String get remindersFeature => _t('remindersFeature', fallback: '定时提醒');
   String get remindersDesc => _t('remindersDesc', fallback: '重要事项不错过，高效管理时间');
-  String get agreeToTermsAndPrivacy =>
-      _t('agreeToTermsAndPrivacy', fallback: '注册即表示同意用户协议和隐私政策');
 
   // ===== 服务器连接 =====
   String get connectionNormal =>
@@ -879,136 +877,6 @@ class AppLocalizationsSimple {
   String get imageManagement => _t('imageManagement', fallback: '图片管理');
   String get privateDeployment => _t('privateDeployment', fallback: '私有化部署');
 
-  // ===== 用户协议页面 =====
-  String get userAgreement => _t('userAgreement', fallback: '用户协议');
-  String lastUpdated(int year, int month, int day) {
-    final template =
-        _t('lastUpdated', fallback: '最后更新日期：{year}年{month}月{day}日');
-    return template
-        .replaceAll('{year}', year.toString())
-        .replaceAll('{month}', month.toString())
-        .replaceAll('{day}', day.toString());
-  }
-
-  String get agreementAcceptance => _t('agreementAcceptance', fallback: '协议接受');
-  String welcomeMessage(String appName) {
-    final template = _t(
-      'welcomeMessage',
-      fallback:
-          '欢迎使用{appName}！通过下载、安装或使用{appName}应用程序（以下简称"应用"或"服务"），您同意受本用户协议（以下简称"协议"）的约束。如果您不同意本协议的任何条款，请不要使用我们的服务。',
-    );
-    return template.replaceAll('{appName}', appName);
-  }
-
-  String get importantReminder => _t('importantReminder', fallback: '重要提醒：');
-  String get serviceDescription => _t('serviceDescription', fallback: '服务描述');
-  String get userResponsibilities =>
-      _t('userResponsibilities', fallback: '用户责任与义务');
-  String userResponsibilitiesContent(String appName) {
-    final template =
-        _t('userResponsibilitiesContent', fallback: '使用{appName}时，您同意并承诺：');
-    return template.replaceAll('{appName}', appName);
-  }
-
-  String get userContentResponsibility =>
-      _t('userContentResponsibility', fallback: '您对通过应用创建、存储或传输的所有内容承担完全责任。');
-  String get dataOwnership => _t('dataOwnership', fallback: '数据所有权');
-  String get dataOwnershipDeclaration =>
-      _t('dataOwnershipDeclaration', fallback: '重要声明：');
-  String get userContentControl =>
-      _t('userContentControl', fallback: '您保留对自己创建的所有内容的完整控制权。');
-  String get disclaimer => _t('disclaimer', fallback: '免责声明');
-  String disclaimerContent(String appName) {
-    final template = _t(
-      'disclaimerContent',
-      fallback:
-          '您理解并同意，使用{appName}的风险完全由您自己承担。在适用法律允许的最大范围内，我们不承担任何直接、间接、偶然、特殊或后果性损害的责任，包括但不限于数据丢失、业务中断、利润损失等。',
-    );
-    return template.replaceAll('{appName}', appName);
-  }
-
-  String get intellectualProperty =>
-      _t('intellectualProperty', fallback: '知识产权');
-  String openSourceRights(String appName) {
-    final template =
-        _t('openSourceRights', fallback: '作为开源软件，{appName}在MIT许可证下发布，您享有以下权利：');
-    return template.replaceAll('{appName}', appName);
-  }
-
-  String get openSourceObligations =>
-      _t('openSourceObligations', fallback: '使用本软件时，您必须：');
-  String get userContentOwnership => _t(
-        'userContentOwnership',
-        fallback: '您对自己创建的笔记内容拥有完整的知识产权，我们不声明对您的内容拥有任何权利。',
-      );
-  String get serviceChangesTermination =>
-      _t('serviceChangesTermination', fallback: '服务变更与终止');
-  String get serviceModificationRights =>
-      _t('serviceModificationRights', fallback: '我们保留随时修改、更新或改进服务的权利，可能包括：');
-  String get majorChangeNotifications =>
-      _t('majorChangeNotifications', fallback: '重大变更将通过以下方式通知用户：');
-  String get serviceSuspensionConditions =>
-      _t('serviceSuspensionConditions', fallback: '在以下情况下，我们可能暂停或终止服务：');
-  String get terminationNotice =>
-      _t('terminationNotice', fallback: '终止前我们将尽合理努力提前通知用户。');
-  String get agreementModifications =>
-      _t('agreementModifications', fallback: '协议修改');
-  String get agreementUpdatePolicy => _t(
-        'agreementUpdatePolicy',
-        fallback:
-            '我们可能会不时更新本用户协议。重大变更会在应用中显著展示，并要求您重新同意。\n\n继续使用应用即表示您接受修改后的协议。如果您不同意修改后的条款，应停止使用应用并可卸载软件。',
-      );
-  String get termination => _t('termination', fallback: '终止');
-  String get userTerminationRights => _t(
-        'userTerminationRights',
-        fallback: '您可以随时停止使用InkPaper并删除应用。\n\n我们也可能在以下情况下终止您的访问权限：',
-      );
-  String get postTerminationObligations =>
-      _t('postTerminationObligations', fallback: '终止后，您应停止使用应用并删除所有副本。');
-  String get disputeResolution => _t('disputeResolution', fallback: '争议解决');
-  String disputeNegotiation(String email) {
-    final template = _t(
-      'disputeNegotiation',
-      fallback:
-          '因本协议产生的任何争议，双方应首先通过友好协商解决。协商时应本着诚实守信、互相尊重的原则。\n\n如协商无法解决争议，任何一方可向有管辖权的人民法院提起诉讼。诉讼过程中，本协议的其他条款仍应继续履行。\n\n争议协商请联系：{email}',
-    );
-    return template.replaceAll('{email}', email);
-  }
-
-  String get otherTerms => _t('otherTerms', fallback: '其他条款');
-  String get entireAgreement => _t(
-        'entireAgreement',
-        fallback:
-            '本协议构成双方就本服务达成的完整协议，取代之前的所有口头或书面协议。\n\n如本协议的任何条款被认定为无效或不可执行，其余条款仍然有效。\n\n本协议自您接受之日起生效，对之前的使用行为具有追溯效力。\n\n本协议以中文为准。如有其他语言版本，仅供参考，以中文版本为准。',
-      );
-  String get governingLaw => _t('governingLaw', fallback: '适用法律与管辖');
-  String lawJurisdiction(String address) {
-    final template = _t(
-      'lawJurisdiction',
-      fallback:
-          '本协议的签订、效力、解释、履行和争议解决均适用中华人民共和国法律法规，不考虑法律冲突原则。\n\n因本协议引起的争议，由{address}所在地有管辖权的人民法院管辖。\n\n本协议在法律允许的范围内对双方具有约束力。如本协议与法律法规相冲突，以法律法规为准。',
-    );
-    return template.replaceAll('{address}', address);
-  }
-
-  String get contactUsAgreement => _t('contactUsAgreement', fallback: '联系我们');
-  String contactInfoMessage(String email) {
-    final template = _t(
-      'contactInfo',
-      fallback:
-          '如果您对本用户协议有任何疑问，请通过以下方式联系我们：\n\n反馈建议：设置 → 反馈建议（推荐）\n邮箱：{email}\n应用内反馈：设置 → 意见反馈',
-    );
-    return template.replaceAll('{email}', email);
-  }
-
-  String closingMessage(String appName) {
-    final template = _t(
-      'closingMessage',
-      fallback: '感谢您选择{appName}！我们致力于为您提供最佳的笔记体验。\n\n如您对本协议有任何疑问，请随时联系我们。',
-    );
-    return template.replaceAll('{appName}', appName);
-  }
-
   // ===== 忘记密码页面 =====
   String get functionDescription => _t('functionDescription', fallback: '功能说明');
   String get forgotPasswordHelp => _t(
@@ -1134,8 +1002,6 @@ class AppLocalizationsSimple {
       );
 
   // ===== 注册页面 =====
-  String get pleaseAgreeToPolicy =>
-      _t('pleaseAgreeToPolicy', fallback: '请阅读并同意隐私政策及用户协议');
   String get registrationSuccessful =>
       _t('registrationSuccessful', fallback: '注册成功！正在为您登录...');
   String get registrationFailed =>
@@ -1159,8 +1025,6 @@ class AppLocalizationsSimple {
       _t('autoLoginAfterRegistration', fallback: '注册后自动登录');
   String get betterExperience =>
       _t('betterExperience', fallback: '为您提供更便捷的使用体验');
-  String get agreeToTerms => _t('agreeToTerms', fallback: '我已阅读并同意 ');
-  String get privacyPolicy => _t('privacyPolicy', fallback: '隐私政策');
   String get startCreating => _t('startCreating', fallback: '开始创作');
   String get alreadyHaveAccount =>
       _t('alreadyHaveAccount', fallback: '已有账号？立即登录');
@@ -1374,26 +1238,6 @@ class AppLocalizationsSimple {
   String get waitPatiently => _t('waitPatiently', fallback: '记录是为了');
   String get poiseToResound =>
       _t('poiseToResound', fallback: '成为更好的自己');
-
-  // ===== 隐私政策页面 =====
-  String get privacyPolicyTitle => _t('privacyPolicyTitle', fallback: '隐私政策');
-  String get importantStatement => _t('importantStatement', fallback: '重要声明');
-  String get informationCollection =>
-      _t('informationCollection', fallback: '信息收集与处理');
-  String get dataTransmissionSecurity =>
-      _t('dataTransmissionSecurity', fallback: '数据传输与安全');
-  String get privacyPolicyContent1 =>
-      _t('privacyPolicyContent1', fallback: '我们不收集以下信息：');
-  String get privacyPolicyContent2 =>
-      _t('privacyPolicyContent2', fallback: '本地存储的信息：');
-  String get privacyPolicyContent3 =>
-      _t('privacyPolicyContent3', fallback: '技术实现：');
-  String get privacyPolicyContent4 =>
-      _t('privacyPolicyContent4', fallback: '这些信息仅存储在您的设备上，不会传输给我们或任何第三方。');
-  String get privacyPolicyContent5 =>
-      _t('privacyPolicyContent5', fallback: '主要数据流向：');
-  String get privacyPolicyContent6 =>
-      _t('privacyPolicyContent6', fallback: '数据安全保障：');
 
   // ===== NoteEditor Widget =====
   String get thinkingNow => _t('thinkingNow', fallback: '现在的想法是...');
@@ -2214,19 +2058,6 @@ class AppLocalizationsSimple {
   String get serverError => _t('serverError', fallback: '服务器错误');
   String get unknownError => _t('unknownError', fallback: '未知错误');
   String get copySuccess => _t('copySuccess', fallback: '已复制');
-
-  // 隐私政策相关
-  String get userAgreementAndPrivacy =>
-      _t('userAgreementAndPrivacy', fallback: '用户协议与隐私政策');
-  String get disagree => _t('disagree', fallback: '不同意');
-  String get agree => _t('agree', fallback: '同意');
-  String get welcomeToApp => _t(
-        'welcomeToApp',
-        fallback: '欢迎使用InkPaper！\n\n我们非常重视您的隐私保护和个人信息安全。在使用我们的服务前，请您仔细阅读并充分理解',
-      );
-  String get and => locale.languageCode == 'zh' ? '和' : 'and';
-  String get agreeText =>
-      _t('agreeText', fallback: '。\n\n点击"同意"即表示您已阅读并同意上述协议的全部内容。');
 
   // 更新对话框相关
   String get mustUpdateMessage =>

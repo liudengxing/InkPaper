@@ -116,8 +116,8 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
               Text(
                 isOfficialServer
                     ? (_isZh
-                        ? '官方服务器账号删除会进入网页表单完成身份确认和删除申请。申请提交后，我们会按隐私政策处理账号资料、服务端笔记、附件和相关日志。'
-                        : 'Official server account deletion opens a web form for identity confirmation and deletion request submission. After submission, account profile, server-side notes, attachments, and related logs will be processed according to the privacy policy.')
+                        ? '官方服务器账号删除会进入网页表单完成身份确认和删除申请。申请提交后，我们会删除账号资料、服务端笔记、附件和相关日志。'
+                        : 'Official server account deletion opens a web form for identity confirmation and deletion request submission. After submission, account profile, server-side notes, attachments, and related logs will be deleted.')
                     : (_isZh
                         ? '当前不是官方服务器。InkPaper 无法直接删除你自部署服务中的账号或数据，请在你的 Memos、WebDAV 或其他服务管理后台处理。你仍可打开说明页查看官方服务器删除流程。'
                         : 'The current server is not the official server. InkPaper cannot directly delete accounts or data in your self-hosted services. Please manage deletion in your Memos, WebDAV, or other service admin panels. You can still open the information page for the official deletion process.'),

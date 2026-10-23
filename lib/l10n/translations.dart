@@ -72,7 +72,6 @@ class Translations {
     'settingsSupport': {'zh': '支持', 'en': 'Support'},
     'generalSettings': {'zh': '通用设置', 'en': 'General'},
     'accountSettings': {'zh': '账户设置', 'en': 'Account'},
-    'privacySettings': {'zh': '隐私设置', 'en': 'Privacy'},
     'accountInfo': {'zh': '账户信息', 'en': 'Account Info'},
     'preferences': {'zh': '偏好设置', 'en': 'Preferences'},
     'appearance': {'zh': '外观', 'en': 'Appearance'},
@@ -393,10 +392,6 @@ class Translations {
     'remindersDesc': {
       'zh': '重要事项不错过，高效管理时间',
       'en': 'Never miss important tasks',
-    },
-    'agreeToTermsAndPrivacy': {
-      'zh': '注册即表示同意用户协议和隐私政策',
-      'en': 'By registering, you agree to the Terms and Privacy Policy',
     },
     'connectionNormal': {
       'zh': '服务器连接正常，数据同步正常',
@@ -843,135 +838,6 @@ class Translations {
     'dataExport': {'zh': '数据导出', 'en': 'Data Export'},
     'imageManagement': {'zh': '图片管理', 'en': 'Image Management'},
     'privateDeployment': {'zh': '私有化部署', 'en': 'Private Deployment'},
-    'lastUpdated': {
-      'zh': '最后更新日期：{year}年{month}月{day}日',
-      'en': 'Last Updated: {month}/{day}/{year}',
-    },
-    'agreementAcceptance': {'zh': '协议接受', 'en': 'Agreement Acceptance'},
-    'welcomeMessage': {
-      'zh':
-          '欢迎使用{appName}！通过下载、安装或使用{appName}应用程序（以下简称"应用"或"服务"），您同意受本用户协议（以下简称"协议"）的约束。如果您不同意本协议的任何条款，请不要使用我们的服务。',
-      'en':
-          'Welcome to {appName}! By downloading, installing, or using the {appName} application (hereinafter referred to as "App" or "Service"), you agree to be bound by this User Agreement (hereinafter referred to as "Agreement"). If you do not agree to any of the terms of this Agreement, please do not use our Service.',
-    },
-    'importantReminder': {'zh': '重要提醒：', 'en': 'Important Notice:'},
-    'serviceDescription': {'zh': '服务描述', 'en': 'Service Description'},
-    'userResponsibilities': {
-      'zh': '用户责任与义务',
-      'en': 'User Responsibilities and Obligations',
-    },
-    'userResponsibilitiesContent': {
-      'zh': '使用{appName}时，您同意并承诺：',
-      'en': 'When using {appName}, you agree and promise to:',
-    },
-    'userContentResponsibility': {
-      'zh': '您对通过应用创建、存储或传输的所有内容承担完全责任。',
-      'en':
-          'You are fully responsible for all content created, stored, or transmitted through the app.',
-    },
-    'dataOwnership': {'zh': '数据所有权', 'en': 'Data Ownership'},
-    'dataOwnershipDeclaration': {'zh': '重要声明：', 'en': 'Important Declaration:'},
-    'userContentControl': {
-      'zh': '您保留对自己创建的所有内容的完整控制权。',
-      'en': 'You retain complete control over all content you create.',
-    },
-    'disclaimer': {'zh': '免责声明', 'en': 'Disclaimer'},
-    'disclaimerContent': {
-      'zh':
-          '您理解并同意，使用{appName}的风险完全由您自己承担。在适用法律允许的最大范围内，我们不承担任何直接、间接、偶然、特殊或后果性损害的责任，包括但不限于数据丢失、业务中断、利润损失等。',
-      'en':
-          'You understand and agree that you use {appName} entirely at your own risk. To the maximum extent permitted by applicable law, we are not liable for any direct, indirect, incidental, special, or consequential damages, including but not limited to data loss, business interruption, or loss of profits.',
-    },
-    'intellectualProperty': {'zh': '知识产权', 'en': 'Intellectual Property'},
-    'openSourceRights': {
-      'zh': '作为开源软件，{appName}在MIT许可证下发布，您享有以下权利：',
-      'en':
-          'As open-source software, {appName} is released under the MIT License, granting you the following rights:',
-    },
-    'openSourceObligations': {
-      'zh': '使用本软件时，您必须：',
-      'en': 'When using this software, you must:',
-    },
-    'userContentOwnership': {
-      'zh': '您对自己创建的笔记内容拥有完整的知识产权，我们不声明对您的内容拥有任何权利。',
-      'en':
-          'You own full intellectual property rights to the notes you create. We make no claim to any rights to your content.',
-    },
-    'serviceChangesTermination': {
-      'zh': '服务变更与终止',
-      'en': 'Service Changes and Termination',
-    },
-    'serviceModificationRights': {
-      'zh': '我们保留随时修改、更新或改进服务的权利，可能包括：',
-      'en':
-          'We reserve the right to modify, update, or improve the Service at any time, which may include:',
-    },
-    'majorChangeNotifications': {
-      'zh': '重大变更将通过以下方式通知用户：',
-      'en': 'Major changes will be communicated to users through:',
-    },
-    'serviceSuspensionConditions': {
-      'zh': '在以下情况下，我们可能暂停或终止服务：',
-      'en':
-          'We may suspend or terminate the Service under the following circumstances:',
-    },
-    'terminationNotice': {
-      'zh': '终止前我们将尽合理努力提前通知用户。',
-      'en':
-          'We will make reasonable efforts to notify users in advance of termination.',
-    },
-    'agreementModifications': {'zh': '协议修改', 'en': 'Agreement Modifications'},
-    'agreementUpdatePolicy': {
-      'zh':
-          '我们可能会不时更新本用户协议。重大变更会在应用中显著展示，并要求您重新同意。\n\n继续使用应用即表示您接受修改后的协议。如果您不同意修改后的条款，应停止使用应用并可卸载软件。',
-      'en':
-          'We may update this User Agreement from time to time. Major changes will be prominently displayed in the app and will require your re-consent.\n\nContinued use of the app indicates your acceptance of the modified agreement. If you do not agree to the modified terms, you should stop using the app and may uninstall the software.',
-    },
-    'termination': {'zh': '终止', 'en': 'Termination'},
-    'userTerminationRights': {
-      'zh': '您可以随时停止使用InkPaper并删除应用。\n\n我们也可能在以下情况下终止您的访问权限：',
-      'en':
-          'You may stop using InkPaper and delete the app at any time.\n\nWe may also terminate your access under the following circumstances:',
-    },
-    'postTerminationObligations': {
-      'zh': '终止后，您应停止使用应用并删除所有副本。',
-      'en':
-          'After termination, you should stop using the app and delete all copies.',
-    },
-    'disputeResolution': {'zh': '争议解决', 'en': 'Dispute Resolution'},
-    'disputeNegotiation': {
-      'zh':
-          '因本协议产生的任何争议，双方应首先通过友好协商解决。协商时应本着诚实守信、互相尊重的原则。\n\n如协商无法解决争议，任何一方可向有管辖权的人民法院提起诉讼。诉讼过程中，本协议的其他条款仍应继续履行。\n\n争议协商请联系：{email}',
-      'en':
-          'Any disputes arising from this Agreement shall first be resolved through friendly negotiation. Negotiations should be conducted in good faith and with mutual respect.\n\nIf negotiation fails to resolve the dispute, either party may file a lawsuit with a court of competent jurisdiction. During litigation, the other provisions of this Agreement shall continue to be performed.\n\nFor dispute negotiation, contact: {email}',
-    },
-    'otherTerms': {'zh': '其他条款', 'en': 'Other Terms'},
-    'entireAgreement': {
-      'zh':
-          '本协议构成双方就本服务达成的完整协议，取代之前的所有口头或书面协议。\n\n如本协议的任何条款被认定为无效或不可执行，其余条款仍然有效。\n\n本协议自您接受之日起生效，对之前的使用行为具有追溯效力。\n\n本协议以中文为准。如有其他语言版本，仅供参考，以中文版本为准。',
-      'en':
-          'This Agreement constitutes the entire agreement between the parties regarding the Service, superseding all prior oral or written agreements.\n\nIf any provision of this Agreement is deemed invalid or unenforceable, the remaining provisions shall remain in effect.\n\nThis Agreement takes effect from the date of your acceptance and has retroactive effect on prior use.\n\nThe Chinese version of this Agreement shall prevail. If there are versions in other languages, they are for reference only.',
-    },
-    'governingLaw': {'zh': '适用法律与管辖', 'en': 'Governing Law and Jurisdiction'},
-    'lawJurisdiction': {
-      'zh':
-          '本协议的签订、效力、解释、履行和争议解决均适用中华人民共和国法律法规，不考虑法律冲突原则。\n\n因本协议引起的争议，由{address}所在地有管辖权的人民法院管辖。\n\n本协议在法律允许的范围内对双方具有约束力。如本协议与法律法规相冲突，以法律法规为准。',
-      'en':
-          "The conclusion, validity, interpretation, performance, and dispute resolution of this Agreement shall be governed by the laws and regulations of the People's Republic of China, without regard to conflict of law principles.\n\nDisputes arising from this Agreement shall be under the jurisdiction of the people's court with jurisdiction in the location of {address}.\n\nThis Agreement is binding on both parties to the extent permitted by law. If this Agreement conflicts with laws and regulations, the laws and regulations shall prevail.",
-    },
-    'contactUsAgreement': {'zh': '联系我们', 'en': 'Contact Us'},
-    'contactInfo': {
-      'zh':
-          '如果您对本用户协议有任何疑问，请通过以下方式联系我们：\n\n反馈建议：设置 → 反馈建议（推荐）\n邮箱：{email}\n应用内反馈：设置 → 意见反馈',
-      'en':
-          'If you have any questions about this User Agreement, please contact us through:\n\nFeedback: Settings → Feedback (Recommended)\nEmail: {email}\nIn-app Feedback: Settings → Feedback',
-    },
-    'closingMessage': {
-      'zh': '感谢您选择{appName}！我们致力于为您提供最佳的笔记体验。\n\n如您对本协议有任何疑问，请随时联系我们。',
-      'en':
-          'Thank you for choosing {appName}! We are committed to providing you with the best note-taking experience.\n\nIf you have any questions about this Agreement, please feel free to contact us.',
-    },
-
     // ===== 忘记密码页面 =====
     'forgotPassword': {'zh': '找回密码', 'en': 'Forgot Password'},
     'functionDescription': {'zh': '功能说明', 'en': 'Function Description'},
@@ -1259,10 +1125,6 @@ class Translations {
     },
 
     // ===== 注册页面 =====
-    'pleaseAgreeToPolicy': {
-      'zh': '请阅读并同意隐私政策及用户协议',
-      'en': 'Please read and agree to the Privacy Policy and User Agreement',
-    },
     'registrationSuccessful': {
       'zh': '注册成功！正在为您登录...',
       'en': 'Registration successful! Logging you in...',
@@ -1308,9 +1170,6 @@ class Translations {
       'zh': '为您提供更便捷的使用体验',
       'en': 'Provide you with a more convenient experience',
     },
-    'agreeToTerms': {'zh': '我已阅读并同意 ', 'en': 'I have read and agree to '},
-    'privacyPolicy': {'zh': '隐私政策', 'en': 'Privacy Policy'},
-    'userAgreement': {'zh': '用户协议', 'en': 'User Agreement'},
     'startCreating': {'zh': '开始创作', 'en': 'Start Creating'},
     'alreadyHaveAccount': {
       'zh': '已有账号？立即登录',
@@ -1580,37 +1439,6 @@ class Translations {
     // key 名沿用历史命名，值已替换为当前标语。
     'waitPatiently': {'zh': '记录是为了', 'en': 'Write to become'},
     'poiseToResound': {'zh': '成为更好的自己', 'en': 'a better you'},
-
-    // ===== 隐私政策页面 =====
-    'privacyPolicyTitle': {'zh': '隐私政策', 'en': 'Privacy Policy'},
-    'importantStatement': {'zh': '重要声明', 'en': 'Important Statement'},
-    'informationCollection': {
-      'zh': '信息收集与处理',
-      'en': 'Information Collection and Processing',
-    },
-    'dataTransmissionSecurity': {
-      'zh': '数据传输与安全',
-      'en': 'Data Transmission and Security',
-    },
-    'privacyPolicyContent1': {
-      'zh': '我们不收集以下信息：',
-      'en': 'We do not collect the following information:',
-    },
-    'privacyPolicyContent2': {
-      'zh': '本地存储的信息：',
-      'en': 'Locally stored information:',
-    },
-    'privacyPolicyContent3': {'zh': '技术实现：', 'en': 'Technical implementation:'},
-    'privacyPolicyContent4': {
-      'zh': '这些信息仅存储在您的设备上，不会传输给我们或任何第三方。',
-      'en':
-          'This information is only stored on your device and is not transmitted to us or any third party.',
-    },
-    'privacyPolicyContent5': {'zh': '主要数据流向：', 'en': 'Main data flow:'},
-    'privacyPolicyContent6': {
-      'zh': '数据安全保障：',
-      'en': 'Data security guarantee:',
-    },
 
     // ===== NoteEditor Widget =====
     'editorPlaceholder': {'zh': '现在的想法是...', 'en': "What's on your mind..."},

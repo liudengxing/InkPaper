@@ -2853,6 +2853,51 @@ class AppLocalizationsSimple {
   String get shareImageFailed => _t('shareImageFailed', fallback: '分享图片失败');
   String get savingFailed => _t('savingFailed', fallback: '保存失败');
 
+  // ===== 分享图 =====
+  String get shareImageTitle => _t('shareImageTitle', fallback: '生成分享图');
+  String get shareImageGenerating => _t('shareImageGenerating', fallback: '生成中...');
+  String get shareImageGeneratingPreview =>
+      _t('shareImageGeneratingPreview', fallback: '正在生成预览（加载图片中...）');
+  String get shareImageLoadingImages =>
+      _t('shareImageLoadingImages', fallback: '图片加载中，请稍候...');
+  String get shareImageGenerationFailed =>
+      _t('shareImageGenerationFailed', fallback: '预览生成失败');
+  String get shareImageChangeTemplate =>
+      _t('shareImageChangeTemplate', fallback: '更换模板');
+  String get shareImageSave => _t('shareImageSave', fallback: '保存图片');
+  String get shareImageShare => _t('shareImageShare', fallback: '分享');
+  String get shareImageSaving =>
+      _t('shareImageSaving', fallback: '正在保存图片...');
+  String get shareImageSavingToAlbum =>
+      _t('shareImageSavingToAlbum', fallback: '正在保存图片，请稍候');
+  String get shareImageSaveSuccess =>
+      _t('shareImageSaveSuccess', fallback: '图片已保存');
+  String get shareImageSaveFailed =>
+      _t('shareImageSaveFailed', fallback: '保存失败，请检查权限或保存位置');
+  String get shareImageShareFailed =>
+      _t('shareImageShareFailed', fallback: '分享失败');
+  String get shareImageWaitForPreview =>
+      _t('shareImageWaitForPreview', fallback: '请等待预览生成完成');
+  String get shareImageFontSizeTitle =>
+      _t('shareImageFontSizeTitle', fallback: '字体大小');
+  String get shareImageFontSizeDesc =>
+      _t('shareImageFontSizeDesc', fallback: '拖动滑块实时预览效果');
+  String get shareImageFontSizeReset =>
+      _t('shareImageFontSizeReset', fallback: '重置 (17px)');
+  String get shareImageFontSizeDone =>
+      _t('shareImageFontSizeDone', fallback: '完成');
+  String get shareImageFontSettings =>
+      _t('shareImageFontSettings', fallback: '字体设置');
+  String get shareTemplateSimple =>
+      _t('shareTemplateSimple', fallback: '简约风格');
+  String get shareTemplateCard => _t('shareTemplateCard', fallback: '卡片风格');
+  String get shareTemplateGradient =>
+      _t('shareTemplateGradient', fallback: '渐变风格');
+  String get shareTemplateMinimal =>
+      _t('shareTemplateMinimal', fallback: '极简风格');
+  String get shareTemplateMagazine =>
+      _t('shareTemplateMagazine', fallback: '杂志风格');
+
   // ===== 标签配色 =====
   String get tagColorTitle => _t('tagColorTitle', fallback: '标签配色');
   String get previewEffect => _t('previewEffect', fallback: '预览效果');

@@ -2699,6 +2699,56 @@ class Translations {
     },
     'savingFailed': {'zh': '保存失败', 'en': 'Save failed'},
 
+    // ===== 分享图 =====
+    'shareImageTitle': {'zh': '生成分享图', 'en': 'Generate Share Image'},
+    'shareImageGenerating': {'zh': '生成中...', 'en': 'Generating...'},
+    'shareImageGeneratingPreview': {
+      'zh': '正在生成预览（加载图片中...）',
+      'en': 'Generating preview (loading images...)',
+    },
+    'shareImageLoadingImages': {
+      'zh': '图片加载中，请稍候...',
+      'en': 'Loading images, please wait...',
+    },
+    'shareImageGenerationFailed': {
+      'zh': '预览生成失败',
+      'en': 'Preview generation failed',
+    },
+    'shareImageChangeTemplate': {
+      'zh': '更换模板',
+      'en': 'Change Template',
+    },
+    'shareImageSave': {'zh': '保存图片', 'en': 'Save Image'},
+    'shareImageShare': {'zh': '分享', 'en': 'Share'},
+    'shareImageSaving': {'zh': '正在保存图片...', 'en': 'Saving image...'},
+    'shareImageSavingToAlbum': {
+      'zh': '正在保存图片，请稍候',
+      'en': 'Saving image, please wait',
+    },
+    'shareImageSaveSuccess': {'zh': '图片已保存', 'en': 'Image saved'},
+    'shareImageSaveFailed': {
+      'zh': '保存失败，请检查权限或保存位置',
+      'en': 'Save failed. Please check permissions or save location',
+    },
+    'shareImageShareFailed': {'zh': '分享失败', 'en': 'Share failed'},
+    'shareImageWaitForPreview': {
+      'zh': '请等待预览生成完成',
+      'en': 'Please wait for preview to complete',
+    },
+    'shareImageFontSizeTitle': {'zh': '字体大小', 'en': 'Font Size'},
+    'shareImageFontSizeDesc': {
+      'zh': '拖动滑块实时预览效果',
+      'en': 'Drag slider for live preview',
+    },
+    'shareImageFontSizeReset': {'zh': '重置 (17px)', 'en': 'Reset (17px)'},
+    'shareImageFontSizeDone': {'zh': '完成', 'en': 'Done'},
+    'shareImageFontSettings': {'zh': '字体设置', 'en': 'Font Settings'},
+    'shareTemplateSimple': {'zh': '简约风格', 'en': 'Simple'},
+    'shareTemplateCard': {'zh': '卡片风格', 'en': 'Card'},
+    'shareTemplateGradient': {'zh': '渐变风格', 'en': 'Gradient'},
+    'shareTemplateMinimal': {'zh': '极简风格', 'en': 'Minimal'},
+    'shareTemplateMagazine': {'zh': '杂志风格', 'en': 'Magazine'},
+
     // ===== 标签配色 =====
     'tagColorTitle': {'zh': '标签配色', 'en': 'Tag Color'},
     'previewEffect': {'zh': '预览效果', 'en': 'Preview'},

@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:inkpaper/config/app_config.dart'; // 🔥 导入AppConfig
-import 'package:inkpaper/l10n/app_localizations.dart'; // 🌍 国际化
+import 'package:inkpaper/l10n/app_localizations_simple.dart'; // 🌍 国际化
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/themes/app_theme.dart';
@@ -186,7 +186,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
         _isGeneratingPreview = false;
       });
       if (mounted) {
-        final l10n = AppLocalizations.of(context);
+        final l10n = AppLocalizationsSimple.of(context);
         SnackBarUtils.showError(
           context,
           '${l10n?.shareImageGenerationFailed ?? "预览图生成失败"}: $e',
@@ -196,7 +196,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
   }
 
   // 🎨 构建预览内容
-  Widget _buildPreviewContent(AppLocalizations? l10n) {
+  Widget _buildPreviewContent(AppLocalizationsSimple? l10n) {
     // 正在生成预览
     if (_isGeneratingPreview) {
       if (kDebugMode) {
@@ -266,7 +266,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
   }
 
   // 🎨 显示模板选择器（参考备份样式 - 横向滚动）
-  void _showTemplateSelector(AppLocalizations? l10n) {
+  void _showTemplateSelector(AppLocalizationsSimple? l10n) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -387,7 +387,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
   Widget _buildTemplateCard(
     ShareTemplateStyle template,
     StateSetter setModalState,
-    AppLocalizations? l10n,
+    AppLocalizationsSimple? l10n,
   ) {
     // 获取模板名称（带回退文本）
     String title;
@@ -579,7 +579,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
       return;
     }
 
-    final l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizationsSimple.of(context);
 
     // ✅ 检查预览图是否已生成
     if (_previewImageBytes == null) {
@@ -631,7 +631,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
       return;
     }
 
-    final l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizationsSimple.of(context);
 
     if (_previewImageBytes == null) {
       SnackBarUtils.showWarning(
@@ -697,7 +697,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
       }
 
       if (mounted) {
-        final l10n = AppLocalizations.of(context);
+        final l10n = AppLocalizationsSimple.of(context);
         SnackBarUtils.showError(
           context,
           '${l10n?.shareImageSaveFailed ?? "保存失败"}: $e',
@@ -727,7 +727,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
   }
 
   // 🎨 显示字体大小设置 - 实时预览版
-  void _showFontSizeSettings(AppLocalizations? l10n) {
+  void _showFontSizeSettings(AppLocalizationsSimple? l10n) {
     final initialFontSize = _fontSize; // 记录初始值
     var currentFontSize = _fontSize; // 🔥 弹窗内部的字体大小状态
 
@@ -946,7 +946,7 @@ class _ShareImagePreviewScreenState extends State<ShareImagePreviewScreen> {
     // 🔍 调试：build 方法被调用
 
     // 🌍 获取国际化对象（使用回退机制）
-    final l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizationsSimple.of(context);
 
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;

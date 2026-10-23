@@ -1,3 +1,21 @@
+## 2026-10-23 · 编辑卡片玻璃化 · done
+
+- 需求：编辑浮层卡片本身也做半透明 + 自身模糊，去掉「硬白块」边界
+- 改动（`lib/widgets/note_editor.dart`）：
+  - 卡片结构改为 `Container(圆角 + 投影) → ClipRRect → BackdropFilter(sigma 24) → ColoredBox(白 90% / 暗色 0xE01C1C1E) → Column`；投影留在最外层，避免被 ClipRRect 裁掉
+  - 新增 `import 'dart:ui' show ImageFilter`
+  - 输入框显式 `filled: false`：全局 `inputDecorationTheme` 设了 `filled: true` + `fillColor: surfaceColor`，在玻璃卡片上会糊出一块实心白
+- 验收输出：
+```
+$ flutter analyze --no-pub
+No issues found! (ran in 18.2s)
+$ flutter test
+02:03 +424: All tests passed!
+```
+- 真机：`1.0.54+10054` debug 已安装，截图确认卡片整体透出模糊背景、无硬白块、输入区与卡片融为一体
+- 说明：弹层遮罩已有 sigma 18 的 `BackdropFilter`，卡片内再叠 24 属于二次模糊，静态时只渲染一次，开销可接受
+- 版本：`1.0.53+10053` → `1.0.54+10054`
+
 ## 2026-10-23 · 卡片时间行收紧 · done
 
 - 反馈：时间文字本身已经够小，但时间行到正文的留白还是偏高

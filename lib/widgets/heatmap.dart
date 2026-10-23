@@ -35,14 +35,9 @@ class _StatCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-          decoration: BoxDecoration(
-            color: isDarkMode
-                ? Colors.white.withValues(alpha: 0.03)
-                : Colors.black.withValues(alpha: 0.02),
-            borderRadius: BorderRadius.circular(5),
-          ),
+        child: Padding(
+          // flomo 风格：统计数字直接排在背景上，不再套浅色底块
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

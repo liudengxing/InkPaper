@@ -242,10 +242,11 @@ class _SidebarState extends State<Sidebar> {
         : Colors.transparent;
 
     final menuItem = Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      // flomo 风格：菜单块更窄更贴边，圆角放大到 16
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: isSelected
             ? [
                 BoxShadow(
@@ -262,7 +263,7 @@ class _SidebarState extends State<Sidebar> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           onTap: () {
             // 如果不是当前选中项，才执行导航
             if (!isSelected) {
@@ -285,7 +286,7 @@ class _SidebarState extends State<Sidebar> {
                   .withValues(alpha: 0.1),
           highlightColor: Colors.transparent,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
                 Icon(
@@ -1746,15 +1747,9 @@ class _SidebarState extends State<Sidebar> {
                     if (!_isLoading && sidebarConfig.showHeatmap)
                       AnimatedMenuWidget(
                         index: 1,
-                        child: Container(
-                          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: backgroundColor,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow:
-                                AppTheme.neuCardShadow(isDark: isDarkMode),
-                          ),
+                        child: Padding(
+                          // flomo 风格：热力图不再套卡片方框，直接铺在抽屉背景上
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1819,8 +1814,9 @@ class _SidebarState extends State<Sidebar> {
                     AnimatedMenuWidget(
                       index: 2,
                       child: Padding(
+                        // 与菜单块内容左对齐（margin 10 + 内边距 14）
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
+                          horizontal: 24,
                           vertical: 8,
                         ),
                         child: Text(
@@ -1856,14 +1852,14 @@ class _SidebarState extends State<Sidebar> {
                       AnimatedMenuWidget(
                         index: 8,
                         child: Container(
-                          margin: const EdgeInsets.all(16),
+                          margin: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                           child: Material(
                             color: Colors.transparent,
                             child: InkWell(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(16),
                               onTap: () {
                                 // 显示退出登录对话框
                                 _showLogoutDialog(context);
@@ -1874,7 +1870,7 @@ class _SidebarState extends State<Sidebar> {
                                   vertical: 12,
                                 ),
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(16),
                                   border:
                                       Border.all(color: Colors.red.shade200),
                                 ),

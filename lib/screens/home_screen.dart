@@ -1445,29 +1445,11 @@ class _HomeScreenState extends State<HomeScreen>
                       ), // RefreshIndicator 结束
                     ), // GestureDetector 结束 - 点击空白处退出搜索
 
-                    // 🧊 flomo 同款：底部渐隐层（bg_bottom_gradient），
-                    // 100dp 内从页面背景色渐变到透明，内容滚到底部时渐隐，
-                    // 玻璃按钮浮在其上才会有 flomo 那种质感
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      height: 100,
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.bottomCenter,
-                              end: Alignment.topCenter,
-                              colors: [
-                                backgroundColor,
-                                backgroundColor.withValues(alpha: 0),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                    // 🧊 不再铺「背景色 → 透明」的底部渐隐层：
+                    // 那层铺在列表之上、底栏之下且底部全不透明，会把
+                    // BackdropFilter 糊到的内容抹平成纯色，玻璃感被抽空。
+                    // iOS / 酷安的做法是让内容直接穿到悬浮胶囊背后，
+                    // 由 blur 自己收敛（列表末尾已留 120dp 滚动余量）。
 
                     // 移除全屏同步覆盖层，改为后台静默同步
                   ],
@@ -1495,76 +1477,97 @@ class _HomeScreenState extends State<HomeScreen>
   /// BackdropFilter 才真的糊得到东西。
   Widget _buildBottomComposerBar(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    // floating_composer_blur_overlay（flomo 原值 86%，降到 65% 让浅色背景透出）
-    final glassOverlay =
-        isDarkMode ? const Color(0xA62A2A2A) : const Color(0xA6FFFFFF);
-    // floating_composer_stroke
+    // iOS 液态玻璃的 tint 压得比较低，模糊之后的内容轮廓要能透出来。
+    // 之前的 65% 不透明几乎等于实心色块，这是玻璃感消失的主因。
+    // 深色模式用「低不透明度的白」叠在深底上，才会出现酷安那种雾面灰玻璃；
+    // 直接用深灰会跟页面背景糊成一片，看不出浮层边界。
+    final glassTint =
+        isDarkMode ? const Color(0x40FFFFFF) : const Color(0x59FFFFFF);
+    // 上缘镜面高光：玻璃顶部边缘的一道光
+    final specularHighlight =
+        isDarkMode ? const Color(0x52FFFFFF) : const Color(0xB3FFFFFF);
+    // 外描边：浅色模式用极淡黑线勾边，深色模式用白线
     final glassStroke =
-        isDarkMode ? const Color(0x26FFFFFF) : const Color(0x1A000000);
+        isDarkMode ? const Color(0x40FFFFFF) : const Color(0x29000000);
+    // 底部环境暗边：让胶囊看起来有厚度，不是一张贴纸
+    final ambientBottom =
+        isDarkMode ? const Color(0x4D000000) : const Color(0x14000000);
     // floating_control_icon
     final iconColor = isDarkMode ? Colors.white : const Color(0xFF2E2E2E);
     // 占位文案：比图标弱一级，不抢注意力
     final hintColor = isDarkMode
         ? Colors.white.withValues(alpha: 0.55)
         : Colors.black.withValues(alpha: 0.38);
-    final radius = BorderRadius.circular(24);
-    const barHeight = 56.0;
+    final radius = BorderRadius.circular(26);
+    const barHeight = 58.0;
 
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
         child: Container(
           height: barHeight,
           decoration: BoxDecoration(
             borderRadius: radius,
             boxShadow: [
-              // floating_control_shadow + floatingComposerShadowLimit
+              // 悬浮感：更大更柔的投影，贴近 iOS 的浮层
               BoxShadow(
                 color: isDarkMode
-                    ? const Color(0x66000000)
-                    : const Color(0x12000000),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
+                    ? const Color(0x99000000)
+                    : const Color(0x26000000),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
           child: ClipRRect(
             borderRadius: radius,
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              // iOS 材质大约 20~30；18 太轻，内容糊不成块
+              filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // 玻璃底：半透明叠加色
+                  // 1. 玻璃底：低不透明度着色，保留背景的层次
                   DecoratedBox(
                     decoration: BoxDecoration(
-                      color: glassOverlay,
+                      color: glassTint,
                       borderRadius: radius,
                     ),
                   ),
-                  // iOS 27 质感：斜向高光（左上受光 → 中部透明 → 右下边缘反光）
-                  // 描边放在这一层，确保 0.5dp 细线压在高光之上不被覆盖
+                  // 2. 上缘镜面高光：从顶边向下快速衰减
                   DecoratedBox(
                     decoration: BoxDecoration(
                       borderRadius: radius,
-                      border: Border.all(color: glassStroke, width: 0.5),
                       gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: isDarkMode
-                            ? const [
-                                Color(0x1FFFFFFF),
-                                Color(0x00FFFFFF),
-                                Color(0x0DFFFFFF),
-                              ]
-                            : const [
-                                Color(0x40FFFFFF),
-                                Color(0x00FFFFFF),
-                                Color(0x0DFFFFFF),
-                              ],
-                        stops: const [0.0, 0.55, 1.0],
+                        begin: Alignment.topCenter,
+                        end: Alignment.center,
+                        colors: [
+                          specularHighlight,
+                          specularHighlight.withValues(alpha: 0),
+                        ],
                       ),
+                    ),
+                  ),
+                  // 3. 底部环境暗边：模拟玻璃厚度与内容被压暗
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: radius,
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.center,
+                        colors: [
+                          ambientBottom,
+                          ambientBottom.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // 4. 外描边压在最上层，细线不被高光盖住
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: radius,
+                      border: Border.all(color: glassStroke, width: 0.8),
                     ),
                   ),
                   Material(

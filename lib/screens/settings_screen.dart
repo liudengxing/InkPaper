@@ -421,6 +421,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildSettingsItem(
                 context,
+                icon: Icons.drafts_outlined,
+                title: '草稿箱',
+                onTap: () => context.push('/draft-box'),
+              ),
+              _buildSettingsItem(
+                context,
                 icon: Icons.cleaning_services,
                 title: l10n?.dataCleanup ?? '数据清理',
                 onTap: () => context.push('/data-cleanup'),

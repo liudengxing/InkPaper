@@ -11,6 +11,7 @@ import 'package:inkpaper/screens/account_deletion_screen.dart';
 import 'package:inkpaper/screens/account_info_screen.dart';
 import 'package:inkpaper/screens/ai_settings_screen.dart';
 import 'package:inkpaper/screens/data_cleanup_screen.dart';
+import 'package:inkpaper/screens/draft_box_screen.dart';
 import 'package:inkpaper/screens/feedback_screen.dart';
 import 'package:inkpaper/screens/flomo_import_screen.dart';
 import 'package:inkpaper/screens/forgot_password_screen.dart';
@@ -417,6 +418,16 @@ class AppRouter {
               context: context,
               state: state,
               child: const DataCleanupScreen(),
+            ),
+          ),
+
+          GoRoute(
+            path: 'draft-box',
+            name: 'draftBox',
+            pageBuilder: (context, state) => buildSlideTransition(
+              context: context,
+              state: state,
+              child: const DraftBoxScreen(),
             ),
           ),
 

@@ -26,7 +26,6 @@ class _RegisterScreenState extends State<RegisterScreen>
   final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
   bool _rememberLogin = true;
-  bool _agreedToTerms = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _useCustomServer = false;
@@ -163,25 +162,8 @@ class _RegisterScreenState extends State<RegisterScreen>
     debugPrint('RegisterScreen: 自定义服务器地址已更新: $url');
   }
 
-  void _openPrivacyPolicy() {
-    context.push('/privacy-policy-detail');
-  }
-
-  void _openUserAgreement() {
-    context.push('/user-agreement');
-  }
-
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    if (!_agreedToTerms) {
-      SnackBarUtils.showWarning(
-        context,
-        AppLocalizationsSimple.of(context)?.pleaseAgreeToPolicy ??
-            '请阅读并同意隐私政策及用户协议',
-      );
       return;
     }
 
@@ -373,16 +355,6 @@ class _RegisterScreenState extends State<RegisterScreen>
             ),
           ),
 
-          // 📄 条款区域
-          SliverToBoxAdapter(
-            child: _buildTermsSection(
-              cardColor: cardColor,
-              textPrimary: textPrimary,
-              textSecondary: textSecondary,
-              primaryColor: primaryColor,
-            ),
-          ),
-
           // 🎯 操作区域
           SliverToBoxAdapter(
             child: _buildActionSection(
@@ -501,13 +473,6 @@ class _RegisterScreenState extends State<RegisterScreen>
                           primaryColor: primaryColor,
                           isDarkMode: isDarkMode,
                         ),
-                        const SizedBox(height: 16),
-                        _buildTermsSection(
-                          cardColor: cardColor,
-                          textPrimary: textPrimary,
-                          textSecondary: textSecondary,
-                          primaryColor: primaryColor,
-                        ),
                         const SizedBox(height: 24),
                         _buildActionSection(
                           primaryColor: primaryColor,
@@ -597,13 +562,6 @@ class _RegisterScreenState extends State<RegisterScreen>
                           textSecondary: textSecondary,
                           primaryColor: primaryColor,
                           isDarkMode: isDarkMode,
-                        ),
-                        const SizedBox(height: 24),
-                        _buildTermsSection(
-                          cardColor: cardColor,
-                          textPrimary: textPrimary,
-                          textSecondary: textSecondary,
-                          primaryColor: primaryColor,
                         ),
                         const SizedBox(height: 24),
                         _buildActionSection(
@@ -1083,96 +1041,6 @@ class _RegisterScreenState extends State<RegisterScreen>
         ),
       );
 
-  // 📄 条款区域
-  Widget _buildTermsSection({
-    required Color cardColor,
-    required Color textPrimary,
-    required Color textSecondary,
-    required Color primaryColor,
-  }) =>
-      Container(
-        margin: const EdgeInsets.symmetric(horizontal: 24),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GestureDetector(
-              onTap: () {
-                setState(() {
-                  _agreedToTerms = !_agreedToTerms;
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: _agreedToTerms ? primaryColor : Colors.transparent,
-                  border: Border.all(
-                    color: _agreedToTerms ? primaryColor : textSecondary,
-                    width: 2,
-                  ),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: _agreedToTerms
-                    ? const Icon(
-                        Icons.check,
-                        color: Colors.white,
-                        size: 12,
-                      )
-                    : null,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text.rich(
-                TextSpan(
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: textSecondary,
-                    height: 1.5,
-                  ),
-                  children: [
-                    TextSpan(
-                      text: AppLocalizationsSimple.of(context)?.agreeToTerms ??
-                          '我已阅读并同意 ',
-                    ),
-                    WidgetSpan(
-                      child: GestureDetector(
-                        onTap: _openPrivacyPolicy,
-                        child: Text(
-                          AppLocalizationsSimple.of(context)?.privacyPolicy ??
-                              '隐私政策',
-                          style: TextStyle(
-                            color: primaryColor,
-                            fontWeight: FontWeight.w500,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const TextSpan(text: ' 和 '),
-                    WidgetSpan(
-                      child: GestureDetector(
-                        onTap: _openUserAgreement,
-                        child: Text(
-                          AppLocalizationsSimple.of(context)?.userAgreement ??
-                              '用户协议',
-                          style: TextStyle(
-                            color: primaryColor,
-                            fontWeight: FontWeight.w500,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-
   // 🎯 操作区域
   Widget _buildActionSection({
     required Color primaryColor,
@@ -1189,7 +1057,7 @@ class _RegisterScreenState extends State<RegisterScreen>
               width: double.infinity,
               height: 56,
               decoration: BoxDecoration(
-                gradient: _isLoading || !_agreedToTerms
+                gradient: _isLoading
                     ? null
                     : LinearGradient(
                         colors: [
@@ -1197,11 +1065,11 @@ class _RegisterScreenState extends State<RegisterScreen>
                           primaryColor.withValues(alpha: 0.8),
                         ],
                       ),
-                color: _isLoading || !_agreedToTerms
+                color: _isLoading
                     ? (isDarkMode ? Colors.grey[700] : Colors.grey[300])
                     : null,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: _isLoading || !_agreedToTerms
+                boxShadow: _isLoading
                     ? []
                     : [
                         BoxShadow(
@@ -1215,7 +1083,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                 color: Colors.transparent,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(16),
-                  onTap: _isLoading || !_agreedToTerms ? null : _register,
+                  onTap: _isLoading ? null : _register,
                   child: Container(
                     alignment: Alignment.center,
                     child: _isLoading

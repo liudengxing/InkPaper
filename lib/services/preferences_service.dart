@@ -275,41 +275,6 @@ class PreferencesService {
     await saveAppConfig(updatedConfig);
   }
 
-  // 隐私政策相关
-  static const String _privacyPolicyKey = Config.AppConfig.prefKeyPrivacyPolicy;
-  static const String _legalAcceptedVersionKey =
-      Config.AppConfig.prefKeyLegalAcceptedVersion;
-  static const String _legalAcceptedAtKey =
-      Config.AppConfig.prefKeyLegalAcceptedAt;
-
-  // 检查是否已同意隐私政策
-  Future<bool> hasAgreedToPrivacyPolicy() async {
-    final prefs = await SharedPreferences.getInstance();
-    final hasAgreed = prefs.getBool(_privacyPolicyKey) ?? false;
-    final acceptedVersion = prefs.getString(_legalAcceptedVersionKey);
-    return hasAgreed &&
-        acceptedVersion == Config.AppConfig.legalDocumentVersion;
-  }
-
-  // 设置隐私政策同意状态
-  Future<void> setPrivacyPolicyAgreed(bool agreed) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_privacyPolicyKey, agreed);
-    if (agreed) {
-      await prefs.setString(
-        _legalAcceptedVersionKey,
-        Config.AppConfig.legalDocumentVersion,
-      );
-      await prefs.setString(
-        _legalAcceptedAtKey,
-        DateTime.now().toIso8601String(),
-      );
-    } else {
-      await prefs.remove(_legalAcceptedVersionKey);
-      await prefs.remove(_legalAcceptedAtKey);
-    }
-  }
-
   // 保存登录信息
   Future<void> saveLoginInfo({
     required String token,

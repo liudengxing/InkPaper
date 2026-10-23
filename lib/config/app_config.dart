@@ -232,15 +232,6 @@ class AppConfig {
   /// 配置键 - 密码
   static const String prefKeyPassword = 'password';
 
-  /// 配置键 - 隐私政策同意
-  static const String prefKeyPrivacyPolicy = 'privacy_policy_agreed';
-
-  /// 配置键 - 已同意法律文档版本
-  static const String prefKeyLegalAcceptedVersion = 'legal_accepted_version';
-
-  /// 配置键 - 法律文档同意时间
-  static const String prefKeyLegalAcceptedAt = 'legal_accepted_at';
-
   /// 配置键 - 功能开关
   static const String prefKeyFeatureFlags = 'feature_flags';
 
@@ -412,26 +403,6 @@ class AppConfig {
   static const String githubRepo = 'https://github.com/liudengxing/InkPaper';
 
   // ==================== 法律文档 ====================
-
-  /// 当前法律文档版本。修改协议或隐私政策时更新该值，用于触发重新确认。
-  static const String legalDocumentVersion = '2026-06-15';
-
-  /// 法律文档固定更新日期，避免页面每天显示伪更新。
-  static const int legalUpdatedYear = 2026;
-  static const int legalUpdatedMonth = 6;
-  static const int legalUpdatedDay = 15;
-
-  /// 隐私政策地址
-  static const String privacyPolicyUrl = '${officialWebsite}privacy.html';
-
-  /// 隐私政策 Uri
-  static Uri get privacyPolicyUri => Uri.parse(privacyPolicyUrl);
-
-  /// 用户协议地址
-  static const String userAgreementUrl = '${officialWebsite}agreement.html';
-
-  /// 用户协议 Uri
-  static Uri get userAgreementUri => Uri.parse(userAgreementUrl);
 
   /// 账号与数据删除说明/申请地址
   static const String accountDeletionUrl =

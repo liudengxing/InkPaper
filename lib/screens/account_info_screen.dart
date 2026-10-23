@@ -1031,18 +1031,6 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                 ),
               ),
 
-              const SizedBox(height: 24),
-
-              // 提示文案
-              Text(
-                AppLocalizationsSimple.of(context)?.agreeToTermsAndPrivacy ??
-                    '注册即表示同意用户协议和隐私政策',
-                style: TextStyle(
-                  fontSize: 12,
-                  color:
-                      theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
-                ),
-              ),
             ],
           ),
         ),

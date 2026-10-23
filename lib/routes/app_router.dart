@@ -20,7 +20,7 @@ import 'package:inkpaper/screens/home_screen.dart';
 import 'package:inkpaper/screens/import_export_main_screen.dart';
 import 'package:inkpaper/screens/knowledge_graph_screen_custom.dart';
 import 'package:inkpaper/screens/laboratory_screen.dart';
-import 'package:inkpaper/screens/legal_document_screen.dart';
+
 import 'package:inkpaper/screens/local_backup_restore_screen.dart';
 import 'package:inkpaper/screens/login_screen.dart';
 import 'package:inkpaper/screens/note_detail_screen.dart';
@@ -29,7 +29,7 @@ import 'package:inkpaper/screens/notion_settings_screen.dart';
 import 'package:inkpaper/screens/onboarding_screen.dart';
 import 'package:inkpaper/screens/performance_dashboard_screen.dart';
 import 'package:inkpaper/screens/preferences_screen.dart';
-import 'package:inkpaper/screens/privacy_policy_screen.dart';
+
 import 'package:inkpaper/screens/random_review_screen.dart';
 import 'package:inkpaper/screens/recently_deleted_screen.dart';
 import 'package:inkpaper/screens/register_screen.dart';
@@ -42,7 +42,6 @@ import 'package:inkpaper/screens/tags_screen.dart';
 import 'package:inkpaper/screens/user_preferences_screen.dart'; // 🧠 用户偏好可视化
 import 'package:inkpaper/screens/webdav_settings_screen.dart';
 import 'package:inkpaper/screens/weread_import_screen.dart';
-import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/utils/tag_path_utils.dart';
 import 'package:inkpaper/widgets/desktop_layout.dart';
 
@@ -249,7 +248,6 @@ Page<void> buildSlideTransition({
 class AppRouter {
   AppRouter(this.appProvider);
   final AppProvider appProvider;
-  final PreferencesService _preferencesService = PreferencesService();
 
   late final GoRouter router = GoRouter(
     initialLocation: _resolvedInitialLocation(),
@@ -263,36 +261,6 @@ class AppRouter {
       //     child: const SplashScreen(),
       //   ),
       // ),
-
-      // 🔒 隐私政策页面（大厂标准：首次安装时全屏显示）
-      GoRoute(
-        path: '/privacy-policy',
-        name: 'privacy-policy',
-        pageBuilder: (context, state) => MaterialPage<void>(
-          key: state.pageKey,
-          child: const PrivacyPolicyScreen(),
-        ),
-      ),
-
-      GoRoute(
-        path: '/privacy-policy-detail',
-        name: 'privacyPolicyDetail',
-        pageBuilder: (context, state) => buildSlideTransition(
-          context: context,
-          state: state,
-          child: const LegalDocumentScreen(type: LegalDocumentType.privacy),
-        ),
-      ),
-
-      GoRoute(
-        path: '/user-agreement',
-        name: 'userAgreement',
-        pageBuilder: (context, state) => buildSlideTransition(
-          context: context,
-          state: state,
-          child: const LegalDocumentScreen(type: LegalDocumentType.agreement),
-        ),
-      ),
 
       GoRoute(
         path: '/account-deletion',
@@ -891,46 +859,10 @@ class AppRouter {
         ),
       ),
     ],
-    redirect: (context, state) async {
+    redirect: (context, state) {
       if (_screenshotMode) {
         return null;
       }
-
-      // 🔒 大厂标准：隐私政策优先级最高（第一次安装时必须先同意）
-      final hasAgreedToPrivacy =
-          await _preferencesService.hasAgreedToPrivacyPolicy();
-
-      // 如果未同意隐私政策，强制跳转到隐私政策页面
-      if (!hasAgreedToPrivacy) {
-        const allowedLegalPaths = {
-          '/privacy-policy',
-          '/privacy-policy-detail',
-          '/user-agreement',
-          '/account-deletion',
-        };
-        if (!allowedLegalPaths.contains(state.matchedLocation)) {
-          return '/privacy-policy';
-        }
-        return null; // 已在隐私政策页面，停止重定向
-      }
-
-      // 🚀 大厂做法：隐私政策同意后直接进入主页，不显示引导页
-      // 如果已同意隐私政策，但还在隐私政策页面，直接跳转到主页
-      if (hasAgreedToPrivacy && state.matchedLocation == '/privacy-policy') {
-        return '/';
-      }
-
-      // 🚀 移除引导页逻辑，模仿微信/支付宝的简洁启动流程
-      // 用户可以在设置中查看帮助和教程
-      // if (hasAgreedToPrivacy) {
-      //   final isFirstLaunch = await _preferencesService.isFirstLaunch();
-      //
-      //   if (isFirstLaunch &&
-      //       state.matchedLocation != '/onboarding' &&
-      //       state.matchedLocation != '/welcome') {
-      //     return '/onboarding';
-      //   }
-      // }
 
       // 兼容旧路由
       if (state.matchedLocation == '/daily-review') {

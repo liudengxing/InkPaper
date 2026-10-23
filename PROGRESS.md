@@ -1,3 +1,26 @@
+## 2026-10-23 · 同步去重（Memos + WebDAV 双通道） · done
+
+- 现象：同时开启 Memos 同步与 WebDAV 同步后，同一条笔记在列表里出现两份
+- 根因（三处叠加）：
+  1. 本地笔记 id 由 `Uuid().v4()` 生成；Memos 拉取时 `Note.fromJson` 直接用服务端 memo 的 id（uid）；WebDAV 合并则完全按 `note.id` 匹配
+  2. 接入 Memos 后服务端会重新签发 id，云端 `notes.json` 里仍是上一次的本地 uuid → WebDAV 判定「远程独有」→ `saveNote` 再插一份
+  3. 既有 `lib/utils/note_dedupe.dart` 只处理「未同步的本地副本」，WebDAV 路径完全没用上
+- 改动：
+  - `note_dedupe.dart` 新增 `groupNotesByContentHash`（按哈希分桶）、`findContentDuplicate`（内容一致 + 创建时间 ±5 分钟内视为同一条）、`dedupeDuplicateNotes`（库内自去重：保留创建时间最早的一条，置顶/批注/提醒/引用/标签取并集，返回待删 id）
+  - `webdav_sync_engine._mergeNotesIncremental`：远程独有笔记先按内容指纹「认领」本地同一条（保留本地 id，合并远程内容与本地元数据，不新增行）；合并收尾执行库内自去重，删除副本并计入 `SyncStats.deleted`
+- 设计取舍：用「内容哈希 + 创建时间容差」而不是纯内容哈希 —— 用户在两个时间点写相同正文是合法场景，纯内容匹配会误删
+- 验收输出：
+```
+$ flutter analyze --no-pub
+No issues found! (ran in 8.0s)
+$ flutter test
+00:52 +424: All tests passed!
+```
+- 新增测试：`test/unit/note_dedupe_test.dart` +8 例（跨通道认领、时间超差保留、同 id 跳过、库内合并、元数据并集）
+- 真机：`1.0.46+10046` debug 已覆盖安装
+- 未做（需人工拍板）：给 notes 表加 `remote_id` 列，把「Memos uid ↔ 本地 id」固化成显式映射（涉及 DB schema 迁移）
+- 版本：`1.0.45+10045` → `1.0.46+10046`
+
 ## 2026-10-23 · 首页头部对齐 flomo（时间/字号/文案） · done
 
 - flomo 取证：卡片头部 `DinTextView#date` 用 `@dimen/fontTiny`（10sp）+ `@color/textSubtle`（`gray60 = #949494`），字体为 Barlow-Regular（细体）

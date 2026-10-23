@@ -249,24 +249,15 @@ class _HeatmapState extends State<Heatmap> {
         dailyCounts.values.fold(0, (max, count) => count > max ? count : max);
     final dates = _generateMonthDates();
 
-    // 格子尺寸随可用宽度自适应：固定 18pt 在侧边栏里只占左边一半
+    // 格子不再写死尺寸：每行 7 个 Expanded + AspectRatio(1)，
+    // 宽度由父容器平分（铺满卡片），高度自动跟随宽度保持正方形
     const spacing = 2.0;
-    const minCellSize = 12.0;
-    const maxCellSize = 26.0;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final availableWidth = constraints.maxWidth;
-        final cellSize = availableWidth.isFinite
-            ? ((availableWidth - spacing * 6) / 7)
-                .clamp(minCellSize, maxCellSize)
-            : 18.0;
-
-        return Column(
-          key: uniqueKey,
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return Column(
+      key: uniqueKey,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         // 总体统计卡片 - 清晰版
         Row(
           children: [
@@ -365,30 +356,31 @@ class _HeatmapState extends State<Heatmap> {
         ),
         const SizedBox(height: 8),
 
-        // 热力图网格 - 固定尺寸，按 7 列直接用 Row/Column 布局
+        // 热力图网格 - 每行 7 个 Expanded 平分可用宽度，AspectRatio 保正方形
         // （A-11：不再用 GridView + shrinkWrap，避免嵌套滚动体全量测量）
         Column(
           children: [
             for (var rowStart = 0; rowStart < dates.length; rowStart += 7)
               Row(
                 children: [
-                  for (var i = rowStart;
-                      i < rowStart + 7 && i < dates.length;
-                      i++)
-                    Padding(
-                      padding: EdgeInsets.only(
-                        right: (i - rowStart) == 6 ? 0 : spacing,
-                        bottom: rowStart + 7 < dates.length ? spacing : 0,
-                      ),
-                      child: SizedBox(
-                        width: cellSize,
-                        height: cellSize,
-                        child: _buildHeatCell(
-                          context: context,
-                          date: dates[i],
-                          dailyCounts: dailyCounts,
-                          maxCount: maxCount,
-                          isDarkMode: isDarkMode,
+                  for (var i = rowStart; i < rowStart + 7; i++)
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          right: i - rowStart == 6 ? 0 : spacing,
+                          bottom: rowStart + 7 < dates.length ? spacing : 0,
+                        ),
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: i < dates.length
+                              ? _buildHeatCell(
+                                  context: context,
+                                  date: dates[i],
+                                  dailyCounts: dailyCounts,
+                                  maxCount: maxCount,
+                                  isDarkMode: isDarkMode,
+                                )
+                              : const SizedBox.shrink(),
                         ),
                       ),
                     ),
@@ -399,13 +391,11 @@ class _HeatmapState extends State<Heatmap> {
 
         const SizedBox(height: 5),
 
-        // 星期标签
+        // 星期标签 - 与格子同宽平分
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: ['一', '二', '三', '四', '五', '六', '日']
               .map(
-                (day) => SizedBox(
-                  width: cellSize,
+                (day) => Expanded(
                   child: Text(
                     day,
                     style: AppTextStyles.custom(
@@ -475,9 +465,7 @@ class _HeatmapState extends State<Heatmap> {
             ),
           ],
         ),
-          ],
-        );
-      },
+      ],
     );
   }
 

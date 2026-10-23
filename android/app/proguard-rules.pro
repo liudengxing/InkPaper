@@ -90,30 +90,6 @@
 -keep class io.flutter.embedding.** { *; }
 -dontwarn io.flutter.embedding.**
 
-# 🚀 友盟统计 SDK 混淆规则（完整版）
-# ===== 核心SDK =====
--keep class com.umeng.** { *; }
--keep class com.uc.** { *; }
--keepclassmembers class * {
-    public <init>(org.json.JSONObject);
-}
-
-# ===== 友盟Analytics =====
--keep public class com.umeng.analytics.** { *; }
--keep public class com.umeng.commonsdk.** { *; }
-
-# ===== 友盟Common =====
--keep class com.umeng.common.** { *; }
--dontwarn com.umeng.common.**
-
-# ===== UMDevice（设备信息）=====
--keep class com.umeng.umzid.** { *; }
--keep class com.uc.crashsdk.** { *; }
-
-# ===== UTDID（设备唯一标识）=====
--keep class com.ta.utdid2.** { *; }
--keep class com.ut.device.** { *; }
-
 # ===== 保留枚举和内部类 =====
 -keepclassmembers enum * {
     public static **[] values();
@@ -131,10 +107,10 @@
 # ===== 防止反射被混淆 =====
 -keepattributes *Annotation*
 
-# ===== 保留友盟的异常捕获 =====
+# ===== 保留异常类 =====
 -keep public class * extends java.lang.Exception
 
-# Gson 混淆规则（友盟依赖）
+# Gson 混淆规则
 -keep class com.google.gson.** { *; }
 -keep class com.google.gson.stream.** { *; }
 -keepattributes Signature

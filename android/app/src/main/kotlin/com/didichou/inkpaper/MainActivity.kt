@@ -6,7 +6,6 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -15,21 +14,16 @@ import android.provider.OpenableColumns
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-import com.umeng.analytics.MobclickAgent
-import com.umeng.commonsdk.UMConfigure
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.Executors
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.didichou.inkpaper/native_alarm"
-    private val UMENG_CHANNEL = "com.didichou.inkpaper/umeng"
     private var methodChannel: MethodChannel? = null
-    private var umengChannel: MethodChannel? = null
     private var pendingNoteId: Int? = null
     private var pendingSharedPayload: Map<String, Any>? = null
     private var pendingDeepLink: String? = null
-    private var isUmengInitialized = false
     private var flutterReadyForNativeEvents = false
     private val shareExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -46,66 +40,6 @@ class MainActivity: FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
-        // 友盟统计 Method Channel
-        umengChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UMENG_CHANNEL)
-        umengChannel?.setMethodCallHandler { call, result ->
-            when (call.method) {
-                "init" -> {
-                    if (!isUmengInitialized) {
-                        try {
-                            val appInfo = packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
-                            val appKey = appInfo.metaData?.getString("UMENG_APPKEY")?.trim().orEmpty()
-                            val channel = appInfo.metaData?.getString("UMENG_CHANNEL")?.trim().orEmpty().ifEmpty { "default" }
-
-                            if (appKey.isEmpty()) {
-                                ReleaseLog.d("UmengAnalytics", "友盟统计未配置，跳过初始化")
-                                result.success(false)
-                                return@setMethodCallHandler
-                            }
-
-                            UMConfigure.init(this, appKey, channel, UMConfigure.DEVICE_TYPE_PHONE, null)
-                            UMConfigure.setLogEnabled(BuildConfig.DEBUG)
-                            // 设置场景类型
-                            MobclickAgent.setPageCollectionMode(MobclickAgent.PageMode.AUTO)
-                            isUmengInitialized = true
-                            ReleaseLog.d("UmengAnalytics", "友盟统计初始化成功")
-                            ReleaseLog.d("UmengAnalytics", "Channel: $channel")
-                            result.success(true)
-                        } catch (e: Exception) {
-                            ReleaseLog.e("UmengAnalytics", "友盟统计初始化失败: ${e.message}")
-                            result.error("INIT_FAILED", e.message, null)
-                        }
-                    } else {
-                        result.success(true)
-                    }
-                }
-                "onEvent" -> {
-                    // 直接获取参数（Flutter传递的是String，不是Map）
-                    val eventId = call.arguments as? String
-                    if (eventId != null) {
-                        MobclickAgent.onEvent(this, eventId)
-                        ReleaseLog.d("UmengAnalytics", "事件已记录: $eventId")
-                        result.success(true)
-                    } else {
-                        result.error("INVALID_ARGUMENT", "eventId is required", null)
-                    }
-                }
-                "onEventWithMap" -> {
-                    val eventId = call.argument<String>("eventId")
-                    val params = call.argument<Map<String, String>>("params")
-                    if (eventId != null && params != null) {
-                        MobclickAgent.onEvent(this, eventId, params)
-                        result.success(true)
-                    } else {
-                        result.error("INVALID_ARGUMENT", "eventId and params are required", null)
-                    }
-                }
-                else -> {
-                    result.notImplemented()
-                }
-            }
-        }
         
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
         methodChannel?.setMethodCallHandler { call, result ->

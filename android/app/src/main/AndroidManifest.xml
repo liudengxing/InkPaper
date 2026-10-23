@@ -31,14 +31,7 @@
         android:label="InkPaper"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        
-        <!-- 友盟统计配置 -->
-        <meta-data
-            android:name="UMENG_APPKEY"
-            android:value="${UMENG_ANDROID_APPKEY}" />
-        <meta-data
-            android:name="UMENG_CHANNEL"
-            android:value="${UMENG_CHANNEL}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -24,11 +24,6 @@ if (isReleaseTask && !hasReleaseSigning) {
 if (isReleaseTask && releaseStoreFile != null && !releaseStoreFile.exists()) {
     throw new GradleException("Release signing keystore was not found: ${releaseStoreFile}")
 }
-def umengAndroidAppKey = project.findProperty('UMENG_ANDROID_APPKEY') ?:
-        System.getenv('UMENG_ANDROID_APPKEY') ?: ''
-def umengChannel = project.findProperty('UMENG_CHANNEL') ?:
-        System.getenv('UMENG_CHANNEL') ?: 'default'
-
 android {
     namespace = "com.didichou.inkpaper"
     compileSdk flutter.compileSdkVersion
@@ -56,9 +51,21 @@ android {
         versionName flutter.versionName
         manifestPlaceholders = [
             applicationName: "android.app.Application",
-            UMENG_ANDROID_APPKEY: umengAndroidAppKey,
-            UMENG_CHANNEL: umengChannel,
         ]
+        // release 只保留真机 ABI：--target-platform 只能过滤 Flutter 自己的
+        // libflutter/libapp，插件自带的 .so（sentry / dartjni 等）由 Gradle 打包，
+        // 必须在 defaultConfig 里用 abiFilters 裁。
+        // 注意：Flutter 插件 apply 时已把 abiFilters 垫成全平台，直接 add 是追加，
+        // 必须先 clear；否则 x86_64 的插件 so 照样进包。
+        // debug 保留 x86_64，否则 Android 模拟器装不上。
+        ndk {
+            abiFilters.clear()
+            if (isReleaseTask) {
+                abiFilters.addAll(['armeabi-v7a', 'arm64-v8a'])
+            } else {
+                abiFilters.addAll(['armeabi-v7a', 'arm64-v8a', 'x86_64'])
+            }
+        }
     }
 
     signingConfigs {
@@ -91,11 +98,4 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
-    
-    // 友盟统计（更新到最新稳定版本）
-    implementation 'com.umeng.umsdk:common:9.6.8'       // 友盟基础组件
-    implementation 'com.umeng.umsdk:asms:1.8.3'         // 友盟统计SDK
-    
-    // 🔥 友盟依赖的必需库（避免初始化失败）
-    implementation 'com.google.code.gson:gson:2.10.1'   // JSON解析
-} 
+}

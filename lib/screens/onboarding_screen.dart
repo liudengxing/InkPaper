@@ -709,7 +709,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     ),
 
                     Text(
-                      '静待沉淀',
+                      '记录是为了',
                       style: TextStyle(
                         fontSize:
                             ResponsiveUtils.responsiveFontSize(context, 48),
@@ -722,27 +722,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     ),
 
                     Text(
-                      '蓄势而鸣',
+                      '成为更好的自己',
                       style: TextStyle(
                         fontSize:
                             ResponsiveUtils.responsiveFontSize(context, 48),
                         fontWeight: FontWeight.bold,
                         color: AppTheme.primaryColor,
                         height: 1.2,
-                      ),
-                    ),
-
-                    SizedBox(
-                      height: ResponsiveUtils.responsiveSpacing(context, 24),
-                    ),
-
-                    Text(
-                      '你的每一次落笔，都是未来生长的根源。',
-                      style: TextStyle(
-                        fontSize:
-                            ResponsiveUtils.responsiveFontSize(context, 18),
-                        color: isDarkMode ? Colors.white70 : Colors.black54,
-                        height: 1.6,
                       ),
                     ),
 

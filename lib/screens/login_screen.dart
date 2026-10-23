@@ -586,7 +586,7 @@ class _LoginScreenState extends State<LoginScreen>
                     Text(
                       AppLocalizationsSimple.of(context)
                               ?.intelligentNoteManagement ??
-                          '智能笔记管理，\n让思考更有条理',
+                          '记录是为了成为更好的自己',
                       style: TextStyle(
                         fontSize: 20,
                         color: textSecondary,
@@ -665,7 +665,7 @@ class _LoginScreenState extends State<LoginScreen>
                       Text(
                         AppLocalizationsSimple.of(context)
                                 ?.intelligentNoteManagement ??
-                            '智能笔记管理，\n让思考更有条理',
+                            '记录是为了成为更好的自己',
                         style: TextStyle(
                           fontSize: 24,
                           color: textSecondary,

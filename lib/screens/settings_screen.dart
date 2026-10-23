@@ -287,58 +287,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   vertical: 20,
                   horizontal: 16,
                 ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            l10n?.waitPatiently ?? '静待沉淀',
-                            style: TextStyle(
-                              fontSize: ResponsiveUtils.responsiveFontSize(
-                                context,
-                                26,
-                              ),
-                              fontWeight: FontWeight.w600,
-                              color: textColor,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        SizedBox(
-                          width: ResponsiveUtils.responsiveSpacing(context, 12),
-                        ),
-                        Flexible(
-                          child: Text(
-                            l10n?.poiseToResound ?? '蓄势而鸣',
-                            style: TextStyle(
-                              fontSize: ResponsiveUtils.responsiveFontSize(
-                                context,
-                                26,
-                              ),
-                              fontWeight: FontWeight.w600,
-                              color: isDarkMode
-                                  ? AppTheme.primaryLightColor
-                                  : AppTheme.primaryColor,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(
-                      height: ResponsiveUtils.responsiveSpacing(context, 8),
-                    ),
-                    Text(
-                      l10n?.focusAndAccumulate ?? '你的每一次落笔，都是未来生长的根源！',
-                      style: TextStyle(
-                        fontSize:
-                            ResponsiveUtils.responsiveFontSize(context, 16),
-                        color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                // 整句一次排版：前半正常色、后半主题色，允许换行不截断
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: l10n?.waitPatiently ?? '记录是为了',
+                        style: TextStyle(color: textColor),
                       ),
-                    ),
-                  ],
+                      TextSpan(
+                        text: l10n?.poiseToResound ?? '成为更好的自己',
+                        style: TextStyle(
+                          color: isDarkMode
+                              ? AppTheme.primaryLightColor
+                              : AppTheme.primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: ResponsiveUtils.responsiveFontSize(context, 26),
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
                 ),
               ),
 

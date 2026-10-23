@@ -785,9 +785,8 @@ class Translations {
     // ===== 关于页面 =====
     'aboutInkPaper': {'zh': '关于InkPaper', 'en': 'About InkPaper'},
     'appTagline': {
-      'zh': '静待沉淀，蓄势而鸣。\n你的每一次落笔，都是未来生长的根源。',
-      'en':
-          'Settle patiently, then speak with force.\nEvery note you take becomes a root for what comes next.',
+      'zh': '记录是为了成为更好的自己',
+      'en': 'Write to become a better you',
     },
     'appIntroduction': {
       'zh': 'InkPaper 是一款面向个人记录和知识整理的笔记应用。你可以本地使用，也可以连接官方服务器或自部署 Memos 服务同步笔记。',
@@ -1176,8 +1175,8 @@ class Translations {
       'en': 'Welcome back! Preparing your personal note space...',
     },
     'intelligentNoteManagement': {
-      'zh': '静待沉淀，\n蓄势而鸣',
-      'en': 'Settle patiently,\nthen speak with force',
+      'zh': '记录是为了成为更好的自己',
+      'en': 'Write to become a better you',
     },
     'welcomeBack': {'zh': '欢迎回来', 'en': 'Welcome Back'},
     'continueCreativeJourney': {
@@ -1577,12 +1576,10 @@ class Translations {
     'gpt35Turbo': {'zh': 'GPT-3.5 Turbo', 'en': 'GPT-3.5 Turbo'},
 
     // ===== 设置页面 =====
-    'waitPatiently': {'zh': '静待沉淀', 'en': 'Settle Patiently'},
-    'poiseToResound': {'zh': '蓄势而鸣', 'en': 'Speak With Force'},
-    'focusAndAccumulate': {
-      'zh': '你的每一次落笔，都是未来生长的根源！',
-      'en': 'Every note you take becomes a root for what comes next.',
-    },
+    // 设置页标语：拆成「引导句 + 高亮句」两段排版，
+    // key 名沿用历史命名，值已替换为当前标语。
+    'waitPatiently': {'zh': '记录是为了', 'en': 'Write to become'},
+    'poiseToResound': {'zh': '成为更好的自己', 'en': 'a better you'},
 
     // ===== 隐私政策页面 =====
     'privacyPolicyTitle': {'zh': '隐私政策', 'en': 'Privacy Policy'},

@@ -832,7 +832,7 @@ class AppLocalizationsSimple {
   // ===== 关于页面 =====
   String get aboutInkPaper => _t('aboutInkPaper', fallback: '关于InkPaper');
   String get appTagline =>
-      _t('appTagline', fallback: '静待沉淀，蓄势而鸣。\n你的每一次落笔，都是未来生长的根源。');
+      _t('appTagline', fallback: '记录是为了成为更好的自己');
   String get appIntroduction => _t(
         'appIntroduction',
         fallback:
@@ -1077,7 +1077,7 @@ class AppLocalizationsSimple {
   String get welcomeBackPreparingSpace =>
       _t('welcomeBackPreparingSpace', fallback: '欢迎回来！正在为您准备个人笔记空间...');
   String get intelligentNoteManagement =>
-      _t('intelligentNoteManagement', fallback: '静待沉淀，\n蓄势而鸣');
+      _t('intelligentNoteManagement', fallback: '记录是为了成为更好的自己');
   String get welcomeBack => _t('welcomeBack', fallback: '欢迎回来');
   String get continueCreativeJourney =>
       _t('continueCreativeJourney', fallback: '继续您的创作之旅');
@@ -1371,10 +1371,9 @@ class AppLocalizationsSimple {
   String get gpt35Turbo => _t('gpt35Turbo', fallback: 'GPT-3.5 Turbo');
 
   // ===== 设置页面 =====
-  String get waitPatiently => _t('waitPatiently', fallback: '静待沉淀');
-  String get poiseToResound => _t('poiseToResound', fallback: '蓄势而鸣');
-  String get focusAndAccumulate =>
-      _t('focusAndAccumulate', fallback: '你的每一次落笔，都是未来生长的根源！');
+  String get waitPatiently => _t('waitPatiently', fallback: '记录是为了');
+  String get poiseToResound =>
+      _t('poiseToResound', fallback: '成为更好的自己');
 
   // ===== 隐私政策页面 =====
   String get privacyPolicyTitle => _t('privacyPolicyTitle', fallback: '隐私政策');

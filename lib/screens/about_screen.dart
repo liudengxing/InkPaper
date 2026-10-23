@@ -130,7 +130,7 @@ class AboutScreen extends StatelessWidget {
                       const SizedBox(height: 16),
                       Text(
                         AppLocalizationsSimple.of(context)?.appTagline ??
-                            '静待沉淀，蓄势而鸣。\n你的每一次落笔，都是未来生长的根源。',
+                            '记录是为了成为更好的自己',
                         style: const TextStyle(
                           fontSize: 15,
                           color: Colors.white,

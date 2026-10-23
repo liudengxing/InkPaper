@@ -1795,9 +1795,11 @@ class _SidebarState extends State<Sidebar> {
                               RepaintBoundary(
                                 child: Heatmap(
                                   notes: notes,
+                                  // 26 列小方格下 grid 颜色太淡会糊成一片，
+                                  // 无活动格调深一档保证点阵可读
                                   cellColor: isDarkMode
-                                      ? Colors.grey[800]
-                                      : Colors.grey[100],
+                                      ? const Color(0xFF3A3A3C)
+                                      : const Color(0xFFE6E8EB),
                                   activeColor: isDarkMode
                                       ? AppTheme.primaryLightColor
                                           .withValues(alpha: 0.9)

@@ -69,8 +69,12 @@ class _StatCardWidget extends StatelessWidget {
 }
 
 class _HeatmapState extends State<Heatmap> {
-  // 月份偏移量（0表示当前月，-1表示上个月，1表示下个月）
-  int _monthOffset = 0;
+  // 每页展示的周数：半年级别的连续时间轴（GitHub / flomo 那种小方格）
+  static const int _weeksPerPage = 26;
+  static const double _cellGap = 2.0;
+
+  // 0 = 最近一页，1 = 再往前翻一页
+  int _pageOffset = 0;
 
   final DateFormat _keyDateFormat = DateFormat('yyyy-MM-dd');
 
@@ -107,27 +111,38 @@ class _HeatmapState extends State<Heatmap> {
     Color(0xFF306E4F), // 中绿色 - 级别4
   ];
 
-  // 获取当前显示的月份
-  DateTime get _displayMonth {
+  // 区间末尾（含）：最近一页是今天，往前翻按整页回退
+  DateTime get _rangeEnd {
     final now = DateTime.now();
-    return DateTime(now.year, now.month + _monthOffset);
+    final today = DateTime(now.year, now.month, now.day);
+    return today.subtract(Duration(days: _pageOffset * _weeksPerPage * 7));
   }
 
-  // 判断是否可以查看下个月（不能查看未来）
-  bool get _canGoNext => _monthOffset < 0;
+  // 区间起始：向前取满 26 周并对齐到周一（列 = 周，行 = 周一…周日）
+  DateTime get _rangeStart {
+    final rawStart =
+        _rangeEnd.subtract(const Duration(days: _weeksPerPage * 7 - 1));
+    return rawStart.subtract(Duration(days: rawStart.weekday - 1));
+  }
 
-  // 切换到上个月
-  void _previousMonth() {
+  int get _weekCount {
+    final days = _rangeEnd.difference(_rangeStart).inDays + 1;
+    return (days / 7).ceil();
+  }
+
+  // 不能再往未来翻
+  bool get _canGoNext => _pageOffset > 0;
+
+  void _previousPage() {
     setState(() {
-      _monthOffset--;
+      _pageOffset++;
     });
   }
 
-  // 切换到下个月
-  void _nextMonth() {
+  void _nextPage() {
     if (_canGoNext) {
       setState(() {
-        _monthOffset++;
+        _pageOffset--;
       });
     }
   }
@@ -236,17 +251,12 @@ class _HeatmapState extends State<Heatmap> {
             .reduce((max, time) => time > max ? time : max);
 
     final uniqueKey = ValueKey(
-      'heatmap-${widget.notes.length}-$latestUpdateTime-$_monthOffset',
+      'heatmap-${widget.notes.length}-$latestUpdateTime-$_pageOffset',
     );
 
     final dailyCounts = _calculateDailyCounts();
     final maxCount =
         dailyCounts.values.fold(0, (max, count) => count > max ? count : max);
-    final dates = _generateMonthDates();
-
-    // 格子不再写死尺寸：每行 7 个 Expanded + AspectRatio(1)，
-    // 宽度由父容器平分（铺满卡片），高度自动跟随宽度保持正方形
-    const spacing = 2.0;
 
     return Column(
       key: uniqueKey,
@@ -289,7 +299,7 @@ class _HeatmapState extends State<Heatmap> {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(8),
-                onTap: _previousMonth,
+                onTap: _previousPage,
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
@@ -307,9 +317,9 @@ class _HeatmapState extends State<Heatmap> {
               ),
             ),
 
-            // 月份标题
+            // 区间标题（半年窗口，例如「2026年5月 - 2026年10月」）
             Text(
-              _getDateFormat(context).format(_displayMonth),
+              _rangeLabel(context),
               style: AppTextStyles.labelSmall(
                 context,
                 fontWeight: FontWeight.w600,
@@ -322,7 +332,7 @@ class _HeatmapState extends State<Heatmap> {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(8),
-                onTap: _canGoNext ? _nextMonth : null,
+                onTap: _canGoNext ? _nextPage : null,
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
@@ -351,58 +361,116 @@ class _HeatmapState extends State<Heatmap> {
         ),
         const SizedBox(height: 8),
 
-        // 热力图网格 - 每行 7 个 Expanded 平分可用宽度，AspectRatio 保正方形
-        // （A-11：不再用 GridView + shrinkWrap，避免嵌套滚动体全量测量）
-        Column(
-          children: [
-            for (var rowStart = 0; rowStart < dates.length; rowStart += 7)
-              Row(
-                children: [
-                  for (var i = rowStart; i < rowStart + 7; i++)
-                    Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          right: i - rowStart == 6 ? 0 : spacing,
-                          bottom: rowStart + 7 < dates.length ? spacing : 0,
-                        ),
-                        child: AspectRatio(
-                          aspectRatio: 1,
-                          child: i < dates.length
-                              ? _buildHeatCell(
-                                  context: context,
-                                  date: dates[i],
-                                  dailyCounts: dailyCounts,
-                                  maxCount: maxCount,
-                                  isDarkMode: isDarkMode,
-                                )
-                              : const SizedBox.shrink(),
+        // 热力图网格：列 = 周，行 = 周一…周日（flomo / GitHub 式连续时间轴）。
+        // 26 列铺满抽屉宽度后单格约 11dp，比「一个月 7 列」的小得多。
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const weekdayLabelWidth = 16.0;
+            final columns = _weekCount;
+            final gridWidth = constraints.maxWidth - weekdayLabelWidth;
+            final cell = ((gridWidth - _cellGap * (columns - 1)) / columns)
+                .clamp(7.0, 18.0);
+            final start = _rangeStart;
+            final end = _rangeEnd;
+
+            DateTime dateAt(int week, int weekday) => start.add(
+                  Duration(days: week * 7 + weekday),
+                );
+
+            // 月份标签：某一列的周一跨入新月份时，在这列上方标一次。
+            // 标签比格子宽，必须用 Stack 绝对定位 —— 放进 Row 会把行撑爆。
+            final monthLabels = <int, String>{};
+            var lastMonthKey = '';
+            for (var week = 0; week < columns; week++) {
+              final first = dateAt(week, 0);
+              final key = '${first.year}-${first.month}';
+              if (key != lastMonthKey) {
+                monthLabels[week] = _monthShortLabel(context, first);
+                lastMonthKey = key;
+              }
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 月份标签行
+                SizedBox(
+                  height: 12,
+                  child: Row(
+                    children: [
+                      const SizedBox(width: weekdayLabelWidth),
+                      Expanded(
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            for (final entry in monthLabels.entries)
+                              Positioned(
+                                left: entry.key * (cell + _cellGap),
+                                top: 0,
+                                child: Text(
+                                  entry.value,
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  style: AppTextStyles.custom(
+                                    context,
+                                    8,
+                                    color: secondaryTextColor
+                                        .withValues(alpha: 0.7),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                    ),
-                ],
-              ),
-          ],
-        ),
-
-        const SizedBox(height: 5),
-
-        // 星期标签 - 与格子同宽平分
-        Row(
-          children: ['一', '二', '三', '四', '五', '六', '日']
-              .map(
-                (day) => Expanded(
-                  child: Text(
-                    day,
-                    style: AppTextStyles.custom(
-                      context,
-                      8,
-                      color: secondaryTextColor.withValues(alpha: 0.6),
-                    ),
-                    textAlign: TextAlign.center,
+                    ],
                   ),
                 ),
-              )
-              .toList(),
+                const SizedBox(height: 4),
+
+                // 7 行 × N 列
+                for (var weekday = 0; weekday < 7; weekday++)
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: weekdayLabelWidth,
+                        height: cell + _cellGap,
+                        child: weekday.isEven
+                            ? Text(
+                                const ['一', '二', '三', '四', '五', '六', '日'][weekday],
+                                style: AppTextStyles.custom(
+                                  context,
+                                  8,
+                                  color:
+                                      secondaryTextColor.withValues(alpha: 0.6),
+                                ),
+                              )
+                            : null,
+                      ),
+                      for (var week = 0; week < columns; week++)
+                        Padding(
+                          padding: EdgeInsets.only(
+                            right: week == columns - 1 ? 0 : _cellGap,
+                            bottom: weekday == 6 ? 0 : _cellGap,
+                          ),
+                          child: SizedBox(
+                            width: cell,
+                            height: cell,
+                            child: _buildHeatCell(
+                              context: context,
+                              date: dateAt(week, weekday),
+                              dailyCounts: dailyCounts,
+                              maxCount: maxCount,
+                              isDarkMode: isDarkMode,
+                              inRange:
+                                  !dateAt(week, weekday).isAfter(end),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+              ],
+            );
+          },
         ),
 
         // 添加颜色说明
@@ -464,58 +532,49 @@ class _HeatmapState extends State<Heatmap> {
     );
   }
 
+  /// 统计当前区间内每天的笔记数（只按创建日，避免同步/恢复污染历史分布）。
   Map<String, int> _calculateDailyCounts() {
     final result = <String, int>{};
+    final start = _rangeStart;
+    final end = _rangeEnd;
+    final totalDays = end.difference(start).inDays;
 
-    // 预先填充显示月份的所有日期，确保它们至少有0的值
-    final displayMonth = _displayMonth;
-    final daysInMonth =
-        DateTime(displayMonth.year, displayMonth.month + 1, 0).day;
-
-    for (var i = 1; i <= daysInMonth; i++) {
-      final date = DateTime(displayMonth.year, displayMonth.month, i);
-      final dateStr = _keyDateFormat.format(date);
-      result[dateStr] = 0;
+    for (var i = 0; i <= totalDays; i++) {
+      result[_keyDateFormat.format(start.add(Duration(days: i)))] = 0;
     }
 
-    // 只按创建日期计算记录热力图，避免同步/恢复/批量更新污染历史分布。
     for (final note in widget.notes) {
-      final createDateStr = _keyDateFormat.format(note.createdAt);
-      if (note.createdAt.month == displayMonth.month &&
-          note.createdAt.year == displayMonth.year) {
-        result[createDateStr] = (result[createDateStr] ?? 0) + 1;
+      final created = DateTime(
+        note.createdAt.year,
+        note.createdAt.month,
+        note.createdAt.day,
+      );
+      if (created.isBefore(start) || created.isAfter(end)) {
+        continue;
       }
+      final key = _keyDateFormat.format(created);
+      result[key] = (result[key] ?? 0) + 1;
     }
 
     return result;
   }
 
-  List<DateTime> _generateMonthDates() {
-    final displayMonth = _displayMonth;
-    final firstDayOfMonth = DateTime(displayMonth.year, displayMonth.month);
-    final lastDayOfMonth =
-        DateTime(displayMonth.year, displayMonth.month + 1, 0);
+  /// 列上方的短月份标签（"5月" / "May"），避免比格子宽太多而互相压叠。
+  String _monthShortLabel(BuildContext context, DateTime date) {
+    final isZh =
+        AppLocalizationsSimple.of(context)?.locale.languageCode == 'zh';
+    return isZh ? '${date.month}月' : DateFormat('MMM', 'en_US').format(date);
+  }
 
-    // 计算第一天之前需要填充的天数（从周一开始）
-    final firstWeekday = firstDayOfMonth.weekday;
-    final firstDate =
-        firstDayOfMonth.subtract(Duration(days: firstWeekday - 1));
-
-    // 计算最后一天之后需要填充的天数（到周日结束）
-    final lastWeekday = lastDayOfMonth.weekday;
-    final daysToAdd = 7 - lastWeekday;
-    final lastDate = lastDayOfMonth.add(Duration(days: daysToAdd));
-
-    final dates = <DateTime>[];
-    var currentDate = firstDate;
-
-    // 生成包含完整周的日期列表
-    while (!currentDate.isAfter(lastDate)) {
-      dates.add(currentDate);
-      currentDate = currentDate.add(const Duration(days: 1));
+  /// 区间标题：同一月只显示一次，跨月显示「起始月 - 结束月」。
+  String _rangeLabel(BuildContext context) {
+    final format = _getDateFormat(context);
+    final start = _rangeStart;
+    final end = _rangeEnd;
+    if (start.year == end.year && start.month == end.month) {
+      return format.format(end);
     }
-
-    return dates;
+    return '${format.format(start)} - ${format.format(end)}';
   }
 
   /// 单个热力格（A-11：从 GridView.builder 的 itemBuilder 抽出，供 Row/Column 复用）
@@ -525,11 +584,10 @@ class _HeatmapState extends State<Heatmap> {
     required Map<String, int> dailyCounts,
     required int maxCount,
     required bool isDarkMode,
+    required bool inRange,
   }) {
     final dateKey = _keyDateFormat.format(date);
     final count = dailyCounts[dateKey] ?? 0;
-    final isDisplayMonth =
-        date.month == _displayMonth.month && date.year == _displayMonth.year;
 
     return Tooltip(
       message:
@@ -537,12 +595,12 @@ class _HeatmapState extends State<Heatmap> {
       child: Center(
         child: Container(
           decoration: BoxDecoration(
-            color: isDisplayMonth
+            color: inRange
                 ? _getHeatmapColor(count, maxCount, isDarkMode)
                 : (widget.cellColor ??
                         (isDarkMode ? darkModeColors[0] : lightModeColors[0]))
                     .withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(3.5), // 圆角方块
+            borderRadius: BorderRadius.circular(3), // 小方格圆角
           ),
         ),
       ),

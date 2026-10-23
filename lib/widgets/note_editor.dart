@@ -11,6 +11,7 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/ai_enhanced_service.dart';
+import 'package:inkpaper/services/draft_service.dart';
 import 'package:inkpaper/services/local_reference_service.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/services/speech_service.dart';
@@ -21,7 +22,6 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class NoteEditor extends StatefulWidget {
   // 当前编辑的笔记ID，用于建立引用关系
@@ -32,18 +32,23 @@ class NoteEditor extends StatefulWidget {
     this.initialContent,
     this.currentNoteId,
     this.startWithSpeech = false,
+    this.preserveDraftOnClose = false,
   });
   final Function(String content) onSave;
   final String? initialContent;
   final String? currentNoteId;
   final bool startWithSpeech;
 
+  /// 从草稿箱进来时置 true：没做修改就关闭也不会把草稿删掉，
+  /// 避免用户只是看一眼就把草稿弄丢了。
+  final bool preserveDraftOnClose;
+
   @override
   State<NoteEditor> createState() => _NoteEditorState();
 }
 
 class _NoteEditorState extends State<NoteEditor>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late MemoEditingController _textController;
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
@@ -79,6 +84,16 @@ class _NoteEditorState extends State<NoteEditor>
   // 🚀 标志：是否是新建笔记（用于判断是否需要保存/加载草稿）
   late bool _isNewNote;
   String _initialSavedContent = '';
+
+  // ── 草稿暂存 ─────────────────────────────────────────────────────────
+  // 误触空白、系统返回、切后台都可能让编辑器消失，内容靠草稿兜住。
+  final DraftService _draftService = DraftService();
+  Timer? _draftDebounce;
+
+  /// 检测到「上次未保存的草稿」，等用户决定是否覆盖当前内容。
+  NoteDraft? _pendingDraft;
+
+  String get _draftId => widget.currentNoteId ?? DraftService.newNoteDraftId;
 
   // 添加图片列表和Markdown代码
   List<_ImageItem> _imageList = [];
@@ -389,60 +404,79 @@ class _NoteEditorState extends State<NoteEditor>
     _hideTagSuggestions();
   }
 
-  // 🚀 保存草稿到本地
+  // 🚀 草稿暂存：输入停顿 800ms 后自动落盘。
+  // 编辑器被点空白/返回键/切后台/被系统回收时，内容都还能找回来。
+  void _scheduleDraftSave() {
+    _draftDebounce?.cancel();
+    _draftDebounce = Timer(const Duration(milliseconds: 800), () {
+      unawaited(_saveDraft());
+    });
+  }
+
   Future<void> _saveDraft() async {
-    try {
-      final content = _prepareFinalContent();
-      // 只有在有内容时才保存草稿
-      if (content.isNotEmpty) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('note_editor_draft', content);
-        if (kDebugMode) {
-          debugPrint(
-            '📝 草稿已保存: ${content.substring(0, math.min(50, content.length))}...',
-          );
-        }
-      }
-    } on Object catch (e) {
-      if (kDebugMode) {
-        debugPrint('保存草稿失败: $e');
-      }
+    if (_hasSuccessfullySaved) {
+      return;
+    }
+    // 内容与打开编辑器时完全一致，就没有暂存的必要（避免制造空草稿）
+    if (!_hasUnsavedChanges) {
+      return;
+    }
+    final content = _prepareFinalContent();
+    if (content.trim().isEmpty) {
+      return;
+    }
+    await _draftService.save(
+      draftId: _draftId,
+      noteId: widget.currentNoteId,
+      content: content,
+    );
+    if (kDebugMode) {
+      debugPrint(
+        '📝 草稿已保存($_draftId): '
+        '${content.substring(0, math.min(50, content.length))}...',
+      );
     }
   }
 
-  // 🚀 从本地加载草稿
-  Future<String?> _loadDraft() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final draft = prefs.getString('note_editor_draft');
-      if (draft != null && draft.isNotEmpty) {
-        if (kDebugMode) {
-          debugPrint(
-            '📝 已恢复草稿: ${draft.substring(0, math.min(50, draft.length))}...',
-          );
-        }
-      }
-      return draft;
-    } on Object catch (e) {
-      if (kDebugMode) {
-        debugPrint('加载草稿失败: $e');
-      }
-      return null;
-    }
-  }
+  Future<NoteDraft?> _loadDraft() => _draftService.load(_draftId);
 
   // 🚀 清除草稿（成功保存笔记后调用）
   Future<void> _clearDraft() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('note_editor_draft');
-      if (kDebugMode) {
-        debugPrint('🗑️ 草稿已清除');
+    _draftDebounce?.cancel();
+    await _draftService.clear(_draftId);
+    if (kDebugMode) {
+      debugPrint('🗑️ 草稿已清除');
+    }
+  }
+
+  /// 把草稿内容写回编辑器（连同图片一起重建）。
+  void _restoreDraftContent(String content) {
+    setState(() {
+      final draftBody = _loadVisualContent(content);
+      _suppressImageAnchorSync = true;
+      try {
+        _textController.setMarkdown(draftBody);
+      } finally {
+        _suppressImageAnchorSync = false;
       }
-    } on Object catch (e) {
-      if (kDebugMode) {
-        debugPrint('清除草稿失败: $e');
-      }
+      _lastTextForImageAnchors = _textController.text;
+      _initialSavedContent = '';
+      _pendingDraft = null;
+      _updateLineCount();
+    });
+    _focusEditorAfterOpen();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // 切后台 / 被系统回收前立刻落盘，不等 debounce
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _draftDebounce?.cancel();
+      unawaited(_saveDraft());
     }
   }
 
@@ -459,27 +493,21 @@ class _NoteEditorState extends State<NoteEditor>
     _isNewNote =
         widget.initialContent == null || widget.initialContent!.isEmpty;
 
-    // 🚀 草稿恢复功能：只有在新建笔记时才加载草稿
-    // 编辑已有笔记时不加载草稿，避免覆盖笔记内容
-    if (_isNewNote) {
-      _loadDraft().then((draft) {
-        if (draft != null && draft.isNotEmpty) {
-          setState(() {
-            final draftBody = _loadVisualContent(draft);
-            _suppressImageAnchorSync = true;
-            try {
-              _textController.setMarkdown(draftBody);
-            } finally {
-              _suppressImageAnchorSync = false;
-            }
-            _lastTextForImageAnchors = _textController.text;
-            _initialSavedContent = '';
-            _updateLineCount();
-          });
-          _focusEditorAfterOpen();
-        }
-      });
-    }
+    // 草稿恢复：
+    //   · 新建笔记 → 直接恢复（用户本来就是从空白开始写）
+    //   · 编辑已有笔记 → 不覆盖正文，只在顶部提示，等用户点「恢复」
+    _loadDraft().then((draft) {
+      if (!mounted || draft == null || draft.content.trim().isEmpty) {
+        return;
+      }
+      if (_isNewNote) {
+        _restoreDraftContent(draft.content);
+      } else if (draft.content.trim() != _initialSavedContent.trim()) {
+        setState(() => _pendingDraft = draft);
+      }
+    });
+
+    WidgetsBinding.instance.addObserver(this);
 
     // 初始化语音识别动画控制器
     _speechAnimationController = AnimationController(
@@ -507,6 +535,9 @@ class _NoteEditorState extends State<NoteEditor>
       _syncImageAnchorsForTextChange();
       _updateLineCount();
 
+      // 🚀 输入停顿后自动暂存草稿
+      _scheduleDraftSave();
+
       // 🚀 检测标签输入并显示建议
       _detectTagInput();
     });
@@ -514,10 +545,11 @@ class _NoteEditorState extends State<NoteEditor>
 
   @override
   void dispose() {
-    // 🚀 草稿自动保存：只有在新建笔记且没有成功保存时才保存草稿
-    // 编辑已有笔记时不保存草稿，避免覆盖新建笔记的草稿
-    if (_isNewNote && !_hasSuccessfullySaved) {
-      _saveDraft();
+    WidgetsBinding.instance.removeObserver(this);
+    // 编辑器被关掉时兜底再存一次草稿（成功保存过、或本来就没改动的不存）
+    _draftDebounce?.cancel();
+    if (!_hasSuccessfullySaved && _hasUnsavedChanges) {
+      unawaited(_saveDraft());
     }
 
     // 🚀 清理标签建议overlay
@@ -1059,54 +1091,127 @@ class _NoteEditorState extends State<NoteEditor>
     return current != _initialSavedContent;
   }
 
+  /// 统一的「关闭编辑器」入口：点关闭按钮、系统返回键、下滑关闭都走这里。
+  ///
+  /// 只要还有未保存的改动，就先落草稿再关闭 —— 误触退出最多多一条草稿，
+  /// 不会出现「写了一半的内容直接没了」。
   Future<void> _requestCloseEditor() async {
     if (!_hasUnsavedChanges) {
-      Navigator.pop(context);
-      return;
-    }
-
-    if (_isNewNote) {
-      await _saveDraft();
+      // 没有改动就不留草稿；但用户手动「忽略」过的旧草稿、
+      // 以及从草稿箱打开待继续编辑的草稿要保留
+      if (_pendingDraft == null && !widget.preserveDraftOnClose) {
+        await _clearDraft();
+      }
       if (mounted) {
         Navigator.pop(context);
       }
       return;
     }
 
-    final shouldDiscard = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          AppLocalizationsSimple.of(context)?.discardEditTitle ?? '放弃本次编辑？',
-        ),
-        content: Text(
-          AppLocalizationsSimple.of(context)?.unsavedChangesMessage ??
-              '当前修改尚未保存。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(AppLocalizationsSimple.of(context)?.cancel ?? '取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(AppLocalizationsSimple.of(context)?.discard ?? '放弃'),
-          ),
-        ],
-      ),
-    );
-
-    if ((shouldDiscard ?? false) && mounted) {
-      Navigator.pop(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    await _saveDraft();
+    if (!mounted) {
+      return;
     }
+    Navigator.pop(context);
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('已保存草稿，下次打开这条笔记可恢复'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
+      );
   }
+
+  /// 用户在「发现草稿」提示条里点了「恢复」。
+  void _acceptPendingDraft() {
+    final draft = _pendingDraft;
+    if (draft == null) {
+      return;
+    }
+    _restoreDraftContent(draft.content);
+  }
+
+  /// 用户在提示条里点了「忽略」：这次不带入草稿，并把旧草稿清掉。
+  Future<void> _dismissPendingDraft() async {
+    setState(() => _pendingDraft = null);
+    await _draftService.clear(_draftId);
+  }
+
+  /// 「发现未保存草稿」提示条。
+  Widget _buildDraftBanner({
+    required Color accentColor,
+    required Color textColor,
+    required Color secondaryTextColor,
+  }) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        padding: const EdgeInsets.only(left: 12, right: 4),
+        decoration: BoxDecoration(
+          color: accentColor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: accentColor.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.history, size: 16, color: accentColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '发现上次未保存的草稿',
+                style: TextStyle(fontSize: 12, color: textColor),
+              ),
+            ),
+            TextButton(
+              onPressed: _dismissPendingDraft,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 34),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                '忽略',
+                style: TextStyle(fontSize: 12, color: secondaryTextColor),
+              ),
+            ),
+            TextButton(
+              onPressed: _acceptPendingDraft,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 34),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                '恢复',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: accentColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
     // 行数变化只重建编辑器子树，不再经 setState 触发整页重建
-    return ValueListenableBuilder<int>(
-      valueListenable: _lineCountNotifier,
-      builder: (context, lineCount, _) => _buildEditor(context, lineCount),
+    // 系统返回键 / 手势返回也走统一的关闭逻辑（先落草稿再关），
+    // 否则 showModalBottomSheet 会直接 pop，内容来不及保存。
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+        unawaited(_requestCloseEditor());
+      },
+      child: ValueListenableBuilder<int>(
+        valueListenable: _lineCountNotifier,
+        builder: (context, lineCount, _) => _buildEditor(context, lineCount),
+      ),
     );
   }
 
@@ -1168,9 +1273,10 @@ class _NoteEditorState extends State<NoteEditor>
     return Scaffold(
       backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: false,
-      // 点击空白区域关闭编辑框；有内容时先保护草稿/确认。
+      // 点空白只收起键盘，不再直接关闭编辑器：
+      // 误触输入框外是内容丢失最常见的原因。关闭用左上角的按钮或系统返回。
       body: GestureDetector(
-        onTap: _requestCloseEditor,
+        onTap: _textFocusNode.unfocus,
         behavior: HitTestBehavior.opaque,
         child: Container(
           width: double.infinity,
@@ -1217,18 +1323,46 @@ class _NoteEditorState extends State<NoteEditor>
                               : Colors.white.withValues(alpha: 0.9),
                           child: Column(
                       children: [
-                        // 顶部灰条 - 类似于iOS的拖动指示器
-                        Container(
-                          margin: const EdgeInsets.only(top: 8, bottom: 8),
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: isDarkMode
-                                ? Colors.grey[700]
-                                : Colors.grey[300],
-                            borderRadius: BorderRadius.circular(2),
+                        // 顶部：左关闭 / 中拖动指示条 / 右侧占位保持视觉居中
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                onPressed: _requestCloseEditor,
+                                tooltip:
+                                    AppLocalizationsSimple.of(context)?.cancel ??
+                                        '关闭',
+                                icon: Icon(
+                                  Icons.close,
+                                  size: 20,
+                                  color: secondaryTextColor,
+                                ),
+                              ),
+                              const Spacer(),
+                              Container(
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: isDarkMode
+                                      ? Colors.grey[700]
+                                      : Colors.grey[300],
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              const Spacer(),
+                              const SizedBox(width: 40),
+                            ],
                           ),
                         ),
+
+                        // 编辑已有笔记时，上次没保存的草稿只提示、不直接覆盖
+                        if (_pendingDraft != null)
+                          _buildDraftBanner(
+                            accentColor: iconColor,
+                            textColor: textColor,
+                            secondaryTextColor: secondaryTextColor,
+                          ),
 
                         // 编辑区域 - 高度自适应，支持滚动
                         Expanded(

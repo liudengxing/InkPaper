@@ -122,7 +122,8 @@ class DatabaseService {
         annotations TEXT DEFAULT '[]',
         reminder_time TEXT,
         last_sync_time TEXT,
-        deleted_at TEXT
+        deleted_at TEXT,
+        remote_id TEXT
       )
     ''');
 
@@ -282,6 +283,15 @@ class DatabaseService {
       // v11: 待同步的远端操作队列
       await db.execute(createPendingOperationsSql);
     }
+    if (oldVersion < 12) {
+      // v12: 服务端 uid 独立成列，与本地 uuid 主键解耦
+      if (!await _hasColumn(db, 'notes', 'remote_id')) {
+        await db.execute('ALTER TABLE notes ADD COLUMN remote_id TEXT');
+      }
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_notes_remote_id ON notes(remote_id)',
+      );
+    }
   }
 
   static Future<bool> _hasColumn(
@@ -297,6 +307,26 @@ class DatabaseService {
   Future<void> saveNote(Note note) async {
     final db = await database;
     await upsertNote(db, note);
+  }
+
+  /// 查本地笔记绑定的服务端 uid（Memos memo uid）。
+  ///
+  /// 未绑定（本地新建尚未上传 / 旧数据）返回 null，调用方回退用本地 id。
+  /// 故意不过滤软删行：删除补交时要靠它拿到远端 uid。
+  Future<String?> getRemoteIdForNote(String noteId) async {
+    final db = await database;
+    final rows = await db.query(
+      'notes',
+      columns: ['remote_id'],
+      where: 'id = ?',
+      whereArgs: [noteId],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    final value = rows.first['remote_id'] as String?;
+    return (value == null || value.isEmpty) ? null : value;
   }
 
   /// 写入单条笔记。
@@ -652,15 +682,15 @@ class DatabaseService {
     return List.generate(maps.length, (i) => Note.fromMap(maps[i]));
   }
 
-  // 更新笔记的服务器ID
-  Future<void> updateNoteServerId(String localId, String serverId) async {
+  /// 回填本地笔记对应的服务端 uid。
+  ///
+  /// 只写 `remote_id`，主键永远是本地 uuid —— 旧实现会把主键改成服务端 uid，
+  /// 导致 WebDAV 快照、引用关系、批注绑定全部跟着漂移。
+  Future<void> setRemoteId(String localId, String remoteUid) async {
     final db = await database;
     await db.update(
       'notes',
-      {
-        'id': serverId,
-        'is_synced': 1,
-      },
+      {'remote_id': remoteUid},
       where: 'id = ?',
       whereArgs: [localId],
     );

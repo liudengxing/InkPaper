@@ -23,6 +23,7 @@ class Note {
     this.reminderTime,
     this.lastSyncTime,
     this.deletedAt,
+    this.remoteId,
   })  : displayTime = displayTime ?? updatedAt,
         tags = tags ?? [],
         creator = creator ?? 'local',
@@ -100,6 +101,7 @@ class Note {
       deletedAt: map['deleted_at'] != null
           ? DateTime.tryParse(map['deleted_at'].toString())
           : null,
+      remoteId: map['remote_id'] as String?,
     );
 
     // if (kDebugMode) debugPrint('Note.fromMap: 创建的Note resourceList长度: ${note.resourceList.length}');
@@ -184,6 +186,10 @@ class Note {
       lastSyncTime:
           _parseTimestamp(json['lastSyncTime'] ?? json['last_sync_time']),
       deletedAt: _parseTimestamp(json['deletedAt'] ?? json['deleted_at']),
+      // 服务端 uid 与本地 uuid 分开存：从备份 JSON 读回来时用这里的 remoteId，
+      // 直接解析 Memos 响应时 `id` 就是 uid，由同步逻辑负责降级（见 AppProvider）
+      remoteId:
+          json['remoteId']?.toString() ?? json['remote_id']?.toString(),
     );
   }
   final String id;
@@ -203,6 +209,13 @@ class Note {
   final DateTime? reminderTime;
   final DateTime? lastSyncTime; // WebDAV同步时间戳
   final DateTime? deletedAt; // 软删时间（仅「最近删除」使用）
+
+  /// 服务端（Memos）给这条笔记分配的 uid。
+  ///
+  /// 与 [id]（本地 uuid，永不变）分开存：同一台设备上既跑 Memos 同步又跑
+  /// WebDAV 备份时，[id] 不会因为服务端重新签发 uid 而变化，合并匹配才稳定。
+  /// 未同步到服务端的本地笔记为 null。
+  final String? remoteId;
 
   static DateTime _parseCreatedAt(Map<String, dynamic> json) {
     final parsed = _parseTimestamp(
@@ -382,6 +395,8 @@ class Note {
     bool clearReminderTime = false,
     DateTime? lastSyncTime,
     bool clearLastSyncTime = false,
+    String? remoteId,
+    bool clearRemoteId = false,
   }) =>
       Note(
         id: id ?? this.id,
@@ -402,6 +417,7 @@ class Note {
             clearReminderTime ? null : (reminderTime ?? this.reminderTime),
         lastSyncTime:
             clearLastSyncTime ? null : (lastSyncTime ?? this.lastSyncTime),
+        remoteId: clearRemoteId ? null : (remoteId ?? this.remoteId),
       );
 
   Map<String, dynamic> toMap() => {
@@ -422,6 +438,7 @@ class Note {
             AnnotationList.toJsonString(annotations), // 将批注序列化为JSON字符串
         'reminder_time': reminderTime?.toIso8601String(),
         'last_sync_time': lastSyncTime?.toIso8601String(),
+        'remote_id': remoteId,
       };
 
   Map<String, dynamic> toJson() => {
@@ -448,6 +465,8 @@ class Note {
         // 软删时间。备份默认不含回收站（导出走 active_notes 视图），这里补上
         // 是为了将来若要连回收站一起备份，恢复后 GC 仍能按原时间清理。
         'deletedAt': deletedAt?.toIso8601String(),
+        // 服务端 uid 随备份走，恢复/多设备合并时优先按它认领同一条笔记
+        'remoteId': remoteId,
       };
 
   /// 本地 id 前缀。本地新建但尚未同步到服务端的笔记使用 `local_<毫秒>_<序号>`。

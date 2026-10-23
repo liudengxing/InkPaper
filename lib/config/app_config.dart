@@ -225,7 +225,7 @@ class AppConfig {
   static const String databaseName = 'notes.db';
 
   /// 数据库版本
-  static const int databaseVersion = 11;
+  static const int databaseVersion = 12;
 
   /// 表名 - 笔记表
   static const String tableNotes = 'notes';

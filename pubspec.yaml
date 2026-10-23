@@ -3,7 +3,7 @@ description: 小纸
 
 publish_to: 'none'
 
-version: 1.0.61+10061
+version: 1.0.62+10062
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -130,6 +130,7 @@ dependencies:
   
   # HTML 解析（用于导入第三方数据）
   html: ^0.15.4
+  liquid_glass_renderer: ^1.0.0-dev.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

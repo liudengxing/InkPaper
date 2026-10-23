@@ -32,6 +32,12 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
+        <!-- 启用 Flutter GPU：liquid_glass_renderer 的倒角折射需要它，
+             设备不支持时该库会自动退回 FakeGlass（仅模糊，无折射）。 -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableFlutterGPU"
+            android:value="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

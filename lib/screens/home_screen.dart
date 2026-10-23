@@ -22,6 +22,7 @@ import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/note_card.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:provider/provider.dart';
 
 const bool _screenshotMode = bool.fromEnvironment('INKPAPER_SCREENSHOT_MODE');
@@ -1471,168 +1472,116 @@ class _HomeScreenState extends State<HomeScreen>
   /// - 中：点击进入编辑（占位文案提示）
   /// - 右：语音入口（先占位，复用 NoteEditor 的语音启动）
   ///
-  /// 玻璃参数延续 flomo 的 `FloatingComposerGlass`：
-  /// 模糊 18 / 叠加色 #A6FFFFFF·#A62A2A2A / 0.5dp 描边 / 圆角 24dp。
+  /// 玻璃效果交给 `liquid_glass_renderer` 的 iOS 27 regular 预设：
+  /// 倒角折射、frost、glint、暗边都由它算，不再是手搓的半透明叠加。
   /// 因为 `Scaffold.extendBody = true`，列表会从条的下方穿过，
-  /// BackdropFilter 才真的糊得到东西。
+  /// 玻璃才采样得到真实内容。
   Widget _buildBottomComposerBar(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    // iOS 液态玻璃的 tint 压得比较低，模糊之后的内容轮廓要能透出来。
-    // 之前的 65% 不透明几乎等于实心色块，这是玻璃感消失的主因。
-    // 深色模式用「低不透明度的白」叠在深底上，才会出现酷安那种雾面灰玻璃；
-    // 直接用深灰会跟页面背景糊成一片，看不出浮层边界。
-    final glassTint =
-        isDarkMode ? const Color(0x40FFFFFF) : const Color(0x59FFFFFF);
-    // 上缘镜面高光：玻璃顶部边缘的一道光
-    final specularHighlight =
-        isDarkMode ? const Color(0x52FFFFFF) : const Color(0xB3FFFFFF);
-    // 外描边：浅色模式用极淡黑线勾边，深色模式用白线
-    final glassStroke =
-        isDarkMode ? const Color(0x40FFFFFF) : const Color(0x29000000);
-    // 底部环境暗边：让胶囊看起来有厚度，不是一张贴纸
-    final ambientBottom =
-        isDarkMode ? const Color(0x4D000000) : const Color(0x14000000);
+    final brightness = isDarkMode ? Brightness.dark : Brightness.light;
     // floating_control_icon
     final iconColor = isDarkMode ? Colors.white : const Color(0xFF2E2E2E);
     // 占位文案：比图标弱一级，不抢注意力
     final hintColor = isDarkMode
         ? Colors.white.withValues(alpha: 0.55)
         : Colors.black.withValues(alpha: 0.38);
-    final radius = BorderRadius.circular(26);
     const barHeight = 58.0;
+    const shapeRadius = 26.0;
+    final radius = BorderRadius.circular(shapeRadius);
 
     return SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-        child: Container(
+        child: SizedBox(
           height: barHeight,
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            boxShadow: [
-              // 悬浮感：更大更柔的投影，贴近 iOS 的浮层
-              BoxShadow(
-                color: isDarkMode
-                    ? const Color(0x99000000)
-                    : const Color(0x26000000),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
+          child: LiquidGlassLayer(
+            // iOS 27 regular 材质：倒角折射 + frost + glint + 暗边都由预设给出。
+            // 58dp 高的条用默认 20/60 的倒角太陡，边缘会把正文糊成明显的放大镜，
+            // 收窄到 14/40；tintAmount 0.35 兼顾通透与文字可读性。
+            settings: LiquidGlassSettings.ios27Regular(
+              brightness: brightness,
+              tintAmount: 0.35,
+            ).copyWith(
+              refractionHeight: 14,
+              refractionAmount: 40,
+            ),
+            defaultAppearance:
+                LiquidGlassAppearance.ios27Regular(brightness: brightness),
+            child: LiquidGlass(
+              shape: const LiquidRoundedSuperellipse(
+                borderRadius: shapeRadius,
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: radius,
-            child: BackdropFilter(
-              // iOS 材质大约 20~30；18 太轻，内容糊不成块
-              filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // 1. 玻璃底：低不透明度着色，保留背景的层次
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: glassTint,
+              shadows: [
+                BoxShadow(
+                  color: isDarkMode
+                      ? const Color(0x80000000)
+                      : const Color(0x26000000),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+              child: Material(
+                color: Colors.transparent,
+                child: Row(
+                  children: [
+                    // 左：加号 → 新建笔记
+                    InkWell(
+                      onTap: _showAddNoteForm,
                       borderRadius: radius,
-                    ),
-                  ),
-                  // 2. 上缘镜面高光：从顶边向下快速衰减
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: radius,
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.center,
-                        colors: [
-                          specularHighlight,
-                          specularHighlight.withValues(alpha: 0),
-                        ],
+                      splashColor: iconColor.withValues(alpha: 0.12),
+                      highlightColor: iconColor.withValues(alpha: 0.06),
+                      child: SizedBox(
+                        width: barHeight,
+                        height: barHeight,
+                        child: Icon(
+                          Icons.add_rounded,
+                          color: iconColor,
+                          size: 26,
+                        ),
                       ),
                     ),
-                  ),
-                  // 3. 底部环境暗边：模拟玻璃厚度与内容被压暗
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: radius,
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.center,
-                        colors: [
-                          ambientBottom,
-                          ambientBottom.withValues(alpha: 0),
-                        ],
+                    // 中：点击进入编辑
+                    Expanded(
+                      child: InkWell(
+                        onTap: _showAddNoteForm,
+                        splashColor: iconColor.withValues(alpha: 0.10),
+                        highlightColor: iconColor.withValues(alpha: 0.05),
+                        child: Container(
+                          height: barHeight,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            AppLocalizationsSimple.of(context)
+                                    ?.noteComposerHint ??
+                                '记点什么…',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: hintColor,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  // 4. 外描边压在最上层，细线不被高光盖住
-                  DecoratedBox(
-                    decoration: BoxDecoration(
+                    // 右：语音（先占位，点击复用编辑器的语音入口）
+                    InkWell(
+                      onTap: () => _showAddNoteForm(startWithSpeech: true),
                       borderRadius: radius,
-                      border: Border.all(color: glassStroke, width: 0.8),
+                      splashColor: iconColor.withValues(alpha: 0.12),
+                      highlightColor: iconColor.withValues(alpha: 0.06),
+                      child: SizedBox(
+                        width: barHeight,
+                        height: barHeight,
+                        child: Icon(
+                          Icons.mic_none_rounded,
+                          color: iconColor.withValues(alpha: 0.75),
+                          size: 22,
+                        ),
+                      ),
                     ),
-                  ),
-                  Material(
-                    color: Colors.transparent,
-                    child: Row(
-                      children: [
-                        // 左：加号 → 新建笔记
-                        InkWell(
-                          onTap: _showAddNoteForm,
-                          borderRadius: radius,
-                          splashColor: iconColor.withValues(alpha: 0.12),
-                          highlightColor: iconColor.withValues(alpha: 0.06),
-                          child: SizedBox(
-                            width: barHeight,
-                            height: barHeight,
-                            child: Icon(
-                              Icons.add_rounded,
-                              color: iconColor,
-                              size: 26,
-                            ),
-                          ),
-                        ),
-                        // 中：点击进入编辑
-                        Expanded(
-                          child: InkWell(
-                            onTap: _showAddNoteForm,
-                            splashColor: iconColor.withValues(alpha: 0.10),
-                            highlightColor: iconColor.withValues(alpha: 0.05),
-                            child: Container(
-                              height: barHeight,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                AppLocalizationsSimple.of(context)
-                                        ?.noteComposerHint ??
-                                    '记点什么…',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: hintColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        // 右：语音（先占位，点击复用编辑器的语音入口）
-                        InkWell(
-                          onTap: () => _showAddNoteForm(startWithSpeech: true),
-                          borderRadius: radius,
-                          splashColor: iconColor.withValues(alpha: 0.12),
-                          highlightColor: iconColor.withValues(alpha: 0.06),
-                          child: SizedBox(
-                            width: barHeight,
-                            height: barHeight,
-                            child: Icon(
-                              Icons.mic_none_rounded,
-                              color: iconColor.withValues(alpha: 0.75),
-                              size: 22,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

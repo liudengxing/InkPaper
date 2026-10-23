@@ -10,7 +10,9 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/reminder_notification_model.dart';
 import 'package:inkpaper/services/reminder_notification_service.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
+// latest_10y：只保留未来 10 年需要的时区转换数据，比 latest_all 少约 0.5 MB。
+// 提醒场景不会排到 10 年以后，位置名/偏移规则完全一致。
+import 'package:timezone/data/latest_10y.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:uuid/uuid.dart';
 

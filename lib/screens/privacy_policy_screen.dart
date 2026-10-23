@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/services/preferences_service.dart';
-import 'package:inkpaper/services/umeng_analytics_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 
 /// 首次启动服务与隐私确认页。
@@ -257,10 +256,6 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
     // 保存同意状态
     await preferencesService.setPrivacyPolicyAgreed(true);
-
-    // 初始化友盟统计（仅在同意后初始化）
-    await UmengAnalyticsService.init();
-    await UmengAnalyticsService.onAppStart();
 
     debugPrint('✅ 用户已同意隐私政策');
 

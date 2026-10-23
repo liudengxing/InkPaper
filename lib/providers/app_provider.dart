@@ -38,7 +38,6 @@ import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/services/reminder_notification_service.dart';
 import 'package:inkpaper/services/sync_merge_helper.dart' as sync_merge;
 import 'package:inkpaper/services/sync_status_helper.dart' as sync_status;
-import 'package:inkpaper/services/umeng_analytics_service.dart';
 import 'package:inkpaper/services/unified_reference_manager.dart';
 import 'package:inkpaper/services/webdav_service.dart';
 import 'package:inkpaper/services/webdav_sync_engine.dart';
@@ -1041,7 +1040,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
   }
 
-  /// 🚀 大厂标准：性能监控埋点上报
+  /// 🚀 性能监控：记录列表加载耗时（只走 Dart 侧日志，不做第三方统计）
   void _reportLoadPerformance({
     required int page,
     required int itemCount,
@@ -1049,46 +1048,17 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     required bool success,
     String? error,
   }) {
-    try {
-      // 构建埋点数据（友盟需要 Map<String, String>）
-      final eventData = {
-        'page': page.toString(),
-        'item_count': itemCount.toString(),
-        'total_loaded': _notes.length.toString(),
-        'total_in_db': _totalNotesCount.toString(),
-        'duration_ms': duration.toString(),
-        'success': success.toString(),
-        'has_more': _pagingState.hasMoreData.toString(),
-        'state': _pagingState.loadMoreState.description,
-      };
+    if (duration > 1000) {
+      debugPrint(
+        '⚠️ [性能告警] 列表加载耗时过长: ${duration}ms'
+        '（page=$page, 本页$itemCount条, success=$success'
+        '${error == null ? '' : ', error=$error'}）',
+      );
+    }
 
-      if (error != null) {
-        eventData['error'] = error;
-      }
-
-      // 友盟埋点上报
-      UmengAnalyticsService.onEventWithMap('list_load_more', eventData);
-
-      // 性能告警（加载超过1秒）
-      if (duration > 1000) {
-        debugPrint('⚠️ [性能告警] 列表加载耗时过长: ${duration}ms');
-        UmengAnalyticsService.onEventWithMap('performance_warning', {
-          'type': 'list_load_slow',
-          'duration_ms': duration.toString(),
-          'page': page.toString(),
-        });
-      }
-
-      // Debug模式下打印详细信息
-      if (kDebugMode) {
-        debugPrint('📊 [性能监控] 加载第$page页: ${success ? '成功' : '失败'} | '
-            '耗时${duration}ms | 本页$itemCount条 | 总计${_notes.length}条');
-      }
-    } on Object catch (e) {
-      // 埋点失败不应该影响主流程
-      if (kDebugMode) {
-        debugPrint('⚠️ 性能埋点上报失败: $e');
-      }
+    if (kDebugMode) {
+      debugPrint('📊 [性能监控] 加载第$page页: ${success ? '成功' : '失败'} | '
+          '耗时${duration}ms | 本页$itemCount条 | 总计${_notes.length}条');
     }
   }
 

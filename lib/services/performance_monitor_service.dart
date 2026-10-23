@@ -108,12 +108,6 @@ class PerformanceMonitorService {
 
     _recordMetric(metric);
 
-    // 上报友盟（如果需要，可以在这里添加实际的上报逻辑）
-    // UmengAnalyticsService().trackEvent('performance_app_launch', {
-    //   'phase': phase,
-    //   'duration_ms': launchTime.inMilliseconds,
-    // });
-
     // 慢启动告警
     if (launchTime.inSeconds > 3) {
       _sendSlowStartupAlert(phase, launchTime);
@@ -155,12 +149,6 @@ class PerformanceMonitorService {
 
     _recordMetric(metric);
 
-    // 上报友盟（如果需要，可以在这里添加实际的上报逻辑）
-    // UmengAnalyticsService().trackEvent('performance_page_load', {
-    //   'page': pageName,
-    //   'duration_ms': stopwatch.elapsedMilliseconds,
-    // });
-
     // 慢页面告警
     if (stopwatch.elapsedMilliseconds > 2000) {
       _sendSlowPageAlert(pageName, stopwatch.elapsed);
@@ -199,13 +187,6 @@ class PerformanceMonitorService {
       );
 
       _recordMetric(metric);
-
-      // 上报友盟（如果需要，可以在这里添加实际的上报逻辑）
-      // UmengAnalyticsService().trackEvent('performance_network', {
-      //   'api': apiName,
-      //   'duration_ms': stopwatch.elapsedMilliseconds,
-      //   'success': error == null,
-      // });
 
       // 慢请求告警（超过3秒）
       if (stopwatch.elapsedMilliseconds > 3000) {
@@ -332,10 +313,6 @@ class PerformanceMonitorService {
       final memoryMB = memoryUsage / 1024 / 1024;
       if (memoryMB > 200) {
         debugPrint('⚠️ High memory usage: ${memoryMB.toStringAsFixed(2)} MB');
-
-        // UmengAnalyticsService().trackEvent('performance_high_memory', {
-        //   'memory_mb': memoryMB.round(),
-        // });
       }
     });
   }
@@ -373,11 +350,6 @@ class PerformanceMonitorService {
   /// 发送慢启动告警
   void _sendSlowStartupAlert(String phase, Duration duration) {
     debugPrint('🐌 Slow startup detected: $phase took ${duration.inSeconds}s');
-
-    // UmengAnalyticsService().trackEvent('performance_slow_startup', {
-    //   'phase': phase,
-    //   'duration_s': duration.inSeconds,
-    // });
   }
 
   /// 发送慢页面告警

@@ -481,9 +481,6 @@ class InkPaperCli {
   }
 
   static const List<String> _optionalBuildDefineKeys = [
-    'UMENG_ANDROID_APPKEY',
-    'UMENG_IOS_APPKEY',
-    'UMENG_CHANNEL',
     'SENTRY_DSN',
   ];
 

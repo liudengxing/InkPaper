@@ -124,30 +124,6 @@ class AppConfig {
     'speech_to_text': false,
   };
 
-  // ==================== 🚀 友盟统计配置 ====================
-
-  /// 友盟 Android AppKey。正式构建通过 dart-define/Gradle 属性注入；
-  /// 源码不保留生产统计密钥。
-  static const String umengAndroidAppKey = String.fromEnvironment(
-    'UMENG_ANDROID_APPKEY',
-  );
-
-  /// 友盟 iOS AppKey。当前 iOS 端不启用友盟统计。
-  static const String umengIOSAppKey = String.fromEnvironment(
-    'UMENG_IOS_APPKEY',
-  );
-
-  /// 友盟渠道号
-  static const String umengChannel = String.fromEnvironment(
-    'UMENG_CHANNEL',
-    defaultValue: 'default',
-  );
-
-  /// 是否启用友盟统计
-  static bool get enableUmengAnalytics =>
-      enableAnalytics &&
-      (umengAndroidAppKey.isNotEmpty || umengIOSAppKey.isNotEmpty);
-
   // ==================== 🚀 百度语音识别配置 ====================
 
   /// 百度语音识别 API Key
@@ -193,9 +169,6 @@ class AppConfig {
 
   /// MethodChannel名称 - 通知/闹钟
   static const String channelNativeAlarm = 'com.didichou.inkpaper/native_alarm';
-
-  /// MethodChannel名称 - 友盟统计
-  static const String channelUmeng = 'com.didichou.inkpaper/umeng';
 
   // ==================== 🚀 同步配置 ====================
 
@@ -563,23 +536,4 @@ class AppConfig {
   /// 获取告警阈值
   static num? getAlertThreshold(String metric) => alertThresholds[metric];
 
-  /// 获取友盟AppKey（根据平台）
-  static String getUmengAppKey(bool isAndroid) =>
-      isAndroid ? umengAndroidAppKey : umengIOSAppKey;
-
-  /// 检查友盟是否已配置
-  static bool get isUmengConfigured =>
-      umengAndroidAppKey.isNotEmpty || umengIOSAppKey.isNotEmpty;
-
-  /// 获取MethodChannel名称
-  static String getChannelName(String channelType) {
-    switch (channelType) {
-      case 'alarm':
-        return channelNativeAlarm;
-      case 'umeng':
-        return channelUmeng;
-      default:
-        return '';
-    }
-  }
 }

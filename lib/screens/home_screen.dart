@@ -16,7 +16,6 @@ import 'package:inkpaper/models/sort_order.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/deepseek_api_service.dart';
 import 'package:inkpaper/services/preferences_service.dart';
-import 'package:inkpaper/services/umeng_analytics_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/responsive_utils.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
@@ -400,13 +399,6 @@ class _HomeScreenState extends State<HomeScreen>
 
     final appProvider = Provider.of<AppProvider>(context, listen: false);
     final preferencesService = PreferencesService();
-
-    // 🔒 大厂标准：隐私政策检查已在路由层完成，这里只需要初始化友盟
-    // 能进入这个页面，说明用户已经同意隐私政策
-    if (!_screenshotMode) {
-      await UmengAnalyticsService.init();
-      await UmengAnalyticsService.onAppStart();
-    }
 
     // 🎯 检查是否首次启动（路由已处理，这里做二次防御）
     final isFirstLaunch =

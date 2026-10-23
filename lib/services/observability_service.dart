@@ -200,13 +200,13 @@ class StructuredLogger {
   }
 
   /// 上报错误
+  ///
+  /// 当前只落本地日志缓冲；外部上报走 Dart 侧的 ErrorHandler / Sentry，
+  /// 项目不集成任何第三方统计 SDK。
   void _reportError(Map<String, dynamic> logEntry) {
-    // 上报到友盟（如果需要，可以在这里添加实际的上报逻辑）
-    // UmengAnalyticsService().trackEvent('app_error', {
-    //   'level': logEntry['level'],
-    //   'message': logEntry['message'],
-    //   'category': logEntry['category'],
-    // });
+    debugPrint(
+      '🔴 [${logEntry['level']}] ${logEntry['category']}: ${logEntry['message']}',
+    );
   }
 
   /// 获取所有日志

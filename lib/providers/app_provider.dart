@@ -1270,8 +1270,6 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     return updatedNote;
   }
 
-  bool _isLocalOnlyNoteId(String id) => Note.isLocalId(id);
-
   List<Note> _excludePendingDeletedNotes(List<Note> notes) {
     if (_pendingDeleteIds.isEmpty) {
       return notes;
@@ -1335,14 +1333,19 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         : _appConfig.defaultNoteVisibility;
 
     final Note serverNote;
-    if (_isLocalOnlyNoteId(uploadableNote.id)) {
+    // 有 remoteId 就是服务端已有这条笔记，直接更新；
+    // 没有 remoteId 说明从未成功上传过，走创建。
+    // （本方法只处理 isSynced=false 的笔记，所以不存在「旧数据 id 即 uid」的情况）
+    final remoteUid = uploadableNote.remoteId;
+    final isNewOnServer = remoteUid == null || remoteUid.isEmpty;
+    if (isNewOnServer) {
       serverNote = await _memosApiService!.createMemo(
         content: uploadableNote.content,
         visibility: visibility,
       );
     } else {
       serverNote = await _memosApiService!.updateMemo(
-        uploadableNote.id,
+        remoteUid,
         content: uploadableNote.content,
         visibility: visibility,
       );
@@ -1358,10 +1361,16 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       }
     }
 
-    final syncedNote = _mergeServerNoteWithLocalState(
+    final merged = _mergeServerNoteWithLocalState(
       serverNote,
       uploadableNote,
       preserveLocalTimeline: true,
+    );
+    // 本地 id 不再被服务端 uid 顶替：只把 uid 记进 remoteId，
+    // 让 WebDAV 快照与 Memos 同步认的是同一条记录
+    final syncedNote = merged.copyWith(
+      id: uploadableNote.id,
+      remoteId: serverNote.id,
     );
     if (oldId != syncedNote.id) {
       await _updateReferenceIdsAfterSync(oldId, syncedNote.id);
@@ -2514,37 +2523,20 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
           debugPrint('AppProvider: 尝试同步到服务器，笔记ID: ${noteWithTags.id}');
           final uploadableNote = await _prepareNoteForMemosUpload(noteWithTags);
 
-          // 使用Memos API更新笔记
-          final serverNote = await _memosApiService!.updateMemo(
-            uploadableNote.id,
-            content: uploadableNote.content,
-            visibility: uploadableNote.visibility,
-          );
-
-          // 检查返回的笔记ID是否与原笔记ID不同
-          if (serverNote.id != uploadableNote.id) {
-            debugPrint(
-              'AppProvider: 服务器返回了新的笔记ID: ${serverNote.id}，原ID: ${uploadableNote.id}',
-            );
-            // 删除本地旧笔记
-            await _databaseService.deleteNote(uploadableNote.id);
-
-            // 保存新笔记
-            final newSyncedNote =
-                _mergeServerNoteWithLocalState(serverNote, uploadableNote);
-            await _databaseService.saveNote(newSyncedNote);
-
-            // 更新内存中的列表 - 删除旧笔记
-            _notes.removeWhere((n) => n.id == uploadableNote.id);
-            // 添加新笔记
-            _notes.insert(0, newSyncedNote); // 添加到列表顶部
-
-            _applyCurrentSort();
-            notifyListeners();
-            _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
-            debugPrint('AppProvider: 笔记已作为新笔记保存（ID已更改）');
-            return true;
-          }
+          // 使用Memos API更新笔记：远端要的是服务端 uid，不是本地 uuid。
+          // 没有 remoteId 说明这条笔记还没成功上传过（例如本地新建后首次编辑），
+          // 拿本地 uuid 去 update 只会 404，必须走创建。
+          final remoteUid = uploadableNote.remoteId;
+          final serverNote = (remoteUid == null || remoteUid.isEmpty)
+              ? await _memosApiService!.createMemo(
+                  content: uploadableNote.content,
+                  visibility: uploadableNote.visibility,
+                )
+              : await _memosApiService!.updateMemo(
+                  remoteUid,
+                  content: uploadableNote.content,
+                  visibility: uploadableNote.visibility,
+                );
 
           debugPrint('AppProvider: 服务器同步成功，更新同步状态');
 
@@ -2559,13 +2551,18 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
             existingAnnotations = _notes[index].annotations; // ✅ 保护批注
           }
 
-          final syncedNote = _mergeServerNoteWithLocalState(
+          final mergedNote = _mergeServerNoteWithLocalState(
             serverNote,
             uploadableNote.copyWith(
               tags: tags,
               relations: existingRelations,
               annotations: existingAnnotations,
             ),
+          );
+          // 保留本地 id，只回写服务端 uid
+          final syncedNote = mergedNote.copyWith(
+            id: uploadableNote.id,
+            remoteId: serverNote.id,
           );
           await _databaseService.updateNote(syncedNote);
 
@@ -2692,27 +2689,26 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         return optimisticNote;
       }
 
+      // 服务端只认 uid：本地新建、尚未上传过的笔记没有 remoteId，
+      // 保留本地可见性设置，等同步流程创建后再改远端。
+      final remoteUid = optimisticNote.remoteId;
+      if (remoteUid == null || remoteUid.isEmpty) {
+        return optimisticNote;
+      }
+
       final serverNote = await _memosApiService!.updateMemoVisibility(
-        optimisticNote.id,
+        remoteUid,
         content: optimisticNote.content,
         visibility: normalizedVisibility,
       );
       final syncedNote = _mergeServerNoteWithLocalState(
         serverNote,
         optimisticNote,
-      ).copyWith(visibility: normalizedVisibility);
-
-      if (syncedNote.id != optimisticNote.id) {
-        await _updateReferenceIdsAfterSync(optimisticNote.id, syncedNote.id);
-        await _databaseService.deleteNote(optimisticNote.id);
-        await _databaseService.saveNote(syncedNote);
-        _notes.removeWhere((n) => n.id == optimisticNote.id);
-        _notes.insert(0, syncedNote);
-        _applyCurrentSort();
-        notifyListeners();
-        _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
-        return syncedNote;
-      }
+      ).copyWith(
+        id: optimisticNote.id,
+        remoteId: serverNote.id,
+        visibility: normalizedVisibility,
+      );
 
       await _databaseService.updateNote(syncedNote);
       final syncedIndex = _notes.indexWhere((n) => n.id == optimisticNote.id);
@@ -2838,7 +2834,13 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
     for (final noteId in pendingIds) {
       try {
-        await _memosApiService!.deleteMemo(noteId);
+        // 远端只认服务端 uid；未绑定的本地笔记直接跳过远端删除
+        final remoteId = await _databaseService.getRemoteIdForNote(noteId);
+        if (remoteId == null) {
+          await _databaseService.clearPendingDelete(noteId);
+          continue;
+        }
+        await _memosApiService!.deleteMemo(remoteId);
         await _databaseService.clearPendingDelete(noteId);
       } on Object catch (e) {
         await _databaseService.markPendingDeleteAttempt(noteId, error: '$e');
@@ -3068,8 +3070,13 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         return false;
       }
 
-      // 从服务器删除
-      await _memosApiService!.deleteMemo(id);
+      // 从服务器删除：入参是本地 id，远端要的是 uid
+      final remoteId = await _databaseService.getRemoteIdForNote(id);
+      if (remoteId == null) {
+        debugPrint('AppProvider: 本地笔记 $id 未绑定服务端 uid，跳过远端删除');
+        return true;
+      }
+      await _memosApiService!.deleteMemo(remoteId);
       return true;
     } on Object catch (e) {
       debugPrint('AppProvider: 从服务器删除笔记失败: $e');

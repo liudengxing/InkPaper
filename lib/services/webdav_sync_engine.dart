@@ -230,15 +230,25 @@ class WebDavSyncEngine {
     var conflicts = 0;
     final now = DateTime.now();
 
-    // 创建远程笔记映射（用于快速查找）
+    // 远程笔记映射：本地 id 与 remoteId 两套索引。
+    // 匹配优先级 = remoteId（服务端 uid，跨设备/跨通道稳定）→ id（本地 uuid）→ 内容指纹。
     final remoteNoteMap = <String, Note>{};
+    final remoteByRemoteId = <String, Note>{};
     for (final note in remoteNotes) {
       remoteNoteMap[note.id] = note;
+      final remoteId = note.remoteId;
+      if (remoteId != null && remoteId.isNotEmpty) {
+        remoteByRemoteId[remoteId] = note;
+      }
     }
 
     // 处理本地笔记
     for (final localNote in localNotes) {
-      final remoteNote = remoteNoteMap[localNote.id];
+      final localRemoteId = localNote.remoteId;
+      final remoteNote = remoteNoteMap[localNote.id] ??
+          (localRemoteId != null && localRemoteId.isNotEmpty
+              ? remoteByRemoteId[localRemoteId]
+              : null);
 
       if (remoteNote == null) {
         // 本地独有的笔记
@@ -270,9 +280,13 @@ class WebDavSyncEngine {
         }
 
         if (remoteNote.updatedAt.isAfter(localNote.updatedAt)) {
-          // 远程更新，使用远程版本
-          final syncedNote = remoteNote.copyWith(lastSyncTime: now);
-          mergedMap[remoteNote.id] = syncedNote;
+          // 远程更新，使用远程版本，但主键仍写回本地 id（否则库里会多出一条）
+          final syncedNote = remoteNote.copyWith(
+            id: localNote.id,
+            remoteId: remoteNote.remoteId ?? localRemoteId ?? remoteNote.id,
+            lastSyncTime: now,
+          );
+          mergedMap[localNote.id] = syncedNote;
           await _databaseService.saveNote(syncedNote);
           downloaded++;
         } else if (localNote.updatedAt.isAfter(remoteNote.updatedAt)) {
@@ -296,11 +310,18 @@ class WebDavSyncEngine {
     // 同时开启 Memos 同步时，服务端会给同一条笔记重新签发 id（uid），
     // 云端 notes.json 里仍是上一次的本地 uuid —— 只按 id 匹配就会把同一条
     // 笔记再插一份，用户看到的就是「两份一样的笔记」。
-    // 这里先按「内容哈希 + 创建时间接近」认领，命中就保留本地 id，
+    // 这里按「remoteId → 内容指纹」两级认领，命中就保留本地 id，
     // 只把远程的内容与本地元数据合并，不新增记录。
     final mergedByHash = groupNotesByContentHash(mergedMap.values);
     for (final remoteNote in remoteNotes) {
-      if (mergedMap.containsKey(remoteNote.id)) {
+      // 同一条笔记可能已经被别的本地 id 认领过（remoteId 相同）
+      final remoteId = remoteNote.remoteId;
+      var alreadyMerged = mergedMap.containsKey(remoteNote.id);
+      if (!alreadyMerged && remoteId != null && remoteId.isNotEmpty) {
+        alreadyMerged =
+            mergedMap.values.any((note) => note.remoteId == remoteId);
+      }
+      if (alreadyMerged) {
         continue;
       }
 
@@ -311,6 +332,7 @@ class WebDavSyncEngine {
       if (localTwin != null) {
         final reconciled = remoteNote.copyWith(
           id: localTwin.id,
+          remoteId: remoteId ?? localTwin.remoteId,
           isPinned: localTwin.isPinned,
           annotations: localTwin.annotations,
           reminderTime: localTwin.reminderTime,

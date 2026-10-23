@@ -58,6 +58,9 @@ Note mergeServerNoteWithLocalState(
         : serverNote.relations,
     annotations: localNote.annotations,
     reminderTime: localNote.reminderTime,
+    // 服务端响应里没有 remote_id（直接解析 Memos 时 id 才是 uid），
+    // 这里保底沿用本地已记录的 uid，调用方仍可用 serverNote.id 覆盖修正。
+    remoteId: serverNote.remoteId ?? localNote.remoteId,
   );
 }
 

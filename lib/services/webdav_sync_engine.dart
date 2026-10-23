@@ -245,10 +245,11 @@ class WebDavSyncEngine {
     // 处理本地笔记
     for (final localNote in localNotes) {
       final localRemoteId = localNote.remoteId;
-      final remoteNote = remoteNoteMap[localNote.id] ??
-          (localRemoteId != null && localRemoteId.isNotEmpty
+      // 匹配优先级：remoteId（服务端 uid，跨设备稳定）→ id（本地 uuid）
+      final remoteNote = (localRemoteId != null && localRemoteId.isNotEmpty
               ? remoteByRemoteId[localRemoteId]
-              : null);
+              : null) ??
+          remoteNoteMap[localNote.id];
 
       if (remoteNote == null) {
         // 本地独有的笔记

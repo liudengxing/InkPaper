@@ -1,3 +1,18 @@
+## 2026-10-23 · 首页本地图片按缩略图解码 · done
+
+- 现状：`note_card.dart` 的网络图分支传了 `memCacheWidth`，但 4 处 `Image.file`（本地 `file://` 图片 + 3 处离线缓存回退）都没传 `cacheWidth` → 手机原图按完整分辨率进内存（4000×3000 的图解码后约 48 MB）
+- 改动：4 处 `Image.file` 统一加 `cacheWidth: memWidth`（`memWidth = (decodeWidth ?? 720).clamp(160, 720)`，即格子逻辑宽 × DPR，本机约 366 px）
+- 效果：单张本地图解码内存从原图约 48 MB 降到约 0.5 MB（366×366×4B）；大图查看走 `ImageViewerScreen` 的原图加载，不受影响
+- 验收输出：
+```
+$ flutter analyze --no-pub
+No issues found! (ran in 10.6s)
+$ flutter test
+00:39 +424: All tests passed!
+```
+- 真机：`1.0.47+10047` debug 已覆盖安装（构建 32.4s）
+- 版本：`1.0.46+10046` → `1.0.47+10047`
+
 ## 2026-10-23 · 同步去重（Memos + WebDAV 双通道） · done
 
 - 现象：同时开启 Memos 同步与 WebDAV 同步后，同一条笔记在列表里出现两份

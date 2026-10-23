@@ -3,7 +3,7 @@ description: 小纸
 
 publish_to: 'none'
 
-version: 1.0.59+10059
+version: 1.0.60+10060
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -159,9 +159,9 @@ hooks:
 
 flutter:
   uses-material-design: true
-  
-  # 启用国际化代码生成
-  generate: true
+
+  # 未启用 gen-l10n：全项目只用自研的 AppLocalizationsSimple（translations.dart），
+  # 不再维护一套并行的 ARB 生成代码。
 
   assets:
     - assets/images/

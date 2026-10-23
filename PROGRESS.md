@@ -1,3 +1,22 @@
+## 2026-10-23 · 编辑浮层毛玻璃背景 · done
+
+- 需求：点底部输入框弹出编辑器时，背景做模糊（参考 flomo 的玻璃表面）
+- flomo 取证：`com/flomo/components/GlassSurface.java` 用 `eightbitlab BlurView` 做真实模糊 + `FloatingComposerGlass.setup(...)` 叠加 fill/overlay 色，参数走 `glassCornerRadius` / `blurRadius`
+- 根因：`_showAddNoteForm` 用 `showModalBottomSheet`，它的遮罩是 Material 的半透明黑（`barrierColor`），**没有模糊能力** —— BottomSheet 之上无法插入 BackdropFilter
+- 改动（`lib/screens/home_screen.dart`）：
+  - 新增 `_showComposerSheet(Widget editor)`：改用 `showGeneralDialog`（`barrierColor: Colors.transparent`）自绘遮罩，`Stack` = `BackdropFilter(sigma 18)` + 淡色叠加（亮色白 18% / 暗色黑 28%）+ 编辑器
+  - `_showAddNoteForm` / `_showAddNoteFormWithContent`（分享入口）都改走该方法；`NoteEditor` 本身是全屏透明 Scaffold（含点击空白关闭、键盘避让），无需改动
+  - 淡入 220ms
+- 验收输出：
+```
+$ flutter analyze --no-pub
+No issues found! (ran in 11.9s)
+$ flutter test
+01:03 +424: All tests passed!
+```
+- 真机：`1.0.52+10052` debug 已安装；点输入框 → 背景首页明显糊化、编辑器浮层正常、键盘弹起；返回键第一次收键盘、第二次关闭浮层并回到首页「记点什么…」
+- 版本：`1.0.51+10051` → `1.0.52+10052`
+
 ## 2026-10-23 · 热力图窗口收窄为三个自然月 · done
 
 - 反馈：26 周（半年）时顶部出现 6 个月份标签，太密

@@ -3,7 +3,7 @@ description: 小纸
 
 publish_to: 'none'
 
-version: 1.0.54+10054
+version: 1.0.55+10055
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

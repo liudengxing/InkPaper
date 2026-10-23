@@ -1070,13 +1070,19 @@ class DatabaseService {
               isSynced: false,
               relations: const [],
               clearLastSyncTime: true,
+              // 换了新 id 就必须丢掉 remoteId：否则两条本地记录会指向同一个
+              // 服务端 memo，上传时互相覆盖。
+              clearRemoteId: true,
             );
 
             await upsertNote(txn, newNote);
             imported++;
           } else if (overwriteExisting) {
             // 存在则更新、不存在则插入（已软删的行保持删除状态）
-            await upsertNote(txn, note);
+            await upsertNote(
+              txn,
+              await _detachConflictingRemoteId(txn, note),
+            );
             imported++;
           } else {
             // 检查是否存在相同ID的笔记
@@ -1090,7 +1096,10 @@ class DatabaseService {
 
             // 只有不存在时才插入
             if (exists == 0) {
-              await upsertNote(txn, note);
+              await upsertNote(
+                txn,
+                await _detachConflictingRemoteId(txn, note),
+              );
               imported++;
             }
           }
@@ -1101,6 +1110,28 @@ class DatabaseService {
     });
 
     return imported;
+  }
+
+  /// 同一个服务端 uid 只能被一条本地笔记认领。
+  ///
+  /// 导入（合并/覆盖）时如果库里已有别的 id 绑定了这个 uid，就把 uid 从
+  /// 导入的这条上摘掉，否则两条记录会抢同一个 memo，上传时互相覆盖。
+  static Future<Note> _detachConflictingRemoteId(
+    DatabaseExecutor txn,
+    Note note,
+  ) async {
+    final remoteId = note.remoteId;
+    if (remoteId == null || remoteId.isEmpty) {
+      return note;
+    }
+    final clash = Sqflite.firstIntValue(
+          await txn.rawQuery(
+            'SELECT COUNT(*) FROM notes WHERE remote_id = ? AND id <> ?',
+            [remoteId, note.id],
+          ),
+        ) ??
+        0;
+    return clash > 0 ? note.copyWith(clearRemoteId: true) : note;
   }
 
   // 批量更新笔记（增量同步专用）

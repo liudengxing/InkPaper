@@ -267,4 +267,40 @@ void main() {
     expect(tables, contains(DatabaseService.tablePendingOperations));
     await db.close();
   });
+
+  test('DB-MIG-10 upgradeSchema (11 -> 12) 补 remote_id 列与索引', () async {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+
+    final db = await databaseFactory.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 11,
+        singleInstance: false,
+        onCreate: (db, _) async {
+          await db.execute('''
+            CREATE TABLE notes(
+              id TEXT PRIMARY KEY,
+              content TEXT NOT NULL,
+              createdAt TEXT NOT NULL,
+              updatedAt TEXT NOT NULL,
+              rowStatus TEXT DEFAULT 'NORMAL',
+              deleted_at TEXT
+            )
+          ''');
+        },
+      ),
+    );
+
+    expect(await _columns(db, 'notes'), isNot(contains('remote_id')));
+
+    await DatabaseService.upgradeSchema(db, oldVersion: 11, newVersion: 12);
+
+    expect(await _columns(db, 'notes'), contains('remote_id'));
+    expect(await _indexes(db, 'notes'), contains('idx_notes_remote_id'));
+
+    // 幂等：重复执行不应因为列已存在而报错
+    await DatabaseService.upgradeSchema(db, oldVersion: 11, newVersion: 12);
+    await db.close();
+  });
 }

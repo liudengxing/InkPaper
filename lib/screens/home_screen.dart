@@ -630,12 +630,44 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // 显示添加笔记表单
+  /// 弹出编辑器：全屏模糊遮罩 + 底部编辑卡片（参考 flomo 的毛玻璃浮层）
+  ///
+  /// 原来用 showModalBottomSheet，遮罩只有 Material 的半透明黑，无法模糊底层内容；
+  /// 这里换成 showGeneralDialog 自绘遮罩：BackdropFilter 糊住首页，
+  /// 编辑器本身仍是全屏透明的 Scaffold（自带点击空白关闭与键盘避让）。
+  Future<void> _showComposerSheet(Widget editor) => showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'note-composer',
+        barrierColor: Colors.transparent,
+        transitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (dialogContext, _, __) {
+          final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                  child: ColoredBox(
+                    color: isDark
+                        ? Colors.black.withValues(alpha: 0.28)
+                        : Colors.white.withValues(alpha: 0.18),
+                  ),
+                ),
+              ),
+              editor,
+            ],
+          );
+        },
+        transitionBuilder: (context, animation, _, child) => FadeTransition(
+          opacity: animation,
+          child: child,
+        ),
+      );
+
   void _showAddNoteForm({bool startWithSpeech = false}) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => NoteEditor(
+    _showComposerSheet(
+      NoteEditor(
         startWithSpeech: startWithSpeech,
         onSave: (content) async {
           if (content.trim().isNotEmpty) {
@@ -690,11 +722,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   // 🔥 显示添加笔记表单（带初始内容）- 用于分享接收
   void _showAddNoteFormWithContent(String initialContent) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => NoteEditor(
+    _showComposerSheet(
+      NoteEditor(
         initialContent: initialContent, // 🔥 预填充分享的内容
         onSave: (content) async {
           if (content.trim().isNotEmpty) {

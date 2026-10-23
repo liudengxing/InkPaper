@@ -537,7 +537,11 @@ class _NoteCardState extends State<NoteCard>
                 future: _getCachedImageFile(url),
                 builder: (context, snapshot) {
                   if (snapshot.hasData && snapshot.data != null) {
-                    return Image.file(snapshot.data!, fit: BoxFit.cover);
+                    return Image.file(
+                      snapshot.data!,
+                      fit: BoxFit.cover,
+                      cacheWidth: memWidth,
+                    );
                   }
                   return Container(
                     color: Colors.grey[300],
@@ -573,7 +577,11 @@ class _NoteCardState extends State<NoteCard>
               future: _findImageInCache(imagePath),
               builder: (context, snapshot) {
                 if (snapshot.hasData && snapshot.data != null) {
-                  return Image.file(snapshot.data!, fit: BoxFit.cover);
+                  return Image.file(
+                    snapshot.data!,
+                    fit: BoxFit.cover,
+                    cacheWidth: memWidth,
+                  );
                 }
                 return Container(
                   color: Colors.grey[300],
@@ -616,7 +624,11 @@ class _NoteCardState extends State<NoteCard>
                 future: _getCachedImageFile(fullUrl),
                 builder: (context, snapshot) {
                   if (snapshot.hasData && snapshot.data != null) {
-                    return Image.file(snapshot.data!, fit: BoxFit.cover);
+                    return Image.file(
+                      snapshot.data!,
+                      fit: BoxFit.cover,
+                      cacheWidth: memWidth,
+                    );
                   }
                   return Container(
                     color: Colors.grey[300],
@@ -638,6 +650,8 @@ class _NoteCardState extends State<NoteCard>
           File(filePath),
           key: ValueKey(filePath), // 添加key强制刷新
           fit: BoxFit.cover,
+          // 与网络图一致：按格子像素宽度解码，避免 4K 原图整张进内存
+          cacheWidth: memWidth,
           errorBuilder: (context, error, stackTrace) {
             if (kDebugMode) {
               debugPrint('Local file image error: $error for $filePath');

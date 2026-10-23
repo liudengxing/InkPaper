@@ -35,7 +35,21 @@ import 'package:provider/provider.dart';
 ///
 /// `DateFormat` 的构造会解析 pattern 并查 locale，放在 build 里等于每张卡片
 /// 每次重建都重新解析一遍。
-final DateFormat _cardTimestampFormat = DateFormat('yyyy-MM-dd HH:mm');
+final DateFormat _cardYearFormat = DateFormat('yyyy-MM-dd');
+final DateFormat _cardMonthDayFormat = DateFormat('MM-dd HH:mm');
+final DateFormat _cardTimeOnlyFormat = DateFormat('HH:mm');
+
+/// flomo 风格的缩减时间：今天只留时间，今年省掉年份，往年才显示完整日期。
+String _formatCardTimestamp(DateTime ts) {
+  final now = DateTime.now();
+  if (ts.year != now.year) {
+    return _cardYearFormat.format(ts);
+  }
+  if (ts.month == now.month && ts.day == now.day) {
+    return _cardTimeOnlyFormat.format(ts);
+  }
+  return _cardMonthDayFormat.format(ts);
+}
 
 class NoteCard extends StatefulWidget {
   const NoteCard({
@@ -208,7 +222,7 @@ class _NoteCardState extends State<NoteCard>
                                         '收起')
                                     : (AppLocalizationsSimple.of(context)
                                             ?.fullText ??
-                                        '全文'), // 🎯 微信用"全文"而不是"展开"
+                                        '展开'), // flomo 用「展开」，比「全文」更短
                                 style: AppTextStyles.bodyMedium(
                                   context,
                                   color: isDarkMode
@@ -917,16 +931,22 @@ class _NoteCardState extends State<NoteCard>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      _cardTimestampFormat.format(widget.timestamp),
+                      _formatCardTimestamp(widget.timestamp),
                       style: TextStyle(
-                        fontSize: 12,
-                        color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                        // 对齐 flomo：fontTiny 10sp + textSubtle(#949494)，比正文更小更细
+                        fontSize: 10,
+                        fontWeight: FontWeight.w300,
+                        letterSpacing: 0.2,
+                        color: isDarkMode
+                            ? const Color(0xFF8E8E93)
+                            : const Color(0xFF949494),
                       ),
                     ),
                     Builder(
                       builder: (btnContext) => SizedBox(
-                        width: 44,
-                        height: 44,
+                        // 头部做薄：44 → 32，避免时间行被按钮撑高
+                        width: 32,
+                        height: 32,
                         child: IconButton(
                           tooltip:
                               AppLocalizationsSimple.of(context)?.more ?? '更多',
@@ -935,7 +955,7 @@ class _NoteCardState extends State<NoteCard>
                             color: isDarkMode
                                 ? AppTheme.darkTextSecondaryColor
                                 : AppTheme.textTertiaryColor,
-                            size: 20,
+                            size: 18,
                           ),
                           padding: EdgeInsets.zero,
                           onPressed: () => _showMoreOptions(btnContext),

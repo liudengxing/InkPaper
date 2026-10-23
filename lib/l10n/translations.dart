@@ -1949,7 +1949,7 @@ class Translations {
     // ===== NoteCard相关 =====
     'expand': {'zh': '展开', 'en': 'Expand'},
     'collapse': {'zh': '收起', 'en': 'Collapse'},
-    'fullText': {'zh': '全文', 'en': 'Full'},
+    'fullText': {'zh': '展开', 'en': 'Expand'},
     'cancelFailed': {'zh': '取消失败', 'en': 'Cancel failed'},
     'pleaseEnableNotificationFirst': {
       'zh': '请先开启通知权限才能设置提醒',

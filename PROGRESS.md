@@ -1,3 +1,22 @@
+## 2026-10-23 · 首页头部对齐 flomo（时间/字号/文案） · done
+
+- flomo 取证：卡片头部 `DinTextView#date` 用 `@dimen/fontTiny`（10sp）+ `@color/textSubtle`（`gray60 = #949494`），字体为 Barlow-Regular（细体）
+- 改动（`lib/widgets/note_card.dart`）：
+  - 时间戳按 flomo 思路缩减：今天只显示 `HH:mm`，今年显示 `MM-dd HH:mm`，往年显示 `yyyy-MM-dd`（原固定 `yyyy-MM-dd HH:mm`）
+  - 时间文字 `12 → 10`，`FontWeight.w300` + `letterSpacing 0.2`，颜色 `#949494`（暗色 `#8E8E93`），与正文拉开层级
+  - 「更多」按钮外框 `44 → 32`、图标 `20 → 18`，头部变薄
+  - 展开按钮文案 `全文 → 展开`（`translations.dart` 的 `fullText` 同步改 zh/en）
+- 验收输出：
+```
+$ flutter analyze --no-pub
+No issues found! (ran in 12.9s)
+$ flutter test
+00:51 +416: All tests passed!
+```
+- 真机：`1.0.45+10045` **debug** 包装到 `192.168.0.108:33717`，截图确认时间为 `10-20 07:54` 浅灰细体、长笔记按钮显示「展开」
+- 版本：`1.0.44+10044` → `1.0.45+10045`
+- 构建策略调整：后续真机测试改用 debug 包（36s vs profile 71s），profile/release 仅在验收性能时构建
+
 ## 2026-10-23 · 首页样式对齐 flomo · done
 
 - 参考源：`友商 APK/反编译/flomo/resources/res/`（flomo 5.5.5 脱壳工程，见 `_flomo脱壳报告.md`）

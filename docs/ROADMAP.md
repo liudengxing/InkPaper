@@ -28,7 +28,7 @@
 | 审计基线 | 见 `BASELINE.md`：analyze 0 issue、测试 399 通过、覆盖率 14.1%、release 体积未测量 |
 | 本轮目标 | 完成 Phase 1 + Phase 2 + Phase 4 |
 | 单轮任务上限 | 1 个子项（P1 / P2 / P3 均为批次任务） |
-| 验收环境限制 | release 构建不可用（缺 `android/key.properties`）；无 profile 运行时采集 |
+| 验收环境限制 | release 构建可跑通：`android/key.properties` 现指向本地一次性测试密钥 `inkpaper-local-test.jks`（两者均被 `android/.gitignore` 忽略），正式发布前必须替换为正式 keystore；无 profile 运行时采集 |
 
 ## 2. 索引表（AI 靠这张表选任务，不必先读详情）
 
@@ -37,10 +37,12 @@
 | — | P0 无 finding（analyze 0 error、399 测试全绿） | P0 | — | 不适用 | done |
 | STATE-CORE-001 | 收敛状态通知与高频重建（4 子项） | P1 | — | 子项 1 按四条验收判定 done（①✅ 1 个文件；②实测 11 条，待收敛 ≤6；③④ 仓库无 `lib/features/sync` / `SyncScope`，不适用）；子项 2 按 A 口径 done（输入路径 setState = 0）；子项 4 未开始（由 STATE-CORE-005 承接） | done |
 | STATE-CORE-005 | AppProvider 上帝对象分域拆分 | P2 | STATE-CORE-001 | 7 域全绿（认证/笔记/WebDAV/Notion/提醒/小组件/云验证，字段定义数均 0，转发 4/31/10/3/6/2/5）；AI 域 skipped（`AppProvider` 内无该域字段，命令实证） | done |
-| ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 7/7 子项验收通过（A-05 ~ A-11；A-11 全库 `shrinkWrap: true` 9 → 0）；子项 6 release 体积对比缺 `key.properties`，已记 PROGRESS | done |
+| ARCH-LAYER-002 | 修分层倒置与工程结构（7 子项） | P2 | STATE-CORE-001 | 7/7 子项验收通过（A-05 ~ A-11；A-11 全库 `shrinkWrap: true` 9 → 0）；子项 6 体积已补测：release universal 75.6 MB / AAB 69.7 MB / arm64 27.8 MB vs debug 175.7 MB | done |
 | QUAL-CLEAN-003 | P3 清理批次（4 子项 + 交互态 setState 待评估） | P3 | ARCH-LAYER-002 | 4/4 子项验收通过：A-12 死方法 0 处、A-13 format 门禁 + 全量格式化、A-14 6/6 有 `cacheWidth`、A-15 screens/widgets 直写中文 UI 字面量 82 → 0 | done |
 
-阶段退出条件：Phase 1 = 全部 P0 条目终结（本版已满足）；Phase 2 = STATE-CORE-001 全部子项 done 且 release 体积已重测或已记入 BLOCKERS；Phase 3 = ARCH-LAYER-002 全部子项 done 且 `flutter analyze` 无新增 issue；Phase 4 = 全部条目终结且 `flutter analyze` 为 0 error。
+阶段退出条件：Phase 1 = 全部 P0 条目终结（本版已满足）；Phase 2 = STATE-CORE-001 全部子项 done 且 release 体积已重测（已满足，见 A-10 补测）；Phase 3 = ARCH-LAYER-002 全部子项 done 且 `flutter analyze` 无新增 issue（已满足）；Phase 4 = 全部条目终结且 `flutter analyze` 为 0 error（已满足：0 issue / 416 测试全绿）。
+
+> 遗留待人工确认（不阻塞条目状态）：侧边栏「菜单项拖动排序」在真机上无法用 adb 合成手势验证（`input draganddrop` / `swipe` / `motionevent` 均不触发重排），重排逻辑已由 `SB-04` widget 测试覆盖，真机需人工长按拖动过一遍。
 
 ---
 

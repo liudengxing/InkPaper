@@ -1,3 +1,20 @@
+## 2026-10-23 · ROADMAP 状态与文档对齐 · done
+
+- 触发：`docs/ROADMAP.md` 索引表 5 条全部 `done`，但元信息与验收描述仍停留在「release 构建不可用」，与 A-10 补测结果不符
+- 改动（仅文档，无代码）：
+  - 元信息「验收环境限制」：release 现可构建（`android/key.properties` 指向本地一次性测试密钥，正式发布前须替换）
+  - 索引表 ARCH-LAYER-002 验收列：补 A-10 实测体积（universal 75.6 MB / AAB 69.7 MB / arm64 27.8 MB vs debug 175.7 MB）
+  - 阶段退出条件：Phase 2 / 3 / 4 均标注「已满足」（0 issue / 416 测试全绿），并追加「真机拖动排序待人工确认」的遗留说明
+- 验收输出：
+```
+$ flutter analyze --no-pub
+No issues found! (ran in 11.1s)
+$ flutter test
+00:38 +416: All tests passed!
+```
+- 结论：本版 ROADMAP 全部条目终结，Phase 4 退出条件满足；下一步（是否产出下一版 ROADMAP）属 Phase 边界，按规范需人工拍板
+- 无代码改动，无版本变更
+
 ## 2026-10-21 · STATE-CORE-001 子项 3 · done
 
 - 改动：`lib/providers/app_provider.dart` 三处串行同步循环改为「每批 3 条 + `Future.wait`」，单条失败不影响同批其他笔记（日志/ErrorHandler 保留）

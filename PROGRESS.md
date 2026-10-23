@@ -1,3 +1,15 @@
+## 2026-10-23 · 体积优化：时区数据 + 本地化双轨合并 · done
+
+- `timezone`：`notification_service` 由 `timezone/data/latest_all.dart` 换成 `latest_10y.dart`
+  - libapp.so 内 `package:timezone` 553,618 B → 104,171 B（−439 KiB）
+  - 提醒只会排在不久的将来，10 年窗口够用；位置名与偏移规则一致
+- `i18n`：删除 gen-l10n 双轨（`app_en.arb` / `app_zh.arb` / `app_localizations*.dart` / `l10n.yaml`，pubspec 移除 `generate: true`）
+  - `share_image_preview_screen` 改用 `AppLocalizationsSimple`，补齐 24 条分享图文案中英文
+  - 实测 l10n 部分仍是 424,769 B：ARB 生成类本来就只被一个页面引用，tree-shake 后仅约 48 KB，文案搬进 `translations.dart` 后收益基本抵消。**这项真实价值是消除双轨维护，体积收益约 45 KB，此前预估的 0.3 MB 偏高**
+- 结果：libapp.so 14,222,216 B → 13,829,000 B（−384 KiB）；universal release APK 48.9 MB → 48.0 MB
+- 试过 `flutter build apk --strip`：当前 Flutter 版本不认这个参数（exit 64），已回滚
+- 版本：`1.0.59+10059` → `1.0.60+10060`
+
 ## 2026-10-23 · 移除友盟统计 + abiFilters 瘦身验证 · done
 
 - 决策：只保留 Dart 侧错误上报（ErrorHandler / GlobalErrorCatcher / Sentry），不集成任何第三方统计 SDK

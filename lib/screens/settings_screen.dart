@@ -13,7 +13,6 @@ import 'package:inkpaper/screens/feedback_screen.dart';
 import 'package:inkpaper/screens/help_screen.dart';
 import 'package:inkpaper/screens/import_export_main_screen.dart';
 import 'package:inkpaper/screens/laboratory_screen.dart';
-import 'package:inkpaper/screens/legal_document_screen.dart';
 import 'package:inkpaper/screens/preferences_screen.dart';
 import 'package:inkpaper/screens/server_info_screen.dart';
 import 'package:inkpaper/screens/webdav_settings_screen.dart';
@@ -32,7 +31,6 @@ enum SettingsPage {
   dataCleanup,
   laboratory,
   feedback,
-  legal,
   help,
   about,
 }
@@ -201,15 +199,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           isSelected: _selectedPage == SettingsPage.feedback,
                           onTap: () => setState(
                             () => _selectedPage = SettingsPage.feedback,
-                          ),
-                        ),
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.privacy_tip_outlined,
-                          title: l10n?.userAgreementAndPrivacy ?? '用户协议与隐私政策',
-                          isSelected: _selectedPage == SettingsPage.legal,
-                          onTap: () => setState(
-                            () => _selectedPage = SettingsPage.legal,
                           ),
                         ),
                         _buildMasterMenuItem(
@@ -461,12 +450,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildSettingsItem(
                 context,
-                icon: Icons.privacy_tip_outlined,
-                title: l10n?.userAgreementAndPrivacy ?? '用户协议与隐私政策',
-                onTap: () => context.push('/legal-documents'),
-              ),
-              _buildSettingsItem(
-                context,
                 icon: Icons.help,
                 title: l10n?.help ?? '帮助',
                 onTap: () => context.push('/settings/help'),
@@ -547,8 +530,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return const LaboratoryScreen();
       case SettingsPage.feedback:
         return const FeedbackScreen();
-      case SettingsPage.legal:
-        return const LegalDocumentsHubScreen();
       case SettingsPage.help:
         return const HelpScreen();
       case SettingsPage.about:
@@ -580,10 +561,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       case SettingsPage.feedback:
         pageTitle = '意见反馈';
         route = '/feedback';
-        break;
-      case SettingsPage.legal:
-        pageTitle = '用户协议与隐私政策';
-        route = '/legal-documents';
         break;
       case SettingsPage.help:
         pageTitle = '帮助';

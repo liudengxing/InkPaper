@@ -295,16 +295,6 @@ class AppRouter {
       ),
 
       GoRoute(
-        path: '/legal-documents',
-        name: 'legalDocuments',
-        pageBuilder: (context, state) => buildSlideTransition(
-          context: context,
-          state: state,
-          child: const LegalDocumentsHubScreen(),
-        ),
-      ),
-
-      GoRoute(
         path: '/account-deletion',
         name: 'accountDeletion',
         pageBuilder: (context, state) => buildSlideTransition(
@@ -916,7 +906,6 @@ class AppRouter {
           '/privacy-policy',
           '/privacy-policy-detail',
           '/user-agreement',
-          '/legal-documents',
           '/account-deletion',
         };
         if (!allowedLegalPaths.contains(state.matchedLocation)) {

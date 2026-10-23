@@ -432,35 +432,15 @@ class AboutScreen extends StatelessWidget {
               ),
             ),
 
-            // 版权信息
+            // 底部只保留版本号（版权行与应用全名已按需求移除）
             Container(
               margin: const EdgeInsets.only(bottom: 32),
-              child: Column(
-                children: [
-                  const Text(
-                    AppConfig.copyrightText,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF999999),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    AppConfig.companyFullName,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF999999),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '版本 ${AppConfig.getFullVersionInfo()}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF999999),
-                    ),
-                  ),
-                ],
+              child: Text(
+                '版本 ${AppConfig.getFullVersionInfo()}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF999999),
+                ),
               ),
             ),
           ],

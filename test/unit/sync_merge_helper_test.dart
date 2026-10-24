@@ -21,6 +21,69 @@ Note _note({
     );
 
 void main() {
+  group('bindServerNotesToLocalIds', () {
+    Note localOnly(String id, {String? remoteId}) => Note(
+          id: id,
+          content: '正文',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+          remoteId: remoteId,
+        );
+
+    test('remoteId 命中时复用本地 id，并补写 remoteId', () {
+      final bound = bindServerNotesToLocalIds(
+        [_note(id: 'uid-1', content: '正文')],
+        [localOnly('local-uuid', remoteId: 'uid-1')],
+      );
+
+      expect(bound.single.id, 'local-uuid');
+      expect(bound.single.remoteId, 'uid-1');
+      expect(bound.single.isSynced, isTrue);
+    });
+
+    test('旧数据 id 本身就是 uid 时原样复用', () {
+      final bound = bindServerNotesToLocalIds(
+        [_note(id: 'uid-2', content: '正文')],
+        [localOnly('uid-2')],
+      );
+
+      expect(bound.single.id, 'uid-2');
+      expect(bound.single.remoteId, 'uid-2');
+    });
+
+    test('都对不上时分配新的本地 uuid，不会用 uid 当主键', () {
+      final bound = bindServerNotesToLocalIds(
+        [_note(id: 'uid-3', content: '正文')],
+        [localOnly('local-uuid', remoteId: 'uid-old')],
+      );
+
+      expect(bound.single.id, isNot('uid-3'));
+      expect(bound.single.id.length, 36);
+      expect(bound.single.remoteId, 'uid-3');
+    });
+
+    test('引用关系里的 uid 换成对应的本地 id', () {
+      final serverA = _note(id: 'uid-a', content: '正文 A').copyWith(
+        relations: [
+          {'memoId': 'uid-b', 'relatedMemoId': 'uid-a'},
+        ],
+      );
+      final serverB = _note(id: 'uid-b', content: '正文 B');
+
+      final bound = bindServerNotesToLocalIds(
+        [serverA, serverB],
+        [
+          localOnly('local-a', remoteId: 'uid-a'),
+          localOnly('local-b', remoteId: 'uid-b'),
+        ],
+      );
+
+      final boundA = bound.firstWhere((note) => note.remoteId == 'uid-a');
+      expect(boundA.relations.single['memoId'], 'local-b');
+      expect(boundA.relations.single['relatedMemoId'], 'local-a');
+    });
+  });
+
   test('SYNC-MERGE-03 preserves local historical timeline after upload refresh',
       () {
     final local = _note(

@@ -34,61 +34,20 @@ extension AppProviderSyncPart on AppProvider {
       _setSyncMessage('处理笔记数据...');
 
       final memosList = response['memos'] as List<dynamic>;
-      final serverNotes = memosList
+      final rawServerNotes = memosList
           .map((memo) => Note.fromJson(memo as Map<String, dynamic>))
           .where(_isVisibleNote) // 🔥 过滤掉归档和待删除笔记
           .toList();
 
-      // 服务端笔记的 id 是 memo uid，本地主键是 uuid —— 先把 uid 归位成
-      // remoteId，再把 id 换成能认领的本地 id：
-      //   1) 本地已有 remoteId == uid 的笔记 → 复用其 id（正常路径）
-      //   2) 旧数据里 id 本身就是 uid → 复用该 id，同时补写 remoteId
-      //   3) 都对不上 → 新建一个本地 uuid
-      final localIdByRemote = <String, String>{
-        for (final local in localNotes)
-          if (local.remoteId != null && local.remoteId!.isNotEmpty)
-            local.remoteId!: local.id,
-      };
-      final localIds = localNotes.map((note) => note.id).toSet();
-
-      // 先整批定好 uid → 本地 id 的映射，引用关系转换要用到别的笔记的 id
-      final uidToLocalId = <String, String>{};
-      for (final serverNote in serverNotes) {
-        final uid = serverNote.id;
-        final claimed =
-            localIdByRemote[uid] ?? (localIds.contains(uid) ? uid : null);
-        uidToLocalId[uid] = claimed ?? const Uuid().v4();
-      }
-
-      // 🚀 性能优化：批量处理标签提取，不阻塞UI
-      // Note.fromJson已经包含relationList，无需单独请求引用关系
-      for (var i = 0; i < serverNotes.length; i++) {
-        final note = serverNotes[i];
-        final uid = note.id;
-        final tags = Note.extractTagsFromContent(note.content);
-
-        // ensure：服务器笔记都标记为已同步；relations 里的 uid 换成本地 id，
-        // 否则引用图标会因为「拉取来的引用是 uid、本地主键是 uuid」而对不上
-        serverNotes[i] = note.copyWith(
-          id: uidToLocalId[uid],
-          remoteId: uid,
-          tags: tags,
-          isSynced: true,
-          relations: note.relations.isEmpty
-              ? note.relations
-              : note.relations.map((relation) {
-                  final mapped = Map<String, dynamic>.from(relation);
-                  for (final key in const ['memoId', 'relatedMemoId']) {
-                    final raw = mapped[key]?.toString();
-                    final localId = raw == null ? null : uidToLocalId[raw];
-                    if (localId != null) {
-                      mapped[key] = localId;
-                    }
-                  }
-                  return mapped;
-                }).toList(),
-        );
-      }
+      // uid 归位成本地主键（remoteId 命中 / 旧数据 id==uid / 新 uuid），
+      // 再批量提取标签：Note.fromJson 已包含 relationList，无需单独请求。
+      final serverNotes =
+          sync_merge.bindServerNotesToLocalIds(rawServerNotes, localNotes)
+          .map(
+            (note) =>
+                note.copyWith(tags: Note.extractTagsFromContent(note.content)),
+          )
+          .toList();
 
       _setSyncMessage('智能合并数据...');
 
@@ -342,16 +301,16 @@ extension AppProviderSyncPart on AppProvider {
           _excludePendingDeletedNotes(await _databaseService.getNotes());
       final localNotesById = {for (final note in localNotes) note.id: note};
 
-      // 3. 为所有服务器笔记重新提取标签
+      // 3. uid 归位成本地主键 + 重新提取标签
       _setSyncMessage('处理笔记数据...');
 
-      for (var i = 0; i < serverNotes.length; i++) {
-        final note = serverNotes[i];
+      // 不做这一步，服务端笔记会以 uid 当主键重新落库，本地那条（带真实
+      // 创建时间 / 批注 / 置顶）会被剪掉，时间被服务端时间顶替。
+      final boundServerNotes =
+          sync_merge.bindServerNotesToLocalIds(serverNotes, localNotes).map((note) {
         final tags = Note.extractTagsFromContent(note.content);
-        if (tags.isNotEmpty) {
-          serverNotes[i] = note.copyWith(tags: tags);
-        }
-      }
+        return tags.isEmpty ? note : note.copyWith(tags: tags);
+      }).toList();
 
       // 4. 更新本地数据库（upsert 策略）
       _setSyncMessage('更新本地数据...');
@@ -359,7 +318,7 @@ extension AppProviderSyncPart on AppProvider {
       // 内容与服务端某条一致、但 id 不同的本地未同步副本（远端被删后重建的残留）
       final duplicateLocalCopies = findDuplicateLocalCopies(
         localNotes: localNotes,
-        serverNotes: serverNotes,
+        serverNotes: boundServerNotes,
       );
       // 服务端 id -> 可继承本地状态的副本
       final copyByServerId = <String, Note>{
@@ -367,7 +326,7 @@ extension AppProviderSyncPart on AppProvider {
           entry.value.id: localNotesById[entry.key]!,
       };
 
-      final mergedServerNotes = serverNotes.map((serverNote) {
+      final mergedServerNotes = boundServerNotes.map((serverNote) {
         final localNote =
             localNotesById[serverNote.id] ?? copyByServerId[serverNote.id];
         return localNote == null

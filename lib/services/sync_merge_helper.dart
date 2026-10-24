@@ -1,4 +1,58 @@
 import 'package:inkpaper/models/note_model.dart';
+import 'package:uuid/uuid.dart';
+
+/// 服务端笔记的 uid 归位成本地主键。
+///
+/// 服务端笔记的 `id` 是 memo uid，本地主键是本地 uuid。合并前必须统一：
+///   1) 本地已有 `remoteId == uid` 的笔记 → 复用其 id（正常路径）
+///   2) 旧数据里 id 本身就是 uid → 复用该 id，同时补写 remoteId
+///   3) 都对不上 → 新建一个本地 uuid
+///
+/// 顺手把引用关系里的 uid 换成本地 id、补上 remoteId 并标记已同步。
+/// 拉取路径都必须走这里：否则服务端笔记会以 uid 当主键重新落库，本地那条
+/// （带真实创建时间 / 批注 / 置顶）会被剪掉，时间也被服务端时间顶替。
+List<Note> bindServerNotesToLocalIds(
+  List<Note> serverNotes,
+  List<Note> localNotes,
+) {
+  final localIdByRemote = <String, String>{
+    for (final local in localNotes)
+      if (local.remoteId != null && local.remoteId!.isNotEmpty)
+        local.remoteId!: local.id,
+  };
+  final localIds = localNotes.map((note) => note.id).toSet();
+
+  // 先整批定好 uid → 本地 id，引用关系转换要用到别的笔记的 id
+  final uidToLocalId = <String, String>{};
+  for (final serverNote in serverNotes) {
+    final uid = serverNote.id;
+    final claimed =
+        localIdByRemote[uid] ?? (localIds.contains(uid) ? uid : null);
+    uidToLocalId[uid] = claimed ?? const Uuid().v4();
+  }
+
+  return serverNotes.map((note) {
+    final uid = note.id;
+    return note.copyWith(
+      id: uidToLocalId[uid],
+      remoteId: uid,
+      isSynced: true,
+      relations: note.relations.isEmpty
+          ? note.relations
+          : note.relations.map((relation) {
+              final mapped = Map<String, dynamic>.from(relation);
+              for (final key in const ['memoId', 'relatedMemoId']) {
+                final raw = mapped[key]?.toString();
+                final localId = raw == null ? null : uidToLocalId[raw];
+                if (localId != null) {
+                  mapped[key] = localId;
+                }
+              }
+              return mapped;
+            }).toList(),
+    );
+  }).toList();
+}
 
 /// Merge server data into an existing local note without destroying local-only
 /// state. Server timestamps win for normal refreshes so backup/restore mistakes

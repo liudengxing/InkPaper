@@ -923,7 +923,20 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
                     '${l10n?.backupCompleted ?? 'Backup completed'}\n'
                     '${l10n?.webdavBackupNotesCount(stats.uploaded) ?? 'Notes: ${stats.uploaded}'}'
                     '$imageInfo$errorInfo';
-                SnackBarUtils.showSuccess(context, message);
+                // 统计是多行内容，默认 1.5 秒根本读不完；有错误时用警示色并再放宽。
+                if (stats.errors > 0) {
+                  SnackBarUtils.showWarning(
+                    context,
+                    message,
+                    duration: const Duration(seconds: 6),
+                  );
+                } else {
+                  SnackBarUtils.showSuccess(
+                    context,
+                    message,
+                    duration: const Duration(seconds: 5),
+                  );
+                }
               } else {
                 SnackBarUtils.showWarning(
                   context,
@@ -1326,10 +1339,26 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
             // 显示结果
             if (mounted && context.mounted) {
               if (stats != null) {
+                final errorInfo = stats.errors > 0
+                    ? '\n${l10n?.errorsCount(stats.errors) ?? 'Errors: ${stats.errors}'}'
+                    : '';
                 final message =
                     '${l10n?.restoreCompleted ?? 'Restore completed'}\n'
-                    '${l10n?.restoredNotesCount(stats.downloaded) ?? 'Restored: ${stats.downloaded} notes'}';
-                SnackBarUtils.showSuccess(context, message);
+                    '${l10n?.restoredNotesCount(stats.downloaded) ?? 'Restored: ${stats.downloaded} notes'}'
+                    '$errorInfo';
+                if (stats.errors > 0) {
+                  SnackBarUtils.showWarning(
+                    context,
+                    message,
+                    duration: const Duration(seconds: 6),
+                  );
+                } else {
+                  SnackBarUtils.showSuccess(
+                    context,
+                    message,
+                    duration: const Duration(seconds: 5),
+                  );
+                }
               } else {
                 SnackBarUtils.showWarning(
                   context,

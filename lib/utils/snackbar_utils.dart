@@ -4,12 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 
 class SnackBarUtils {
-  static void showSuccess(BuildContext context, String message) {
+  /// [duration] 仅对有阅读价值的多行结果（备份/恢复统计等）需要放长，
+  /// 普通一句话提示保持默认 1.5 秒。
+  static void showSuccess(
+    BuildContext context,
+    String message, {
+    Duration duration = const Duration(milliseconds: 1500),
+  }) {
     _showCustomSnackBar(
       context,
       message,
       backgroundColor: AppTheme.successColor,
       icon: Icons.check,
+      duration: duration,
     );
   }
 
@@ -41,12 +48,17 @@ class SnackBarUtils {
     );
   }
 
-  static void showWarning(BuildContext context, String message) {
+  static void showWarning(
+    BuildContext context,
+    String message, {
+    Duration duration = const Duration(milliseconds: 1500),
+  }) {
     _showCustomSnackBar(
       context,
       message,
       backgroundColor: Colors.orange.shade600,
       icon: Icons.warning,
+      duration: duration,
     );
   }
 

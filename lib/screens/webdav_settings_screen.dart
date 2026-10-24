@@ -713,6 +713,24 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
               ),
             ),
           ],
+          if (result.errorSamples.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            ...result.errorSamples.take(3).map(
+                  (sample) => Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      '· $sample',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.35,
+                        color: isDarkMode ? Colors.white54 : Colors.black45,
+                      ),
+                    ),
+                  ),
+                ),
+          ],
         ],
       ),
     );

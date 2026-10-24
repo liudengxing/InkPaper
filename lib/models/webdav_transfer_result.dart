@@ -11,6 +11,7 @@ class WebDavTransferResult {
     this.resources = 0,
     this.resourcesSkipped = 0,
     this.errors = 0,
+    this.errorSamples = const [],
     this.message = '',
   });
 
@@ -26,6 +27,10 @@ class WebDavTransferResult {
       resources: (json['resources'] as num?)?.toInt() ?? 0,
       resourcesSkipped: (json['resourcesSkipped'] as num?)?.toInt() ?? 0,
       errors: (json['errors'] as num?)?.toInt() ?? 0,
+      errorSamples: (json['errorSamples'] as List?)
+              ?.map((item) => item.toString())
+              .toList() ??
+          const [],
       message: json['message']?.toString() ?? '',
     );
   }
@@ -51,6 +56,9 @@ class WebDavTransferResult {
   /// 错误数；大于 0 时说明有部分内容没处理成功。
   final int errors;
 
+  /// 前几条失败明细（资源路径 + 原因），用于直接定位问题。
+  final List<String> errorSamples;
+
   /// 失败原因（成功时为空）。
   final String message;
 
@@ -62,6 +70,7 @@ class WebDavTransferResult {
         'resources': resources,
         'resourcesSkipped': resourcesSkipped,
         'errors': errors,
+        'errorSamples': errorSamples,
         'message': message,
       };
 }

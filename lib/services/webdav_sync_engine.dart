@@ -32,6 +32,7 @@ class SyncStats {
     this.deleted = 0,
     this.conflicts = 0,
     this.errors = 0,
+    this.errorSamples = const [],
   });
   final int uploaded; // 上传数量
   final int resourceUploaded; // 图片等资源上传数量
@@ -41,6 +42,9 @@ class SyncStats {
   final int conflicts; // 冲突数量
   final int errors;
 
+  /// 前若干条失败明细（资源路径 + 原因），用于在界面直接展示定位。
+  final List<String> errorSamples;
+
   SyncStats copyWith({
     int? uploaded,
     int? resourceUploaded,
@@ -49,6 +53,7 @@ class SyncStats {
     int? deleted,
     int? conflicts,
     int? errors,
+    List<String>? errorSamples,
   }) =>
       SyncStats(
         uploaded: uploaded ?? this.uploaded,
@@ -58,6 +63,7 @@ class SyncStats {
         deleted: deleted ?? this.deleted,
         conflicts: conflicts ?? this.conflicts,
         errors: errors ?? this.errors,
+        errorSamples: errorSamples ?? this.errorSamples,
       );
 
   @override
@@ -402,6 +408,15 @@ class WebDavSyncEngine {
     var resourceCount = 0;
     var skippedCount = 0;
     var errorCount = 0;
+    final errorSamples = <String>[];
+    void recordError(String message) {
+      errorCount++;
+      if (errorSamples.length < 5) {
+        errorSamples.add(message);
+      }
+      debugPrint('WebDAV 备份：$message');
+    }
+
     final manifest = <String, _WebDavResourceRecord>{};
 
     // 每次备份重新扫描本地图片目录，避免用到过期的文件索引
@@ -430,8 +445,7 @@ class WebDavSyncEngine {
           final bytes = await _readImageBytes(resourcePath);
           if (bytes == null) {
             // 不静默跳过：这里丢一张，备份里就少一张，换设备恢复必然裂图。
-            errorCount++;
-            debugPrint('WebDAV 备份：资源读取失败，未上传 $resourcePath');
+            recordError('资源读取失败 $resourcePath');
             continue;
           }
 
@@ -459,8 +473,7 @@ class WebDavSyncEngine {
           existingResourceNames.add(remoteName);
           resourceCount++;
         } on Object catch (e) {
-          errorCount++;
-          debugPrint('WebDAV 备份：资源上传失败 $e');
+          recordError('资源上传失败: $e');
         }
       }
     }
@@ -470,8 +483,7 @@ class WebDavSyncEngine {
         try {
           final bytes = await _readImageBytes(imagePath);
           if (bytes == null) {
-            errorCount++;
-            debugPrint('WebDAV 备份：正文图片读取失败，未上传 $imagePath');
+            recordError('正文图片读取失败 $imagePath');
             continue;
           }
 
@@ -500,8 +512,7 @@ class WebDavSyncEngine {
           existingResourceNames.add(remoteName);
           resourceCount++;
         } on Object catch (e) {
-          errorCount++;
-          debugPrint('WebDAV 备份：正文图片上传失败 $e');
+          recordError('正文图片上传失败 $imagePath: $e');
         }
       }
     }
@@ -511,6 +522,7 @@ class WebDavSyncEngine {
       resourceUploaded: _stats.resourceUploaded + resourceCount,
       resourceSkipped: _stats.resourceSkipped + skippedCount,
       errors: _stats.errors + errorCount,
+      errorSamples: [..._stats.errorSamples, ...errorSamples],
     );
 
     return manifest.values.where((record) => record.isValid).toList();

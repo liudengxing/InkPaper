@@ -280,6 +280,10 @@ extension AppProviderSyncPart on AppProvider {
       );
       debugPrint('AppProvider: 发现 ${unsyncedNotes.length} 条未同步笔记');
 
+      // 有东西要传时先拉一份服务端内容索引：本地副本若与服务端某条内容一致，
+      // 就直接认领那条，而不是再 POST 一条新的（重复数据的主要来源）。
+      await _primeServerContentIndex(needed: unsyncedNotes.isNotEmpty);
+
       // 已连续失败太多次的笔记不再重试：内容被服务端拒绝时重试没有意义，
       // 只会每轮同步都白跑一次。用户再编辑该笔记时会清掉计数。
       final pendingAttempts = await _databaseService.getPendingUpsertAttempts();
@@ -374,12 +378,24 @@ extension AppProviderSyncPart on AppProvider {
                 keepLocalPendingChanges: true,
               );
       }).toList();
-      await _databaseService.saveNotes(mergedServerNotes);
+
+      // 服务端自身可能存着多条内容相同的记录（历史上副本被重复创建）。
+      // 这里只落库其中一条，其余跳过：规则与 note_dedupe 一致且完全确定，
+      // 所以每轮同步结论相同，不会来回增删。
+      final serverDeduped = dedupeDuplicateNotes(mergedServerNotes);
+      if (serverDeduped.removedIds.isNotEmpty) {
+        debugPrint(
+          'AppProvider: 服务端有 ${serverDeduped.removedIds.length} 条同内容副本，本轮跳过',
+        );
+      }
+      await _databaseService.saveNotes(serverDeduped.notes);
       for (final copyId in duplicateLocalCopies.keys) {
         await _databaseService.deleteNote(copyId);
         debugPrint('AppProvider: 清理同内容残留副本 $copyId');
       }
-      final syncedServerIds = mergedServerNotes.map((n) => n.id).toList();
+      // 用去重后的 id 列表清理本地：既剪掉服务端已不存在的，
+      // 也剪掉本地那份被判为副本的
+      final syncedServerIds = serverDeduped.notes.map((n) => n.id).toList();
       if (isRemoteComplete) {
         await _databaseService.deleteSyncedNotesNotIn(syncedServerIds);
       } else {
@@ -421,6 +437,33 @@ extension AppProviderSyncPart on AppProvider {
       });
 
       rethrow;
+    } finally {
+      // 索引只是一次同步内的临时快照，留着会用到过期数据
+      _serverContentIndex = null;
+    }
+  }
+
+  /// 建立服务端「内容哈希 → 笔记」索引，供上传前认领使用。
+  ///
+  /// 只在确实有笔记要上传时才多拉这一次；失败则索引为 null，
+  /// 退化成原来的「直接创建」行为，不影响同步本身。
+  Future<void> _primeServerContentIndex({required bool needed}) async {
+    if (!needed || _memosApiService == null) {
+      _serverContentIndex = null;
+      return;
+    }
+    try {
+      final response = await _memosApiService!.getMemos();
+      final memosList = response['memos'] as List<dynamic>;
+      final serverNotes = memosList
+          .map((memo) => Note.fromJson(memo as Map<String, dynamic>))
+          .where(_isVisibleNote)
+          .toList();
+      _serverContentIndex = groupNotesByContentHash(serverNotes);
+      debugPrint('AppProvider: 服务端内容索引 ${serverNotes.length} 条');
+    } on Object catch (e) {
+      _serverContentIndex = null;
+      debugPrint('AppProvider: 建立服务端内容索引失败，本轮跳上传前去重: $e');
     }
   }
 }

@@ -86,8 +86,13 @@ DedupeResult dedupeDuplicateNotes(
       continue;
     }
 
-    final sorted = [...bucket]
-      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    // 排序必须完全确定：createdAt 相同（双通道重复的典型特征，精确到微秒一致）
+    // 时用 id 兜底，否则同一批数据每次跑可能留下不同的那条，
+    // 导致同步每轮换一次 id、WebDAV 的 remoteId 反复漂移。
+    final sorted = [...bucket]..sort((a, b) {
+        final byTime = a.createdAt.compareTo(b.createdAt);
+        return byTime != 0 ? byTime : a.id.compareTo(b.id);
+      });
     final survivors = <Note>[];
     for (final note in sorted) {
       Note? mergedInto;

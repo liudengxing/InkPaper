@@ -230,5 +230,52 @@ void main() {
       expect(result.notes, hasLength(2));
       expect(result.removedIds, isEmpty);
     });
+
+    test('创建时间完全相同 → 按 id 兜底，结果与输入顺序无关', () {
+      final t = DateTime(2026, 10, 20, 7, 54);
+      final first = dedupeDuplicateNotes([
+        at('uid-zzz', '同一段正文', t),
+        at('uid-aaa', '同一段正文', t),
+      ]);
+      final second = dedupeDuplicateNotes([
+        at('uid-aaa', '同一段正文', t),
+        at('uid-zzz', '同一段正文', t),
+      ]);
+
+      // 双通道重复的典型特征：createdAt 精确到微秒一致，只能靠 id 决胜负，
+      // 否则每轮同步可能换一条，导致 id 反复漂移。
+      expect(first.notes.single.id, 'uid-aaa');
+      expect(first.removedIds, ['uid-zzz']);
+      expect(second.notes.single.id, 'uid-aaa');
+      expect(second.removedIds, ['uid-zzz']);
+    });
+
+    test('三条同内容同时刻 → 只留一条', () {
+      final t = DateTime(2026, 10, 20, 7, 54);
+      final result = dedupeDuplicateNotes([
+        at('c', '正文', t),
+        at('a', '正文', t),
+        at('b', '正文', t),
+      ]);
+
+      expect(result.notes.single.id, 'a');
+      expect(result.removedIds, hasLength(2));
+    });
+
+    test('真实双通道形态：同一篇被写成两对副本 → 合并成两条', () {
+      // 对应真机数据：10-04 一对、10-10 一对，每对 createdAt 精确相同。
+      final d1 = DateTime(2026, 10, 4, 23, 36, 9);
+      final d2 = DateTime(2026, 10, 10, 22, 47, 12);
+      final result = dedupeDuplicateNotes([
+        at('a1', '俯卧撑记录', d1),
+        at('a2', '俯卧撑记录', d1),
+        at('b1', '俯卧撑记录', d2),
+        at('b2', '俯卧撑记录', d2),
+      ]);
+
+      expect(result.notes, hasLength(2));
+      expect(result.removedIds, hasLength(2));
+      expect(result.notes.map((n) => n.id), containsAll(['a1', 'b1']));
+    });
   });
 }

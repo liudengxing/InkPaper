@@ -103,6 +103,13 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   int _lastSyncConflicts = 0;
   int get lastSyncConflicts => _lastSyncConflicts;
 
+  /// 服务端笔记的「内容哈希 → 笔记列表」索引。
+  ///
+  /// 上传未同步笔记前先建好：本地副本若与服务端某条内容一致，就直接认领
+  /// 服务端那条而不是 POST 一条新的。Memos 与 WebDAV 双通道并存时，
+  /// 副本被重复创建是重复数据的主要来源。同步结束/失败时置空。
+  Map<String, List<Note>>? _serverContentIndex;
+
   // 🚀 大厂标准：性能监控
   int get _totalNotesCount => _notesStore.totalNotesCount; // 数据库总笔记数
   set _totalNotesCount(int value) => _notesStore.totalNotesCount = value;
@@ -1308,11 +1315,21 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     // （本方法只处理 isSynced=false 的笔记，所以不存在「旧数据 id 即 uid」的情况）
     final remoteUid = uploadableNote.remoteId;
     final isNewOnServer = remoteUid == null || remoteUid.isEmpty;
+    // 服务端已有同一段内容时直接认领，不再 POST 一条新的。
+    // 否则本地副本会变成服务端的第二条记录，之后两条都算「服务端存在」，
+    // 谁也删不掉谁 —— Memos + WebDAV 双通道的重复就是这么积累出来的。
+    final claimedNote = isNewOnServer
+        ? findContentDuplicate(
+            candidate: uploadableNote,
+            poolByHash: _serverContentIndex ?? const <String, List<Note>>{},
+          )
+        : null;
     if (isNewOnServer) {
-      serverNote = await _memosApiService!.createMemo(
-        content: uploadableNote.content,
-        visibility: visibility,
-      );
+      serverNote = claimedNote ??
+          await _memosApiService!.createMemo(
+            content: uploadableNote.content,
+            visibility: visibility,
+          );
     } else {
       serverNote = await _memosApiService!.updateMemo(
         remoteUid,
@@ -1331,15 +1348,25 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       }
     }
 
+    // 新建/认领后把这条加进内容索引，同批次里还有重复内容时也能命中
+    final contentIndex = _serverContentIndex;
+    if (contentIndex != null) {
+      contentIndex
+          .putIfAbsent(noteContentHash(serverNote), () => <Note>[])
+          .add(serverNote);
+    }
+
     final merged = _mergeServerNoteWithLocalState(
       serverNote,
       uploadableNote,
       preserveLocalTimeline: true,
     );
-    // 本地 id 不再被服务端 uid 顶替：只把 uid 记进 remoteId，
-    // 让 WebDAV 快照与 Memos 同步认的是同一条记录
+    // 认领服务端已有记录时，本地 id 要换成服务端 id：内容本来就相同，
+    // 再留两个 id 只会让下一轮拉取又插一条。
+    // 正常新建时仍保留本地 id，只把 uid 记进 remoteId，
+    // 让 WebDAV 快照与 Memos 同步认的是同一条记录。
     final syncedNote = merged.copyWith(
-      id: uploadableNote.id,
+      id: claimedNote != null ? serverNote.id : uploadableNote.id,
       remoteId: serverNote.id,
     );
     if (oldId != syncedNote.id) {
@@ -1356,6 +1383,40 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       _notes.insert(0, syncedNote);
     }
     return syncedNote;
+  }
+
+  /// 预览库内重复笔记：内容完全一致、创建时间相差 ≤5 分钟视为同一条。
+  ///
+  /// Memos 与 WebDAV 双通道并存时，同一条笔记会拿到两个 id 各存一行，
+  /// 这里给出「保留哪些、删掉哪些」，不写库。
+  Future<({DedupeResult result, int groupCount})>
+      previewDuplicateNotes() async {
+    final notes = _excludePendingDeletedNotes(await _databaseService.getNotes());
+    final groupCount = groupNotesByContentHash(notes)
+        .values
+        .where((group) => group.length > 1)
+        .length;
+    return (result: dedupeDuplicateNotes(notes), groupCount: groupCount);
+  }
+
+  /// 合并库内重复笔记：保留创建时间最早的一条，元数据取并集，其余物理删除。
+  ///
+  /// 返回实际删除的条数。
+  Future<int> mergeDuplicateNotes() async {
+    final result = (await previewDuplicateNotes()).result;
+    if (result.removedIds.isEmpty) {
+      return 0;
+    }
+    for (final note in result.updatedNotes) {
+      await _databaseService.saveNote(note);
+    }
+    for (final id in result.removedIds) {
+      await _databaseService.deleteNote(id);
+    }
+    await loadNotesFromLocal();
+    notifyListeners();
+    _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
+    return result.removedIds.length;
   }
 
   // 检测本地是否有数据

@@ -1,4 +1,5 @@
 import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/utils/note_dedupe.dart';
 import 'package:uuid/uuid.dart';
 
 /// 服务端笔记的 uid 归位成本地主键。
@@ -6,15 +7,21 @@ import 'package:uuid/uuid.dart';
 /// 服务端笔记的 `id` 是 memo uid，本地主键是本地 uuid。合并前必须统一：
 ///   1) 本地已有 `remoteId == uid` 的笔记 → 复用其 id（正常路径）
 ///   2) 旧数据里 id 本身就是 uid → 复用该 id，同时补写 remoteId
-///   3) 都对不上 → 新建一个本地 uuid
+///   3) 本地有条「远端 uid 已经不在服务端、正文完全相同」的更早记录 → 认领它
+///      （服务端那条其实是这条笔记被删后重建出来的副本，时间是新造的）
+///   4) 都对不上 → 新建一个本地 uuid
 ///
 /// 顺手把引用关系里的 uid 换成本地 id、补上 remoteId 并标记已同步。
 /// 拉取路径都必须走这里：否则服务端笔记会以 uid 当主键重新落库，本地那条
 /// （带真实创建时间 / 批注 / 置顶）会被剪掉，时间也被服务端时间顶替。
+///
+/// [allowContentClaim] 只在确认拿到了完整服务端列表时开启：列表不全时，
+/// 「远端 uid 不在列表里」不等于「远端已删」，认领会把两条独立笔记并成一条。
 List<Note> bindServerNotesToLocalIds(
   List<Note> serverNotes,
-  List<Note> localNotes,
-) {
+  List<Note> localNotes, {
+  bool allowContentClaim = false,
+}) {
   final localIdByRemote = <String, String>{
     for (final local in localNotes)
       if (local.remoteId != null && local.remoteId!.isNotEmpty)
@@ -22,36 +29,93 @@ List<Note> bindServerNotesToLocalIds(
   };
   final localIds = localNotes.map((note) => note.id).toSet();
 
-  // 先整批定好 uid → 本地 id，引用关系转换要用到别的笔记的 id
-  final uidToLocalId = <String, String>{};
+  final matched = <String, String>{}; // uid -> 本地 id
+  final claimedLocalIds = <String>{};
   for (final serverNote in serverNotes) {
     final uid = serverNote.id;
-    final claimed =
+    final localId =
         localIdByRemote[uid] ?? (localIds.contains(uid) ? uid : null);
-    uidToLocalId[uid] = claimed ?? const Uuid().v4();
+    if (localId != null) {
+      matched[uid] = localId;
+      claimedLocalIds.add(localId);
+    }
   }
 
-  return serverNotes.map((note) {
+  if (allowContentClaim && matched.length < serverNotes.length) {
+    final serverUids = serverNotes.map((note) => note.id).toSet();
+    final orphanByHash = <String, List<Note>>{};
+    for (final local in localNotes) {
+      if (claimedLocalIds.contains(local.id)) {
+        continue;
+      }
+      final remote = local.remoteId;
+      // 服务端还认这条 → 它对应的 memo 还在，不能当成被重建的副本
+      if (remote != null && remote.isNotEmpty && serverUids.contains(remote)) {
+        continue;
+      }
+      orphanByHash.putIfAbsent(noteContentHash(local), () => []).add(local);
+    }
+    for (final bucket in orphanByHash.values) {
+      bucket.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    }
+
+    for (final serverNote in serverNotes) {
+      if (matched.containsKey(serverNote.id)) {
+        continue;
+      }
+      final bucket = orphanByHash[noteContentHash(serverNote)];
+      if (bucket == null) {
+        continue;
+      }
+      for (final candidate in bucket) {
+        // 同内容的服务端副本可以都绑到这条更早的本地记录上，多出来的那条
+        // 会在下面按本地 id 去重掉。
+        if (!candidate.createdAt.isBefore(serverNote.createdAt)) {
+          continue;
+        }
+        matched[serverNote.id] = candidate.id;
+        break;
+      }
+    }
+  }
+
+  final uidToLocalId = <String, String>{};
+  for (final serverNote in serverNotes) {
+    uidToLocalId[serverNote.id] = matched[serverNote.id] ?? const Uuid().v4();
+  }
+
+  // 一条本地笔记可能对上多条服务端记录（历史上被重复重建过）：只留一条，
+  // 否则写库时同一个 id 会被覆盖成最后一条。
+  final seenLocalIds = <String>{};
+  final bound = <Note>[];
+  for (final note in serverNotes) {
     final uid = note.id;
-    return note.copyWith(
-      id: uidToLocalId[uid],
-      remoteId: uid,
-      isSynced: true,
-      relations: note.relations.isEmpty
-          ? note.relations
-          : note.relations.map((relation) {
-              final mapped = Map<String, dynamic>.from(relation);
-              for (final key in const ['memoId', 'relatedMemoId']) {
-                final raw = mapped[key]?.toString();
-                final localId = raw == null ? null : uidToLocalId[raw];
-                if (localId != null) {
-                  mapped[key] = localId;
+    final localId = uidToLocalId[uid]!;
+    if (!seenLocalIds.add(localId)) {
+      continue;
+    }
+    bound.add(
+      note.copyWith(
+        id: localId,
+        remoteId: uid,
+        isSynced: true,
+        relations: note.relations.isEmpty
+            ? note.relations
+            : note.relations.map((relation) {
+                final mapped = Map<String, dynamic>.from(relation);
+                for (final key in const ['memoId', 'relatedMemoId']) {
+                  final raw = mapped[key]?.toString();
+                  final target = raw == null ? null : uidToLocalId[raw];
+                  if (target != null) {
+                    mapped[key] = target;
+                  }
                 }
-              }
-              return mapped;
-            }).toList(),
+                return mapped;
+              }).toList(),
+      ),
     );
-  }).toList();
+  }
+  return bound;
 }
 
 /// Merge server data into an existing local note without destroying local-only
@@ -72,7 +136,12 @@ Note mergeServerNoteWithLocalState(
     return localNote;
   }
 
-  final serverHasDifferentContent = serverNote.content != localNote.content;
+  // 只差附件 uid 时算「同一篇」：同一条带图笔记被两条通道各传一次，图片会
+  // 拿到不同的附件目录 uid。若按原文比较会当成服务端有改动，时间线被服务端
+  // 重建的时间顶掉。
+  final serverHasDifferentContent =
+      normalizeNoteContentForDedupe(serverNote.content) !=
+          normalizeNoteContentForDedupe(localNote.content);
   final serverCreatedAt = _isValidServerTimestamp(serverNote.createdAt)
       ? serverNote.createdAt
       : localNote.createdAt;

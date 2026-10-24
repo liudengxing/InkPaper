@@ -62,6 +62,111 @@ void main() {
       expect(bound.single.remoteId, 'uid-3');
     });
 
+    test('内容认领：远端被重建、本地更早时接回本地时间线', () {
+      final bound = bindServerNotesToLocalIds(
+        [
+          _note(
+            id: 'uid-new',
+            content: '今天看完了蜘蛛侠英雄远征',
+            createdAt: DateTime(2026, 10, 20, 7, 53, 59),
+          ),
+        ],
+        [
+          Note(
+            id: 'local-old',
+            remoteId: 'uid-gone',
+            content: '今天看完了蜘蛛侠英雄远征',
+            createdAt: DateTime(2026, 9, 9, 21, 49, 15),
+            updatedAt: DateTime(2026, 9, 9, 21, 49, 15),
+          ),
+        ],
+        allowContentClaim: true,
+      );
+
+      expect(bound.single.id, 'local-old');
+      expect(bound.single.remoteId, 'uid-new');
+    });
+
+    test('内容认领默认关闭：列表不全时不会把两条笔记并成一条', () {
+      final bound = bindServerNotesToLocalIds(
+        [
+          _note(
+            id: 'uid-new',
+            content: '同一段正文',
+            createdAt: DateTime(2026, 10, 20),
+          ),
+        ],
+        [
+          Note(
+            id: 'local-old',
+            remoteId: 'uid-gone',
+            content: '同一段正文',
+            createdAt: DateTime(2026, 9, 9),
+            updatedAt: DateTime(2026, 9, 9),
+          ),
+        ],
+      );
+
+      expect(bound.single.id, isNot('local-old'));
+      expect(bound.single.id.length, 36);
+    });
+
+    test('本地记录的服务端 memo 还在时不认领', () {
+      final bound = bindServerNotesToLocalIds(
+        [
+          _note(
+            id: 'uid-other',
+            content: '同一段正文',
+            createdAt: DateTime(2026, 10, 20),
+          ),
+          _note(id: 'uid-alive', content: '另一段正文'),
+        ],
+        [
+          Note(
+            id: 'local-alive',
+            remoteId: 'uid-alive',
+            content: '同一段正文',
+            createdAt: DateTime(2026, 9, 9),
+            updatedAt: DateTime(2026, 9, 9),
+          ),
+        ],
+        allowContentClaim: true,
+      );
+
+      final claimed = bound.firstWhere((note) => note.remoteId == 'uid-other');
+      expect(claimed.id, isNot('local-alive'));
+    });
+
+    test('多条服务端副本认领同一条本地笔记时只返回一条', () {
+      final bound = bindServerNotesToLocalIds(
+        [
+          _note(
+            id: 'uid-a',
+            content: '同一段正文',
+            createdAt: DateTime(2026, 10, 20),
+          ),
+          _note(
+            id: 'uid-b',
+            content: '同一段正文',
+            createdAt: DateTime(2026, 10, 21),
+          ),
+        ],
+        [
+          Note(
+            id: 'local-old',
+            remoteId: 'uid-gone',
+            content: '同一段正文',
+            createdAt: DateTime(2026, 9, 9),
+            updatedAt: DateTime(2026, 9, 9),
+          ),
+        ],
+        allowContentClaim: true,
+      );
+
+      expect(bound, hasLength(1));
+      expect(bound.single.id, 'local-old');
+    });
+
     test('引用关系里的 uid 换成对应的本地 id', () {
       final serverA = _note(id: 'uid-a', content: '正文 A').copyWith(
         relations: [
@@ -97,6 +202,26 @@ void main() {
       content: 'old offline note',
       createdAt: DateTime(2026, 6, 14, 10),
       updatedAt: DateTime(2026, 6, 14, 10),
+    );
+
+    final merged = mergeServerNoteWithLocalState(server, local);
+
+    expect(merged.createdAt, local.createdAt);
+    expect(merged.updatedAt, local.updatedAt);
+  });
+
+  test('SYNC-MERGE-03D 只差附件 uid 不算服务端改动，时间线仍保留本地', () {
+    final local = _note(
+      id: 'local-1',
+      content: '祝你好运 ![图片](/file/attachments/aaa/image_1.jpg)',
+      createdAt: DateTime(2026, 10, 14, 17, 54),
+      updatedAt: DateTime(2026, 10, 14, 17, 54),
+    );
+    final server = _note(
+      id: 'local-1',
+      content: '祝你好运 ![图片](/file/attachments/bbb/image_1.jpg)',
+      createdAt: DateTime(2026, 10, 20, 7, 54),
+      updatedAt: DateTime(2026, 10, 20, 7, 54),
     );
 
     final merged = mergeServerNoteWithLocalState(server, local);

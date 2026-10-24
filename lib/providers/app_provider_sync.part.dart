@@ -41,8 +41,11 @@ extension AppProviderSyncPart on AppProvider {
 
       // uid 归位成本地主键（remoteId 命中 / 旧数据 id==uid / 新 uuid），
       // 再批量提取标签：Note.fromJson 已包含 relationList，无需单独请求。
-      final serverNotes =
-          sync_merge.bindServerNotesToLocalIds(rawServerNotes, localNotes)
+      final serverNotes = sync_merge.bindServerNotesToLocalIds(
+        rawServerNotes,
+        localNotes,
+        allowContentClaim: isRemoteComplete,
+      )
           .map(
             (note) =>
                 note.copyWith(tags: Note.extractTagsFromContent(note.content)),
@@ -306,8 +309,11 @@ extension AppProviderSyncPart on AppProvider {
 
       // 不做这一步，服务端笔记会以 uid 当主键重新落库，本地那条（带真实
       // 创建时间 / 批注 / 置顶）会被剪掉，时间被服务端时间顶替。
-      final boundServerNotes =
-          sync_merge.bindServerNotesToLocalIds(serverNotes, localNotes).map((note) {
+      final boundServerNotes = sync_merge.bindServerNotesToLocalIds(
+        serverNotes,
+        localNotes,
+        allowContentClaim: isRemoteComplete,
+      ).map((note) {
         final tags = Note.extractTagsFromContent(note.content);
         return tags.isEmpty ? note : note.copyWith(tags: tags);
       }).toList();

@@ -125,8 +125,26 @@ class WebDavSyncEngine {
         _memosToken = memosToken;
   final WebDavService _webdavService;
   final DatabaseService _databaseService;
-  final String? _memosBaseUrl;
-  final String? _memosToken;
+
+  /// Memos 服务器地址与 token，用于把服务端附件取回来一起备份。
+  ///
+  /// 不能只在构造时快照：登录发生在 WebDAV 引擎初始化之后是常态
+  /// （启动顺序是 appConfig → loadWebDavConfig → loadUser），快照到空值
+  /// 就会一直「未缓存 N」，直到重启 App 才可能恢复。备份/恢复前刷新一次。
+  String? _memosBaseUrl;
+  String? _memosToken;
+
+  /// 刷新 Memos 凭据（登录、切换服务器后调用）。
+  void updateMemosCredentials({String? baseUrl, String? token}) {
+    if (baseUrl != null && baseUrl.isNotEmpty) {
+      _memosBaseUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+    }
+    if (token != null && token.isNotEmpty) {
+      _memosToken = token;
+    }
+  }
 
   SyncStatus _status = SyncStatus.idle;
   SyncStats _stats = const SyncStats();
@@ -624,7 +642,12 @@ class WebDavSyncEngine {
       if (fullUrl == null) {
         return null;
       }
-      return _downloadImage(fullUrl, authorized: true);
+      final bytes = await _downloadImage(fullUrl, authorized: true);
+      // 顺手落到附件缓存：下次离线备份也能直接读到，不用再跑一趟服务器。
+      if (bytes != null) {
+        await _cacheAttachmentBytes(imagePath, bytes);
+      }
+      return bytes;
     }
 
     return null;
@@ -698,6 +721,28 @@ class WebDavSyncEngine {
     }
   }
 
+  /// 把刚从服务器取回的附件写进 `<documents>/images/`，命名与渲染层一致
+  /// （[localFileNameForAttachment]），这样之后的离线备份/离线看图都能命中。
+  Future<void> _cacheAttachmentBytes(String remotePath, List<int> bytes) async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final dir = Directory('${appDir.path}/images');
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      final file = File(
+        '${dir.path}/${localFileNameForAttachment(remotePath)}',
+      );
+      if (!await file.exists()) {
+        await file.writeAsBytes(bytes, flush: true);
+        AttachmentCache.instance.invalidate();
+        _localImageNameIndex = null;
+      }
+    } on Object catch (e) {
+      debugPrint('WebDAV 备份：缓存附件失败 $remotePath [$e]');
+    }
+  }
+
   Future<List<int>?> _downloadImage(
     String url, {
     bool authorized = false,
@@ -712,7 +757,13 @@ class WebDavSyncEngine {
       final response = await http
           .get(Uri.parse(url), headers: headers)
           .timeout(const Duration(seconds: 12));
-      return response.statusCode == 200 ? response.bodyBytes : null;
+      if (response.statusCode != 200) {
+        debugPrint(
+          'WebDAV 备份：下载图片返回 ${response.statusCode} $url',
+        );
+        return null;
+      }
+      return response.bodyBytes;
     } on Object catch (e) {
       debugPrint('WebDAV 备份：下载图片失败 $url [$e]');
       return null;

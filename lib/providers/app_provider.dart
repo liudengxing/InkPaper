@@ -4336,7 +4336,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       _webDavSyncEngine = WebDavSyncEngine(
         _webDavService!,
         _databaseService,
-        memosBaseUrl: _appConfig.memosApiUrl ?? _appConfig.lastServerUrl,
+        memosBaseUrl: _appConfig.memosApiUrl ??
+            _user?.serverUrl ??
+            _appConfig.lastServerUrl,
         memosToken: _user?.token ?? _appConfig.lastToken,
       );
       await _webDavSyncEngine!.initialize();
@@ -4348,6 +4350,18 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     } on Object {
       rethrow;
     }
+  }
+
+  /// 备份/恢复前把最新的 Memos 凭据灌进 WebDAV 引擎。
+  ///
+  /// 引擎是长生命周期对象，登录、切换服务器、刷新 token 都不会重建它；
+  /// 不在每次操作前刷新，附件就永远取不回来（表现为一直「未缓存 N」）。
+  void _refreshMemosCredentialsForWebDav() {
+    _webDavSyncEngine?.updateMemosCredentials(
+      baseUrl:
+          _appConfig.memosApiUrl ?? _user?.serverUrl ?? _appConfig.lastServerUrl,
+      token: _user?.token ?? _appConfig.lastToken,
+    );
   }
 
   /// 测试 WebDAV 连接
@@ -4444,6 +4458,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     if (_webDavSyncEngine == null) {
       await _initializeWebDavService();
     }
+    _refreshMemosCredentialsForWebDav();
 
     try {
       final stats = await _webDavSyncEngine!.backup(
@@ -4497,6 +4512,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     if (_webDavSyncEngine == null) {
       await _initializeWebDavService();
     }
+    _refreshMemosCredentialsForWebDav();
 
     try {
       final stats = await _webDavSyncEngine!.restore(

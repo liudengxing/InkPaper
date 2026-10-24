@@ -404,6 +404,9 @@ class WebDavSyncEngine {
     var errorCount = 0;
     final manifest = <String, _WebDavResourceRecord>{};
 
+    // 每次备份重新扫描本地图片目录，避免用到过期的文件索引
+    _localImageNameIndex = null;
+
     // 先把远端 resources/ 目录列一次，后续靠内存集合判断「是否已备份过」。
     // 逐个调 exists() 会让每张图都 readDir 一次父目录，几十张图就能把备份
     // 卡住好几分钟（坚果云这类服务单次目录请求很慢）。
@@ -561,6 +564,11 @@ class WebDavSyncEngine {
       if (cached != null) {
         return cached;
       }
+      // 路径形态不同导致缓存名对不上时，按文件名兜底命中同一张图
+      final byName = await _readLocalImageByFileName(imagePath);
+      if (byName != null) {
+        return byName;
+      }
     }
 
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
@@ -590,6 +598,53 @@ class WebDavSyncEngine {
     }
     try {
       return await cached.readAsBytes();
+    } on Object {
+      return null;
+    }
+  }
+
+  /// 本机 images/ 目录的「文件名 → 绝对路径」索引，只在首次用到时构建。
+  Map<String, String>? _localImageNameIndex;
+
+  /// 按文件名在本机 images/ 目录里找同一张图。
+  ///
+  /// 附件缓存按「整条路径的 sha1」命名，同一张图在正文（`/file/attachments/...`）
+  /// 和资源列表 externalLink 里可能形态不同，算出的缓存名对不上——只按路径查
+  /// 会误判成「本机没有」，然后去网络重新下载，慢网下直接超时失败。
+  /// 同一附件的文件名是稳定的，这里按文件名兜一次底。
+  Future<List<int>?> _readLocalImageByFileName(String remotePath) async {
+    final clean = remotePath.split('?').first.split('#').first;
+    final name = clean.split('/').last;
+    if (name.isEmpty) {
+      return null;
+    }
+
+    var index = _localImageNameIndex;
+    if (index == null) {
+      index = <String, String>{};
+      try {
+        final appDir = await getApplicationDocumentsDirectory();
+        final dir = Directory('${appDir.path}/images');
+        if (await dir.exists()) {
+          await for (final entity in dir.list()) {
+            if (entity is File) {
+              final fileName = entity.path.split('/').last;
+              index.putIfAbsent(fileName, () => entity.path);
+            }
+          }
+        }
+      } on Object catch (e) {
+        debugPrint('WebDAV 备份：扫描本地图片目录失败 $e');
+      }
+      _localImageNameIndex = index;
+    }
+
+    final path = index[name];
+    if (path == null) {
+      return null;
+    }
+    try {
+      return await File(path).readAsBytes();
     } on Object {
       return null;
     }

@@ -412,35 +412,35 @@ class WebDavSyncEngine {
             continue;
           }
 
-          final remoteName = _backupFileNameForResource(resource, resourcePath);
+          final bytes = await _readImageBytes(resourcePath);
+          if (bytes == null) {
+            // 不静默跳过：这里丢一张，备份里就少一张，换设备恢复必然裂图。
+            errorCount++;
+            debugPrint('WebDAV 备份：资源读取失败，未上传 $resourcePath');
+            continue;
+          }
+
+          // 内容寻址命名：远端同名即同内容。同一张图不会因为附件 uid 变化，
+          // 或从正文 Markdown 通道再次上传，而在服务器上存出第二份。
+          final remoteName = contentAddressedAttachmentName(
+            bytes,
+            _extensionFromPath(filename ?? resourcePath),
+          );
           final remotePath = '${config.fullSyncPath}resources/$remoteName';
-          final record = _WebDavResourceRecord(
+          manifest[resourcePath] = _WebDavResourceRecord(
             originalPath: resourcePath,
             webdavPath: remotePath,
             filename: filename?.isNotEmpty ?? false ? filename! : remoteName,
             source: 'resourceList',
           );
 
-          // 检查 WebDAV 上是否已存在
+          // 内容寻址后，远端存在即代表这份二进制已经备份过
           if (await _webdavService.exists(remotePath)) {
-            manifest[resourcePath] = record;
             continue;
           }
 
-          final bytes = await _readImageBytes(resourcePath);
-          if (bytes != null) {
-            // 上传到 WebDAV
-            await _webdavService.uploadBinaryFile(
-              remotePath,
-              bytes,
-            );
-            manifest[resourcePath] = record;
-            resourceCount++;
-          } else {
-            // 不静默跳过：这里丢一张，备份里就少一张，换设备恢复必然裂图。
-            errorCount++;
-            debugPrint('WebDAV 备份：资源读取失败，未上传 $resourcePath');
-          }
+          await _webdavService.uploadBinaryFile(remotePath, bytes);
+          resourceCount++;
         } on Object {
           errorCount++;
         }
@@ -450,20 +450,6 @@ class WebDavSyncEngine {
     for (final note in notes) {
       for (final imagePath in _extractMarkdownImagePaths(note.content)) {
         try {
-          final remoteName = _resourceFileName(imagePath);
-          final remotePath = '${config.fullSyncPath}resources/$remoteName';
-          final record = _WebDavResourceRecord(
-            originalPath: imagePath,
-            webdavPath: remotePath,
-            filename: remoteName,
-            source: 'markdown',
-          );
-
-          if (await _webdavService.exists(remotePath)) {
-            manifest.putIfAbsent(imagePath, () => record);
-            continue;
-          }
-
           final bytes = await _readImageBytes(imagePath);
           if (bytes == null) {
             errorCount++;
@@ -471,8 +457,27 @@ class WebDavSyncEngine {
             continue;
           }
 
+          // 与 resourceList 通道共用同一套内容寻址命名：同内容的图只存一份
+          final remoteName = contentAddressedAttachmentName(
+            bytes,
+            _extensionFromPath(imagePath),
+          );
+          final remotePath = '${config.fullSyncPath}resources/$remoteName';
+          manifest.putIfAbsent(
+            imagePath,
+            () => _WebDavResourceRecord(
+              originalPath: imagePath,
+              webdavPath: remotePath,
+              filename: remoteName,
+              source: 'markdown',
+            ),
+          );
+
+          if (await _webdavService.exists(remotePath)) {
+            continue;
+          }
+
           await _webdavService.uploadBinaryFile(remotePath, bytes);
-          manifest.putIfAbsent(imagePath, () => record);
           resourceCount++;
         } on Object {
           errorCount++;
@@ -592,47 +597,6 @@ class WebDavSyncEngine {
 
   bool _isAppRelativeImagePath(String path) =>
       path.startsWith('images/') || path.startsWith('webdav_images/');
-
-  String _resourceFileName(String imagePath) {
-    final source = imagePath.startsWith('file://')
-        ? imagePath.replaceFirst('file://', '')
-        : imagePath;
-    final uri = Uri.tryParse(source);
-    final name = uri?.pathSegments.isNotEmpty ?? false
-        ? uri!.pathSegments.last
-        : source.split('/').last;
-    final safeName = name.replaceAll(RegExp('[^a-zA-Z0-9._-]'), '_');
-    final fallback = safeName.isEmpty
-        ? 'image_${DateTime.now().millisecondsSinceEpoch}.jpg'
-        : safeName;
-    final digest = sha1.convert(utf8.encode(imagePath)).toString();
-    return _fileNameWithDigest(fallback, digest.substring(0, 10));
-  }
-
-  String _backupFileNameForResource(
-    Map<String, dynamic> resource,
-    String resourcePath,
-  ) {
-    final filename = resource['filename']?.toString();
-    final extension = _extensionFromPath(filename ?? resourcePath);
-    final id = resource['id']?.toString() ??
-        resource['uid']?.toString() ??
-        resource['name']?.toString().split('/').last;
-    final base = id != null && id.isNotEmpty
-        ? id
-        : sha1.convert(utf8.encode(resourcePath)).toString().substring(0, 16);
-    return '${_sanitizeFileComponent(base)}.$extension';
-  }
-
-  String _fileNameWithDigest(String filename, String digest) {
-    final dot = filename.lastIndexOf('.');
-    if (dot <= 0 || dot == filename.length - 1) {
-      return '${_sanitizeFileComponent(filename)}_$digest';
-    }
-    final base = filename.substring(0, dot);
-    final ext = filename.substring(dot + 1);
-    return '${_sanitizeFileComponent(base)}_$digest.${_sanitizeFileComponent(ext)}';
-  }
 
   String _extensionFromPath(String path) {
     final cleanPath = path.split('?').first.split('#').first;

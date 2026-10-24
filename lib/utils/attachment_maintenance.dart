@@ -116,6 +116,22 @@ String localFileNameForAttachment(String remotePath) {
   return 'memos_${base}_$digest.$ext';
 }
 
+/// 内容寻址的附件文件名：`<sha1>.<ext>`。
+///
+/// 同一份二进制无论来自 `resourceList` 还是正文 Markdown、附件 uid 怎么变，
+/// 算出的名字都相同，因此 WebDAV 上不会存出重复副本；反过来，
+/// 远端「同名即同内容」，`exists` 判断就等价于「这份内容已经备份过」。
+String contentAddressedAttachmentName(List<int> bytes, String extension) {
+  final digest = sha1.convert(bytes).toString();
+  var ext = extension
+      .replaceAll(RegExp('[^a-zA-Z0-9]'), '')
+      .toLowerCase();
+  if (ext.isEmpty) {
+    ext = 'bin';
+  }
+  return '$digest.$ext';
+}
+
 /// 笔记正文与资源列表里引用到的本地图片文件名集合。
 ///
 /// 认 `images/x.jpg` 这种相对路径、`file:///.../x.jpg` 绝对路径，以及

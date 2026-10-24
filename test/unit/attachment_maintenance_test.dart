@@ -121,6 +121,41 @@ void main() {
     });
   });
 
+  group('contentAddressedAttachmentName', () {
+    test('同一份内容得到同一个名字', () {
+      final a = contentAddressedAttachmentName([1, 2, 3], 'jpg');
+      final b = contentAddressedAttachmentName([1, 2, 3], 'jpg');
+
+      expect(a, b);
+      expect(a, matches(RegExp(r'^[0-9a-f]{40}\.jpg$')));
+    });
+
+    test('扩展名大小写不同不影响命名', () {
+      expect(
+        contentAddressedAttachmentName([9, 9], 'JPG'),
+        contentAddressedAttachmentName([9, 9], 'jpg'),
+      );
+    });
+
+    test('不同内容得到不同名字（增量判断不会误判）', () {
+      expect(
+        contentAddressedAttachmentName([1, 2, 3], 'jpg'),
+        isNot(contentAddressedAttachmentName([1, 2, 4], 'jpg')),
+      );
+    });
+
+    test('非法或空扩展名归一到 bin', () {
+      expect(
+        contentAddressedAttachmentName([7], ''),
+        endsWith('.bin'),
+      );
+      expect(
+        contentAddressedAttachmentName([7], '??'),
+        endsWith('.bin'),
+      );
+    });
+  });
+
   group('restoreActionFor', () {
     test('本服务器附件只写本地缓存，不改正文', () {
       const paths = [

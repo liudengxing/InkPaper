@@ -39,6 +39,36 @@ void main() {
         isNot(noteContentHash(_note('a', '正文 '))),
       );
     });
+
+    test('附件资源 uid 不同、文件名相同 → 视为同一内容', () {
+      // 双通道各上传一次时，同一张图会拿到两个附件目录 uid
+      expect(
+        noteContentHash(
+          _note('a', '正文\n![图片](/file/attachments/AAA111/image_1790848653578.jpg)'),
+        ),
+        noteContentHash(
+          _note('b', '正文\n![图片](/file/attachments/BBB222/image_1790848653578.jpg)'),
+        ),
+      );
+    });
+
+    test('附件文件名不同 → 仍是不同内容', () {
+      expect(
+        noteContentHash(
+          _note('a', '正文\n![图片](/file/attachments/AAA111/image_1.jpg)'),
+        ),
+        isNot(
+          noteContentHash(
+            _note('b', '正文\n![图片](/file/attachments/AAA111/image_2.jpg)'),
+          ),
+        ),
+      );
+    });
+
+    test('没有附件时归一化不改动正文', () {
+      const text = '普通正文 #标签\n第二行';
+      expect(normalizeNoteContentForDedupe(text), text);
+    });
   });
 
   group('findDuplicateLocalCopies', () {

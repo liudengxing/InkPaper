@@ -3,12 +3,24 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:inkpaper/models/note_model.dart';
 
-/// 笔记正文的内容哈希（不含时间戳、置顶、标签等元数据）。
+/// 附件路径里的资源 uid：`/file/attachments/<uid>/<文件名>`。
+///
+/// 同一条带图笔记被两个同步通道各上传一次时，图片会被传成两份、
+/// 拿到两个不同的附件目录 uid，但文件名（`image_<时间戳>.jpg`）一致。
+/// 直接比正文会把这些当成两条不同笔记。
+final _attachmentPathPattern = RegExp(r'(/(?:file|api/v1)/attachments/)[^/\s)]+/');
+
+/// 归一化正文：抹掉附件路径里的资源 uid，只保留文件名。
+String normalizeNoteContentForDedupe(String content) =>
+    content.replaceAllMapped(_attachmentPathPattern, (match) => match[1]!);
+
+/// 笔记正文的内容指纹（不含时间戳、置顶、标签等元数据）。
 ///
 /// 用途是识别「同一条笔记的两种 id」：远端被删后重建、本地导入重复、
-/// 双端各自新建同一段内容等。
-String noteContentHash(Note note) =>
-    sha256.convert(utf8.encode(note.content)).toString();
+/// 双端各自新建同一段内容等。附件 uid 会被归一化掉，见上。
+String noteContentHash(Note note) => sha256
+    .convert(utf8.encode(normalizeNoteContentForDedupe(note.content)))
+    .toString();
 
 /// 按内容哈希分组，避免在批量匹配时对同一条笔记反复做 sha256。
 Map<String, List<Note>> groupNotesByContentHash(Iterable<Note> notes) {

@@ -64,7 +64,7 @@ dependencies:
   package_info_plus: ^8.0.2
   
   # 安全存储
-  flutter_secure_storage: ^8.1.0
+  flutter_secure_storage: ^10.3.4
   
   # 保存图片到相册
   image_gallery_saver_plus: ^4.0.1

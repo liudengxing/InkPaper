@@ -399,6 +399,13 @@ class WebDavSyncEngine {
     var errorCount = 0;
     final manifest = <String, _WebDavResourceRecord>{};
 
+    // 先把远端 resources/ 目录列一次，后续靠内存集合判断「是否已备份过」。
+    // 逐个调 exists() 会让每张图都 readDir 一次父目录，几十张图就能把备份
+    // 卡住好几分钟（坚果云这类服务单次目录请求很慢）。
+    final existingResourceNames = await _listResourceNames(
+      '${config.fullSyncPath}resources/',
+    );
+
     for (final note in notes) {
       if (note.resourceList.isEmpty) {
         continue;
@@ -434,12 +441,13 @@ class WebDavSyncEngine {
             source: 'resourceList',
           );
 
-          // 内容寻址后，远端存在即代表这份二进制已经备份过
-          if (await _webdavService.exists(remotePath)) {
+          // 内容寻址后，远端同名即同内容，已经备份过就跳过
+          if (existingResourceNames.contains(remoteName)) {
             continue;
           }
 
           await _webdavService.uploadBinaryFile(remotePath, bytes);
+          existingResourceNames.add(remoteName);
           resourceCount++;
         } on Object {
           errorCount++;
@@ -473,11 +481,12 @@ class WebDavSyncEngine {
             ),
           );
 
-          if (await _webdavService.exists(remotePath)) {
+          if (existingResourceNames.contains(remoteName)) {
             continue;
           }
 
           await _webdavService.uploadBinaryFile(remotePath, bytes);
+          existingResourceNames.add(remoteName);
           resourceCount++;
         } on Object {
           errorCount++;
@@ -492,6 +501,19 @@ class WebDavSyncEngine {
     );
 
     return manifest.values.where((record) => record.isValid).toList();
+  }
+
+  /// 列出远端资源目录里的文件名。
+  ///
+  /// 目录不存在（首次备份）或请求失败时返回空集合，后续上传会按需创建目录。
+  Future<Set<String>> _listResourceNames(String resourcesPath) async {
+    try {
+      final files = await _webdavService.listFiles(resourcesPath);
+      return files.map((file) => file.name).whereType<String>().toSet();
+    } on Object catch (e) {
+      debugPrint('WebDAV 备份：读取资源目录失败，按全新备份处理: $e');
+      return <String>{};
+    }
   }
 
   List<String> _extractMarkdownImagePaths(String content) {
@@ -572,8 +594,16 @@ class WebDavSyncEngine {
     if (authorized && token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
     }
-    final response = await http.get(Uri.parse(url), headers: headers);
-    return response.statusCode == 200 ? response.bodyBytes : null;
+    try {
+      // 单张图最长等 12 秒：服务器不可达时不能让整个备份挂死在这里。
+      final response = await http
+          .get(Uri.parse(url), headers: headers)
+          .timeout(const Duration(seconds: 12));
+      return response.statusCode == 200 ? response.bodyBytes : null;
+    } on Object catch (e) {
+      debugPrint('WebDAV 备份：下载图片失败 $url [$e]');
+      return null;
+    }
   }
 
   bool _isMemosResourcePath(String path) =>

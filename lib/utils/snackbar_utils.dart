@@ -24,6 +24,7 @@ class SnackBarUtils {
     BuildContext context,
     String message, {
     VoidCallback? onRetry,
+    Duration duration = const Duration(milliseconds: 1500),
   }) {
     if (onRetry != null) {
       _showErrorWithRetry(context, message, onRetry);
@@ -33,6 +34,7 @@ class SnackBarUtils {
         message,
         backgroundColor: Colors.red.shade600,
         icon: Icons.close,
+        duration: duration,
       );
     }
   }

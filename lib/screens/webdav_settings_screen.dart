@@ -953,9 +953,11 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
       }
     } on Object catch (e) {
       if (mounted) {
+        // 失败原因往往较长，1.5 秒根本看不清，放宽到 8 秒。
         SnackBarUtils.showError(
           context,
           '${l10n?.backupFailed ?? 'Backup failed'}: $e',
+          duration: const Duration(seconds: 8),
         );
       }
     } finally {
@@ -1378,6 +1380,7 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
         SnackBarUtils.showError(
           context,
           '${l10n?.restoreFailed ?? 'Restore failed'}: $e',
+          duration: const Duration(seconds: 8),
         );
       }
     } finally {

@@ -74,6 +74,12 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
   final PreferencesService _preferencesService = PreferencesService();
   List<Map<String, dynamic>> _importHistory = [];
 
+  // 重复笔记检测（数据维护页）
+  bool _isScanningDuplicates = false;
+  bool _hasScannedDuplicates = false;
+  int _duplicateRemovable = 0;
+  int _duplicateGroupCount = 0;
+
   // 导入选项
   bool _overwriteExisting = false;
   bool _importAsNew = true;
@@ -81,7 +87,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadBackupInfo();
     _loadImportHistory();
   }
@@ -183,6 +189,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
           tabs: [
             Tab(text: AppLocalizationsSimple.of(context)?.exportTab ?? '导出备份'),
             Tab(text: AppLocalizationsSimple.of(context)?.importTab ?? '导入恢复'),
+            const Tab(text: '数据维护'),
           ],
         ),
       ),
@@ -195,10 +202,178 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
 
           // 导入恢复标签页
           _buildImportTab(),
+
+          // 数据维护标签页
+          _buildMaintenanceTab(),
         ],
       ),
     );
   }
+
+  // 构建数据维护标签页
+  Widget _buildMaintenanceTab() => ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildDuplicateCard(),
+          const SizedBox(height: 16),
+        ],
+      );
+
+  // 检测重复笔记，只统计不写库
+  Future<void> _scanDuplicates() async {
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    setState(() {
+      _isScanningDuplicates = true;
+    });
+    try {
+      final preview = await provider.previewDuplicateNotes();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _duplicateGroupCount = preview.groupCount;
+        _duplicateRemovable = preview.result.removedIds.length;
+        _hasScannedDuplicates = true;
+      });
+    } on Object catch (e) {
+      if (mounted) {
+        SnackBarUtils.showError(context, '检测失败: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isScanningDuplicates = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _confirmAndMergeDuplicates() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('合并重复笔记'),
+        content: Text(
+          '将删除 $_duplicateRemovable 条重复副本，每组保留创建时间最早的那条，'
+          '标签 / 置顶 / 批注 / 引用取并集。\n\n'
+          '这个操作不可撤销，建议先导出一份备份。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('确定合并'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    try {
+      final removed = await provider.mergeDuplicateNotes();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _duplicateRemovable = 0;
+        _duplicateGroupCount = 0;
+        _hasScannedDuplicates = true;
+      });
+      await _loadBackupInfo();
+      if (mounted) {
+        SnackBarUtils.showSuccess(context, '已合并 $removed 条重复笔记');
+      }
+    } on Object catch (e) {
+      if (mounted) {
+        SnackBarUtils.showError(context, '合并失败: $e');
+      }
+    }
+  }
+
+  // 重复笔记清理卡片
+  Widget _buildDuplicateCard() => Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '清理重复笔记',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '同时开启多个同步通道时，同一条笔记可能被存成两份。'
+                '判定规则：正文完全一致、创建时间相差 5 分钟以内视为同一条，'
+                '保留最早的那条，标签 / 置顶 / 批注 / 引用取并集。',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  height: 1.5,
+                ),
+              ),
+              if (_hasScannedDuplicates) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _duplicateRemovable > 0
+                        ? Colors.orange.withValues(alpha: 0.1)
+                        : Colors.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _duplicateRemovable > 0
+                        ? '检测到 $_duplicateGroupCount 组重复，可合并 $_duplicateRemovable 条'
+                        : '没有发现可自动合并的重复笔记',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: _duplicateRemovable > 0
+                          ? Colors.orange[800]
+                          : Colors.green[700],
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isScanningDuplicates ? null : _scanDuplicates,
+                      icon: const Icon(Icons.search, size: 18),
+                      label: Text(_isScanningDuplicates ? '检测中…' : '检测重复'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed:
+                          (_isScanningDuplicates || _duplicateRemovable == 0)
+                              ? null
+                              : _confirmAndMergeDuplicates,
+                      icon: const Icon(Icons.cleaning_services_outlined, size: 18),
+                      label: const Text('合并'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
 
   // 构建导出标签页
   Widget _buildExportTab() => ListView(

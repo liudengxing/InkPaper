@@ -67,7 +67,7 @@ dependencies:
   flutter_secure_storage: ^8.1.0
   
   # 保存图片到相册
-  image_gallery_saver_plus: ^4.0.1
+  image_gallery_saver_plus: ^5.1.1
   
   # 时间格式化
   timeago: ^3.7.0

@@ -4,12 +4,70 @@ import 'package:flutter/foundation.dart';
 import 'package:inkpaper/models/webdav_config.dart';
 import 'package:webdav_client/webdav_client.dart' as webdav;
 
+/// WebDAV 请求失败。
+///
+/// webdav_client 底层是 dio，而 `DioException` 的 `toString()` 经常只有
+/// 「DioException null」——类型、HTTP 状态码、内层错误全被丢掉，用户和日志
+/// 都无从定位。这里把关键信息统一拼回来。
+class WebDavException implements Exception {
+  WebDavException(this.action, this.path, this.cause);
+
+  final String action;
+  final String path;
+  final Object cause;
+
+  @override
+  String toString() {
+    final details = _describeCause(cause);
+    return 'WebDAV $action失败（$path）${details.isEmpty ? '' : '：$details'}';
+  }
+}
+
+String _describeCause(Object cause) {
+  final parts = <String>[];
+  try {
+    // webdav_client 底层是 dio；这里用 dynamic 取字段，避免为一个日志
+    // 描述新增 dio 直接依赖。
+    final dynamic e = cause;
+    // ignore: avoid_dynamic_calls
+    final type = e.type?.toString();
+    // ignore: avoid_dynamic_calls
+    final status = e.response?.statusCode?.toString();
+    // ignore: avoid_dynamic_calls
+    final message = e.message?.toString();
+    // ignore: avoid_dynamic_calls
+    final inner = e.error?.toString();
+    if (type != null && type.isNotEmpty) {
+      parts.add('类型=$type');
+    }
+    if (status != null) {
+      parts.add('HTTP $status');
+    }
+    if (message != null && message.isNotEmpty) {
+      parts.add(message);
+    }
+    if (inner != null && inner.isNotEmpty) {
+      parts.add(inner);
+    }
+  } on Object {
+    // 不是 dio 异常，或字段结构变了，退回原始描述
+  }
+  if (parts.isEmpty) {
+    parts.add(cause.toString());
+  }
+  return parts.join('; ');
+}
+
 /// WebDAV 客户端服务
 ///
 /// 提供与 WebDAV 服务器通信的基础功能
 class WebDavService {
   webdav.Client? _client;
   WebDavConfig? _config;
+
+  /// 本次会话里已确认存在的目录，避免每上传一个文件都 readDir 一次。
+  /// 几十张图逐个检查目录会让备份在慢速 WebDAV 上卡死。
+  final Set<String> _knownDirs = <String>{};
 
   /// 初始化客户端
   Future<void> initialize(WebDavConfig config) async {
@@ -24,10 +82,10 @@ class WebDavService {
       password: config.password,
     );
 
-    // 设置超时
+    // 设置超时：上传大图/大备份文件时 30 秒容易踩线，放宽发送与接收
     _client!.setConnectTimeout(30000);
-    _client!.setSendTimeout(30000);
-    _client!.setReceiveTimeout(30000);
+    _client!.setSendTimeout(60000);
+    _client!.setReceiveTimeout(60000);
   }
 
   /// 测试连接
@@ -109,7 +167,7 @@ class WebDavService {
     }
   }
 
-  /// 递归创建文件夹路径
+  /// 递归创建文件夹路径（已确认存在过的目录会被记住，不重复请求）
   Future<void> _ensureDirectoryExists(String path) async {
     if (path.isEmpty || path == '/') {
       return;
@@ -119,8 +177,13 @@ class WebDavService {
     final cleanPath =
         path.endsWith('/') ? path.substring(0, path.length - 1) : path;
 
+    if (_knownDirs.contains(cleanPath)) {
+      return;
+    }
+
     // 检查路径是否已存在
     if (await exists('$cleanPath/')) {
+      _knownDirs.add(cleanPath);
       return;
     }
 
@@ -131,15 +194,21 @@ class WebDavService {
     // 递归创建每一级目录
     for (final part in parts) {
       currentPath += '$part/';
+      final key = currentPath.substring(0, currentPath.length - 1);
+      if (_knownDirs.contains(key)) {
+        continue;
+      }
       try {
         // 检查目录是否存在
         if (!await exists(currentPath)) {
           await _client!.mkdir(currentPath);
         }
+        _knownDirs.add(key);
       } on Object catch (e) {
         // 如果是405错误（目录已存在），忽略
         if (e.toString().contains('405') ||
             e.toString().contains('already exists')) {
+          _knownDirs.add(key);
         } else {
           rethrow;
         }
@@ -163,8 +232,8 @@ class WebDavService {
       }
 
       await _client!.write(remotePath, bytes);
-    } on Object {
-      rethrow;
+    } on Object catch (e) {
+      throw WebDavException('上传', remotePath, e);
     }
   }
 
@@ -184,8 +253,8 @@ class WebDavService {
       // 转换为 Uint8List
       final uint8List = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
       await _client!.write(remotePath, uint8List);
-    } on Object {
-      rethrow;
+    } on Object catch (e) {
+      throw WebDavException('上传', remotePath, e);
     }
   }
 
@@ -200,8 +269,8 @@ class WebDavService {
       final content = utf8.decode(bytes);
 
       return content;
-    } on Object {
-      rethrow;
+    } on Object catch (e) {
+      throw WebDavException('下载', remotePath, e);
     }
   }
 
@@ -215,8 +284,8 @@ class WebDavService {
       final bytes = await _client!.read(remotePath);
 
       return bytes;
-    } on Object {
-      rethrow;
+    } on Object catch (e) {
+      throw WebDavException('下载', remotePath, e);
     }
   }
 
@@ -228,8 +297,8 @@ class WebDavService {
       }
 
       await _client!.remove(remotePath);
-    } on Object {
-      rethrow;
+    } on Object catch (e) {
+      throw WebDavException('删除', remotePath, e);
     }
   }
 
@@ -243,8 +312,8 @@ class WebDavService {
       final list = await _client!.readDir(path);
 
       return list;
-    } on Object {
-      rethrow;
+    } on Object catch (e) {
+      throw WebDavException('列出目录', path, e);
     }
   }
 
@@ -303,5 +372,6 @@ class WebDavService {
   void dispose() {
     _client = null;
     _config = null;
+    _knownDirs.clear();
   }
 }

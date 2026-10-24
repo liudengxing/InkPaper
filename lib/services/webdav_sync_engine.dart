@@ -449,8 +449,9 @@ class WebDavSyncEngine {
           await _webdavService.uploadBinaryFile(remotePath, bytes);
           existingResourceNames.add(remoteName);
           resourceCount++;
-        } on Object {
+        } on Object catch (e) {
           errorCount++;
+          debugPrint('WebDAV 备份：资源上传失败 $e');
         }
       }
     }
@@ -488,8 +489,9 @@ class WebDavSyncEngine {
           await _webdavService.uploadBinaryFile(remotePath, bytes);
           existingResourceNames.add(remoteName);
           resourceCount++;
-        } on Object {
+        } on Object catch (e) {
           errorCount++;
+          debugPrint('WebDAV 备份：正文图片上传失败 $e');
         }
       }
     }

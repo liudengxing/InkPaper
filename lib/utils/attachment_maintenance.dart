@@ -196,6 +196,16 @@ Set<String> referencedLocalImageFiles(Iterable<Note> notes) {
     }
     for (final resource in note.resourceList) {
       addPath(resource['externalLink']?.toString());
+      // Memos 的「附件」形态：图片挂在 resourceList 上、正文不写 ![]()，
+      // 以前这里只认 externalLink，导致这类附件在清理孤儿时被整批误删。
+      final name = resource['name']?.toString() ?? '';
+      final filename = resource['filename']?.toString() ?? '';
+      if (name.isNotEmpty && filename.isNotEmpty) {
+        final uid = name.replaceFirst(RegExp('^attachments/'), '');
+        if (uid.isNotEmpty) {
+          addPath('/file/attachments/$uid/$filename');
+        }
+      }
     }
   }
   return names;

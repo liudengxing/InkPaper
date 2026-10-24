@@ -169,6 +169,20 @@ void main() {
 
       expect(names, {'c.jpg', localFileNameForAttachment(remote)});
     });
+
+    test('资源列表里的 Memos 附件（name + filename）也算在用', () {
+      const remote = '/file/attachments/C/z.jpg';
+      final names = referencedLocalImageFiles([
+        _note(
+          '正文只有文字',
+          resourceList: [
+            {'name': 'attachments/C', 'filename': 'z.jpg'},
+          ],
+        ),
+      ]);
+
+      expect(names, {localFileNameForAttachment(remote)});
+    });
   });
 
   group('contentAddressedAttachmentName', () {

@@ -130,9 +130,56 @@ function encodePNG({ width, height, data }, opaque = false) {
   ]);
 }
 
-/* ---------------- 缩放（面积平均，alpha 加权） ---------------- */
+/* ---------------- 缩放（缩小用面积平均，放大用 Catmull-Rom 双三次） ---------------- */
+const clamp255 = (v) => (v < 0 ? 0 : v > 255 ? 255 : Math.round(v));
+
+function crWeights(t) {
+  const t2 = t * t, t3 = t2 * t;
+  return [
+    -0.5 * t3 + t2 - 0.5 * t,
+    1.5 * t3 - 2.5 * t2 + 1,
+    -1.5 * t3 + 2 * t2 + 0.5 * t,
+    0.5 * t3 - 0.5 * t2,
+  ];
+}
+
+function resizeUp(src, sw, sh, dw, dh) {
+  const out = new Uint8Array(dw * dh * 4);
+  const sx = sw / dw, sy = sh / dh;
+  for (let y = 0; y < dh; y++) {
+    const fy = (y + 0.5) * sy - 0.5;
+    const y0 = Math.floor(fy);
+    const wy = crWeights(fy - y0);
+    for (let x = 0; x < dw; x++) {
+      const fx = (x + 0.5) * sx - 0.5;
+      const x0 = Math.floor(fx);
+      const wx = crWeights(fx - x0);
+      let r = 0, g = 0, b = 0, a = 0;
+      for (let j = 0; j < 4; j++) {
+        const yy = Math.min(sh - 1, Math.max(0, y0 - 1 + j));
+        for (let i = 0; i < 4; i++) {
+          const xx = Math.min(sw - 1, Math.max(0, x0 - 1 + i));
+          const w = wx[i] * wy[j];
+          const o = (yy * sw + xx) * 4;
+          const al = src[o + 3] / 255;
+          r += src[o] * al * w; g += src[o + 1] * al * w; b += src[o + 2] * al * w;
+          a += src[o + 3] * w;
+        }
+      }
+      const d = (y * dw + x) * 4;
+      if (a > 0) {
+        const k = 255 / a;
+        out[d] = clamp255(r * k); out[d + 1] = clamp255(g * k); out[d + 2] = clamp255(b * k);
+      }
+      out[d + 3] = clamp255(a);
+    }
+  }
+  return out;
+}
+
 function resize(src, sw, sh, dw, dh) {
   if (sw === dw && sh === dh) return new Uint8Array(src);
+  if (dw > sw || dh > sh) return resizeUp(src, sw, sh, dw, dh);
   const out = new Uint8Array(dw * dh * 4);
   const scaleX = sw / dw, scaleY = sh / dh;
   for (let y = 0; y < dh; y++) {
@@ -202,6 +249,30 @@ for (let y = 0; y < 32; y++) {
 }
 console.log(`顶部边缘背景最大偏差: ${maxNoise.toFixed(1)}`);
 
+// 内容包围盒（色差 > 20 视为内容），用于确认留白比例
+let bx0 = master.width, by0 = master.height, bx1 = -1, by1 = -1;
+for (let y = 0; y < master.height; y++) {
+  for (let x = 0; x < master.width; x++) {
+    const o = (y * master.width + x) * 4;
+    const d = Math.hypot(master.data[o] - bg[0], master.data[o + 1] - bg[1], master.data[o + 2] - bg[2]);
+    if (d > 20) {
+      if (x < bx0) bx0 = x;
+      if (x > bx1) bx1 = x;
+      if (y < by0) by0 = y;
+      if (y > by1) by1 = y;
+    }
+  }
+}
+if (bx1 > 0) {
+  const pct = (v, total) => ((v / total) * 100).toFixed(1);
+  console.log(
+    `内容包围盒: x ${pct(bx0, master.width)}%~${pct(bx1 / master.width, 1)}% ` +
+      `y ${pct(by0, master.height)}%~${pct(by1 / master.height, 1)}%`,
+  );
+} else {
+  console.log('警告: 未检测到内容，母版可能是单色');
+}
+
 /* 1. iOS 图标（不透明 RGB） */
 const iosDir = path.join(ROOT, 'ios/Runner/Assets.xcassets/AppIcon.appiconset');
 const iosIcons = {
@@ -241,23 +312,59 @@ for (const [dens, size] of Object.entries(mipmaps)) {
 console.log(`Android 传统图标: ${Object.keys(mipmaps).length} 张`);
 
 /* 3. Android 自适应图标前景层
-   108dp 画布，内容缩放至中间 72dp（安全区），四周透明 */
+   108dp 画布，内容缩放至中间 72dp（安全区），四周透明。
+   抠图规则：只有「与画布边缘连通的背景色像素」才透明，
+   这样被主体包住的白纸/浅色区域不会被误判成背景而挖空。 */
 const fgSizes = { mdpi: 108, hdpi: 162, xhdpi: 216, xxhdpi: 324, xxxhdpi: 432 };
-const T0 = Math.max(18, maxNoise + 8); // 低于此色差视为纯背景
-const T1 = T0 + 40;
-const keyed = new Uint8Array(master.width * master.height * 4);
-let opaquePx = 0;
-for (let i = 0; i < master.data.length; i += 4) {
-  const d = Math.hypot(master.data[i] - bg[0], master.data[i + 1] - bg[1], master.data[i + 2] - bg[2]);
-  const a = Math.min(1, Math.max(0, (d - T0) / (T1 - T0)));
-  keyed[i] = master.data[i]; keyed[i + 1] = master.data[i + 1]; keyed[i + 2] = master.data[i + 2];
-  keyed[i + 3] = Math.round(a * 255);
-  if (a > 0.5) opaquePx++;
+// 108dp 画布里内容的占位边长：母版主体只占中间约 68%，故取 96dp 让主体接近 66dp 安全圆，
+// 既不浪费留白，也不会被启动器遮罩裁掉。
+const CONTENT_DP = 96;
+const T0 = Math.max(18, maxNoise + 8); // 低于此色差视为背景色
+const MW = master.width, MH = master.height;
+const dist = new Float32Array(MW * MH);
+const bgLike = new Uint8Array(MW * MH);
+for (let p = 0; p < MW * MH; p++) {
+  const o = p * 4;
+  const d = Math.hypot(
+    master.data[o] - bg[0], master.data[o + 1] - bg[1], master.data[o + 2] - bg[2],
+  );
+  dist[p] = d;
+  bgLike[p] = d < T0 ? 1 : 0;
 }
-console.log(`抠图: 前景占比 ${((opaquePx / (master.width * master.height)) * 100).toFixed(1)}%`);
+// 从四条边向内做洪泛，标记真正的「外部背景」
+const outside = new Uint8Array(MW * MH);
+const stack = new Int32Array(MW * MH);
+let sp = 0;
+const spread = (p) => {
+  if (!outside[p] && bgLike[p]) { outside[p] = 1; stack[sp++] = p; }
+};
+for (let x = 0; x < MW; x++) { spread(x); spread((MH - 1) * MW + x); }
+for (let y = 0; y < MH; y++) { spread(y * MW); spread(y * MW + MW - 1); }
+while (sp > 0) {
+  const p = stack[--sp];
+  const x = p % MW, y = (p - x) / MW;
+  if (x > 0) spread(p - 1);
+  if (x < MW - 1) spread(p + 1);
+  if (y > 0) spread(p - MW);
+  if (y < MH - 1) spread(p + MW);
+}
+
+const keyed = new Uint8Array(MW * MH * 4);
+let opaquePx = 0;
+for (let p = 0; p < MW * MH; p++) {
+  const o = p * 4;
+  keyed[o] = master.data[o]; keyed[o + 1] = master.data[o + 1]; keyed[o + 2] = master.data[o + 2];
+  if (outside[p]) {
+    keyed[o + 3] = 0;
+  } else {
+    keyed[o + 3] = 255;
+    opaquePx++;
+  }
+}
+console.log(`抠图: 前景占比 ${((opaquePx / (MW * MH)) * 100).toFixed(1)}%`);
 
 for (const [dens, size] of Object.entries(fgSizes)) {
-  const content = Math.round(size * (72 / 108));
+  const content = Math.round((size * CONTENT_DP) / 108);
   const scaled = resize(keyed, master.width, master.height, content, content);
   const canvas = new Uint8Array(size * size * 4);
   const off = Math.round((size - content) / 2);
@@ -278,7 +385,7 @@ console.log(`Android 自适应前景: ${Object.keys(fgSizes).length} 张`);
 
 /* 4. 预览图：圆/方圆遮罩下合成自适应图标，便于肉眼校验（写入系统临时目录，不入库） */
 const pvSize = 432;
-const pvContent = Math.round(pvSize * (72 / 108));
+const pvContent = Math.round((pvSize * CONTENT_DP) / 108);
 const pvScaled = resize(keyed, master.width, master.height, pvContent, pvContent);
 const pv = new Uint8Array(pvSize * pvSize * 4);
 const pvOff = Math.round((pvSize - pvContent) / 2);

@@ -642,6 +642,12 @@ class WebDavSyncEngine {
             if (entity is File) {
               final fileName = entity.path.split('/').last;
               index.putIfAbsent(fileName, () => entity.path);
+              // 缓存文件是 `memos_<原名>_<8位hash>.<ext>`，还要用归一化名建一份索引，
+              // 否则远端 `image_123.jpg` 永远匹配不到本地 `memos_image_123_ab12cd34.jpg`。
+              index.putIfAbsent(
+                canonicalAttachmentKey(fileName),
+                () => entity.path,
+              );
             }
           }
         }
@@ -651,7 +657,9 @@ class WebDavSyncEngine {
       _localImageNameIndex = index;
     }
 
-    final path = index[name];
+    // 先按原文件名命中；命不中再用归一化键（抹掉 `memos_` 前缀与短哈希）兜底，
+    // 让远端 `image_123.jpg` 命中本地 `memos_image_123_ab12cd34.jpg`。
+    final path = index[name] ?? index[canonicalAttachmentKey(name)];
     if (path == null) {
       return null;
     }

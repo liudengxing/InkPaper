@@ -102,18 +102,44 @@ String rewriteMarkdownImagePaths(
 String localFileNameForAttachment(String remotePath) {
   final clean = remotePath.split('?').first.split('#').first;
   final name = clean.split('/').last;
+  final parts = _attachmentNameParts(name);
+  final digest =
+      sha1.convert(utf8.encode(remotePath)).toString().substring(0, 8);
+  return 'memos_${parts.$1}_$digest.${parts.$2}';
+}
+
+/// 附件文件名 → 可比较的归一化键（抹掉 `memos_` 前缀与短哈希、统一小写扩展名）。
+///
+/// 缓存文件名 `memos_image_123_ab12cd34.jpg` 与远端引用名 `image_123.jpg`
+/// 归一化后都是 `image_123.jpg`，因此能互相匹配；扩展名大小写（`IMAGE_1.JPG`
+/// 与 `IMAGE_1.jpg`）也视为同一张图。主干大小写保持敏感，避免 `a.jpg` 与
+/// `A.jpg` 在大小写敏感的文件系统上互相顶替。
+///
+/// 与 [localFileNameForAttachment] 互逆：对任意远端路径 `p`，恒有
+/// `canonicalAttachmentKey(localFileNameForAttachment(p)) ==
+/// canonicalAttachmentKey(p.split('/').last)`。
+String canonicalAttachmentKey(String fileName) {
+  var name = fileName;
+  final match = RegExp(r'^memos_(.+)_([0-9a-f]{8})\.([A-Za-z0-9]+)$')
+      .firstMatch(name);
+  if (match != null) {
+    name = '${match.group(1)}.${match.group(3)}';
+  }
+  final parts = _attachmentNameParts(name);
+  return '${parts.$1}.${parts.$2}';
+}
+
+/// 去掉非法字符的 (文件名主干, 小写扩展名)。
+(String, String) _attachmentNameParts(String name) {
   final dot = name.lastIndexOf('.');
   final rawBase = dot > 0 ? name.substring(0, dot) : name;
-  final ext = dot > 0 && dot < name.length - 1
-      ? name.substring(dot + 1).toLowerCase()
-      : 'jpg';
+  final ext =
+      dot > 0 && dot < name.length - 1 ? name.substring(dot + 1).toLowerCase() : 'jpg';
   var base = rawBase.replaceAll(RegExp('[^a-zA-Z0-9._-]'), '_');
   if (base.isEmpty) {
     base = 'image';
   }
-  final digest =
-      sha1.convert(utf8.encode(remotePath)).toString().substring(0, 8);
-  return 'memos_${base}_$digest.$ext';
+  return (base, ext);
 }
 
 /// 内容寻址的附件文件名：`<sha1>.<ext>`。

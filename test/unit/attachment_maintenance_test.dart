@@ -55,6 +55,56 @@ void main() {
     });
   });
 
+  group('canonicalAttachmentKey', () {
+    test('缓存文件名能还原成远端原始文件名', () {
+      const remote = '/file/attachments/AAA111/image_1792310527861.jpg';
+      expect(
+        canonicalAttachmentKey(localFileNameForAttachment(remote)),
+        'image_1792310527861.jpg',
+      );
+    });
+
+    test('远端引用名与本地缓存名归一化后一致', () {
+      // 同一张图在正文与资源列表里 uid / 扩展名大小写不同，仍应命中同一个键
+      const inContent = 'image_1792310527861.jpg';
+      const inResource = '/file/attachments/BBB222/image_1792310527861.JPG';
+
+      expect(
+        canonicalAttachmentKey(
+          localFileNameForAttachment(
+            '/file/attachments/BBB222/image_1792310527861.JPG',
+          ),
+        ),
+        canonicalAttachmentKey(inResource.split('/').last),
+      );
+      expect(
+        canonicalAttachmentKey(inContent),
+        canonicalAttachmentKey(inResource.split('/').last),
+      );
+    });
+
+    test('空格等非法字符两侧按同一规则清洗', () {
+      expect(canonicalAttachmentKey('meeting notes.png'), 'meeting_notes.png');
+      expect(
+        canonicalAttachmentKey(
+          localFileNameForAttachment('/file/attachments/A/meeting notes.png'),
+        ),
+        canonicalAttachmentKey('meeting notes.png'),
+      );
+      // 中文名会整体被替换成下划线，但仍要保证「远端名 ↔ 本地名」互通
+      const cjk = '/file/attachments/A/会议 记录.png';
+      expect(
+        canonicalAttachmentKey(localFileNameForAttachment(cjk)),
+        canonicalAttachmentKey(cjk.split('/').last),
+      );
+    });
+
+    test('不带缓存前缀的名字原样归一化', () {
+      expect(canonicalAttachmentKey('photo.jpeg'), 'photo.jpeg');
+      expect(canonicalAttachmentKey('noext'), 'noext.jpg');
+    });
+  });
+
   group('isServerBackedImagePath', () {
     test('相对附件路径算服务端图', () {
       expect(isServerBackedImagePath('/file/attachments/A/x.jpg'), isTrue);

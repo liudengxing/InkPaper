@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/services/database_service.dart';
@@ -436,7 +437,9 @@ class WebDavSyncEngine {
             manifest[resourcePath] = record;
             resourceCount++;
           } else {
+            // 不静默跳过：这里丢一张，备份里就少一张，换设备恢复必然裂图。
             errorCount++;
+            debugPrint('WebDAV 备份：资源读取失败，未上传 $resourcePath');
           }
         } on Object {
           errorCount++;
@@ -463,6 +466,8 @@ class WebDavSyncEngine {
 
           final bytes = await _readImageBytes(imagePath);
           if (bytes == null) {
+            errorCount++;
+            debugPrint('WebDAV 备份：正文图片读取失败，未上传 $imagePath');
             continue;
           }
 
@@ -511,9 +516,22 @@ class WebDavSyncEngine {
       return file.readAsBytes();
     }
 
+    // 服务端附件先查本地离线副本（数据维护里缓存过、或上次恢复落地过）。
+    // 没登录服务器 / 服务器不可达时，这是把图带进备份的唯一来源；漏掉这一步
+    // 会导致备份静默丢图，换设备恢复后图片全裂。
+    if (isRemoteAttachmentPath(imagePath)) {
+      final cached = await _readCachedAttachment(imagePath);
+      if (cached != null) {
+        return cached;
+      }
+    }
+
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      final response = await _downloadImage(imagePath);
-      return response;
+      // 指向本服务器的绝对 URL 是私有附件，必须带 token，否则 401。
+      return _downloadImage(
+        imagePath,
+        authorized: isServerBackedImagePath(imagePath),
+      );
     }
 
     if (_isMemosResourcePath(imagePath)) {
@@ -525,6 +543,19 @@ class WebDavSyncEngine {
     }
 
     return null;
+  }
+
+  Future<List<int>?> _readCachedAttachment(String remotePath) async {
+    await AttachmentCache.instance.prepare();
+    final cached = AttachmentCache.instance.fileFor(remotePath);
+    if (cached == null) {
+      return null;
+    }
+    try {
+      return await cached.readAsBytes();
+    } on Object {
+      return null;
+    }
   }
 
   Future<List<int>?> _downloadImage(
@@ -788,6 +819,22 @@ class WebDavSyncEngine {
     return 'webdav_${base}_${digest}_$index.$ext';
   }
 
+  /// 笔记是否引用了需要服务器才能取到的附件。
+  bool _hasServerBackedImageRef(Note note) {
+    for (final ref in extractImageRefs(note.content)) {
+      if (isServerBackedImagePath(ref)) {
+        return true;
+      }
+    }
+    for (final resource in note.resourceList) {
+      final link = resource['externalLink']?.toString() ?? '';
+      if (isServerBackedImagePath(link)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   Note _rewriteNoteImagePaths(Note note, Map<String, String> restoredPathMap) {
     // 服务端图片 / 外链图永远不改成 file://：正文要和服务器一致，否则下一次
     // 同步会把本地路径推回服务端，其它设备全变裂图。判断集中在
@@ -911,6 +958,12 @@ class WebDavSyncEngine {
               .map((note) => _rewriteNoteImagePaths(note, restoredPathMap))
               .toList();
         }
+      } else if (remoteNotes.any(_hasServerBackedImageRef)) {
+        // 备份里没有图片资源：旧备份、或备份时既没本地缓存也没登录服务器。
+        // 正文里的服务端路径在本机无副本，未登录时这些图必然裂。必须明说，
+        // 否则用户只会看到「恢复完成」和一堆裂图。
+        _syncMessage = '备份中不含图片资源，图片可能无法显示';
+        onProgress?.call(0.55, '备份中不含图片资源，图片可能无法显示');
       }
 
       // 3. 覆盖前保存本地应急备份，避免误操作造成不可恢复的数据损失。

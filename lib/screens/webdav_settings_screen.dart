@@ -648,7 +648,12 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
     if (result.resourcesSkipped > 0) {
       detail.write(' · 已存在 ${result.resourcesSkipped}');
     }
-    detail.write(' · 错误 ${result.errors}');
+    if (result.resourcesUnavailable > 0) {
+      detail.write(' · 未缓存 ${result.resourcesUnavailable}');
+    }
+    if (result.errors > 0) {
+      detail.write(' · 错误 ${result.errors}');
+    }
 
     return Container(
       width: double.infinity,
@@ -710,6 +715,19 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
                 fontSize: 12,
                 height: 1.4,
                 color: statusColor,
+              ),
+            ),
+          ],
+          if (result.resourcesUnavailable > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              '这 ${result.resourcesUnavailable} 张附件本机从来没有缓存过，也没有可取回'
+              '的服务器来源，本次只备份了笔记正文里的引用。登录服务器或联网后'
+              '重新备份即可补上。',
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.35,
+                color: isDarkMode ? Colors.white54 : Colors.black45,
               ),
             ),
           ],

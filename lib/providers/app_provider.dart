@@ -4464,6 +4464,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
           notes: stats.uploaded,
           resources: stats.resourceUploaded,
           resourcesSkipped: stats.resourceSkipped,
+          resourcesUnavailable: stats.resourcesUnavailable,
           errors: stats.errors,
           errorSamples: stats.errorSamples,
         ),

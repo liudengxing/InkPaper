@@ -10,6 +10,7 @@ class WebDavTransferResult {
     this.notes = 0,
     this.resources = 0,
     this.resourcesSkipped = 0,
+    this.resourcesUnavailable = 0,
     this.errors = 0,
     this.errorSamples = const [],
     this.message = '',
@@ -26,6 +27,8 @@ class WebDavTransferResult {
       notes: (json['notes'] as num?)?.toInt() ?? 0,
       resources: (json['resources'] as num?)?.toInt() ?? 0,
       resourcesSkipped: (json['resourcesSkipped'] as num?)?.toInt() ?? 0,
+      resourcesUnavailable:
+          (json['resourcesUnavailable'] as num?)?.toInt() ?? 0,
       errors: (json['errors'] as num?)?.toInt() ?? 0,
       errorSamples: (json['errorSamples'] as List?)
               ?.map((item) => item.toString())
@@ -53,6 +56,11 @@ class WebDavTransferResult {
   /// 远端已存在、本次跳过的图片数（增量生效的直接体现）。
   final int resourcesSkipped;
 
+  /// 本地没有副本、又没有可用服务器来源，本次没能备份的附件数。
+  ///
+  /// 与 [errors] 分开：这是「本来就没缓存过」，不是备份失败。
+  final int resourcesUnavailable;
+
   /// 错误数；大于 0 时说明有部分内容没处理成功。
   final int errors;
 
@@ -69,6 +77,7 @@ class WebDavTransferResult {
         'notes': notes,
         'resources': resources,
         'resourcesSkipped': resourcesSkipped,
+        'resourcesUnavailable': resourcesUnavailable,
         'errors': errors,
         'errorSamples': errorSamples,
         'message': message,

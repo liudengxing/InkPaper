@@ -28,6 +28,7 @@ class SyncStats {
     this.uploaded = 0,
     this.resourceUploaded = 0,
     this.resourceSkipped = 0,
+    this.resourcesUnavailable = 0,
     this.downloaded = 0,
     this.deleted = 0,
     this.conflicts = 0,
@@ -37,6 +38,12 @@ class SyncStats {
   final int uploaded; // 上传数量
   final int resourceUploaded; // 图片等资源上传数量
   final int resourceSkipped; // 远端已存在、本次跳过的资源数量
+
+  /// 本地没有副本、也没有可用的服务器来源，本次无法备份的附件数。
+  ///
+  /// 与 [errors] 区分：这是「本来就没下载过、服务器又没配置/不可达」，
+  /// 不是上传失败。把它们混进错误数会让每次备份都显示「部分完成 + 错误 46」。
+  final int resourcesUnavailable;
   final int downloaded; // 下载数量
   final int deleted; // 删除数量
   final int conflicts; // 冲突数量
@@ -49,6 +56,7 @@ class SyncStats {
     int? uploaded,
     int? resourceUploaded,
     int? resourceSkipped,
+    int? resourcesUnavailable,
     int? downloaded,
     int? deleted,
     int? conflicts,
@@ -59,6 +67,8 @@ class SyncStats {
         uploaded: uploaded ?? this.uploaded,
         resourceUploaded: resourceUploaded ?? this.resourceUploaded,
         resourceSkipped: resourceSkipped ?? this.resourceSkipped,
+        resourcesUnavailable:
+            resourcesUnavailable ?? this.resourcesUnavailable,
         downloaded: downloaded ?? this.downloaded,
         deleted: deleted ?? this.deleted,
         conflicts: conflicts ?? this.conflicts,
@@ -407,6 +417,7 @@ class WebDavSyncEngine {
 
     var resourceCount = 0;
     var skippedCount = 0;
+    var unavailableCount = 0;
     var errorCount = 0;
     final errorSamples = <String>[];
     void recordError(String message) {
@@ -415,6 +426,19 @@ class WebDavSyncEngine {
         errorSamples.add(message);
       }
       debugPrint('WebDAV 备份：$message');
+    }
+
+    // 附件本身拿不到（本机没缓存 + 没有可用的服务器来源）：不是备份失败，
+    // 单独计数。否则每次备份都显示「部分完成 + 错误 46」，看起来像坏库。
+    void recordUnavailable(String path, {required bool fromServer}) {
+      unavailableCount++;
+      if (unavailableCount <= 3) {
+        debugPrint(
+          fromServer
+              ? 'WebDAV 备份：本地无副本且服务器取回失败，跳过 $path'
+              : 'WebDAV 备份：本地无副本且未配置服务器，跳过 $path',
+        );
+      }
     }
 
     final manifest = <String, _WebDavResourceRecord>{};
@@ -442,10 +466,10 @@ class WebDavSyncEngine {
             continue;
           }
 
+          final canFetchFromServer = _memosResourceUrl(resourcePath) != null;
           final bytes = await _readImageBytes(resourcePath);
           if (bytes == null) {
-            // 不静默跳过：这里丢一张，备份里就少一张，换设备恢复必然裂图。
-            recordError('资源读取失败 $resourcePath');
+            recordUnavailable(resourcePath, fromServer: canFetchFromServer);
             continue;
           }
 
@@ -481,9 +505,12 @@ class WebDavSyncEngine {
     for (final note in notes) {
       for (final imagePath in _extractMarkdownImagePaths(note.content)) {
         try {
+          final canFetchFromServer =
+              imagePath.startsWith('http') ||
+              _memosResourceUrl(imagePath) != null;
           final bytes = await _readImageBytes(imagePath);
           if (bytes == null) {
-            recordError('正文图片读取失败 $imagePath');
+            recordUnavailable(imagePath, fromServer: canFetchFromServer);
             continue;
           }
 
@@ -521,6 +548,7 @@ class WebDavSyncEngine {
     _stats = _stats.copyWith(
       resourceUploaded: _stats.resourceUploaded + resourceCount,
       resourceSkipped: _stats.resourceSkipped + skippedCount,
+      resourcesUnavailable: _stats.resourcesUnavailable + unavailableCount,
       errors: _stats.errors + errorCount,
       errorSamples: [..._stats.errorSamples, ...errorSamples],
     );

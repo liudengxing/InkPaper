@@ -1390,20 +1390,26 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   /// Memos 与 WebDAV 双通道并存时，同一条笔记会拿到两个 id 各存一行，
   /// 这里给出「保留哪些、删掉哪些」，不写库。
   Future<({DedupeResult result, int groupCount})>
-      previewDuplicateNotes() async {
+      previewDuplicateNotes({bool matchContentOnly = false}) async {
     final notes = _excludePendingDeletedNotes(await _databaseService.getNotes());
     final groupCount = groupNotesByContentHash(notes)
         .values
         .where((group) => group.length > 1)
         .length;
-    return (result: dedupeDuplicateNotes(notes), groupCount: groupCount);
+    return (
+      result: dedupeDuplicateNotes(notes, matchContentOnly: matchContentOnly),
+      groupCount: groupCount,
+    );
   }
 
   /// 合并库内重复笔记：保留创建时间最早的一条，元数据取并集，其余物理删除。
   ///
+  /// [matchContentOnly] 为 true 时忽略创建时间差，只按正文逐字相同判定。
   /// 返回实际删除的条数。
-  Future<int> mergeDuplicateNotes() async {
-    final result = (await previewDuplicateNotes()).result;
+  Future<int> mergeDuplicateNotes({bool matchContentOnly = false}) async {
+    final result =
+        (await previewDuplicateNotes(matchContentOnly: matchContentOnly))
+            .result;
     if (result.removedIds.isEmpty) {
       return 0;
     }

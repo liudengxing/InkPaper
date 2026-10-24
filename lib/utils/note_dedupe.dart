@@ -69,11 +69,16 @@ class DedupeResult {
 /// 只按 id 合并永远碰不到一起。
 ///
 /// 保留哪条：创建时间最早的那条（通常是最初写入的原始记录），元数据取并集。
-/// 只合并「内容完全一致且创建时间相差 ≤ 5 分钟」的组合，用户在两个时间点写的
+/// 默认只合并「内容完全一致且创建时间相差 ≤ 5 分钟」的组合，用户在两个时间点写的
 /// 相同正文不会被误删。
+///
+/// [matchContentOnly] 为 true 时忽略创建时间差，只按正文逐字相同判定。
+/// 用于清理「同一篇笔记被导入/恢复过两次」的残留：那种情况下两份的
+/// createdAt 可能隔着好几天（服务端重建时套用了自己的时间）。
 DedupeResult dedupeDuplicateNotes(
   List<Note> notes, {
   Duration tolerance = const Duration(minutes: 5),
+  bool matchContentOnly = false,
 }) {
   final removedIds = <String>[];
   final updatedNotes = <Note>[];
@@ -98,10 +103,10 @@ DedupeResult dedupeDuplicateNotes(
       Note? mergedInto;
       var mergedIndex = -1;
       for (var i = 0; i < survivors.length; i++) {
-        if (note.createdAt
-                .difference(survivors[i].createdAt)
-                .abs() <=
-            tolerance) {
+        final withinWindow = matchContentOnly ||
+            note.createdAt.difference(survivors[i].createdAt).abs() <=
+                tolerance;
+        if (withinWindow) {
           mergedInto = survivors[i];
           mergedIndex = i;
           break;

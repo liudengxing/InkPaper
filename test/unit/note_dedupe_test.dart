@@ -262,6 +262,31 @@ void main() {
       expect(result.removedIds, hasLength(2));
     });
 
+    test('matchContentOnly：跨天也要合并，保留最早那条', () {
+      final t = DateTime(2026, 10, 1, 19, 31);
+      final result = dedupeDuplicateNotes(
+        [
+          at('later', '梦境档案', t.add(const Duration(days: 19))),
+          at('earlier', '梦境档案', t),
+        ],
+        matchContentOnly: true,
+      );
+
+      expect(result.notes.single.id, 'earlier');
+      expect(result.removedIds, ['later']);
+    });
+
+    test('matchContentOnly 默认关闭：跨天同内容仍保留两条', () {
+      final t = DateTime(2026, 10, 1, 19, 31);
+      final result = dedupeDuplicateNotes([
+        at('a', '梦境档案', t),
+        at('b', '梦境档案', t.add(const Duration(days: 19))),
+      ]);
+
+      expect(result.notes, hasLength(2));
+      expect(result.removedIds, isEmpty);
+    });
+
     test('真实双通道形态：同一篇被写成两对副本 → 合并成两条', () {
       // 对应真机数据：10-04 一对、10-10 一对，每对 createdAt 精确相同。
       final d1 = DateTime(2026, 10, 4, 23, 36, 9);

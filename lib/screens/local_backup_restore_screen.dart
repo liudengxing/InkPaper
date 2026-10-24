@@ -77,6 +77,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
   // 重复笔记检测（数据维护页）
   bool _isScanningDuplicates = false;
   bool _hasScannedDuplicates = false;
+  bool _matchContentOnly = false;
   int _duplicateRemovable = 0;
   int _duplicateGroupCount = 0;
 
@@ -226,7 +227,9 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       _isScanningDuplicates = true;
     });
     try {
-      final preview = await provider.previewDuplicateNotes();
+      final preview = await provider.previewDuplicateNotes(
+        matchContentOnly: _matchContentOnly,
+      );
       if (!mounted) {
         return;
       }
@@ -277,7 +280,9 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
 
     final provider = Provider.of<AppProvider>(context, listen: false);
     try {
-      final removed = await provider.mergeDuplicateNotes();
+      final removed = await provider.mergeDuplicateNotes(
+        matchContentOnly: _matchContentOnly,
+      );
       if (!mounted) {
         return;
       }
@@ -321,6 +326,31 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
                   fontSize: 14,
                   color: Colors.grey[600],
                   height: 1.5,
+                ),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                value: _matchContentOnly,
+                onChanged: _isScanningDuplicates
+                    ? null
+                    : (value) {
+                        // 规则变了，必须重新检测，不能拿旧结果去合并
+                        setState(() {
+                          _matchContentOnly = value;
+                          _hasScannedDuplicates = false;
+                          _duplicateRemovable = 0;
+                          _duplicateGroupCount = 0;
+                        });
+                      },
+                title: const Text(
+                  '忽略创建时间差',
+                  style: TextStyle(fontSize: 14),
+                ),
+                subtitle: Text(
+                  '只按正文逐字相同判定。用于清理「同一篇被导入两次」的残留 —— '
+                  '这类副本的创建时间可能相隔好几天，默认规则会放过它们。',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ),
               if (_hasScannedDuplicates) ...[

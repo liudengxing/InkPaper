@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -136,12 +137,13 @@ class AttachmentMaintenanceService {
         alreadyLocal++;
         continue;
       }
-      if (await _download(remote, target)) {
+      final error = await _download(remote, target);
+      if (error == null) {
         mapping[remote] = localPath;
         downloaded++;
       } else {
-        failed.add(remote);
-        debugPrint('附件下载失败: $remote -> ${_fullUrl(remote)}');
+        failed.add('$remote（$error）');
+        debugPrint('附件下载失败: $remote -> ${_fullUrl(remote)} [$error]');
       }
     }
 
@@ -172,7 +174,8 @@ class AttachmentMaintenanceService {
     );
   }
 
-  Future<bool> _download(String remotePath, File target) async {
+  /// 返回 null 表示成功，否则返回失败原因（HTTP 状态码 / 超时 / 网络异常）。
+  Future<String?> _download(String remotePath, File target) async {
     try {
       final response = await _client
           .get(
@@ -182,17 +185,22 @@ class AttachmentMaintenanceService {
                 : const <String, String>{},
           )
           .timeout(const Duration(seconds: 20));
-      if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+      if (response.statusCode != 200) {
         debugPrint(
           '附件下载失败(${response.statusCode}): ${_fullUrl(remotePath)}',
         );
-        return false;
+        return 'HTTP ${response.statusCode}';
+      }
+      if (response.bodyBytes.isEmpty) {
+        return '空响应';
       }
       await target.writeAsBytes(response.bodyBytes, flush: true);
-      return true;
+      return null;
+    } on TimeoutException {
+      return '请求超时';
     } on Object catch (e) {
       debugPrint('附件下载异常: ${_fullUrl(remotePath)} - $e');
-      return false;
+      return '网络异常';
     }
   }
 

@@ -130,23 +130,22 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       if (!mounted) {
         return;
       }
-      var lastBackupStr =
-          AppLocalizationsSimple.of(context)?.neverBackedUp ?? '从未备份';
+      final l10n = AppLocalizationsSimple.of(context);
+      var lastBackupStr = l10n?.neverBackedUp ?? '从未备份';
       if (lastBackup != null) {
         final now = DateTime.now();
         final diff = now.difference(lastBackup);
 
+        // minutesAgo / hoursAgo / daysAgo 是带参数的方法，
+        // 直接拼进字符串会打印成 "Closure: (int) => String"
         if (diff.inMinutes < 1) {
-          lastBackupStr = AppLocalizationsSimple.of(context)?.justNow ?? '刚刚';
+          lastBackupStr = l10n?.justNow ?? '刚刚';
         } else if (diff.inMinutes < 60) {
-          lastBackupStr =
-              '${diff.inMinutes}${AppLocalizationsSimple.of(context)?.minutesAgo ?? '分钟前'}';
+          lastBackupStr = l10n?.minutesAgo(diff.inMinutes) ?? '${diff.inMinutes} 分钟前';
         } else if (diff.inHours < 24) {
-          lastBackupStr =
-              '${diff.inHours}${AppLocalizationsSimple.of(context)?.hoursAgo ?? '小时前'}';
+          lastBackupStr = l10n?.hoursAgo(diff.inHours) ?? '${diff.inHours} 小时前';
         } else if (diff.inDays < 30) {
-          lastBackupStr =
-              '${diff.inDays}${AppLocalizationsSimple.of(context)?.daysAgo ?? '天前'}';
+          lastBackupStr = l10n?.daysAgo(diff.inDays) ?? '${diff.inDays} 天前';
         } else {
           final formatter = DateFormat('yyyy-MM-dd HH:mm');
           lastBackupStr = formatter.format(lastBackup);
@@ -543,13 +542,35 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
                       style: TextStyle(fontSize: 13, color: color.shade800),
                     ),
                     if (report.hasFailure) ...[
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       Text(
-                        '失败的附件多半已在服务端缺失，合并重复笔记时请优先保留有图的那条。',
+                        '失败原因（前 3 条）：',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey[600],
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.w500,
                         ),
+                      ),
+                      const SizedBox(height: 4),
+                      ...report.failed.take(3).map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 2),
+                              child: Text(
+                                item,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[600],
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '401 = 登录态失效，404 = 服务端已无此文件，超时 = 网络不通。',
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                       ),
                     ],
                   ],

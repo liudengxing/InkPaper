@@ -306,6 +306,25 @@ void main() {
       expect(result.removedIds, ['later']);
     });
 
+    test('合并副本时时间线沿用保留条，不被副本时间推后', () {
+      // 真机数据形态：原始记录 09-09，服务端 10-20 重建了一份同内容副本
+      final original = DateTime(2026, 9, 9, 21, 49, 15);
+      final recreated = DateTime(2026, 10, 20, 7, 53, 59);
+      final result = dedupeDuplicateNotes(
+        [
+          at('recreated', '今天看完了蜘蛛侠英雄远征', recreated),
+          at('original', '今天看完了蜘蛛侠英雄远征', original),
+        ],
+        matchContentOnly: true,
+      );
+
+      final merged = result.notes.single;
+      expect(merged.id, 'original');
+      expect(merged.createdAt, original);
+      expect(merged.updatedAt, original, reason: '卡片显示 updatedAt，不能被副本推后');
+      expect(merged.displayTime, original);
+    });
+
     test('matchContentOnly 默认关闭：跨天同内容仍保留两条', () {
       final t = DateTime(2026, 10, 1, 19, 31);
       final result = dedupeDuplicateNotes([

@@ -59,6 +59,26 @@ Note? findContentDuplicate({
   return null;
 }
 
+/// 合并重复笔记的结果。
+class DuplicateMergeReport {
+  const DuplicateMergeReport({
+    required this.removed,
+    this.remoteDeleted = 0,
+    this.remoteFailed = 0,
+  });
+
+  /// 本地删除的副本条数。
+  final int removed;
+
+  /// 服务端同时删除的副本条数。
+  final int remoteDeleted;
+
+  /// 服务端删除失败的条数（失败的下次同步会再冒出来）。
+  final int remoteFailed;
+
+  bool get hasRemoteFailure => remoteFailed > 0;
+}
+
 /// 库内自去重的结果：保留的笔记 + 需要删除的副本 id + 被合并改动过的保留条。
 class DedupeResult {
   const DedupeResult({
@@ -140,9 +160,10 @@ DedupeResult dedupeDuplicateNotes(
             ? mergedInto.relations
             : note.relations,
         tags: {...mergedInto.tags, ...note.tags}.toList(),
-        updatedAt: note.updatedAt.isAfter(mergedInto.updatedAt)
-            ? note.updatedAt
-            : mergedInto.updatedAt,
+        // 时间线必须沿用保留条，不能取两者的 max：副本经常是「服务端重新
+        // 创建出来的同内容记录」，它的 createdAt/updatedAt 是重建那一刻
+        // 的时间。一旦把副本的 updatedAt 提上来，卡片（显示 updatedAt）就会
+        // 显示重建时间——用户看到的就是「一堆笔记的时间都变成同一分钟」。
         isSynced: mergedInto.isSynced && note.isSynced,
       );
       survivors[mergedIndex] = merged;

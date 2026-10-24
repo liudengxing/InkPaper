@@ -1405,24 +1405,117 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   /// 合并库内重复笔记：保留创建时间最早的一条，元数据取并集，其余物理删除。
   ///
   /// [matchContentOnly] 为 true 时忽略创建时间差，只按正文逐字相同判定。
-  /// 返回实际删除的条数。
-  Future<int> mergeDuplicateNotes({bool matchContentOnly = false}) async {
+  ///
+  /// 在线模式下会连服务端的那几条副本一起删掉：只删本地的话，下一轮拉取
+  /// 会把副本原样还回来，用户看到的就是「清完又冒出来、时间还是副本的」。
+  Future<DuplicateMergeReport> mergeDuplicateNotes({
+    bool matchContentOnly = false,
+  }) async {
+    final notes =
+        _excludePendingDeletedNotes(await _databaseService.getNotes());
     final result =
-        (await previewDuplicateNotes(matchContentOnly: matchContentOnly))
-            .result;
+        dedupeDuplicateNotes(notes, matchContentOnly: matchContentOnly);
     if (result.removedIds.isEmpty) {
-      return 0;
+      return const DuplicateMergeReport(removed: 0);
     }
+
+    final notesById = {for (final note in notes) note.id: note};
+
+    // 先把合并后的保留条落库，后面改绑 remoteId 时不会把它覆盖回去
     for (final note in result.updatedNotes) {
       await _databaseService.saveNote(note);
     }
+
+    // 服务端 uid 快照：既要知道哪些副本能删，也要知道保留条绑的 uid 是否还活着。
+    // 拿不到完整快照就不碰远端，避免把另一台设备还在用的记录删掉。
+    Set<String>? liveRemoteIds;
+    if (!_appConfig.isLocalMode && isLoggedIn && _memosApiService != null) {
+      try {
+        final response = await _memosApiService!.getMemos();
+        if (response['isComplete'] as bool? ?? true) {
+          liveRemoteIds = (response['memos'] as List<dynamic>)
+              .map((memo) => Note.fromJson(memo as Map<String, dynamic>).id)
+              .where((uid) => uid.isNotEmpty)
+              .toSet();
+        }
+      } on Object catch (e) {
+        debugPrint('AppProvider: 合并重复时获取服务端快照失败: $e');
+      }
+    }
+
+    final byHash = groupNotesByContentHash(notes);
+    final keepUids = <String>{};
+
+    for (final survivor in result.notes) {
+      final group = byHash[noteContentHash(survivor)] ?? const <Note>[];
+      if (group.length < 2) {
+        final remoteId = survivor.remoteId;
+        if (remoteId != null && remoteId.isNotEmpty) {
+          keepUids.add(remoteId);
+        }
+        continue;
+      }
+
+      final ownRemoteId = survivor.remoteId;
+      final ownRemoteAlive = ownRemoteId != null &&
+          ownRemoteId.isNotEmpty &&
+          (liveRemoteIds == null || liveRemoteIds.contains(ownRemoteId));
+      if (ownRemoteAlive) {
+        keepUids.add(ownRemoteId);
+        continue;
+      }
+
+      // 保留条自己的服务端记录已经不存在（被删/重建过）：改绑到同组里仍然
+      // 活着的那条 uid，否则这条笔记以后编辑也同步不回服务端。
+      Note? adoptable;
+      for (final candidate in group) {
+        final remote = candidate.remoteId;
+        if (candidate.id == survivor.id ||
+            remote == null ||
+            remote.isEmpty ||
+            (liveRemoteIds != null && !liveRemoteIds.contains(remote))) {
+          continue;
+        }
+        adoptable = candidate;
+        break;
+      }
+      if (adoptable != null) {
+        keepUids.add(adoptable.remoteId!);
+        await _databaseService.saveNote(
+          survivor.copyWith(remoteId: adoptable.remoteId, isSynced: true),
+        );
+      }
+    }
+
+    var remoteDeleted = 0;
+    var remoteFailed = 0;
     for (final id in result.removedIds) {
+      final remoteId = notesById[id]?.remoteId;
+      final deletable = liveRemoteIds != null &&
+          remoteId != null &&
+          remoteId.isNotEmpty &&
+          !keepUids.contains(remoteId) &&
+          liveRemoteIds.contains(remoteId);
+      if (deletable) {
+        try {
+          await _memosApiService!.deleteMemo(remoteId);
+          remoteDeleted++;
+        } on Object catch (e) {
+          remoteFailed++;
+          debugPrint('AppProvider: 删除服务端重复副本失败 $remoteId: $e');
+        }
+      }
       await _databaseService.deleteNote(id);
     }
+
     await loadNotesFromLocal();
     notifyListeners();
     _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
-    return result.removedIds.length;
+    return DuplicateMergeReport(
+      removed: result.removedIds.length,
+      remoteDeleted: remoteDeleted,
+      remoteFailed: remoteFailed,
+    );
   }
 
   // 检测本地是否有数据

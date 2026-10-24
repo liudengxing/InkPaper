@@ -440,7 +440,8 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         title: const Text('合并重复笔记'),
         content: Text(
           '将删除 $_duplicateRemovable 条重复副本，每组保留创建时间最早的那条，'
-          '标签 / 置顶 / 批注 / 引用取并集。\n\n'
+          '标签 / 置顶 / 批注 / 引用取并集，时间沿用保留条。\n\n'
+          '已登录时会同时删除服务端的副本，否则下次同步会把它们还回来。\n\n'
           '这个操作不可撤销，建议先导出一份备份。',
         ),
         actions: [
@@ -461,7 +462,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
 
     final provider = Provider.of<AppProvider>(context, listen: false);
     try {
-      final removed = await provider.mergeDuplicateNotes(
+      final report = await provider.mergeDuplicateNotes(
         matchContentOnly: _matchContentOnly,
       );
       if (!mounted) {
@@ -473,8 +474,23 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         _hasScannedDuplicates = true;
       });
       await _loadBackupInfo();
-      if (mounted) {
-        SnackBarUtils.showSuccess(context, '已合并 $removed 条重复笔记');
+      if (!mounted) {
+        return;
+      }
+      final remotePart = report.remoteDeleted > 0
+          ? '，服务端删除 ${report.remoteDeleted} 条'
+          : '';
+      if (report.hasRemoteFailure) {
+        SnackBarUtils.showError(
+          context,
+          '已合并 ${report.removed} 条$remotePart，'
+          '${report.remoteFailed} 条服务端副本删除失败（下次同步会再出现）',
+        );
+      } else {
+        SnackBarUtils.showSuccess(
+          context,
+          '已合并 ${report.removed} 条重复笔记$remotePart',
+        );
       }
     } on Object catch (e) {
       if (mounted) {

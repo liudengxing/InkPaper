@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:inkpaper/models/webdav_config.dart';
@@ -19,9 +20,15 @@ class WebDavException implements Exception {
   @override
   String toString() {
     final details = _describeCause(cause);
-    return 'WebDAV $action失败（$path）${details.isEmpty ? '' : '：$details'}';
+    // 只留文件名：完整路径会把提示撑爆，手机上一行都显示不完。
+    final name = path.split('/').last;
+    return '$action $name 失败${details.isEmpty ? '' : '：$details'}';
   }
 }
+
+/// 是否是 gzip 内容（魔数 `1f 8b`）。用于兼容旧版明文备份。
+bool isGzipPayload(List<int> bytes) =>
+    bytes.length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b;
 
 String _describeCause(Object cause) {
   final parts = <String>[];
@@ -38,7 +45,7 @@ String _describeCause(Object cause) {
     // ignore: avoid_dynamic_calls
     final inner = e.error?.toString();
     if (type != null && type.isNotEmpty) {
-      parts.add('类型=$type');
+      parts.add(type.replaceFirst('DioExceptionType.', ''));
     }
     if (status != null) {
       parts.add('HTTP $status');
@@ -82,10 +89,11 @@ class WebDavService {
       password: config.password,
     );
 
-    // 设置超时：上传大图/大备份文件时 30 秒容易踩线，放宽发送与接收
+    // 设置超时：移动网络上行常见只有几 KB/s，几百 KB 的备份要传几分钟，
+    // 30/60 秒会稳定触发 sendTimeout。连接超时保持 30 秒（无响应就该报错）。
     _client!.setConnectTimeout(30000);
-    _client!.setSendTimeout(60000);
-    _client!.setReceiveTimeout(60000);
+    _client!.setSendTimeout(300000);
+    _client!.setReceiveTimeout(300000);
   }
 
   /// 测试连接
@@ -217,13 +225,17 @@ class WebDavService {
   }
 
   /// 上传文件（文本）
+  ///
+  /// 内容先 gzip 再上传：笔记备份动辄几百 KB，移动网络上行只有几 KB/s 时
+  /// 明文上传会直接撞发送超时。下载侧按文件头自动识别是否压缩，旧备份
+  /// （明文 JSON）仍然可以正常读取。
   Future<void> uploadFile(String remotePath, String content) async {
     try {
       if (_client == null) {
         throw Exception('客户端未初始化');
       }
 
-      final bytes = utf8.encode(content);
+      final bytes = Uint8List.fromList(gzip.encode(utf8.encode(content)));
 
       // 自动创建所有必需的父目录
       final parentDir = remotePath.substring(0, remotePath.lastIndexOf('/'));
@@ -258,7 +270,7 @@ class WebDavService {
     }
   }
 
-  /// 下载文件（文本）
+  /// 下载文件（文本），自动识别 gzip 压缩内容
   Future<String> downloadFile(String remotePath) async {
     try {
       if (_client == null) {
@@ -266,9 +278,9 @@ class WebDavService {
       }
 
       final bytes = await _client!.read(remotePath);
-      final content = utf8.decode(bytes);
+      final raw = isGzipPayload(bytes) ? gzip.decode(bytes) : bytes;
 
-      return content;
+      return utf8.decode(raw);
     } on Object catch (e) {
       throw WebDavException('下载', remotePath, e);
     }

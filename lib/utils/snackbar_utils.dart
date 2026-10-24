@@ -25,6 +25,7 @@ class SnackBarUtils {
     String message, {
     VoidCallback? onRetry,
     Duration duration = const Duration(milliseconds: 1500),
+    int maxLines = 2,
   }) {
     if (onRetry != null) {
       _showErrorWithRetry(context, message, onRetry);
@@ -35,6 +36,7 @@ class SnackBarUtils {
         backgroundColor: Colors.red.shade600,
         icon: Icons.close,
         duration: duration,
+        maxLines: maxLines,
       );
     }
   }
@@ -218,6 +220,7 @@ class SnackBarUtils {
     required Color backgroundColor,
     required IconData icon,
     Duration duration = const Duration(milliseconds: 1500),
+    int maxLines = 2,
   }) {
     final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
     messenger.showSnackBar(
@@ -238,7 +241,7 @@ class SnackBarUtils {
                   fontWeight: FontWeight.w500,
                   height: 1.35,
                 ),
-                maxLines: 2,
+                maxLines: maxLines,
                 overflow: TextOverflow.ellipsis,
               ),
             ),

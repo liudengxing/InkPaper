@@ -133,11 +133,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     context.go('/');
   }
 
-  void _showRegisterDialog() {
-    _markOnboardingComplete();
-    context.go('/register');
-  }
-
   void _showResetPasswordDialog() {
     _showDevelopmentDialog(
       AppLocalizationsSimple.of(context)?.forgotPassword ?? '找回密码',
@@ -549,16 +544,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   isDarkMode: isDarkMode,
                 ),
               ),
-              SizedBox(width: ResponsiveUtils.responsiveSpacing(context, 12)),
-              Expanded(
-                child: _buildModernSecondaryButton(
-                  icon: Icons.person_add_rounded,
-                  label:
-                      AppLocalizationsSimple.of(context)?.registerNow ?? '立即注册',
-                  onPressed: _showRegisterDialog,
-                  isDarkMode: isDarkMode,
-                ),
-              ),
             ],
           ),
         ],
@@ -823,25 +808,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   label: Text(
                     AppLocalizationsSimple.of(context)?.connectServer ??
                         '接入服务器',
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  style: TextButton.styleFrom(
-                    foregroundColor:
-                        isDarkMode ? Colors.white70 : Colors.black54,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: ResponsiveUtils.responsiveSpacing(context, 16)),
-              Flexible(
-                child: TextButton.icon(
-                  onPressed: _showRegisterDialog,
-                  icon: const Icon(Icons.person_add_rounded, size: 18),
-                  label: Text(
-                    AppLocalizationsSimple.of(context)?.registerNow ?? '立即注册',
                     overflow: TextOverflow.ellipsis,
                   ),
                   style: TextButton.styleFrom(

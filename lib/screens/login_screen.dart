@@ -1436,46 +1436,6 @@ class _LoginScreenState extends State<LoginScreen>
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         child: Column(
           children: [
-            Text(
-              AppLocalizationsSimple.of(context)?.noAccount ?? '还没有账号？',
-              style: TextStyle(
-                fontSize: 14,
-                color: textSecondary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: primaryColor,
-                  width: 1.5,
-                ),
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => context.push('/register'),
-                  child: Container(
-                    alignment: Alignment.center,
-                    child: Text(
-                      AppLocalizationsSimple.of(context)?.registerNow ?? '立即注册',
-                      style: TextStyle(
-                        color: primaryColor,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 32),
 
             // 版本兼容性详细说明
             Container(
@@ -1683,18 +1643,6 @@ class _LoginScreenState extends State<LoginScreen>
                               '请填写你的 Memos 服务器完整地址，格式如：\nhttps://你的域名.com\n\n'
                               '如果服务器使用非标准端口，请一并写上，例如：\nhttps://你的域名.com:5230\n\n'
                               '不确定地址时，请联系你的服务器管理员获取。',
-                          isDarkMode: isDarkMode,
-                          textPrimary: textPrimary,
-                          textSecondary: textSecondary,
-                        ),
-                        const SizedBox(height: 16),
-                        _buildFAQItem(
-                          icon: Icons.person_add_outlined,
-                          iconColor: primaryColor,
-                          question: '还没有账号，怎么注册？',
-                          answer: '点击登录页面下方的「立即注册」按钮，填写用户名和密码即可完成注册。\n\n'
-                              '注意：用户名注册后不能更改，请提前想好。\n\n'
-                              '注册后即可使用该账号登录你的 Memos 服务器。',
                           isDarkMode: isDarkMode,
                           textPrimary: textPrimary,
                           textSecondary: textSecondary,

@@ -551,6 +551,14 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         await _preferencesService.saveAppConfig(_appConfig);
       }
 
+      // 修正历史数据里 updatedAt 早于 createdAt 的行（时区错位一天等）。
+      // 读路径已钳制，这里把库里的原始值一并写正，导出/排序才一致。
+      try {
+        await _databaseService.fixInvalidNoteTimestamps();
+      } on Object catch (e) {
+        debugPrint('AppProvider: 修正笔记时间戳失败: $e');
+      }
+
       // 🔄 本地数据优先加载 - 使用分页加载优化性能
       try {
         // 🚀 使用分页加载，只加载首页数据

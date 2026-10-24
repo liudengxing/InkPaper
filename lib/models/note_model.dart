@@ -9,7 +9,7 @@ class Note {
     required this.id,
     required this.content,
     required this.createdAt,
-    required this.updatedAt,
+    required DateTime updatedAt,
     DateTime? displayTime,
     List<String>? tags,
     String? creator,
@@ -24,7 +24,8 @@ class Note {
     this.lastSyncTime,
     this.deletedAt,
     this.remoteId,
-  })  : displayTime = displayTime ?? updatedAt,
+  })  : updatedAt = _clampUpdatedAt(createdAt, updatedAt),
+        displayTime = displayTime ?? _clampUpdatedAt(createdAt, updatedAt),
         tags = tags ?? [],
         creator = creator ?? 'local',
         resourceList = resourceList ?? [],
@@ -216,6 +217,15 @@ class Note {
   /// WebDAV 备份时，[id] 不会因为服务端重新签发 uid 而变化，合并匹配才稳定。
   /// 未同步到服务端的本地笔记为 null。
   final String? remoteId;
+
+  /// 把 `updatedAt` 钳到不早于 `createdAt`。
+  ///
+  /// 服务端与导入的备份偶尔会带出「更新于创建之前」的时间戳（典型是时区
+  /// 错位整整一天，如 createdAt=2026-08-21T21:08:43、updatedAt=2026-08-20T21:08:00）。
+  /// 时间线不允许倒流：卡片按 updatedAt 排序/展示时会跳到列表错误的位置，
+  /// 这里统一钳到创建时间，读到坏数据也不会再显示成负数时差。
+  static DateTime _clampUpdatedAt(DateTime createdAt, DateTime updatedAt) =>
+      updatedAt.isBefore(createdAt) ? createdAt : updatedAt;
 
   static DateTime _parseCreatedAt(Map<String, dynamic> json) {
     final parsed = _parseTimestamp(

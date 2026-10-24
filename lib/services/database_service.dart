@@ -364,6 +364,37 @@ class DatabaseService {
     );
   }
 
+  /// 修正历史数据里「updatedAt 早于 createdAt」的行（时区错位一天等）。
+  ///
+  /// 读路径已经在 [Note] 构造函数里做过钳制，这里把库里的原始值也写正，
+  /// 否则导出的备份、SQL 侧排序仍会带着错误时间。返回修正条数。
+  Future<int> fixInvalidNoteTimestamps() async {
+    final db = await database;
+    final rows = await db.query(
+      'notes',
+      columns: ['id', 'createdAt', 'updatedAt'],
+    );
+    var fixed = 0;
+    for (final row in rows) {
+      final created = DateTime.tryParse(row['createdAt']?.toString() ?? '');
+      final updated = DateTime.tryParse(row['updatedAt']?.toString() ?? '');
+      if (created == null || updated == null || !updated.isBefore(created)) {
+        continue;
+      }
+      await db.update(
+        'notes',
+        {'updatedAt': created.toIso8601String()},
+        where: 'id = ?',
+        whereArgs: [row['id']],
+      );
+      fixed++;
+    }
+    if (fixed > 0) {
+      debugPrint('DatabaseService: 修正 $fixed 条笔记的 updatedAt（早于 createdAt）');
+    }
+    return fixed;
+  }
+
   // 物理删除笔记（彻底删除，不可恢复）
   Future<void> deleteNote(String id) async {
     final db = await database;
@@ -727,10 +758,15 @@ class DatabaseService {
   }
 
   /// 原子替换全部笔记。用于恢复备份，避免先清空后逐条写入导致半恢复状态。
+  ///
+  /// 同时清空 `pending_note_operations`：待补交的删除/上传都是针对「恢复前」
+  /// 那批笔记的，恢复后旧的操作会对不上新数据 —— 若是删除补交，还会把备份里
+  /// 仍然存在的服务端 memo 删掉。
   Future<void> replaceAllNotes(List<Note> notes) async {
     final db = await database;
     await db.transaction((txn) async {
       await txn.delete('reminder_notifications');
+      await txn.delete(tablePendingOperations);
       await txn.delete('notes');
       for (final note in notes) {
         await txn.insert('notes', note.toMap());

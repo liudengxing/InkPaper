@@ -487,4 +487,48 @@ void main() {
       );
     });
   });
+
+  // ─────────────────────────────────────────────────────────
+  // updatedAt 早于 createdAt 时钳到创建时间
+  // ─────────────────────────────────────────────────────────
+  group('Note 时间线规整', () {
+    test('TC-29 构造时 updatedAt 早于 createdAt 会被钳到 createdAt', () {
+      final created = DateTime(2026, 8, 21, 21, 8, 43);
+      final note = Note(
+        id: '4Rvd2ViumVrPMosMgkPvrz',
+        content: '今日的运动是骑行',
+        createdAt: created,
+        updatedAt: DateTime(2026, 8, 20, 21, 8),
+      );
+
+      expect(note.updatedAt, created);
+      expect(note.displayTime, created);
+    });
+
+    test('TC-30 fromJson 读到倒流时间戳也钳到 createdAt', () {
+      final note = Note.fromJson({
+        'id': '4Rvd2ViumVrPMosMgkPvrz',
+        'content': '今日的运动是骑行',
+        'createdAt': '2026-08-21T21:08:43.820139',
+        'updatedAt': '2026-08-20T21:08:00.000',
+      });
+
+      expect(note.updatedAt.isBefore(note.createdAt), isFalse);
+      expect(note.displayTime.isBefore(note.createdAt), isFalse);
+    });
+
+    test('TC-31 正常时间线不受影响', () {
+      final created = DateTime(2026, 8, 21, 21, 8, 43);
+      final updated = DateTime(2026, 8, 22, 9);
+      final note = Note(
+        id: 'n1',
+        content: 'x',
+        createdAt: created,
+        updatedAt: updated,
+      );
+
+      expect(note.updatedAt, updated);
+      expect(note.displayTime, updated);
+    });
+  });
 }

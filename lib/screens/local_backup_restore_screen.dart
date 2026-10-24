@@ -1015,10 +1015,15 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.w500,
+          // 字号放大或时间文本偏长时，固定宽度会把整行撑破（RenderFlex overflow）
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],

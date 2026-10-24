@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/services/attachment_maintenance_service.dart';
 import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
@@ -80,6 +81,16 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
   bool _matchContentOnly = false;
   int _duplicateRemovable = 0;
   int _duplicateGroupCount = 0;
+
+  // 附件本地化
+  bool _isLocalizing = false;
+  double _localizeProgress = 0;
+  String? _localizeStatus;
+  AttachmentLocalizeReport? _localizeReport;
+
+  // 未引用附件清理
+  bool _isScanningOrphans = false;
+  OrphanAttachmentReport? _orphanReport;
 
   // 导入选项
   bool _overwriteExisting = false;
@@ -215,10 +226,185 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
   Widget _buildMaintenanceTab() => ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // 顺序按建议的操作顺序排：先把图片拉到本地，再合并重复，最后清孤儿
+          _buildLocalizeCard(),
+          const SizedBox(height: 16),
           _buildDuplicateCard(),
+          const SizedBox(height: 16),
+          _buildOrphanCard(),
           const SizedBox(height: 16),
         ],
       );
+
+  AttachmentMaintenanceService _maintenanceService(AppProvider provider) =>
+      AttachmentMaintenanceService(
+        baseUrl: provider.appConfig.memosApiUrl ?? '',
+        token: provider.user?.token,
+      );
+
+  // 把服务器附件下载到本地并改写正文
+  Future<void> _localizeAttachments() async {
+    if (_isLocalizing) {
+      return;
+    }
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    final baseUrl = provider.appConfig.memosApiUrl ?? '';
+    if (baseUrl.isEmpty) {
+      SnackBarUtils.showError(context, '未配置服务器地址，无法下载附件');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('把附件下载到本地'),
+        content: Text(
+          '将把笔记引用的 $baseUrl 图片下载到本机，并把正文里的服务器路径'
+          '改写为本地路径。\n\n'
+          '完成后请立即退出 Memos 登录：只要还连着服务器，下一次同步就会用'
+          '服务端正文把本地路径覆盖回去。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('开始'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLocalizing = true;
+      _localizeProgress = 0;
+      _localizeStatus = '准备中…';
+      _localizeReport = null;
+    });
+
+    try {
+      final service = _maintenanceService(provider);
+      final notes = await _databaseService.getNotes();
+      final report = await service.localize(
+        notes: notes,
+        saveNote: _databaseService.saveNote,
+        onProgress: (done, total, message) {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _localizeProgress = total == 0 ? 1 : done / total;
+            _localizeStatus = message;
+          });
+        },
+      );
+      await provider.loadNotesFromLocal();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _localizeReport = report;
+        _localizeStatus = '完成';
+      });
+      final okCount = report.downloaded + report.alreadyLocal;
+      SnackBarUtils.showSuccess(
+        context,
+        '已本地化 $okCount 个附件'
+        '${report.hasFailure ? '，${report.failed.length} 个下载失败' : ''}',
+      );
+    } on Object catch (e) {
+      if (mounted) {
+        SnackBarUtils.showError(context, '附件本地化失败: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLocalizing = false;
+        });
+      }
+    }
+  }
+
+  // 扫描未被引用的本地图片
+  Future<void> _scanOrphans() async {
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    setState(() {
+      _isScanningOrphans = true;
+    });
+    try {
+      final notes = await _databaseService.getNotes();
+      final report = await _maintenanceService(provider).scanOrphans(notes);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _orphanReport = report;
+      });
+    } on Object catch (e) {
+      if (mounted) {
+        SnackBarUtils.showError(context, '扫描失败: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isScanningOrphans = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteOrphans() async {
+    final report = _orphanReport;
+    if (report == null || report.isEmpty) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('删除未引用附件'),
+        content: Text(
+          '将删除 ${report.fileNames.length} 个没有被任何笔记引用的图片文件，'
+          '释放约 ${report.totalMB.toStringAsFixed(1)} MB。\n\n'
+          '这个操作不可撤销。如果还没做「附件本地化」，请先做完再清理。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    try {
+      final notes = await _databaseService.getNotes();
+      final deleted = await _maintenanceService(provider).deleteOrphans(notes);
+      if (!mounted) {
+        return;
+      }
+      SnackBarUtils.showSuccess(context, '已删除 $deleted 个未引用文件');
+      await _scanOrphans();
+    } on Object catch (e) {
+      if (mounted) {
+        SnackBarUtils.showError(context, '删除失败: $e');
+      }
+    }
+  }
 
   // 检测重复笔记，只统计不写库
   Future<void> _scanDuplicates() async {
@@ -300,6 +486,169 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         SnackBarUtils.showError(context, '合并失败: $e');
       }
     }
+  }
+
+  // 附件本地化卡片
+  Widget _buildLocalizeCard() {
+    final report = _localizeReport;
+    final color = report == null
+        ? Colors.blue
+        : (report.hasFailure ? Colors.orange : Colors.green);
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '附件本地化',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '笔记里的图片引用的是服务器地址（/file/attachments/...），本机没有副本。'
+              '这里把它们下载到本地并把正文改成本地路径，之后退出登录、离开内网也能看图。',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                height: 1.5,
+              ),
+            ),
+            if (_isLocalizing) ...[
+              const SizedBox(height: 16),
+              LinearProgressIndicator(value: _localizeProgress),
+              const SizedBox(height: 8),
+              Text(
+                _localizeStatus ?? '',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+            if (report != null && !_isLocalizing) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '新增下载 ${report.downloaded} 个 · 之前已有 ${report.alreadyLocal} 个 · '
+                      '失败 ${report.failed.length} 个 · 改写 ${report.notesUpdated} 条笔记',
+                      style: TextStyle(fontSize: 13, color: color.shade800),
+                    ),
+                    if (report.hasFailure) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        '失败的附件多半已在服务端缺失，合并重复笔记时请优先保留有图的那条。',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _isLocalizing ? null : _localizeAttachments,
+                icon: const Icon(Icons.download_for_offline_outlined, size: 18),
+                label: Text(_isLocalizing ? '本地化中…' : '开始本地化'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 未引用附件清理卡片
+  Widget _buildOrphanCard() {
+    final report = _orphanReport;
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '清理未引用附件',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '本机 images 目录里存在没有被任何笔记引用的图片（同步或恢复留下的残留）。'
+              '这里把它们找出来并删除，释放存储空间。',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                height: 1.5,
+              ),
+            ),
+            if (report != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: report.isEmpty
+                      ? Colors.green.withValues(alpha: 0.1)
+                      : Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  report.isEmpty
+                      ? '没有发现未引用的附件'
+                      : '发现 ${report.fileNames.length} 个未引用文件，'
+                          '共 ${report.totalMB.toStringAsFixed(1)} MB',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: report.isEmpty
+                        ? Colors.green.shade700
+                        : Colors.orange.shade800,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isScanningOrphans ? null : _scanOrphans,
+                    icon: const Icon(Icons.search, size: 18),
+                    label: Text(_isScanningOrphans ? '扫描中…' : '扫描'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: (_isScanningOrphans ||
+                            report == null ||
+                            report.isEmpty)
+                        ? null
+                        : _confirmDeleteOrphans,
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: const Text('清理'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // 重复笔记清理卡片

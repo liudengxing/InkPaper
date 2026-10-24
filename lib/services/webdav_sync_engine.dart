@@ -27,6 +27,7 @@ class SyncStats {
   const SyncStats({
     this.uploaded = 0,
     this.resourceUploaded = 0,
+    this.resourceSkipped = 0,
     this.downloaded = 0,
     this.deleted = 0,
     this.conflicts = 0,
@@ -34,6 +35,7 @@ class SyncStats {
   });
   final int uploaded; // 上传数量
   final int resourceUploaded; // 图片等资源上传数量
+  final int resourceSkipped; // 远端已存在、本次跳过的资源数量
   final int downloaded; // 下载数量
   final int deleted; // 删除数量
   final int conflicts; // 冲突数量
@@ -42,6 +44,7 @@ class SyncStats {
   SyncStats copyWith({
     int? uploaded,
     int? resourceUploaded,
+    int? resourceSkipped,
     int? downloaded,
     int? deleted,
     int? conflicts,
@@ -50,6 +53,7 @@ class SyncStats {
       SyncStats(
         uploaded: uploaded ?? this.uploaded,
         resourceUploaded: resourceUploaded ?? this.resourceUploaded,
+        resourceSkipped: resourceSkipped ?? this.resourceSkipped,
         downloaded: downloaded ?? this.downloaded,
         deleted: deleted ?? this.deleted,
         conflicts: conflicts ?? this.conflicts,
@@ -58,7 +62,7 @@ class SyncStats {
 
   @override
   String toString() =>
-      'SyncStats(上传: $uploaded, 资源上传: $resourceUploaded, 下载: $downloaded, 删除: $deleted, 冲突: $conflicts, 错误: $errors)';
+      'SyncStats(上传: $uploaded, 资源上传: $resourceUploaded, 资源跳过: $resourceSkipped, 下载: $downloaded, 删除: $deleted, 冲突: $conflicts, 错误: $errors)';
 }
 
 class _WebDavResourceRecord {
@@ -396,6 +400,7 @@ class WebDavSyncEngine {
     }
 
     var resourceCount = 0;
+    var skippedCount = 0;
     var errorCount = 0;
     final manifest = <String, _WebDavResourceRecord>{};
 
@@ -443,6 +448,7 @@ class WebDavSyncEngine {
 
           // 内容寻址后，远端同名即同内容，已经备份过就跳过
           if (existingResourceNames.contains(remoteName)) {
+            skippedCount++;
             continue;
           }
 
@@ -483,6 +489,7 @@ class WebDavSyncEngine {
           );
 
           if (existingResourceNames.contains(remoteName)) {
+            skippedCount++;
             continue;
           }
 
@@ -499,6 +506,7 @@ class WebDavSyncEngine {
     // 更新统计
     _stats = _stats.copyWith(
       resourceUploaded: _stats.resourceUploaded + resourceCount,
+      resourceSkipped: _stats.resourceSkipped + skippedCount,
       errors: _stats.errors + errorCount,
     );
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/config/app_config.dart';
@@ -64,6 +66,9 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
 
     // 检测预设
     _detectPreset(config.serverUrl);
+
+    // 上次备份/恢复结果（持久化在 SharedPreferences，常驻展示）
+    unawaited(appProvider.loadLastWebDavResult());
   }
 
   String _getTimingFromInterval(int interval) {
@@ -313,6 +318,10 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
 
               // 从 WebDAV 恢复按钮
               _buildRestoreButton(isDarkMode),
+              const SizedBox(height: 12),
+
+              // 上次备份/恢复结果：常驻展示，不靠 SnackBar 一闪而过
+              _buildLastResultCard(isDarkMode),
               const SizedBox(height: 24),
 
               // 高级设置
@@ -611,6 +620,108 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
         ),
       ),
     );
+  }
+
+  /// 上次备份/恢复结果卡片。
+  ///
+  /// 之前结果只通过 SnackBar 弹一下（默认 1.5 秒），用户既看不清，也看不到
+  /// 「图片到底传了多少」。这里常驻显示笔记数、图片新增/跳过数和错误数，
+  /// 页面关闭重开也还在。
+  Widget _buildLastResultCard(bool isDarkMode) {
+    final provider = Provider.of<AppProvider>(context);
+    final result = provider.lastWebDavResult;
+    if (result == null) {
+      return const SizedBox.shrink();
+    }
+
+    final statusColor = !result.success
+        ? Colors.red.shade600
+        : (result.errors > 0 ? Colors.orange.shade700 : AppTheme.successColor);
+    final statusText = !result.success
+        ? '失败'
+        : (result.errors > 0 ? '部分完成' : '成功');
+    final title = result.isBackup ? '上次备份' : '上次恢复';
+
+    final detail = StringBuffer()
+      ..write('${result.isBackup ? '笔记' : '恢复'} ${result.notes}')
+      ..write(' · 图片新增 ${result.resources}');
+    if (result.resourcesSkipped > 0) {
+      detail.write(' · 已存在 ${result.resourcesSkipped}');
+    }
+    detail.write(' · 错误 ${result.errors}');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDarkMode
+            ? Colors.white.withValues(alpha: 0.04)
+            : Colors.black.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                result.success
+                    ? Icons.check_circle_outline
+                    : Icons.error_outline,
+                size: 18,
+                color: statusColor,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '$title · ${_formatResultTime(result.finishedAt)}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                statusText,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: statusColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            detail.toString(),
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: isDarkMode ? Colors.white70 : Colors.black54,
+            ),
+          ),
+          if (!result.success && result.message.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            SelectableText(
+              result.message,
+              maxLines: 4,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: statusColor,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatResultTime(DateTime time) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${two(time.month)}-${two(time.day)} '
+        '${two(time.hour)}:${two(time.minute)}';
   }
 
   Widget _buildAdvancedSettings(bool isDarkMode, Color textColor) {
@@ -923,18 +1034,13 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
                     '${l10n?.backupCompleted ?? 'Backup completed'}\n'
                     '${l10n?.webdavBackupNotesCount(stats.uploaded) ?? 'Notes: ${stats.uploaded}'}'
                     '$imageInfo$errorInfo';
-                // 统计是多行内容，默认 1.5 秒根本读不完；有错误时用警示色并再放宽。
+                // 结果已常驻显示在下方卡片里，成功时不再弹 SnackBar；
+                // 有错误时仍然提醒一次，避免「部分图片没传上去」被忽略。
                 if (stats.errors > 0) {
                   SnackBarUtils.showWarning(
                     context,
                     message,
                     duration: const Duration(seconds: 6),
-                  );
-                } else {
-                  SnackBarUtils.showSuccess(
-                    context,
-                    message,
-                    duration: const Duration(seconds: 5),
                   );
                 }
               } else {
@@ -1349,17 +1455,12 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
                     '${l10n?.restoreCompleted ?? 'Restore completed'}\n'
                     '${l10n?.restoredNotesCount(stats.downloaded) ?? 'Restored: ${stats.downloaded} notes'}'
                     '$errorInfo';
+                // 恢复结果同样常驻显示在下方卡片里
                 if (stats.errors > 0) {
                   SnackBarUtils.showWarning(
                     context,
                     message,
                     duration: const Duration(seconds: 6),
-                  );
-                } else {
-                  SnackBarUtils.showSuccess(
-                    context,
-                    message,
-                    duration: const Duration(seconds: 5),
                   );
                 }
               } else {

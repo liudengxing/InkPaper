@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:inkpaper/models/webdav_config.dart';
+import 'package:inkpaper/models/webdav_transfer_result.dart';
 import 'package:inkpaper/services/webdav_service.dart';
 import 'package:inkpaper/services/webdav_sync_engine.dart';
 
@@ -24,4 +25,7 @@ class WebDavStore {
 
   /// 本次进程是否已执行过启动备份（避免每次冷启动重复备份）。
   bool hasPerformedStartupBackup = false;
+
+  /// 最近一次备份/恢复的结果，供设置页常驻展示（持久化在 SharedPreferences）。
+  WebDavTransferResult? lastResult;
 }

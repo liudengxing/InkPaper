@@ -22,6 +22,7 @@ import 'package:inkpaper/models/reminder_notification_model.dart';
 import 'package:inkpaper/models/sort_order.dart';
 import 'package:inkpaper/models/user_model.dart';
 import 'package:inkpaper/models/webdav_config.dart';
+import 'package:inkpaper/models/webdav_transfer_result.dart';
 import 'package:inkpaper/providers/sync_store.dart';
 import 'package:inkpaper/services/api_service_factory.dart';
 import 'package:inkpaper/services/cloud_verification_service.dart';
@@ -146,6 +147,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       _webDavStore.hasPerformedStartupBackup; // 是否已执行过启动备份
   set _hasPerformedStartupBackup(bool value) =>
       _webDavStore.hasPerformedStartupBackup = value;
+
+  /// 最近一次备份/恢复结果（设置页常驻展示）
+  WebDavTransferResult? get lastWebDavResult => _webDavStore.lastResult;
 
   // 🚀 Notion 同步相关（字段已迁入 NotionStore，此处仅保留转发）
   final NotionStore _notionStore = NotionStore();
@@ -4381,6 +4385,44 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
   }
 
+  static const String _webDavResultKey = 'webdav_last_transfer_result';
+
+  /// 记录并持久化最近一次 WebDAV 备份/恢复结果。
+  ///
+  /// 之前只在 SnackBar 里闪一下，用户看不清「图片到底传了多少」；改成本地
+  /// 留存后，设置页可以常驻展示上次结果。
+  Future<void> _persistWebDavResult(WebDavTransferResult result) async {
+    _webDavStore.lastResult = result;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_webDavResultKey, jsonEncode(result.toJson()));
+    } on Object catch (e) {
+      debugPrint('保存 WebDAV 结果失败: $e');
+    }
+  }
+
+  /// 读取上次备份/恢复结果（设置页打开时调用）。
+  Future<void> loadLastWebDavResult() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_webDavResultKey);
+      if (raw == null || raw.isEmpty) {
+        return;
+      }
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) {
+        return;
+      }
+      _webDavStore.lastResult = WebDavTransferResult.fromJson(
+        Map<String, dynamic>.from(decoded),
+      );
+      notifyListeners();
+    } on Object catch (e) {
+      debugPrint('读取 WebDAV 结果失败: $e');
+    }
+  }
+
   /// 执行 WebDAV 完整备份（单向上传）
   ///
   /// [onProgress] 进度回调：(progress, message) => void
@@ -4406,8 +4448,28 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       );
       await updateWebDavConfig(updatedConfig, skipInitialize: true);
 
+      await _persistWebDavResult(
+        WebDavTransferResult(
+          isBackup: true,
+          success: true,
+          finishedAt: DateTime.now(),
+          notes: stats.uploaded,
+          resources: stats.resourceUploaded,
+          resourcesSkipped: stats.resourceSkipped,
+          errors: stats.errors,
+        ),
+      );
+
       return stats;
-    } on Object {
+    } on Object catch (e) {
+      await _persistWebDavResult(
+        WebDavTransferResult(
+          isBackup: true,
+          success: false,
+          finishedAt: DateTime.now(),
+          message: e.toString(),
+        ),
+      );
       rethrow;
     }
   }
@@ -4440,8 +4502,27 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       );
       await updateWebDavConfig(updatedConfig, skipInitialize: true);
 
+      await _persistWebDavResult(
+        WebDavTransferResult(
+          isBackup: false,
+          success: true,
+          finishedAt: DateTime.now(),
+          notes: stats.downloaded,
+          resources: stats.resourceUploaded,
+          errors: stats.errors,
+        ),
+      );
+
       return stats;
-    } on Object {
+    } on Object catch (e) {
+      await _persistWebDavResult(
+        WebDavTransferResult(
+          isBackup: false,
+          success: false,
+          finishedAt: DateTime.now(),
+          message: e.toString(),
+        ),
+      );
       rethrow;
     }
   }

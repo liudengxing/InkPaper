@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 
@@ -1379,7 +1380,22 @@ class _SidebarState extends State<Sidebar> {
         context.select<AppProvider, int>((p) => p.unreadAnnouncementsCount);
     final sidebarConfig = context
         .select<AppProvider, SidebarConfig>((p) => p.appConfig.sidebarConfig);
-    final notes = context.select<AppProvider, List<Note>>((p) => p.notes);
+    // 统计用全量快照：首页只分页加载首屏 50 条，直接用 p.notes 会把
+    // 「笔记数」显示成 50、字数/天数也只算到那 50 条。
+    final notes =
+        context.select<AppProvider, List<Note>>((p) => p.statisticsNotes);
+    final totalNotes =
+        context.select<AppProvider, int>((p) => p.totalNotesCount);
+    final isStatisticsReady =
+        context.select<AppProvider, bool>((p) => p.isStatisticsReady);
+    if (!isStatisticsReady) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) {
+          return;
+        }
+        unawaited(context.read<AppProvider>().ensureStatisticsNotesLoaded());
+      });
+    }
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
 
@@ -1795,6 +1811,7 @@ class _SidebarState extends State<Sidebar> {
                               RepaintBoundary(
                                 child: Heatmap(
                                   notes: notes,
+                                  totalNotes: totalNotes,
                                   // 26 列小方格下 grid 颜色太淡会糊成一片，
                                   // 无活动格调深一档保证点阵可读
                                   cellColor: isDarkMode

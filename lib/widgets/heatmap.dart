@@ -11,10 +11,15 @@ class Heatmap extends StatefulWidget {
     super.key,
     this.cellColor,
     this.activeColor = AppTheme.primaryColor,
+    this.totalNotes,
   });
   final List<Note> notes;
   final Color? cellColor;
   final Color activeColor;
+
+  /// 全库笔记数（数据库 COUNT）。首页是分页加载的，`notes` 可能只有首屏
+  /// 的几十条，直接用 `notes.length` 会把「笔记数」显示成 50。
+  final int? totalNotes;
 
   @override
   State<Heatmap> createState() => _HeatmapState();
@@ -283,7 +288,7 @@ class _HeatmapState extends State<Heatmap> {
             const SizedBox(width: 4),
             _StatCardWidget(
               label: AppLocalizationsSimple.of(context)?.totalNotes ?? '笔记数',
-              value: _formatNumber(widget.notes.length),
+              value: _formatNumber(widget.totalNotes ?? widget.notes.length),
               isDarkMode: isDarkMode,
               primaryColor: primaryColor,
             ),

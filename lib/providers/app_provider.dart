@@ -113,7 +113,50 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
   // 🚀 大厂标准：性能监控
   int get _totalNotesCount => _notesStore.totalNotesCount; // 数据库总笔记数
-  set _totalNotesCount(int value) => _notesStore.totalNotesCount = value;
+  set _totalNotesCount(int value) {
+    if (_notesStore.totalNotesCount != value) {
+      // 总数变了说明笔记有增删，统计快照随之失效
+      _statisticsNotes = null;
+    }
+    _notesStore.totalNotesCount = value;
+  }
+
+  /// 侧边栏「活动记录」用的全量笔记快照。
+  ///
+  /// 首页是分页加载的（首屏 50 条），直接拿 `notes` 画热力图只会统计到已加载
+  /// 的那一页（表现为「笔记数 50」）。这里单独查一次全库，只在侧边栏可见时
+  /// 触发，不参与首页列表，避免启动时把 600+ 条正文全读进内存。
+  List<Note>? _statisticsNotes;
+  bool _statisticsLoading = false;
+
+  /// 统计用笔记：快照未就绪时退回当前已加载列表（至少不会空白）。
+  List<Note> get statisticsNotes => _statisticsNotes ?? _notes;
+
+  bool get isStatisticsReady => _statisticsNotes != null;
+
+  /// 加载全量笔记供统计/热力图使用（幂等）。
+  Future<void> ensureStatisticsNotesLoaded() async {
+    if (_statisticsNotes != null || _statisticsLoading) {
+      return;
+    }
+    _statisticsLoading = true;
+    try {
+      final all = _excludePendingDeletedNotes(
+        await _databaseService.getNotes(),
+      );
+      _statisticsNotes = all;
+      notifyListeners();
+    } on Object catch (e) {
+      debugPrint('AppProvider: 加载统计数据失败: $e');
+    } finally {
+      _statisticsLoading = false;
+    }
+  }
+
+  /// 笔记内容变化后让统计快照失效（字数/天数/热力图要重算）。
+  void _invalidateStatisticsNotes() {
+    _statisticsNotes = null;
+  }
   DateTime? get _lastLoadTime => _notesStore.lastLoadTime; // 上次加载时间
   set _lastLoadTime(DateTime? value) => _notesStore.lastLoadTime = value;
   Stopwatch get _loadStopwatch => _notesStore.loadStopwatch; // 性能计时器
@@ -2587,6 +2630,10 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 添加到内存列表
       _notes.insert(0, note); // 添加到列表顶部而不是末尾
 
+      // 新增后总数要跟着涨，否则「共 N 条」和 hasMoreData 会停在旧值，
+      // 侧边栏统计（全量快照）也要因此失效重算。
+      _totalNotesCount = await _databaseService.getNotesCount();
+
       // 🔧 修复：处理引用关系
       await _processNoteReferences(note);
 
@@ -2649,6 +2696,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 更新本地数据库
       debugPrint('AppProvider: 更新本地数据库');
       await _databaseService.updateNote(noteWithTags);
+      _invalidateStatisticsNotes();
 
       // 用户改了内容，之前的上传失败计数作废，让它重新进入重试队列。
       await _databaseService.clearPendingUpsert(note.id);
@@ -2786,6 +2834,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       // 更新本地数据库
       await _databaseService.updateNote(note);
+      _invalidateStatisticsNotes();
       debugPrint('AppProvider: 本地数据库更新完成');
 
       // 更新内存中的笔记

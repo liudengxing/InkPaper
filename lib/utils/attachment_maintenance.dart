@@ -30,6 +30,71 @@ bool isRemoteAttachmentPath(String path) =>
     path.startsWith('/resource/') ||
     path.startsWith('attachments/');
 
+/// 是否是「服务器上的图」——相对路径（`/file/...`）或指向服务器的绝对 URL。
+///
+/// 这类引用必须留在正文里：一旦被改写成 `file://...` 本地路径，正文就和
+/// 服务端不一致了，下一次同步会把本地路径推回服务器，多端全变裂图。
+/// 离线显示靠附件缓存（`AttachmentCache`）解决，而不是改正文。
+bool isServerBackedImagePath(String path) {
+  if (isRemoteAttachmentPath(path)) {
+    return true;
+  }
+  final lower = path.toLowerCase();
+  if (lower.startsWith('http://') || lower.startsWith('https://')) {
+    return lower.contains('/file/attachments/') ||
+        lower.contains('/api/v1/attachments/') ||
+        lower.contains('/file/resource/');
+  }
+  return false;
+}
+
+/// 从 WebDAV 恢复某条图片引用时的处理方式。
+enum RestoreAttachmentAction {
+  /// 第三方外链：正文原样保留，不下载、不落地。
+  skipExternal,
+
+  /// 本服务器附件（`/file/attachments/...` 等）：正文原样保留，只把二进制
+  /// 写进附件缓存，离线时由 AttachmentCache 命中。
+  cacheServerCopy,
+
+  /// 真正的本地图片：落地成本地文件并把正文改成本地路径。
+  materialize,
+}
+
+/// 判断某条图片引用在「从 WebDAV 恢复」时该怎么处理。
+///
+/// 只有 [RestoreAttachmentAction.materialize] 允许改写笔记正文；服务端附件和
+/// 外链一律保持原样。否则 A 机备份里的本地路径会被写进 B 机正文，B 机再备份
+/// 回去又变成 B 的路径，多设备来回互传后正文互相污染、图片全裂。
+RestoreAttachmentAction restoreActionFor(String originalPath) {
+  final path = originalPath.trim();
+  if (isServerBackedImagePath(path)) {
+    return RestoreAttachmentAction.cacheServerCopy;
+  }
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return RestoreAttachmentAction.skipExternal;
+  }
+  return RestoreAttachmentAction.materialize;
+}
+
+/// 按恢复结果改写正文里的 Markdown 图片引用。
+///
+/// 只替换 [restoreActionFor] 判定为 [RestoreAttachmentAction.materialize]
+/// 的路径，服务端附件与外链保持原样。
+String rewriteMarkdownImagePaths(
+  String content,
+  Map<String, String> restoredPathMap,
+) {
+  var result = content;
+  restoredPathMap.forEach((originalPath, localPath) {
+    if (restoreActionFor(originalPath) != RestoreAttachmentAction.materialize) {
+      return;
+    }
+    result = result.replaceAll(']($originalPath)', ']($localPath)');
+  });
+  return result;
+}
+
 /// 远程附件路径 → 本地文件名。
 ///
 /// 带短哈希，避免不同附件目录下同名文件（Memos 的 `image_<时间戳>.jpg`

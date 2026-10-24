@@ -55,6 +55,38 @@ void main() {
     });
   });
 
+  group('isServerBackedImagePath', () {
+    test('相对附件路径算服务端图', () {
+      expect(isServerBackedImagePath('/file/attachments/A/x.jpg'), isTrue);
+      expect(isServerBackedImagePath('attachments/A/x.jpg'), isTrue);
+      expect(isServerBackedImagePath('/api/v1/attachments/A/x.jpg'), isTrue);
+    });
+
+    test('指向本服务器的绝对 URL 也算服务端图', () {
+      expect(
+        isServerBackedImagePath(
+          'http://192.168.0.169:5230/file/attachments/A/x.jpg',
+        ),
+        isTrue,
+      );
+      expect(
+        isServerBackedImagePath(
+          'https://memos.example.com/api/v1/attachments/A/x.png',
+        ),
+        isTrue,
+      );
+    });
+
+    test('本地路径与外链图不算服务端图', () {
+      expect(isServerBackedImagePath('images/a.jpg'), isFalse);
+      expect(
+        isServerBackedImagePath('file:///data/user/0/app/files/images/a.jpg'),
+        isFalse,
+      );
+      expect(isServerBackedImagePath('https://example.com/a.jpg'), isFalse);
+    });
+  });
+
   group('referencedLocalImageFiles', () {
     test('认 images/ 相对路径与 file:// 绝对路径', () {
       final names = referencedLocalImageFiles([
@@ -86,6 +118,107 @@ void main() {
       ]);
 
       expect(names, {'c.jpg', localFileNameForAttachment(remote)});
+    });
+  });
+
+  group('restoreActionFor', () {
+    test('本服务器附件只写本地缓存，不改正文', () {
+      const paths = [
+        '/file/attachments/A/x.jpg',
+        'attachments/A/x.jpg',
+        '/o/r/abc123',
+        '/api/v1/attachments/A/x.png',
+        '/api/v1/resource/abc123',
+        'https://memos.example.com/file/attachments/A/x.jpg',
+        'http://192.168.0.169:5230/api/v1/attachments/A/x.png',
+      ];
+
+      for (final path in paths) {
+        expect(
+          restoreActionFor(path),
+          RestoreAttachmentAction.cacheServerCopy,
+          reason: '$path 应保持服务端路径',
+        );
+      }
+    });
+
+    test('第三方外链不下载也不落地', () {
+      const paths = [
+        'https://cdn.example.com/pic.jpg',
+        'http://example.com/a.png',
+      ];
+
+      for (final path in paths) {
+        expect(
+          restoreActionFor(path),
+          RestoreAttachmentAction.skipExternal,
+          reason: '$path 应原样保留',
+        );
+      }
+    });
+
+    test('真正的本地图才落地', () {
+      const paths = [
+        'file:///data/user/0/com.didichou.inkpaper/app_flutter/images/a.jpg',
+        'images/flomo_a.jpg',
+        'images/webdav_IMG_001_abcdef123456_0.jpg',
+      ];
+
+      for (final path in paths) {
+        expect(
+          restoreActionFor(path),
+          RestoreAttachmentAction.materialize,
+          reason: '$path 应落地成本地文件',
+        );
+      }
+    });
+  });
+
+  group('rewriteMarkdownImagePaths', () {
+    test('服务端图片路径在多设备间保持不变', () {
+      const remote = '/file/attachments/A/x.jpg';
+      const content = '正文\n![图]($remote)';
+
+      // 即使恢复流程误把服务端路径塞进映射表，也不允许改写正文
+      final rewritten = rewriteMarkdownImagePaths(content, {
+        remote: 'file:///data/user/0/app/files/images/webdav_x_0.jpg',
+      });
+
+      expect(rewritten, content);
+    });
+
+    test('外链同样不被改写', () {
+      const remote = 'https://cdn.example.com/pic.jpg';
+      const content = '![](https://cdn.example.com/pic.jpg)';
+
+      final rewritten = rewriteMarkdownImagePaths(content, {
+        remote: 'file:///data/user/0/app/files/images/pic.jpg',
+      });
+
+      expect(rewritten, content);
+    });
+
+    test('同一篇笔记里只改本地图，服务端图原样', () {
+      const serverPath = '/file/attachments/A/server.jpg';
+      const localPath = 'file:///data/user/0/app/files/images/local.jpg';
+      const content = '![s]($serverPath)\n![l]($localPath)';
+
+      final rewritten = rewriteMarkdownImagePaths(content, {
+        serverPath: 'file:///data/user/0/app/files/images/should_not_use.jpg',
+        localPath: 'file:///data/user/0/app/files/images/restored.jpg',
+      });
+
+      expect(rewritten, contains(']($serverPath)'));
+      expect(
+        rewritten,
+        contains('![l](file:///data/user/0/app/files/images/restored.jpg)'),
+      );
+      expect(rewritten, isNot(contains('should_not_use')));
+    });
+
+    test('空映射表原样返回', () {
+      const content = '![](/file/attachments/A/x.jpg)';
+      expect(rewriteMarkdownImagePaths(content, {}), content);
     });
   });
 }

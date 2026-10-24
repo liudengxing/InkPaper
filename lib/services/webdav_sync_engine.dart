@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/webdav_service.dart';
+import 'package:inkpaper/utils/attachment_cache.dart';
+import 'package:inkpaper/utils/attachment_maintenance.dart';
 import 'package:inkpaper/utils/note_dedupe.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -729,12 +731,33 @@ class WebDavSyncEngine {
     for (var i = 0; i < manifest.length; i++) {
       final record = manifest[i];
       try {
-        final bytes =
-            await _webdavService.downloadBinaryFile(record.webdavPath);
-        final localName = _restoredLocalFileName(record, i);
-        final localFile = File('${imagesDir.path}/$localName');
-        await localFile.writeAsBytes(bytes, flush: true);
-        restoredPathMap[record.originalPath] = 'file://${localFile.path}';
+        final action = restoreActionFor(record.originalPath);
+        if (action == RestoreAttachmentAction.skipExternal) {
+          // 外链图（非本服务器附件）保持 URL 原样，不落地成本地路径，
+          // 否则正文会和其它设备不一致。
+          continue;
+        }
+        if (action == RestoreAttachmentAction.cacheServerCopy) {
+          // 服务器上的图：正文保持 `/file/attachments/...` 不变，只把二进制
+          // 落到附件缓存目录（`images/memos_*`）。渲染时 AttachmentCache 优先
+          // 读本地副本，服务器不可达也能看图；正文与服务端保持一致，
+          // 多设备同步不会互相污染。
+          final cacheFile = File(
+            '${imagesDir.path}/${localFileNameForAttachment(record.originalPath)}',
+          );
+          if (!await cacheFile.exists()) {
+            final bytes =
+                await _webdavService.downloadBinaryFile(record.webdavPath);
+            await cacheFile.writeAsBytes(bytes, flush: true);
+          }
+        } else {
+          final bytes =
+              await _webdavService.downloadBinaryFile(record.webdavPath);
+          final localName = _restoredLocalFileName(record, i);
+          final localFile = File('${imagesDir.path}/$localName');
+          await localFile.writeAsBytes(bytes, flush: true);
+          restoredPathMap[record.originalPath] = 'file://${localFile.path}';
+        }
       } on Object {
         errorCount++;
       }
@@ -766,15 +789,19 @@ class WebDavSyncEngine {
   }
 
   Note _rewriteNoteImagePaths(Note note, Map<String, String> restoredPathMap) {
-    var content = note.content;
-    restoredPathMap.forEach((originalPath, localPath) {
-      content = content.replaceAll(']($originalPath)', ']($localPath)');
-    });
+    // 服务端图片 / 外链图永远不改成 file://：正文要和服务器一致，否则下一次
+    // 同步会把本地路径推回服务端，其它设备全变裂图。判断集中在
+    // `restoreActionFor`，只有真本地图才允许改写。
+    final content = rewriteMarkdownImagePaths(note.content, restoredPathMap);
 
     var resourceChanged = false;
     final resourceList = note.resourceList.map((resource) {
       final updated = Map<String, dynamic>.from(resource);
       for (final candidate in _resourcePathCandidates(resource)) {
+        if (restoreActionFor(candidate) !=
+            RestoreAttachmentAction.materialize) {
+          continue;
+        }
         final localPath = restoredPathMap[candidate];
         if (localPath == null) {
           continue;
@@ -895,6 +922,8 @@ class WebDavSyncEngine {
       final totalNotes = remoteNotes.length;
       onProgress?.call(0.75, '写入本地数据库...');
       await _databaseService.replaceAllNotes(remoteNotes);
+      // 附件缓存刚被写入/替换，让渲染层的查表重新落盘一次
+      AttachmentCache.instance.invalidate();
       onProgress?.call(1, '恢复完成，共 $totalNotes 条笔记');
 
       _stats = _stats.copyWith(downloaded: remoteNotes.length);

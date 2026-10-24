@@ -9,6 +9,7 @@ import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
+import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/share_image_widget.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:intl/intl.dart';
@@ -1892,6 +1893,12 @@ class ShareUtils {
     String? token,
   ) async {
     try {
+      // 已缓存到本地的服务端附件：离线也能参与分享图合成
+      final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);
+      if (cachedAttachment != null) {
+        return await decodeImageFromList(await cachedAttachment.readAsBytes());
+      }
+
       if (imagePath.startsWith('file://')) {
         // 本地文件
         final filePath = imagePath.replaceFirst('file://', '');

@@ -9,6 +9,7 @@ import 'package:inkpaper/screens/recently_deleted_screen.dart';
 import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/attachment_maintenance.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -322,6 +323,16 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
       final pathWithoutQuery =
           withoutFileScheme.split('?').first.split('#').first;
       if (pathWithoutQuery.isEmpty) {
+        return;
+      }
+
+      // 服务端附件在本机的离线缓存（正文仍是服务器路径，按 sha1 命名查本地）
+      if (isRemoteAttachmentPath(value)) {
+        referencedPaths.add(
+          File(
+            '$appDocPath/images/${localFileNameForAttachment(value)}',
+          ).absolute.path,
+        );
         return;
       }
 

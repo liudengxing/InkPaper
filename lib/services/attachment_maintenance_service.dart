@@ -4,20 +4,20 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/attachment_maintenance.dart';
 import 'package:path_provider/path_provider.dart';
 
-/// 附件本地化的结果。
+/// 附件离线缓存的结果。
 class AttachmentLocalizeReport {
   const AttachmentLocalizeReport({
     required this.totalRefs,
     required this.downloaded,
     required this.alreadyLocal,
     required this.failed,
-    required this.notesUpdated,
   });
 
-  /// 正文里出现的唯一远程附件路径数。
+  /// 正文 / 资源列表里出现的唯一远程附件路径数。
   final int totalRefs;
 
   /// 本次成功下载的文件数。
@@ -29,8 +29,8 @@ class AttachmentLocalizeReport {
   /// 下载失败（404 / 401 / 超时）的路径。
   final List<String> failed;
 
-  /// 正文被改写的笔记数。
-  final int notesUpdated;
+  /// 本机上可直接离线查看的图片张数。
+  int get cached => downloaded + alreadyLocal;
 
   bool get hasFailure => failed.isNotEmpty;
 }
@@ -50,11 +50,12 @@ class OrphanAttachmentReport {
   double get totalMB => totalBytes / (1024 * 1024);
 }
 
-/// 附件的本地化与清理。
+/// 附件的离线缓存与清理。
 ///
-/// 「本地化」把正文里的 `/file/attachments/<uid>/x.jpg` 这类服务端路径
-/// 下载到 `<documents>/images/` 并改写为 `images/<文件名>`，这样脱离
-/// Memos 服务器（退出登录、离开内网）之后图片仍然能显示。
+/// 把正文里的 `/file/attachments/<uid>/x.jpg` 这类服务端路径下载到
+/// `<documents>/images/memos_*`，**不改写正文**：渲染时按同一套
+/// sha1 命名规则查本地副本（见 `AttachmentCache`），有本地文件读本地、
+/// 没有才走网络。正文始终与服务器一致，同步不会被回滚，多端也安全。
 class AttachmentMaintenanceService {
   AttachmentMaintenanceService({
     required this.baseUrl,
@@ -84,10 +85,9 @@ class AttachmentMaintenanceService {
     return '$base$remotePath';
   }
 
-  /// 把笔记引用的服务端附件下载到本地，并改写正文与资源列表。
+  /// 把笔记引用的服务端附件缓存到本地（正文保持服务端路径，不改写）。
   Future<AttachmentLocalizeReport> localize({
     required List<Note> notes,
-    required Future<void> Function(Note note) saveNote,
     void Function(int done, int total, String message)? onProgress,
   }) async {
     final dir = await _imagesDir();
@@ -114,8 +114,7 @@ class AttachmentMaintenanceService {
       }
     }
 
-    // 2. 逐个下载
-    final mapping = <String, String>{};
+    // 2. 逐个缓存到 images/memos_*（文件名与渲染时查表规则一致）
     final failed = <String>[];
     var downloaded = 0;
     var alreadyLocal = 0;
@@ -125,21 +124,17 @@ class AttachmentMaintenanceService {
       onProgress?.call(
         i + 1,
         remoteRefs.length,
-        '下载附件 ${i + 1}/${remoteRefs.length}',
+        '缓存图片 ${i + 1}/${remoteRefs.length}',
       );
 
-      final localName = localFileNameForAttachment(remote);
-      final localPath = '$localImagePrefix$localName';
-      final target = File('${dir.path}/$localName');
+      final target = File('${dir.path}/${localFileNameForAttachment(remote)}');
 
       if (await target.exists()) {
-        mapping[remote] = localPath;
         alreadyLocal++;
         continue;
       }
       final error = await _download(remote, target);
       if (error == null) {
-        mapping[remote] = localPath;
         downloaded++;
       } else {
         failed.add('$remote（$error）');
@@ -147,30 +142,14 @@ class AttachmentMaintenanceService {
       }
     }
 
-    // 3. 改写笔记
-    var updated = 0;
-    if (mapping.isNotEmpty) {
-      for (final note in notes) {
-        final newContent = rewriteImageRefs(note.content, mapping);
-        final newResources = _rewriteResources(note.resourceList, mapping);
-        if (newContent == note.content && newResources == null) {
-          continue;
-        }
-        final updatedNote = note.copyWith(
-          content: newContent,
-          resourceList: newResources ?? note.resourceList,
-        );
-        await saveNote(updatedNote);
-        updated++;
-      }
-    }
+    // 3. 让渲染层的本地副本索引重新查盘
+    AttachmentCache.instance.invalidate();
 
     return AttachmentLocalizeReport(
       totalRefs: remoteRefs.length,
       downloaded: downloaded,
       alreadyLocal: alreadyLocal,
       failed: failed,
-      notesUpdated: updated,
     );
   }
 
@@ -202,22 +181,6 @@ class AttachmentMaintenanceService {
       debugPrint('附件下载异常: ${_fullUrl(remotePath)} - $e');
       return '网络异常';
     }
-  }
-
-  List<Map<String, dynamic>>? _rewriteResources(
-    List<Map<String, dynamic>> resources,
-    Map<String, String> mapping,
-  ) {
-    var changed = false;
-    final updated = resources.map((resource) {
-      final link = resource['externalLink']?.toString();
-      if (link == null || !mapping.containsKey(link)) {
-        return resource;
-      }
-      changed = true;
-      return {...resource, 'externalLink': mapping[link]};
-    }).toList();
-    return changed ? updated : null;
   }
 
   /// 扫描没有被任何笔记引用的本地图片。
@@ -263,6 +226,7 @@ class AttachmentMaintenanceService {
         debugPrint('删除附件失败: $name - $e');
       }
     }
+    AttachmentCache.instance.invalidate();
     return deleted;
   }
 }

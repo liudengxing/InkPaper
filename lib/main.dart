@@ -16,6 +16,7 @@ import 'package:inkpaper/services/observability_service.dart';
 import 'package:inkpaper/services/performance_monitor_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 // 🚀 大厂标准：新增工具
+import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/error_handler.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/logger.dart';
@@ -158,6 +159,9 @@ Future<void> _initializeApp() async {
 
   // 初始化图片缓存管理器
   await ImageCacheManager.initialize();
+
+  // 预热服务端附件的本地缓存目录（渲染时同步查本地副本）
+  await AttachmentCache.instance.prepare();
 
   // 🚀 大厂标准：记录初始化完成
   PerformanceMonitorService().trackAppLaunch('init_completed');

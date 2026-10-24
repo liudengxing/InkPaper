@@ -15,6 +15,7 @@ import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/screens/note_detail_screen.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart'; // 🔥 添加长期缓存管理器
 import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:inkpaper/utils/note_preview_builder.dart';
@@ -516,6 +517,20 @@ class _NoteCardState extends State<NoteCard>
     // 缩略图按卡片格子的实际像素宽度解码；全屏查看由 ImageViewerScreen 自己加载原图。
     final memWidth = (decodeWidth ?? 720).clamp(160, 720);
     try {
+      // 数据维护里缓存过的服务端附件：直接读本地副本
+      final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);
+      if (cachedAttachment != null) {
+        return Image.file(
+          cachedAttachment,
+          key: ValueKey(cachedAttachment.path),
+          fit: BoxFit.cover,
+          cacheWidth: memWidth,
+          errorBuilder: (context, error, stackTrace) => Center(
+            child: Icon(Icons.broken_image, color: Colors.grey[600]),
+          ),
+        );
+      }
+
       if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
         // 🚀 网络图片 - 90天长期缓存，支持长按保存
         return SaveableImage(

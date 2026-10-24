@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
+import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/image_utils.dart';
 import 'package:provider/provider.dart';
@@ -74,6 +75,12 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
     BuildContext context,
   ) {
     try {
+      // 已缓存到本地的服务端附件：看原图也走本地文件
+      final cachedAttachment = AttachmentCache.instance.fileFor(uriString);
+      if (cachedAttachment != null) {
+        return FileImage(cachedAttachment);
+      }
+
       if (uriString.startsWith('http://') || uriString.startsWith('https://')) {
         return CachedNetworkImageProvider(
           uriString,
@@ -129,6 +136,13 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   }
 
   String _getFullImageUrl(BuildContext context) {
+    // 保存图片时优先用本地缓存，离线也能保存
+    final cachedAttachment =
+        AttachmentCache.instance.pathFor(_currentImagePath);
+    if (cachedAttachment != null) {
+      return 'file://$cachedAttachment';
+    }
+
     if (_currentImagePath.startsWith('http://') ||
         _currentImagePath.startsWith('https://')) {
       return _currentImagePath;

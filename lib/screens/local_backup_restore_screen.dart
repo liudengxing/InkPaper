@@ -241,7 +241,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         token: provider.user?.token,
       );
 
-  // 把服务器附件下载到本地并改写正文
+  // 把服务器附件缓存到本地（正文保持服务端路径，不改写）
   Future<void> _localizeAttachments() async {
     if (_isLocalizing) {
       return;
@@ -257,12 +257,11 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       context: context,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('把附件下载到本地'),
+        title: const Text('把附件缓存到本地'),
         content: Text(
-          '将把笔记引用的 $baseUrl 图片下载到本机，并把正文里的服务器路径'
-          '改写为本地路径。\n\n'
-          '完成后请立即退出 Memos 登录：只要还连着服务器，下一次同步就会用'
-          '服务端正文把本地路径覆盖回去。',
+          '将把笔记引用的 $baseUrl 图片下载到本机（不含头像等其它资源）。\n\n'
+          '正文不会被改写，仍与服务器保持一致：之后同步、多端编辑都不会把'
+          '本地缓存冲掉。图片渲染时优先读本地副本，读不到才走网络。',
         ),
         actions: [
           TextButton(
@@ -292,7 +291,6 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       final notes = await _databaseService.getNotes();
       final report = await service.localize(
         notes: notes,
-        saveNote: _databaseService.saveNote,
         onProgress: (done, total, message) {
           if (!mounted) {
             return;
@@ -303,7 +301,6 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
           });
         },
       );
-      await provider.loadNotesFromLocal();
       if (!mounted) {
         return;
       }
@@ -311,15 +308,14 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         _localizeReport = report;
         _localizeStatus = '完成';
       });
-      final okCount = report.downloaded + report.alreadyLocal;
       SnackBarUtils.showSuccess(
         context,
-        '已本地化 $okCount 个附件'
-        '${report.hasFailure ? '，${report.failed.length} 个下载失败' : ''}',
+        '已缓存 ${report.cached} 张图，可直接离线查看'
+        '${report.hasFailure ? '（${report.failed.length} 张下载失败）' : ''}',
       );
     } on Object catch (e) {
       if (mounted) {
-        SnackBarUtils.showError(context, '附件本地化失败: $e');
+        SnackBarUtils.showError(context, '附件缓存失败: $e');
       }
     } finally {
       if (mounted) {
@@ -502,13 +498,14 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '附件本地化',
+              '图片离线缓存',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Text(
               '笔记里的图片引用的是服务器地址（/file/attachments/...），本机没有副本。'
-              '这里把它们下载到本地并把正文改成本地路径，之后退出登录、离开内网也能看图。',
+              '这里把它们下载到 images 目录缓存；正文保持不变，渲染时优先读本地副本，'
+              '所以退出登录、离开内网也能看图。',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],
@@ -537,8 +534,9 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '新增下载 ${report.downloaded} 个 · 之前已有 ${report.alreadyLocal} 个 · '
-                      '失败 ${report.failed.length} 个 · 改写 ${report.notesUpdated} 条笔记',
+                      '已缓存 ${report.cached} 张图，可直接离线查看'
+                      '（新增 ${report.downloaded} · 之前已有 ${report.alreadyLocal}'
+                      '${report.hasFailure ? ' · 失败 ${report.failed.length}' : ''}）',
                       style: TextStyle(fontSize: 13, color: color.shade800),
                     ),
                     if (report.hasFailure) ...[
@@ -583,7 +581,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
               child: FilledButton.icon(
                 onPressed: _isLocalizing ? null : _localizeAttachments,
                 icon: const Icon(Icons.download_for_offline_outlined, size: 18),
-                label: Text(_isLocalizing ? '本地化中…' : '开始本地化'),
+                label: Text(_isLocalizing ? '缓存中…' : '开始缓存'),
               ),
             ),
           ],

@@ -8,6 +8,7 @@ import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/memos_markdown_converter.dart';
 import 'package:intl/intl.dart';
@@ -466,6 +467,40 @@ class CustomizableMemoContent extends StatelessWidget {
               ),
             ),
             errorWidget: (context, url, error) => Container(
+              height: 200,
+              padding: const EdgeInsets.all(16),
+              color: isDarkMode ? Colors.grey[800] : Colors.grey[200],
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.broken_image, color: Colors.grey[600], size: 48),
+                  const SizedBox(height: 8),
+                  Text(
+                    '图片加载失败',
+                    style: TextStyle(
+                      fontSize: fontSize - 3,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 已缓存到本地的服务端附件：生成分享图时读本地，离线也能出图
+    final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);
+    if (cachedAttachment != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.file(
+            cachedAttachment,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) => Container(
               height: 200,
               padding: const EdgeInsets.all(16),
               color: isDarkMode ? Colors.grey[800] : Colors.grey[200],

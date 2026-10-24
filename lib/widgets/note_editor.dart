@@ -16,6 +16,7 @@ import 'package:inkpaper/services/local_reference_service.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/services/speech_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/memo_editing_controller.dart';
 import 'package:intl/intl.dart';
@@ -2174,6 +2175,19 @@ class _NoteEditorState extends State<NoteEditor>
   Widget _buildImageWidget(String uriString) {
     debugPrint('NoteEditor: 构建图片组件 - 路径: $uriString');
 
+    // 数据维护里缓存过的服务端附件：直接读本地副本
+    final cachedAttachment = AttachmentCache.instance.fileFor(uriString);
+    if (cachedAttachment != null) {
+      return Image.file(
+        cachedAttachment,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: Colors.grey[200],
+          child: const Icon(Icons.broken_image, color: Colors.grey),
+        ),
+      );
+    }
+
     if (MemosResourceService.isServerResourcePath(uriString)) {
       // Memos服务器资源路径，需要认证
       final appProvider = Provider.of<AppProvider>(context, listen: false);
@@ -2236,6 +2250,11 @@ class _NoteEditorState extends State<NoteEditor>
   // 根据URI获取适当的ImageProvider
   ImageProvider _getImageProvider(String uriString) {
     try {
+      final cachedAttachment = AttachmentCache.instance.fileFor(uriString);
+      if (cachedAttachment != null) {
+        return FileImage(cachedAttachment);
+      }
+
       if (uriString.startsWith('http://') || uriString.startsWith('https://')) {
         // 网络图片
         return NetworkImage(uriString);

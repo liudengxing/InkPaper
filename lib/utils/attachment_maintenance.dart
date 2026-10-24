@@ -51,22 +51,11 @@ String localFileNameForAttachment(String remotePath) {
   return 'memos_${base}_$digest.$ext';
 }
 
-/// 按「远程路径 → 本地路径」映射改写正文。
-String rewriteImageRefs(String content, Map<String, String> mapping) {
-  if (mapping.isEmpty) {
-    return content;
-  }
-  var result = content;
-  mapping.forEach((remote, local) {
-    result = result.replaceAll(']($remote)', ']($local)');
-  });
-  return result;
-}
-
 /// 笔记正文与资源列表里引用到的本地图片文件名集合。
 ///
-/// 同时认 `images/x.jpg` 这种相对路径和 `file:///.../x.jpg` 绝对路径，
-/// 清理孤儿附件时两者都算「在用」。
+/// 认 `images/x.jpg` 这种相对路径、`file:///.../x.jpg` 绝对路径，以及
+/// 服务端附件路径（按 [localFileNameForAttachment] 换算成本地文件名），
+/// 清理孤儿附件时这些都算「在用」。
 Set<String> referencedLocalImageFiles(Iterable<Note> notes) {
   final names = <String>{};
 
@@ -78,7 +67,9 @@ Set<String> referencedLocalImageFiles(Iterable<Note> notes) {
     if (path.isEmpty) {
       return;
     }
-    if (path.startsWith(localImagePrefix)) {
+    if (isRemoteAttachmentPath(path)) {
+      names.add(localFileNameForAttachment(path));
+    } else if (path.startsWith(localImagePrefix)) {
       final rest = path.substring(localImagePrefix.length);
       final name = rest.split('/').first;
       if (name.isNotEmpty) {

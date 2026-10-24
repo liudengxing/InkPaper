@@ -10,6 +10,7 @@ import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/screens/note_detail_screen.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/image_utils.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
@@ -556,6 +557,46 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
     }
 
     final appProvider = Provider.of<AppProvider>(context, listen: false);
+
+    // 数据维护里缓存过的服务端附件：直接读本地副本，离线也能看
+    final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);
+    if (cachedAttachment != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: GestureDetector(
+          onTap: () => _openImageViewer(context, imagePath),
+          onLongPress: () =>
+              _showImageSaveDialog(context, 'file://${cachedAttachment.path}'),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(
+              cachedAttachment,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) => Container(
+                height: 200,
+                padding: const EdgeInsets.all(16),
+                color: isDarkMode ? Colors.grey[800] : Colors.grey[200],
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.broken_image, color: Colors.grey[600], size: 48),
+                    const SizedBox(height: 8),
+                    Text(
+                      AppLocalizationsSimple.of(context)?.imageLoadError ??
+                          '图片加载失败',
+                      style: AppTextStyles.bodySmall(
+                        context,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     // 处理HTTP/HTTPS图片
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {

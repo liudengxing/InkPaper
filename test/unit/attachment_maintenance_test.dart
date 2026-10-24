@@ -55,23 +55,6 @@ void main() {
     });
   });
 
-  group('rewriteImageRefs', () {
-    test('只替换映射中命中的路径', () {
-      const content = '![a](/file/attachments/A/x.jpg)\n![b](/file/attachments/B/y.jpg)';
-      final result = rewriteImageRefs(content, {
-        '/file/attachments/A/x.jpg': 'images/memos_x_1.jpg',
-      });
-
-      expect(result, contains('![a](images/memos_x_1.jpg)'));
-      expect(result, contains('![b](/file/attachments/B/y.jpg)'));
-    });
-
-    test('空映射不改动正文', () {
-      const content = '![a](/file/attachments/A/x.jpg)';
-      expect(rewriteImageRefs(content, const {}), content);
-    });
-  });
-
   group('referencedLocalImageFiles', () {
     test('认 images/ 相对路径与 file:// 绝对路径', () {
       final names = referencedLocalImageFiles([
@@ -83,25 +66,26 @@ void main() {
       expect(names, {'a.jpg', 'b.jpg'});
     });
 
-    test('远程引用不算本地在用', () {
-      final names = referencedLocalImageFiles([
-        _note('![a](/file/attachments/A/x.jpg)'),
-      ]);
+    test('服务端附件路径按 sha1 命名算在用（离线缓存不算孤儿）', () {
+      const remote = '/file/attachments/A/x.jpg';
+      final names = referencedLocalImageFiles([_note('![a]($remote)')]);
 
-      expect(names, isEmpty);
+      expect(names, {localFileNameForAttachment(remote)});
     });
 
     test('资源列表里的 externalLink 也算在用', () {
+      const remote = 'attachments/B/y.png';
       final names = referencedLocalImageFiles([
         _note(
           '无图正文',
           resourceList: [
             {'externalLink': 'images/c.jpg'},
+            {'externalLink': remote},
           ],
         ),
       ]);
 
-      expect(names, {'c.jpg'});
+      expect(names, {'c.jpg', localFileNameForAttachment(remote)});
     });
   });
 }

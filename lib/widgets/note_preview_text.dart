@@ -125,6 +125,13 @@ class _NotePreviewTextState extends State<NotePreviewText> {
       cuts.add(checkbox.offset);
       cuts.add((checkbox.offset + 1).clamp(0, text.length));
     }
+    // 段落空行的换行符单独成段，便于给它压缩行高
+    for (final offset in _preview.spacerOffsets) {
+      cuts.add(offset.clamp(0, text.length));
+      cuts.add((offset + 1).clamp(0, text.length));
+    }
+
+    final spacerOffsets = _preview.spacerOffsets.toSet();
 
     final sorted = cuts.toList()..sort();
     final checkboxByOffset = <int, PreviewCheckbox>{
@@ -152,11 +159,15 @@ class _NotePreviewTextState extends State<NotePreviewText> {
 
       final checkbox = checkboxByOffset[start];
       final isCheckboxSegment = checkbox != null && end == start + 1;
+      // 段落空行：4px 字号 × 2.0 行高 = 8px，与详情页 blockSpacing 对齐
+      final isSpacerLine = spacerOffsets.contains(start) && end == start + 1;
 
       spans.add(
         TextSpan(
           text: text.substring(start, end),
-          style: _styleFor(styles, accent, brightness, isHighlighted),
+          style: isSpacerLine
+              ? const TextStyle(fontSize: 4, height: 2)
+              : _styleFor(styles, accent, brightness, isHighlighted),
           recognizer: isCheckboxSegment && widget.onCheckboxTap != null
               ? _recognizerFor(checkbox.index)
               : null,

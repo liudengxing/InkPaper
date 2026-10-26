@@ -74,12 +74,20 @@ void main() {
       expect(bare.text, contains('引用笔记'));
     });
 
-    test('块之间最多一个换行，不产生大段空白', () {
+    test('段落之间保留一个空行作为段间距', () {
       final preview = buildNotePreview('第一段\n\n\n\n第二段');
 
+      expect(preview.text, '第一段\n\n第二段');
+      expect(preview.spacerOffsets, hasLength(1));
+      expect(preview.text[preview.spacerOffsets.single], '\n');
+    });
+
+    test('列表项之间只换行，不插入段间距空行', () {
+      final preview = buildNotePreview('- 第一项\n- 第二项');
+
+      expect(preview.text, contains('第一项\n第二项'));
       expect(preview.text.contains('\n\n'), isFalse);
-      expect(preview.text, contains('第一段'));
-      expect(preview.text, contains('第二段'));
+      expect(preview.spacerOffsets, isEmpty);
     });
 
     test('空内容返回空预览', () {

@@ -43,6 +43,7 @@ class NotePreview {
     required this.text,
     required this.ranges,
     required this.checkboxes,
+    this.spacerOffsets = const <int>[],
   });
 
   static const NotePreview empty = NotePreview(
@@ -54,6 +55,12 @@ class NotePreview {
   final String text;
   final List<PreviewRange> ranges;
   final List<PreviewCheckbox> checkboxes;
+
+  /// 段落空行里第二个换行符的位置。
+  ///
+  /// 卡片只用一个 `Text.rich`，渲染侧给这些换行符单独设置更小的行高，
+  /// 让段落间距贴近详情页 `MarkdownBody` 的 blockSpacing。
+  final List<int> spacerOffsets;
 
   bool get isEmpty => text.trim().isEmpty;
 }
@@ -98,6 +105,7 @@ NotePreview buildNotePreview(
     text: walker.text,
     ranges: walker.ranges,
     checkboxes: walker.checkboxes,
+    spacerOffsets: walker.spacerOffsets,
   );
 }
 
@@ -175,17 +183,21 @@ class _PreviewWalker {
   final StringBuffer _buffer = StringBuffer();
   final List<PreviewRange> _ranges = <PreviewRange>[];
   final List<PreviewCheckbox> _checkboxes = <PreviewCheckbox>[];
+  final List<int> _spacerOffsets = <int>[];
 
   int _length = 0;
   String _tail = '';
   int _checkboxIndex = 0;
   bool _pendingBreak = false;
+  bool _pendingGap = false;
 
   String get text => _buffer.toString();
 
   List<PreviewRange> get ranges => _ranges;
 
   List<PreviewCheckbox> get checkboxes => _checkboxes;
+
+  List<int> get spacerOffsets => _spacerOffsets;
 
   void walkBlocks(List<md.Node> nodes) {
     for (final node in nodes) {
@@ -208,9 +220,9 @@ class _PreviewWalker {
     switch (node.tag) {
       case 'p':
       case 'div':
-        _break();
+        _gap();
         _walkChildren(children, styles);
-        _break();
+        _gap();
       case 'br':
         _writeRaw('\n', styles);
       case 'h1':
@@ -220,13 +232,13 @@ class _PreviewWalker {
       case 'h5':
       case 'h6':
         // 预览里标题只加粗、不改字号：混字号会让行高不一致，视觉更差。
-        _break();
+        _gap();
         _walkChildren(children, _plus(styles, PreviewInlineStyle.bold));
-        _break();
+        _gap();
       case 'blockquote':
-        _break();
+        _gap();
         _walkChildren(children, _plus(styles, PreviewInlineStyle.quote));
-        _break();
+        _gap();
       case 'strong':
         _walkChildren(children, _plus(styles, PreviewInlineStyle.bold));
       case 'em':
@@ -241,28 +253,28 @@ class _PreviewWalker {
         // 行内代码：等宽 + 主色文字，不加底色盒子（底色会盖住行距）。
         _walkChildren(children, _plus(styles, PreviewInlineStyle.code));
       case 'pre':
-        _break();
+        _gap();
         _walkCodeBlock(node, styles);
-        _break();
+        _gap();
       case 'ul':
       case 'ol':
         _walkChildren(children, styles);
-        _break();
+        _gap();
       case 'li':
         _break();
         _walkChildren(children, styles);
         _break();
       case 'hr':
-        _break();
+        _gap();
         _append('—', styles);
-        _break();
+        _gap();
       case 'img':
         // 已在预处理阶段移除，兜底跳过。
         break;
       case 'table':
-        _break();
+        _gap();
         _walkTable(node, styles);
-        _break();
+        _gap();
       case 'thead':
       case 'tbody':
       case 'tfoot':
@@ -318,7 +330,7 @@ class _PreviewWalker {
     _append(rows.take(2).join('  '), styles);
   }
 
-  /// 块级节点之间的换行。
+  /// 需要换行但不额外留白的边界（例如列表项之间）。
   ///
   /// 迟到写入：只有后面真的还有内容时才落一个换行，避免预览尾部挂着空行。
   void _break() {
@@ -326,6 +338,19 @@ class _PreviewWalker {
       return;
     }
     _pendingBreak = true;
+  }
+
+  /// 段落级块之间的分隔：换行后多落一个空行。
+  ///
+  /// 详情页的 `MarkdownBody` 会给每个块加 blockSpacing，卡片只有一个
+  /// `Text.rich`，只能靠空行制造同样的段落间距；渲染侧会给这个空行
+  /// 单独压缩行高，避免占掉整整一行。
+  void _gap() {
+    if (_length == 0) {
+      return;
+    }
+    _pendingBreak = true;
+    _pendingGap = true;
   }
 
   void _writeRaw(String value, Set<PreviewInlineStyle> styles) {
@@ -346,8 +371,14 @@ class _PreviewWalker {
     var content = value;
     if (_pendingBreak) {
       _pendingBreak = false;
+      final gap = _pendingGap;
+      _pendingGap = false;
       if (_length > 0 && _tail != '\n') {
         _writeRaw('\n', const <PreviewInlineStyle>{});
+        if (gap) {
+          _spacerOffsets.add(_length);
+          _writeRaw('\n', const <PreviewInlineStyle>{});
+        }
       }
       // 行首缩进在预览里没有意义
       content = content.replaceFirst(_leadingSpacePattern, '');

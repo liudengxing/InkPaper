@@ -556,6 +556,13 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
       debugPrint('🖼️ SimpleMemoContent 图片: $imagePath');
     }
 
+    // 解码宽度按屏幕物理像素封顶：原图动辄 4000px 宽，按原始尺寸解码
+    // 一张就占几十 MB，多图笔记同时进来直接把主线程顶住。
+    final size = MediaQuery.maybeSizeOf(context);
+    final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
+    final decodeWidth =
+        ((size?.width ?? 400) * dpr).clamp(320, 1440).round();
+
     final appProvider = Provider.of<AppProvider>(context, listen: false);
 
     // 数据维护里缓存过的服务端附件：直接读本地副本，离线也能看
@@ -572,6 +579,7 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
             child: Image.file(
               cachedAttachment,
               fit: BoxFit.contain,
+              cacheWidth: decodeWidth,
               errorBuilder: (context, error, stackTrace) => Container(
                 height: 200,
                 padding: const EdgeInsets.all(16),
@@ -614,16 +622,14 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
               imageUrl: imagePath,
               cacheManager: ImageCacheManager.authImageCache,
               fit: BoxFit.contain,
-              placeholder: (context, url) => Container(
-                height: 200,
-                color: (isDarkMode ? Colors.grey[800] : Colors.grey[200]),
-                child: const Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
+              // 解码宽度按屏宽封顶：多图笔记不再按原图像素解码
+              memCacheWidth: decodeWidth,
+              fadeInDuration: const Duration(milliseconds: 180),
+              fadeOutDuration: const Duration(milliseconds: 80),
+              // 磁盘已有缓存时先用 240px 缩略图顶上，原图解码完再淡入
+              placeholder: (context, url) => _RemoteImagePreview(
+                url: imagePath,
+                isDarkMode: isDarkMode,
               ),
               errorWidget: (context, url, error) {
                 // 离线模式fallback
@@ -633,7 +639,11 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
                       .then((info) => info?.file),
                   builder: (context, snapshot) {
                     if (snapshot.hasData && snapshot.data != null) {
-                      return Image.file(snapshot.data!, fit: BoxFit.contain);
+                      return Image.file(
+                        snapshot.data!,
+                        fit: BoxFit.contain,
+                        cacheWidth: decodeWidth,
+                      );
                     }
                     return Container(
                       height: 200,
@@ -706,16 +716,14 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
               cacheManager: ImageCacheManager.authImageCache,
               httpHeaders: headers,
               fit: BoxFit.contain,
-              placeholder: (context, url) => Container(
-                height: 200,
-                color: (isDarkMode ? Colors.grey[800] : Colors.grey[200]),
-                child: const Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
+              // 解码宽度按屏宽封顶：多图笔记不再按原图像素解码
+              memCacheWidth: decodeWidth,
+              fadeInDuration: const Duration(milliseconds: 180),
+              fadeOutDuration: const Duration(milliseconds: 80),
+              // 磁盘已有缓存时先用 240px 缩略图顶上，原图解码完再淡入
+              placeholder: (context, url) => _RemoteImagePreview(
+                url: fullUrl,
+                isDarkMode: isDarkMode,
               ),
               errorWidget: (context, url, error) {
                 if (kDebugMode) {
@@ -728,7 +736,11 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
                       .then((info) => info?.file),
                   builder: (context, snapshot) {
                     if (snapshot.hasData && snapshot.data != null) {
-                      return Image.file(snapshot.data!, fit: BoxFit.contain);
+                      return Image.file(
+                        snapshot.data!,
+                        fit: BoxFit.contain,
+                        cacheWidth: decodeWidth,
+                      );
                     }
                     return Container(
                       height: 200,
@@ -790,6 +802,7 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
             child: Image.file(
               File(imagePath.replaceFirst('file://', '')),
               fit: BoxFit.contain,
+              cacheWidth: decodeWidth,
               errorBuilder: (context, error, stackTrace) {
                 if (kDebugMode) {
                   debugPrint('❌ local file image error: $error for $imagePath');
@@ -1074,6 +1087,51 @@ class UnderlineBuilder extends MarkdownElementBuilder {
           ]),
         ),
       ),
+    );
+  }
+}
+
+/// 原图加载期间的占位。
+///
+/// 如果磁盘缓存里已经有这张图，先用 240px 的缩略解码顶上，
+/// 避免多图笔记一进来只有一片灰块；原图解码完成后再由
+/// `CachedNetworkImage` 淡入替换。
+class _RemoteImagePreview extends StatelessWidget {
+  const _RemoteImagePreview({
+    required this.url,
+    required this.isDarkMode,
+  });
+
+  final String url;
+  final bool isDarkMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<File?>(
+      future: ImageCacheManager.authImageCache
+          .getFileFromCache(url)
+          .then((info) => info?.file),
+      builder: (context, snapshot) {
+        final file = snapshot.data;
+        if (file != null) {
+          return Image.file(
+            file,
+            fit: BoxFit.contain,
+            cacheWidth: 240,
+          );
+        }
+        return Container(
+          height: 200,
+          color: (isDarkMode ? Colors.grey[800] : Colors.grey[200]),
+          child: const Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        );
+      },
     );
   }
 }

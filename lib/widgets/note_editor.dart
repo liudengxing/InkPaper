@@ -74,6 +74,9 @@ class _NoteEditorState extends State<NoteEditor>
   // 关闭流程防重入：点空白和点关闭按钮可能同时触发，避免连 pop 两次
   bool _isClosingEditor = false;
 
+  // 图片区是否展开成九宫格（默认单行横滑，上滑或点按钮展开）
+  bool _imageGridExpanded = false;
+
   // 是否显示更多选项
   bool _showingMoreOptions = false;
 
@@ -1251,18 +1254,24 @@ class _NoteEditorState extends State<NoteEditor>
     // 顶部指示器和内边距高度
     const topElementsHeight = 20.0;
 
-    // 图片预览区域高度
-    final imagePreviewHeight = _imageList.isEmpty ? 0.0 : 120.0;
+    // 图片预览区域高度（展开九宫格时更高）
+    final imagePreviewHeight = _imageList.isEmpty
+        ? 0.0
+        : (_imageGridExpanded ? _imageGridHeight + 24 : _imageStripHeight);
 
     // 编辑器总高度 = 内容高度 + 工具栏高度 + 顶部元素高度 + 图片预览高度
     final editorHeight = math
-        .max(
-          contentHeight +
-              toolbarHeight +
-              topElementsHeight +
-              imagePreviewHeight +
-              32, // 添加额外padding空间
-          baseEditorHeight,
+        .min(
+          math.max(
+            contentHeight +
+                toolbarHeight +
+                topElementsHeight +
+                imagePreviewHeight +
+                32, // 添加额外padding空间
+            baseEditorHeight,
+          ),
+          // 展开九宫格或大字号时不要把编辑器顶出屏幕
+          screenSize.height * 0.92,
         )
         .toDouble();
 
@@ -1599,43 +1608,9 @@ class _NoteEditorState extends State<NoteEditor>
                           ),
                         ),
 
-                        // 图片预览区域 - 水平滚动
+                        // 图片预览区域：默认单行横滑，可展开九宫格
                         if (_imageList.isNotEmpty)
-                          Container(
-                            height: 110,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                top:
-                                    BorderSide(color: dividerColor, width: 0.5),
-                              ),
-                            ),
-                            child: ReorderableListView.builder(
-                              scrollDirection: Axis.horizontal,
-                              scrollController: _imageScrollController,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              buildDefaultDragHandles: false,
-                              itemCount: _imageList.length,
-                              onReorderItem: _reorderImage,
-                              proxyDecorator: (child, index, animation) =>
-                                  Material(
-                                color: Colors.transparent,
-                                elevation: 6,
-                                borderRadius: BorderRadius.circular(8),
-                                child: child,
-                              ),
-                              itemBuilder: (context, index) =>
-                                  ReorderableDelayedDragStartListener(
-                                key: ObjectKey(_imageList[index]),
-                                index: index,
-                                child: _buildImagePreviewItem(
-                                  _imageList[index],
-                                  index,
-                                ),
-                              ),
-                            ),
-                          ),
+                          _buildImageSection(dividerColor),
 
                         // 更多选项栏（条件显示）
                         if (_showingMoreOptions)
@@ -1969,6 +1944,225 @@ class _NoteEditorState extends State<NoteEditor>
     );
   }
 
+  // 图片区高度：单行横滑条 / 展开后的九宫格
+  static const double _imageStripHeight = 110;
+  static const double _imageGridHeight = 330;
+
+  /// 图片区：默认单行横滑（长按拖动排序），上滑或点按钮展开九宫格。
+  Widget _buildImageSection(Color dividerColor) => AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        height: _imageGridExpanded ? _imageGridHeight : _imageStripHeight,
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: dividerColor, width: 0.5),
+          ),
+        ),
+        child: _imageGridExpanded ? _buildImageGrid() : _buildImageStrip(),
+      );
+
+  Widget _buildImageStrip() => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        // 单行条上向上滑 → 展开九宫格
+        onVerticalDragEnd: (details) {
+          if ((details.primaryVelocity ?? 0) < -220) {
+            setState(() => _imageGridExpanded = true);
+          }
+        },
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: ReorderableListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  scrollController: _imageScrollController,
+                  padding: const EdgeInsets.only(left: 16, right: 44),
+                  buildDefaultDragHandles: false,
+                  itemCount: _imageList.length,
+                  onReorderItem: _reorderImage,
+                  proxyDecorator: (child, index, animation) => Material(
+                    color: Colors.transparent,
+                    elevation: 6,
+                    borderRadius: BorderRadius.circular(8),
+                    child: child,
+                  ),
+                  itemBuilder: (context, index) =>
+                      ReorderableDelayedDragStartListener(
+                    key: ObjectKey(_imageList[index]),
+                    index: index,
+                    child: _buildImagePreviewItem(
+                      _imageList[index],
+                      index,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 8,
+              top: 8,
+              child: _buildGridToggleButton(),
+            ),
+          ],
+        ),
+      );
+
+  Widget _buildGridToggleButton() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: () => setState(() => _imageGridExpanded = true),
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color:
+              (isDarkMode ? Colors.black : Colors.white).withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: (isDarkMode ? Colors.white : Colors.black)
+                .withValues(alpha: 0.12),
+          ),
+        ),
+        child: Icon(
+          Icons.grid_view_rounded,
+          size: 15,
+          color: isDarkMode ? Colors.white70 : Colors.black54,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageGrid() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final secondaryTextColor = isDarkMode ? Colors.grey[400] : Colors.grey[700];
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+          child: Row(
+            children: [
+              Text(
+                '${_imageList.length} 张图片 · 长按拖动排序',
+                style: TextStyle(fontSize: 12, color: secondaryTextColor),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: () => setState(() => _imageGridExpanded = false),
+                tooltip: '收起',
+                icon: Icon(
+                  Icons.expand_more_rounded,
+                  size: 20,
+                  color: secondaryTextColor,
+                ),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+            ),
+            itemCount: _imageList.length,
+            itemBuilder: (context, index) => _buildGridImageItem(index),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGridImageItem(int index) {
+    final image = _imageList[index];
+    return DragTarget<int>(
+      onWillAcceptWithDetails: (details) => details.data != index,
+      onAcceptWithDetails: (details) => _moveImage(details.data, index),
+      builder: (context, candidates, rejected) {
+        final highlighted = candidates.isNotEmpty;
+        return LongPressDraggable<int>(
+          data: index,
+          feedback: Material(
+            color: Colors.transparent,
+            elevation: 6,
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              width: 96,
+              height: 96,
+              child: _buildGridTile(image, index, showDelete: false),
+            ),
+          ),
+          childWhenDragging: Opacity(
+            opacity: 0.25,
+            child: _buildGridTile(image, index, showDelete: false),
+          ),
+          child: _buildGridTile(
+            image,
+            index,
+            highlighted: highlighted,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGridTile(
+    _ImageItem image,
+    int index, {
+    bool showDelete = true,
+    bool highlighted = false,
+  }) =>
+      DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: highlighted
+                ? AppTheme.primaryColor
+                : Colors.grey.withValues(alpha: 0.3),
+            width: highlighted ? 2 : 1,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(9),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildImageWidget(image.path),
+              Positioned(
+                top: 4,
+                left: 4,
+                child: _buildUploadStatusIcon(image.uploadStatus),
+              ),
+              if (showDelete)
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: GestureDetector(
+                    onTap: () => _removeImage(index),
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+
   // 构建单个图片预览项
   Widget _buildImagePreviewItem(_ImageItem image, int index) => Container(
         width: 90,
@@ -2027,15 +2221,26 @@ class _NoteEditorState extends State<NoteEditor>
   /// 拖动只是让图片换到别的插槽。这样保存后的 Markdown 顺序与列表一致，
   /// 也不会把原本插在正文中间的图片整体挪到文末。
   void _reorderImage(int oldIndex, int newIndex) {
-    if (oldIndex == newIndex || oldIndex < 0 || oldIndex >= _imageList.length) {
+    if (oldIndex == newIndex) {
       return;
     }
     // onReorderItem 传入的 newIndex 已按「先移除再插入」调整过
-    final target = newIndex.clamp(0, _imageList.length - 1);
+    _moveImage(oldIndex, newIndex.clamp(0, _imageList.length - 1));
+  }
+
+  /// 把第 [from] 张图片移动到第 [to] 个位置（单行拖动与九宫格拖动共用）。
+  void _moveImage(int from, int to) {
+    if (from == to || from < 0 || from >= _imageList.length) {
+      return;
+    }
+    final target = to.clamp(0, _imageList.length - 1);
+    if (target == from) {
+      return;
+    }
     setState(() {
-      _imageList.insert(target, _imageList.removeAt(oldIndex));
-      if (oldIndex < _mdCodes.length) {
-        final code = _mdCodes.removeAt(oldIndex);
+      _imageList.insert(target, _imageList.removeAt(from));
+      if (from < _mdCodes.length) {
+        final code = _mdCodes.removeAt(from);
         _mdCodes.insert(target.clamp(0, _mdCodes.length), code);
       }
     });
@@ -2230,6 +2435,7 @@ class _NoteEditorState extends State<NoteEditor>
       return Image.file(
         cachedAttachment,
         fit: BoxFit.cover,
+        cacheWidth: 240,
         errorBuilder: (context, error, stackTrace) => Container(
           color: Colors.grey[200],
           child: const Icon(Icons.broken_image, color: Colors.grey),
@@ -2250,6 +2456,8 @@ class _NoteEditorState extends State<NoteEditor>
         return CachedNetworkImage(
           imageUrl: fullUrl,
           fit: BoxFit.cover,
+          // 编辑器里只显示 90~110px 的小格子，按缩略尺寸解码即可
+          memCacheWidth: 240,
           httpHeaders: token != null ? {'Authorization': 'Bearer $token'} : {},
           placeholder: (context, url) {
             debugPrint('NoteEditor: 图片加载中 - $url');

@@ -69,6 +69,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   // 🔧 恢复 _scaffoldKey 以修复侧边栏按钮
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  // 排序浮层的定位锚点（首页标题）
+  final GlobalKey _titleAnchorKey = GlobalKey();
   bool _isSearchActive = false;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -509,8 +511,14 @@ class _HomeScreenState extends State<HomeScreen>
     _scaffoldKey.currentState?.openDrawer();
   }
 
-  // 显示排序选项（iOS风格）
-  void _showSortOptions() {
+  // 排序选项：参照 flomo，点标题后在标题下方直接展开一列选项
+  Future<void> _showSortOptions() async {
+    final anchorBox = _titleAnchorKey.currentContext?.findRenderObject();
+    final overlayBox = Overlay.of(context).context.findRenderObject();
+    if (anchorBox is! RenderBox || overlayBox is! RenderBox) {
+      return;
+    }
+
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
     final textColor =
@@ -518,71 +526,55 @@ class _HomeScreenState extends State<HomeScreen>
     final primaryColor =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DecoratedBox(
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 顶部指示器
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(top: 12, bottom: 20),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              // 标题
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Text(
-                  AppLocalizationsSimple.of(context)?.sortBy ?? '排序方式',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              // 排序选项
-              _buildSortOption(
-                AppLocalizationsSimple.of(context)?.newestFirst ?? '最新优先',
-                SortOrder.newest,
-                primaryColor,
-                textColor,
-              ),
-              _buildSortOption(
-                AppLocalizationsSimple.of(context)?.oldestFirst ?? '最旧优先',
-                SortOrder.oldest,
-                primaryColor,
-                textColor,
-              ),
-              _buildSortOption(
-                AppLocalizationsSimple.of(context)?.updatedTime ?? '更新时间',
-                SortOrder.updated,
-                primaryColor,
-                textColor,
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
+    final topLeft = anchorBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+    final bottomRight = anchorBox.localToGlobal(
+      anchorBox.size.bottomRight(Offset.zero),
+      ancestor: overlayBox,
     );
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(topLeft, bottomRight),
+      Offset.zero & overlayBox.size,
+    );
+
+    final l10n = AppLocalizationsSimple.of(context);
+    final selected = await showMenu<SortOrder>(
+      context: context,
+      position: position,
+      color: backgroundColor,
+      elevation: 10,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      // 贴着标题的一张小卡片，不要铺满大半个屏幕
+      constraints: const BoxConstraints(minWidth: 168, maxWidth: 220),
+      items: [
+        _buildSortMenuItem(
+          l10n?.newestFirst ?? '最新优先',
+          SortOrder.newest,
+          primaryColor,
+          textColor,
+        ),
+        _buildSortMenuItem(
+          l10n?.oldestFirst ?? '最旧优先',
+          SortOrder.oldest,
+          primaryColor,
+          textColor,
+        ),
+        _buildSortMenuItem(
+          l10n?.updatedTime ?? '更新时间',
+          SortOrder.updated,
+          primaryColor,
+          textColor,
+        ),
+      ],
+    );
+
+    if (selected == null || !mounted) {
+      return;
+    }
+    setState(() => _currentSortOrder = selected);
+    _applySorting();
   }
 
-  // 构建排序选项
-  Widget _buildSortOption(
+  PopupMenuItem<SortOrder> _buildSortMenuItem(
     String title,
     SortOrder sortOrder,
     Color primaryColor,
@@ -590,30 +582,30 @@ class _HomeScreenState extends State<HomeScreen>
   ) {
     final isSelected = _currentSortOrder == sortOrder;
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: 16,
-          color: isSelected ? primaryColor : textColor,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-        ),
-      ),
-      trailing: isSelected
-          ? Icon(
-              Icons.check,
+    return PopupMenuItem<SortOrder>(
+      value: sortOrder,
+      height: 44,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 15,
+                color: isSelected ? primaryColor : textColor,
+                fontWeight:
+                    isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
+          if (isSelected)
+            Icon(
+              Icons.check_rounded,
               color: primaryColor,
-              size: 20,
-            )
-          : null,
-      onTap: () {
-        setState(() {
-          _currentSortOrder = sortOrder;
-        });
-        Navigator.pop(context);
-        _applySorting();
-      },
+              size: 18,
+            ),
+        ],
+      ),
     );
   }
 
@@ -1173,6 +1165,7 @@ class _HomeScreenState extends State<HomeScreen>
                   key: const ValueKey('home_title'),
                   onTap: _showSortOptions,
                   child: Container(
+                    key: _titleAnchorKey,
                     // 文字与列表内容左边缘对齐，不再额外缩进
                     padding: const EdgeInsets.only(right: 6, top: 6, bottom: 6),
                     decoration: BoxDecoration(
@@ -1240,31 +1233,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             SizedBox(width: ResponsiveUtils.fontScaledSpacing(context, 2)),
           ],
-          // AI洞察按钮
           if (!_isSearchActive) ...[
-            IconButton(
-              icon: Container(
-                padding: EdgeInsets.all(
-                  ResponsiveUtils.fontScaledSpacing(context, 8),
-                ),
-                decoration: BoxDecoration(
-                  color: backgroundColor,
-                  borderRadius: BorderRadius.circular(
-                    ResponsiveUtils.fontScaledBorderRadius(context, 8),
-                  ),
-                ),
-                child: Icon(
-                  Icons.psychology_rounded,
-                  size: ResponsiveUtils.fontScaledIconSize(context, 20),
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-              tooltip: AppLocalizationsSimple.of(context)?.aiInsight ?? 'AI洞察',
-              onPressed: _showAiInsightDialog,
-            ),
-            SizedBox(
-              width: ResponsiveUtils.fontScaledSpacing(context, 5),
-            ), // 紧凑间距
             // 搜索按钮
             IconButton(
               icon: Container(
@@ -1850,6 +1819,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // AI洞察对话框
+  // 首页顶栏的 AI 入口已去掉；页面本身保留，后续可以挪到侧边栏或设置页。
+  // ignore: unused_element
   void _showAiInsightDialog() {
     final appProvider = Provider.of<AppProvider>(context, listen: false);
     final appConfig = appProvider.appConfig;

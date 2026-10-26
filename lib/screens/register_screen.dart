@@ -28,7 +28,6 @@ class _RegisterScreenState extends State<RegisterScreen>
   bool _rememberLogin = true;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  bool _useCustomServer = false;
 
   late AnimationController _heroController;
   late AnimationController _formController;
@@ -105,50 +104,21 @@ class _RegisterScreenState extends State<RegisterScreen>
   Future<void> _loadSavedServerInfo() async {
     final appProvider = Provider.of<AppProvider>(context, listen: false);
 
-    // 🎯 大厂标准：加载服务器选择偏好（跨页面共享）
+    // 加载已保存的服务器地址（跨页面共享）
     final prefsService = appProvider.preferencesService;
-    final useCustomServer = await prefsService.getUseCustomServer();
-    final customServerUrl = await prefsService.getCustomServerUrl();
+    final savedUrl = await prefsService.getCustomServerUrl();
+    final text = savedUrl != null && savedUrl.trim().isNotEmpty
+        ? savedUrl.trim()
+        : AppConfig.serverUrlPrefix;
 
-    debugPrint('RegisterScreen: 使用自定义服务器: $useCustomServer');
-    debugPrint('RegisterScreen: 自定义服务器地址: $customServerUrl');
+    debugPrint('RegisterScreen: 服务器地址: $text');
 
-    setState(() {
-      _useCustomServer = useCustomServer;
-      _serverController.text = useCustomServer && customServerUrl != null
-          ? customServerUrl
-          : AppConfig.officialMemosServer;
-    });
-  }
-
-  // 🎯 大厂标准：处理服务器选择变化（实时同步到SharedPreferences）
-  Future<void> _onServerTypeChanged(bool useCustom) async {
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final prefsService = appProvider.preferencesService;
-
-    if (useCustom) {
-      // 切换到自定义：显示之前保存的自定义地址，如果没有则清空
-      final savedCustomUrl = await prefsService.getCustomServerUrl();
-      setState(() {
-        _useCustomServer = true;
-        _serverController.text = (savedCustomUrl != null &&
-                savedCustomUrl != AppConfig.officialMemosServer)
-            ? savedCustomUrl
-            : ''; // 清空输入框，让用户输入
-      });
-    } else {
-      // 切换到官方：显示官方地址
-      setState(() {
-        _useCustomServer = false;
-        _serverController.text = AppConfig.officialMemosServer;
-      });
-      await prefsService.saveCustomServerUrl(AppConfig.officialMemosServer);
+    if (!mounted) {
+      return;
     }
-
-    // 保存选择到SharedPreferences，实现跨页面同步
-    await prefsService.saveUseCustomServer(useCustom);
-
-    debugPrint('RegisterScreen: 服务器选择已更改: ${useCustom ? "自定义" : "官方"}');
+    setState(() {
+      _serverController.text = text;
+    });
   }
 
   // 🎯 大厂标准：处理自定义服务器地址变化
@@ -171,9 +141,7 @@ class _RegisterScreenState extends State<RegisterScreen>
 
     try {
       final appProvider = Provider.of<AppProvider>(context, listen: false);
-      final serverUrl = _useCustomServer
-          ? _serverController.text.trim()
-          : AppConfig.officialMemosServer;
+      final serverUrl = _serverController.text.trim();
       final username = _usernameController.text.trim();
       final password = _passwordController.text.trim();
 
@@ -1171,7 +1139,7 @@ class _RegisterScreenState extends State<RegisterScreen>
         ),
       );
 
-  // 🎯 大厂标准：服务器选择器（下拉框 + 条件显示输入框）
+  // 服务器地址输入
   Widget _buildServerSection(
     Color textPrimary,
     Color textSecondary,
@@ -1181,9 +1149,8 @@ class _RegisterScreenState extends State<RegisterScreen>
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 服务器类型选择标题
           Text(
-            AppLocalizationsSimple.of(context)?.server ?? '服务器',
+            AppLocalizationsSimple.of(context)?.serverAddress ?? '服务器地址',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -1192,206 +1159,97 @@ class _RegisterScreenState extends State<RegisterScreen>
             ),
           ),
           const SizedBox(height: 8),
-
-          // 下拉选择框（官方/自定义）
-          Container(
-            decoration: BoxDecoration(
-              color: isDarkMode
-                  ? Colors.white.withValues(alpha: 0.05)
-                  : Colors.black.withValues(alpha: 0.03),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isDarkMode
-                    ? Colors.white.withValues(alpha: 0.1)
-                    : Colors.black.withValues(alpha: 0.08),
-              ),
+          TextFormField(
+            controller: _serverController,
+            style: TextStyle(
+              fontSize: 16,
+              color: textPrimary,
+              fontWeight: FontWeight.w500,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<bool>(
-                value: _useCustomServer,
-                isExpanded: true,
-                icon: Icon(
-                  Icons.arrow_drop_down,
+            keyboardType: TextInputType.url,
+            onChanged: _onCustomServerUrlChanged,
+            validator: (value) {
+              final text = value?.trim() ?? '';
+              if (text.isEmpty) {
+                return '请输入服务器地址';
+              }
+              if (!text.startsWith('http://') && !text.startsWith('https://')) {
+                return '服务器地址必须以 http:// 或 https:// 开头';
+              }
+              final uri = Uri.tryParse(text);
+              if (uri == null || uri.host.isEmpty) {
+                return '请输入完整的服务器地址';
+              }
+              return null;
+            },
+            decoration: InputDecoration(
+              hintText: 'https://your-memos-domain.com',
+              hintStyle: TextStyle(
+                color: textSecondary,
+                fontSize: 15,
+                fontWeight: FontWeight.normal,
+              ),
+              prefixIcon: Container(
+                margin: const EdgeInsets.all(12),
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.cloud_outlined,
+                  size: 18,
                   color: primaryColor,
                 ),
-                dropdownColor:
-                    isDarkMode ? AppTheme.darkCardColor : AppTheme.surfaceColor,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: textPrimary,
-                  fontWeight: FontWeight.w500,
+              ),
+              filled: true,
+              fillColor: isDarkMode
+                  ? Colors.white.withValues(alpha: 0.03)
+                  : Colors.black.withValues(alpha: 0.02),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: isDarkMode
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.black.withValues(alpha: 0.08),
                 ),
-                items: [
-                  DropdownMenuItem(
-                    value: false,
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.verified_outlined,
-                          size: 20,
-                          color: primaryColor,
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              AppLocalizationsSimple.of(context)
-                                      ?.officialServer ??
-                                  '官方服务器',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                                color: textPrimary,
-                              ),
-                            ),
-                            Text(
-                              AppLocalizationsSimple.of(context)?.recommended ??
-                                  '推荐使用',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  DropdownMenuItem(
-                    value: true,
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.dns_outlined,
-                          size: 20,
-                          color: textSecondary,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          AppLocalizationsSimple.of(context)?.customServer ??
-                              '自定义服务器',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    _onServerTypeChanged(value);
-                  }
-                },
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: isDarkMode
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.black.withValues(alpha: 0.08),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: primaryColor,
+                  width: 2,
+                ),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Colors.red,
+                  width: 1.5,
+                ),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Colors.red,
+                  width: 2,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 16,
               ),
             ),
           ),
-
-          // 🎯 自定义服务器地址输入框（仅在选择自定义时显示）
-          if (_useCustomServer) ...[
-            const SizedBox(height: 20),
-            Text(
-              AppLocalizationsSimple.of(context)?.serverAddress ?? '服务器地址',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _serverController,
-              style: TextStyle(
-                fontSize: 16,
-                color: textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-              keyboardType: TextInputType.url,
-              onChanged: _onCustomServerUrlChanged,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return '请输入服务器地址';
-                }
-                if (!value.startsWith('http://') &&
-                    !value.startsWith('https://')) {
-                  return '服务器地址必须以 http:// 或 https:// 开头';
-                }
-                return null;
-              },
-              decoration: InputDecoration(
-                hintText: 'https://your-memos-server.com',
-                hintStyle: TextStyle(
-                  color: textSecondary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.normal,
-                ),
-                prefixIcon: Container(
-                  margin: const EdgeInsets.all(12),
-                  width: 20,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.cloud_outlined,
-                    size: 18,
-                    color: primaryColor,
-                  ),
-                ),
-                filled: true,
-                fillColor: isDarkMode
-                    ? Colors.white.withValues(alpha: 0.03)
-                    : Colors.black.withValues(alpha: 0.02),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: isDarkMode
-                        ? Colors.white.withValues(alpha: 0.1)
-                        : Colors.black.withValues(alpha: 0.08),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: isDarkMode
-                        ? Colors.white.withValues(alpha: 0.1)
-                        : Colors.black.withValues(alpha: 0.08),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: primaryColor,
-                    width: 2,
-                  ),
-                ),
-                errorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                    color: Colors.red,
-                    width: 1.5,
-                  ),
-                ),
-                focusedErrorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                    color: Colors.red,
-                    width: 2,
-                  ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-              ),
-            ),
-          ],
         ],
       );
 

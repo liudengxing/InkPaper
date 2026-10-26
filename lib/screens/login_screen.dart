@@ -141,12 +141,14 @@ class _LoginScreenState extends State<LoginScreen>
 
     debugPrint('LoginScreen: 服务器地址: $customServerUrl');
 
+    if (!mounted) {
+      return;
+    }
     setState(() {
-      _serverController.text = (customServerUrl != null &&
-              customServerUrl.isNotEmpty &&
-              customServerUrl != AppConfig.officialMemosServer)
-          ? customServerUrl
-          : '';
+      _serverController.text =
+          (customServerUrl != null && customServerUrl.trim().isNotEmpty)
+              ? customServerUrl.trim()
+              : AppConfig.serverUrlPrefix;
     });
 
     if (savedUsername != null) {
@@ -1126,12 +1128,18 @@ class _LoginScreenState extends State<LoginScreen>
             onChanged: _onCustomServerUrlChanged,
             validator: (value) {
               final l10n = AppLocalizationsSimple.of(context);
-              if (value == null || value.trim().isEmpty) {
+              final text = value?.trim() ?? '';
+              if (text.isEmpty) {
                 return l10n?.serverUrlRequired ??
                     '请填写服务器地址，例如：https://demo.memos.app';
               }
-              if (!value.startsWith('http://') &&
-                  !value.startsWith('https://')) {
+              if (!text.startsWith('http://') && !text.startsWith('https://')) {
+                return l10n?.serverUrlInvalid ??
+                    '地址格式不对，需要以 https:// 开头\n'
+                        '示例：https://demo.memos.app';
+              }
+              final uri = Uri.tryParse(text);
+              if (uri == null || uri.host.isEmpty) {
                 return l10n?.serverUrlInvalid ??
                     '地址格式不对，需要以 https:// 开头\n'
                         '示例：https://demo.memos.app';

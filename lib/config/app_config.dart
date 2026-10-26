@@ -59,8 +59,8 @@ class AppConfig {
 
   // ==================== 服务器配置 ====================
 
-  /// 官方Memos服务器地址
-  static const String officialMemosServer = 'https://memos.didichou.site';
+  /// 服务器地址输入框默认前缀（不预置任何服务器域名）
+  static const String serverUrlPrefix = 'https://';
 
   /// API基础地址
   static const String apiBaseUrl = 'https://api.didichou.site';

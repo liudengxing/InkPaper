@@ -84,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// 不写入数据库：用户创建第一条真实笔记后它自然消失，
   /// 也不会被同步到 Memos / WebDAV，避免污染真实数据。
   static const String _welcomeNoteContent = '小纸是一款面向个人知识记录的跨平台笔记应用。'
-      '它可以本地优先使用，也可以连接官方服务器或自托管 Memos 服务进行同步。'
+      '它可以本地优先使用，也可以连接自托管 Memos 服务进行同步。'
       '应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、'
       '导入导出、系统分享、小组件和可选 AI 辅助等能力。'
       '（本条笔记在您正式使用后会自动删除）';

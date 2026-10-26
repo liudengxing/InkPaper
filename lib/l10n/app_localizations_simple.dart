@@ -475,7 +475,7 @@ class AppLocalizationsSimple {
       _t('onboardingDesc2', fallback: '支持层级标签、搜索和回顾，记录多了也能找回来');
   String get onboardingTitle3 => _t('onboardingTitle3', fallback: '随时随地同步');
   String get onboardingDesc3 =>
-      _t('onboardingDesc3', fallback: '可连接官方服务器或自部署 Memos，多端同步由你选择');
+      _t('onboardingDesc3', fallback: '连接你自己的 Memos 服务，多端同步由你掌控');
   String get onboardingTitle4 => _t('onboardingTitle4', fallback: '多平台支持');
   String get onboardingDesc4 =>
       _t('onboardingDesc4', fallback: '支持手机、平板、电脑多端协作\n让你的创作思路在任何设备上延续');
@@ -829,12 +829,11 @@ class AppLocalizationsSimple {
 
   // ===== 关于页面 =====
   String get aboutInkPaper => _t('aboutInkPaper', fallback: '关于InkPaper');
-  String get appTagline =>
-      _t('appTagline', fallback: '记录是为了成为更好的自己');
+  String get appTagline => _t('appTagline', fallback: '记录是为了成为更好的自己');
   String get appIntroduction => _t(
         'appIntroduction',
         fallback:
-            'InkPaper 是一款面向个人记录和知识整理的笔记应用。你可以本地使用，也可以连接官方服务器或自部署 Memos 服务同步笔记。',
+            'InkPaper 是一款面向个人记录和知识整理的笔记应用。你可以本地使用，也可以连接自己部署的 Memos 服务同步笔记。',
       );
   String get appTechDescription => _t(
         'appTechDescription',
@@ -965,8 +964,6 @@ class AppLocalizationsSimple {
       _t('passwordMinLength', fallback: '密码至少需要6个字符');
   String get server => _t('server', fallback: '服务器');
   String get customServer => _t('customServer', fallback: '自定义服务器');
-  String get officialServer => _t('officialServer', fallback: '官方服务器');
-  String get recommended => _t('recommended', fallback: '推荐使用');
   String get serverAddressMustStartWithHttp => _t(
         'serverAddressMustStartWithHttp',
         fallback: '服务器地址必须以 http:// 或 https:// 开头',
@@ -993,7 +990,7 @@ class AppLocalizationsSimple {
   String get whatIsServer => _t('whatIsServer', fallback: '什么是服务器？');
   String get whatIsServerAnswer => _t(
         'whatIsServerAnswer',
-        fallback: '服务器用于存储和同步您的笔记数据。推荐使用官方服务器，也可以使用自己部署的 Memos 服务器。',
+        fallback: '服务器用于存储和同步您的笔记数据。请填写你自己部署的 Memos 服务器地址。',
       );
   String get howToSyncData => _t('howToSyncData', fallback: '如何同步数据？');
   String get howToSyncDataAnswer => _t(
@@ -1048,7 +1045,7 @@ class AppLocalizationsSimple {
       _t('whatIfForgotPassword', fallback: '忘记密码怎么办？');
   String get whatIfForgotPasswordAnswer => _t(
         'whatIfForgotPasswordAnswer',
-        fallback: '如使用官方服务器，请联系管理员重置密码。如使用自定义服务器，请联系您的服务器管理员。',
+        fallback: '请联系你的服务器管理员重置密码。',
       );
   String get anyOtherQuestions => _t('anyOtherQuestions', fallback: '还有其他问题？');
   String get viewHelpCenter => _t('viewHelpCenter', fallback: '查看帮助中心');
@@ -2926,7 +2923,7 @@ class AppLocalizationsSimple {
   String get welcomeNoteContent => _t(
         'welcomeNoteContent',
         fallback: '小纸是一款面向个人知识记录的跨平台笔记应用。'
-            '它可以本地优先使用，也可以连接官方服务器或自托管 Memos 服务进行同步。'
+            '它可以本地优先使用，也可以连接自托管 Memos 服务进行同步。'
             '应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、'
             '导入导出、系统分享、小组件和可选 AI 辅助等能力。'
             '（本条笔记在您正式使用后会自动删除）',

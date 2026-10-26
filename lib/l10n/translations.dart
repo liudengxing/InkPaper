@@ -283,9 +283,9 @@ class Translations {
     },
     'onboardingTitle3': {'zh': '随时随地同步', 'en': 'Sync Anytime, Anywhere'},
     'onboardingDesc3': {
-      'zh': '可连接官方服务器或自部署 Memos，多端同步由你选择',
+      'zh': '连接你自己的 Memos 服务，多端同步由你掌控',
       'en':
-          'Connect to the official server or a self-hosted Memos service. Sync is your choice.',
+          'Connect your own Memos server and sync across devices on your terms.',
     },
     'onboardingTitle4': {'zh': '多平台支持', 'en': 'Multi-Platform Support'},
     'onboardingDesc4': {
@@ -784,9 +784,9 @@ class Translations {
       'en': 'Write to become a better you',
     },
     'appIntroduction': {
-      'zh': 'InkPaper 是一款面向个人记录和知识整理的笔记应用。你可以本地使用，也可以连接官方服务器或自部署 Memos 服务同步笔记。',
+      'zh': 'InkPaper 是一款面向个人记录和知识整理的笔记应用。你可以本地使用，也可以连接自己部署的 Memos 服务同步笔记。',
       'en':
-          'InkPaper is a note app for personal capture and knowledge organization. You can use it locally, connect to the official server, or sync with a self-hosted Memos service.',
+          'InkPaper is a note app for personal capture and knowledge organization. You can use it locally or sync with your own self-hosted Memos service.',
     },
     'appTechDescription': {
       'zh': '这些是当前版本已经开放的主要能力。不同 Memos 服务器版本的接口能力不同，应用会按服务器版本自动适配并尽量降级处理。',
@@ -1074,8 +1074,6 @@ class Translations {
     },
     'server': {'zh': '服务器', 'en': 'Server'},
     'customServer': {'zh': '自定义服务器', 'en': 'Custom Server'},
-    'officialServer': {'zh': '官方服务器', 'en': 'Official Server'},
-    'recommended': {'zh': '推荐使用', 'en': 'Recommended'},
     'serverAddressMustStartWithHttp': {
       'zh': '服务器地址必须以 http:// 或 https:// 开头',
       'en': 'Server address must start with http:// or https://',
@@ -1113,9 +1111,9 @@ class Translations {
     },
     'whatIsServer': {'zh': '什么是服务器？', 'en': 'What is a server?'},
     'whatIsServerAnswer': {
-      'zh': '服务器用于存储和同步您的笔记数据。推荐使用官方服务器，也可以使用自己部署的 Memos 服务器。',
+      'zh': '服务器用于存储和同步您的笔记数据。请填写你自己部署的 Memos 服务器地址。',
       'en':
-          'The server is used to store and sync your notes data. Official server is recommended, but you can also use your own deployed Memos server.',
+          'The server stores and syncs your notes. Enter the address of your own self-hosted Memos server.',
     },
     'howToSyncData': {'zh': '如何同步数据？', 'en': 'How to sync data?'},
     'howToSyncDataAnswer': {
@@ -1201,9 +1199,8 @@ class Translations {
       'en': 'What if I forget my password?',
     },
     'whatIfForgotPasswordAnswer': {
-      'zh': '如使用官方服务器，请联系管理员重置密码。如使用自定义服务器，请联系您的服务器管理员。',
-      'en':
-          'If using the official server, please contact the administrator to reset your password. If using a custom server, please contact your server administrator.',
+      'zh': '请联系你的服务器管理员重置密码。',
+      'en': 'Please contact your server administrator to reset your password.',
     },
     'anyOtherQuestions': {'zh': '还有其他问题？', 'en': 'Any other questions?'},
     'viewHelpCenter': {'zh': '查看帮助中心', 'en': 'View Help Center'},
@@ -2880,13 +2877,13 @@ class Translations {
     // ===== 首页欢迎笔记 =====
     'welcomeNoteContent': {
       'zh': '小纸是一款面向个人知识记录的跨平台笔记应用。'
-          '它可以本地优先使用，也可以连接官方服务器或自托管 Memos 服务进行同步。'
+          '它可以本地优先使用，也可以连接自托管 Memos 服务进行同步。'
           '应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、'
           '导入导出、系统分享、小组件和可选 AI 辅助等能力。'
           '（本条笔记在您正式使用后会自动删除）',
       'en': 'InkPaper is a cross-platform note app for personal knowledge. '
-          'It works local-first, and can sync with the official server or '
-          'self-hosted Memos. It supports Memos-compatible Markdown, images, '
+          'It works local-first, and can sync with a self-hosted Memos server. '
+          'It supports Memos-compatible Markdown, images, '
           'tags, reminders, search, WebDAV backup, import/export, system share, '
           'widgets, and optional AI assistance. '
           '(This note disappears once you start using the app.)',

@@ -276,7 +276,7 @@ class AboutScreen extends StatelessWidget {
                       ),
                       _buildFeatureTag(
                         context,
-                        '官方/自部署服务',
+                        '自部署 Memos',
                         Icons.cloud_queue_outlined,
                       ),
                       _buildFeatureTag(

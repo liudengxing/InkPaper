@@ -1594,16 +1594,29 @@ class _NoteEditorState extends State<NoteEditor>
                                     BorderSide(color: dividerColor, width: 0.5),
                               ),
                             ),
-                            child: ListView.builder(
+                            child: ReorderableListView.builder(
                               scrollDirection: Axis.horizontal,
-                              controller: _imageScrollController,
+                              scrollController: _imageScrollController,
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 16),
+                              buildDefaultDragHandles: false,
                               itemCount: _imageList.length,
+                              onReorderItem: _reorderImage,
+                              proxyDecorator: (child, index, animation) =>
+                                  Material(
+                                color: Colors.transparent,
+                                elevation: 6,
+                                borderRadius: BorderRadius.circular(8),
+                                child: child,
+                              ),
                               itemBuilder: (context, index) =>
-                                  _buildImagePreviewItem(
-                                _imageList[index],
-                                index,
+                                  ReorderableDelayedDragStartListener(
+                                key: ObjectKey(_imageList[index]),
+                                index: index,
+                                child: _buildImagePreviewItem(
+                                  _imageList[index],
+                                  index,
+                                ),
                               ),
                             ),
                           ),
@@ -1964,7 +1977,7 @@ class _NoteEditorState extends State<NoteEditor>
             Positioned(
               top: 2,
               left: 2,
-              child: _buildUploadStatusIcon(_imageList[index].uploadStatus),
+              child: _buildUploadStatusIcon(image.uploadStatus),
             ),
 
             // 删除按钮
@@ -1991,6 +2004,26 @@ class _NoteEditorState extends State<NoteEditor>
           ],
         ),
       );
+
+  /// 长按拖动重排图片。
+  ///
+  /// `_mdCodes` 跟着图片一起走；`_imageAnchors` 视为正文里的「插槽」保持不动，
+  /// 拖动只是让图片换到别的插槽。这样保存后的 Markdown 顺序与列表一致，
+  /// 也不会把原本插在正文中间的图片整体挪到文末。
+  void _reorderImage(int oldIndex, int newIndex) {
+    if (oldIndex == newIndex || oldIndex < 0 || oldIndex >= _imageList.length) {
+      return;
+    }
+    // onReorderItem 传入的 newIndex 已按「先移除再插入」调整过
+    final target = newIndex.clamp(0, _imageList.length - 1);
+    setState(() {
+      _imageList.insert(target, _imageList.removeAt(oldIndex));
+      if (oldIndex < _mdCodes.length) {
+        final code = _mdCodes.removeAt(oldIndex);
+        _mdCodes.insert(target.clamp(0, _mdCodes.length), code);
+      }
+    });
+  }
 
   // 删除图片
   void _removeImage(int index) {

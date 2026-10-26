@@ -71,6 +71,9 @@ class _NoteEditorState extends State<NoteEditor>
   // 添加一个标志来防止多次保存
   bool _isSaving = false;
 
+  // 关闭流程防重入：点空白和点关闭按钮可能同时触发，避免连 pop 两次
+  bool _isClosingEditor = false;
+
   // 是否显示更多选项
   bool _showingMoreOptions = false;
 
@@ -1092,38 +1095,49 @@ class _NoteEditorState extends State<NoteEditor>
     return current != _initialSavedContent;
   }
 
-  /// 统一的「关闭编辑器」入口：点关闭按钮、系统返回键、下滑关闭都走这里。
+  /// 统一的「关闭编辑器」入口：点关闭按钮、点上方空白区域、系统返回键都走这里。
   ///
   /// 只要还有未保存的改动，就先落草稿再关闭 —— 误触退出最多多一条草稿，
   /// 不会出现「写了一半的内容直接没了」。
   Future<void> _requestCloseEditor() async {
-    if (!_hasUnsavedChanges) {
-      // 没有改动就不留草稿；但用户手动「忽略」过的旧草稿、
-      // 以及从草稿箱打开待继续编辑的草稿要保留
-      if (_pendingDraft == null && !widget.preserveDraftOnClose) {
-        await _clearDraft();
-      }
-      if (mounted) {
-        Navigator.pop(context);
-      }
+    if (_isClosingEditor) {
       return;
     }
+    _isClosingEditor = true;
 
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    await _saveDraft();
-    if (!mounted) {
-      return;
+    try {
+      if (!_hasUnsavedChanges) {
+        // 没有改动就不留草稿；但用户手动「忽略」过的旧草稿、
+        // 以及从草稿箱打开待继续编辑的草稿要保留
+        if (_pendingDraft == null && !widget.preserveDraftOnClose) {
+          await _clearDraft();
+        }
+        if (mounted) {
+          Navigator.pop(context);
+        }
+        return;
+      }
+
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      await _saveDraft();
+      if (!mounted) {
+        return;
+      }
+      Navigator.pop(context);
+      messenger
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('已保存草稿，下次打开这条笔记可恢复'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 3),
+          ),
+        );
+    } on Object catch (error) {
+      // 关闭失败时允许再次尝试，避免编辑器彻底关不掉
+      _isClosingEditor = false;
+      debugPrint('NoteEditor: 关闭编辑器失败 - $error');
     }
-    Navigator.pop(context);
-    messenger
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('已保存草稿，下次打开这条笔记可恢复'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 3),
-        ),
-      );
   }
 
   /// 用户在「发现草稿」提示条里点了「恢复」。
@@ -1274,10 +1288,12 @@ class _NoteEditorState extends State<NoteEditor>
     return Scaffold(
       backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: false,
-      // 点空白只收起键盘，不再直接关闭编辑器：
-      // 误触输入框外是内容丢失最常见的原因。关闭用左上角的按钮或系统返回。
+      // 点上方空白区域：先收起键盘，再走统一关闭流程（有改动会先落草稿）
       body: GestureDetector(
-        onTap: _textFocusNode.unfocus,
+        onTap: () {
+          _textFocusNode.unfocus();
+          unawaited(_requestCloseEditor());
+        },
         behavior: HitTestBehavior.opaque,
         child: Container(
           width: double.infinity,

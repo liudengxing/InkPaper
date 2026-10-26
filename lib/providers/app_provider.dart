@@ -4370,6 +4370,40 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
   }
 
+  /// 只保存自动备份策略（开关与时机），不触碰服务器地址和凭据。
+  ///
+  /// 设置页的开关需要即时生效：用户切完开关常常直接返回，如果一定要等
+  /// 右上角「保存」，重启后这里就会回到旧值（表现为「自动备份被关掉」）。
+  Future<void> updateWebDavBackupPolicy({
+    required bool autoSync,
+    required int autoSyncInterval,
+  }) async {
+    // 配置还没从磁盘加载出来时不要落盘，否则会把空配置写回去。
+    if (_webDavConfig.serverUrl.isEmpty) {
+      return;
+    }
+
+    final updated = _webDavConfig.copyWith(
+      autoSync: autoSync,
+      autoSyncInterval: autoSyncInterval,
+    );
+    _webDavConfig = updated;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'webdav_config',
+      jsonEncode(updated.copyWith(password: '').toJson()),
+    );
+
+    if (updated.enabled && updated.autoSync) {
+      _startWebDavAutoBackup();
+    } else {
+      _stopWebDavAutoBackup();
+    }
+
+    notifyListeners();
+  }
+
   /// 初始化 WebDAV 服务
   Future<void> _initializeWebDavService() async {
     try {

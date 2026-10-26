@@ -787,7 +787,10 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
             l10n?.autoBackupToWebdav ?? '按所选时机自动备份到 WebDAV',
           ),
           value: _autoBackup,
-          onChanged: (value) => setState(() => _autoBackup = value),
+          onChanged: (value) {
+            setState(() => _autoBackup = value);
+            unawaited(_persistBackupPolicy());
+          },
         ),
         if (_autoBackup)
           ListTile(
@@ -816,6 +819,7 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
               onChanged: (value) {
                 if (value != null) {
                   setState(() => _autoBackupTiming = value);
+                  unawaited(_persistBackupPolicy());
                 }
               },
             ),
@@ -956,6 +960,28 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
     }
   }
 
+  /// 自动备份开关/时机变化后立即落盘。
+  ///
+  /// 这两个开关以前只改内存，必须再点右上角「保存」才持久化；
+  /// 用户切完直接返回，重启后就看到「自动备份被关掉」。
+  Future<void> _persistBackupPolicy() async {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    try {
+      await appProvider.updateWebDavBackupPolicy(
+        autoSync: _autoBackup,
+        autoSyncInterval: _getIntervalFromTiming(_autoBackupTiming),
+      );
+    } on Object catch (e) {
+      if (!mounted) {
+        return;
+      }
+      SnackBarUtils.showError(
+        context,
+        '${AppLocalizationsSimple.of(context)?.saveFailed ?? 'Save failed'}: $e',
+      );
+    }
+  }
+
   Future<void> _saveConfig() async {
     if (!_validateCurrentConfig()) {
       return;
@@ -972,6 +998,8 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
         autoSync: _autoBackup,
         backupImages: _backupImages,
         autoSyncInterval: _getIntervalFromTiming(_autoBackupTiming),
+        // 保存配置不应清掉上次备份时间，否则下次启动会立刻重复备份
+        lastSyncTime: appProvider.webDavConfig.lastSyncTime,
       );
 
       // 🔧 改进：保存配置时跳过服务器连接，避免网络问题导致保存失败

@@ -27,6 +27,7 @@ import 'package:inkpaper/providers/sync_store.dart';
 import 'package:inkpaper/services/api_service_factory.dart';
 import 'package:inkpaper/services/cloud_verification_service.dart';
 import 'package:inkpaper/services/database_service.dart';
+import 'package:inkpaper/services/feed_snapshot_service.dart';
 import 'package:inkpaper/services/local_reference_service.dart';
 import 'package:inkpaper/services/memos_api_service_fixed.dart'; // 使用修复版API服务
 import 'package:inkpaper/services/memos_resource_service.dart'; // 图片上传服务
@@ -58,7 +59,13 @@ part 'app_provider_sync.part.dart';
 const bool _screenshotMode = bool.fromEnvironment('INKPAPER_SCREENSHOT_MODE');
 
 class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
-  AppProvider() {
+  AppProvider({List<Note>? initialFeed}) {
+    // 冷启动首帧先用上次的首屏快照渲染，真实数据加载完会整体替换。
+    // 快照只做展示预填，不参与任何业务判断。
+    if (initialFeed != null && initialFeed.isNotEmpty) {
+      _notes = initialFeed;
+      _totalNotesCount = initialFeed.length;
+    }
     if (_screenshotMode) {
       _initializeScreenshotDemoState(notify: false);
     }
@@ -253,6 +260,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       if (updateId != _widgetSnapshotUpdateId) {
         return;
       }
+      _maybePersistFeedSnapshot(snapshotNotes);
       WidgetSnapshotService.scheduleUpdate(
         notes: snapshotNotes,
         isLocalMode: isLocalModeSnapshot,
@@ -288,6 +296,39 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
   void refreshWidgetSnapshotNow() {
     _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
+  }
+
+  /// 上次写入首屏快照时的签名，避免同步状态变化也触发文件 IO。
+  String? _feedSnapshotSignature;
+
+  /// 把当前首屏笔记落成快照，供下次冷启动首帧渲染。
+  void _maybePersistFeedSnapshot(List<Note> notes) {
+    // 初始化未完成时 notes 可能还是空的，此时不能覆盖或删除磁盘上的快照
+    if (!_isInitialized) {
+      return;
+    }
+
+    if (notes.isEmpty) {
+      if (_feedSnapshotSignature == null) {
+        return;
+      }
+      _feedSnapshotSignature = null;
+      unawaited(FeedSnapshotService.instance.save(const <Note>[]));
+      return;
+    }
+
+    final signature = notes
+        .take(FeedSnapshotService.maxNotes)
+        .map(
+          (note) => '${note.id}:${note.updatedAt.millisecondsSinceEpoch}:'
+              '${note.isPinned ? 1 : 0}',
+        )
+        .join('|');
+    if (signature == _feedSnapshotSignature) {
+      return;
+    }
+    _feedSnapshotSignature = signature;
+    unawaited(FeedSnapshotService.instance.save(notes));
   }
 
   // 🚀 删除队列相关（大厂级批量处理；字段已迁入 NotesStore）

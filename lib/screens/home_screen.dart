@@ -39,6 +39,7 @@ typedef _FeedSnapshot = ({
   int loadedCount,
   int totalCount,
   String loadMoreStage,
+  bool isInitialized,
 });
 
 class HomeScreen extends StatefulWidget {
@@ -949,6 +950,64 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// 首屏数据尚未就绪时的占位骨架。
+  ///
+  /// 有快照时会直接渲染快照里的笔记，只有没有快照（首次安装、快照损坏）
+  /// 才会落到这里；这样冷启动不会再先闪一条「欢迎笔记」再被真实数据顶掉。
+  Widget _buildFeedSkeleton() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final blockColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.05);
+
+    Widget line(double widthFactor) => FractionallySizedBox(
+          widthFactor: widthFactor,
+          child: Container(
+            height: 13,
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: blockColor,
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < 3; i++)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+              decoration: BoxDecoration(
+                color: blockColor.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  line(0.92),
+                  line(0.78),
+                  line(0.46),
+                  const SizedBox(height: 6),
+                  Container(
+                    height: 10,
+                    width: 64,
+                    decoration: BoxDecoration(
+                      color: blockColor,
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   /// 📝 空列表时展示的欢迎笔记
   ///
   /// 复用 [NoteCard] 让观感与真实笔记完全一致；
@@ -1244,6 +1303,7 @@ class _HomeScreenState extends State<HomeScreen>
           loadedCount: provider.loadedNotesCount,
           totalCount: provider.totalNotesCount,
           loadMoreStage: provider.loadMoreState.name,
+          isInitialized: provider.isInitialized,
         ),
         builder: (context, feed, child) {
           // 🚀 极速启动：不等loading，立即显示界面
@@ -1314,7 +1374,10 @@ class _HomeScreenState extends State<HomeScreen>
                                             240,
                                         child: _buildEmptyState(),
                                       )
-                                    // 搜索无结果仍用空状态；完全没笔记时展示欢迎笔记
+                                    // 首屏数据没就绪时给骨架，别先闪一条「欢迎笔记」
+                                    else if (!appProvider.isInitialized)
+                                      _buildFeedSkeleton()
+                                    // 确认本地一条笔记都没有时才展示欢迎笔记
                                     else
                                       _buildWelcomeNoteCard(),
                                   ],

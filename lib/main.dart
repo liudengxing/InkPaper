@@ -11,6 +11,7 @@ import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/routes/app_router.dart';
 import 'package:inkpaper/services/app_info_service.dart';
 import 'package:inkpaper/services/feature_flag_service.dart';
+import 'package:inkpaper/services/feed_snapshot_service.dart';
 import 'package:inkpaper/services/notification_service.dart';
 import 'package:inkpaper/services/observability_service.dart';
 import 'package:inkpaper/services/performance_monitor_service.dart';
@@ -184,8 +185,11 @@ Future<void> _initializeApp() async {
     ),
   );
 
+  // 冷启动首帧先用上次的首屏快照渲染，避免先闪一条「欢迎笔记」再被真实数据顶掉
+  final cachedFeed = await FeedSnapshotService.instance.load();
+
   // 创建主应用提供器
-  final appProvider = AppProvider();
+  final appProvider = AppProvider(initialFeed: cachedFeed);
 
   // 创建路由器（需要在通知服务和 MethodChannel 回调中使用）
   final appRouter = AppRouter(appProvider);

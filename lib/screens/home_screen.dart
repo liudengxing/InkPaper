@@ -1096,40 +1096,9 @@ class _HomeScreenState extends State<HomeScreen>
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         automaticallyImplyLeading: false,
-        leading: isDesktop
-            ? null
-            : IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: backgroundColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 16,
-                        height: 2,
-                        decoration: BoxDecoration(
-                          color: iconColor,
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        width: 10,
-                        height: 2,
-                        decoration: BoxDecoration(
-                          color: iconColor,
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                onPressed: _openDrawer,
-              ),
+        // 标题贴最左（flomo 那种布局），抽屉入口挪到右侧图标组，
+        // 左边缘右滑仍然可以拉出侧边栏。
+        titleSpacing: isDesktop ? 20 : 16,
         title: AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
           switchInCurve: Curves.easeOutCubic,
@@ -1204,8 +1173,8 @@ class _HomeScreenState extends State<HomeScreen>
                   key: const ValueKey('home_title'),
                   onTap: _showSortOptions,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    // 文字与列表内容左边缘对齐，不再额外缩进
+                    padding: const EdgeInsets.only(right: 6, top: 6, bottom: 6),
                     decoration: BoxDecoration(
                       color: Colors.transparent,
                       borderRadius: BorderRadius.circular(8),
@@ -1232,8 +1201,45 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
         ),
-        centerTitle: !_isSearchActive,
+        centerTitle: false,
         actions: [
+          if (!isDesktop && !_isSearchActive) ...[
+            // 抽屉入口（原来在左侧 leading，现在让位给标题）
+            IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 16,
+                      height: 2,
+                      decoration: BoxDecoration(
+                        color: iconColor,
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: 10,
+                      height: 2,
+                      decoration: BoxDecoration(
+                        color: iconColor,
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              tooltip: '菜单',
+              onPressed: _openDrawer,
+            ),
+            SizedBox(width: ResponsiveUtils.fontScaledSpacing(context, 2)),
+          ],
           // AI洞察按钮
           if (!_isSearchActive) ...[
             IconButton(

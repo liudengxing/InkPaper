@@ -1,12 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class AccountDeletionScreen extends StatefulWidget {
   const AccountDeletionScreen({super.key});
@@ -17,7 +13,6 @@ class AccountDeletionScreen extends StatefulWidget {
 
 class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
   bool _isClearingLocalData = false;
-  bool _isOpeningRequest = false;
 
   bool get _isZh => Localizations.localeOf(context).languageCode == 'zh';
 
@@ -26,9 +21,6 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
   String get _localClearTitle =>
       _isZh ? '删除本机数据' : 'Delete data on this device';
 
-  String get _officialDeletionTitle =>
-      _isZh ? '删除官方服务器账号' : 'Delete official server account';
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -36,7 +28,6 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
     final user = appProvider.user;
     final serverUrl =
         user?.serverUrl ?? appProvider.appConfig.memosApiUrl ?? '';
-    final isOfficialServer = _isOfficialServer(serverUrl);
 
     return Scaffold(
       appBar: AppBar(
@@ -50,8 +41,8 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
             icon: Icons.verified_user_outlined,
             title: _isZh ? '删除范围说明' : 'Deletion scope',
             body: _isZh
-                ? '你可以在这里删除本机笔记、图片缓存、登录凭证和应用设置；如果你使用官方服务器账号，也可以发起账号及关联服务器数据删除申请。自部署 Memos、WebDAV、AI 服务中的数据由对应服务保存，需要在相应服务中删除。'
-                : 'You can delete local notes, image cache, login credentials, and app settings here. If you use the official server account, you can also initiate deletion of the account and associated server-side data. Data stored in self-hosted Memos, WebDAV, or AI services must be deleted in those services.',
+                ? '你可以在这里删除本机笔记、图片缓存、登录凭证和应用设置。Memos、WebDAV、AI 服务中的数据由对应服务保存，需要在相应服务中删除。'
+                : 'You can delete local notes, image cache, login credentials, and app settings here. Data stored in Memos, WebDAV, or AI services must be deleted in those services.',
           ),
           const SizedBox(height: 12),
           _SectionCard(
@@ -68,12 +59,6 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
                 value: serverUrl.isEmpty
                     ? (_isZh ? '未连接' : 'Not connected')
                     : serverUrl,
-              ),
-              _StatusRow(
-                label: _isZh ? '服务器类型' : 'Server type',
-                value: isOfficialServer
-                    ? (_isZh ? '官方服务器' : 'Official server')
-                    : (_isZh ? '本地或自部署服务' : 'Local or self-hosted'),
               ),
             ],
           ),
@@ -110,66 +95,16 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          _SectionCard(
-            title: _officialDeletionTitle,
-            children: [
-              Text(
-                isOfficialServer
-                    ? (_isZh
-                        ? '官方服务器账号删除会进入网页表单完成身份确认和删除申请。申请提交后，我们会删除账号资料、服务端笔记、附件和相关日志。'
-                        : 'Official server account deletion opens a web form for identity confirmation and deletion request submission. After submission, account profile, server-side notes, attachments, and related logs will be deleted.')
-                    : (_isZh
-                        ? '当前不是官方服务器。InkPaper 无法直接删除你自部署服务中的账号或数据，请在你的 Memos、WebDAV 或其他服务管理后台处理。你仍可打开说明页查看官方服务器删除流程。'
-                        : 'The current server is not the official server. InkPaper cannot directly delete accounts or data in your self-hosted services. Please manage deletion in your Memos, WebDAV, or other service admin panels. You can still open the information page for the official deletion process.'),
-                style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: _isOpeningRequest ? null : _openDeletionRequest,
-                icon: _isOpeningRequest
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.open_in_new_rounded),
-                label: Text(
-                  _isZh ? '打开删除申请页面' : 'Open deletion request page',
-                ),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _copyDeletionRequestTemplate,
-                icon: const Icon(Icons.copy_rounded),
-                label: Text(
-                  _isZh ? '复制删除申请信息' : 'Copy deletion request details',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
           _InfoPanel(
             icon: Icons.info_outline_rounded,
             title: _isZh ? '删除前建议' : 'Before deleting',
             body: _isZh
-                ? '如需保留资料，请先在导入导出或 WebDAV 备份中完成备份。删除账号或本机数据后，部分内容可能无法恢复。'
-                : 'Export or back up important data before deleting. Some content may not be recoverable after account or local data deletion.',
+                ? '如需保留资料，请先在导入导出或 WebDAV 备份中完成备份。删除本机数据后，部分内容可能无法恢复。'
+                : 'Export or back up important data before deleting. Some content may not be recoverable after local data deletion.',
           ),
         ],
       ),
     );
-  }
-
-  bool _isOfficialServer(String serverUrl) {
-    if (serverUrl.trim().isEmpty) {
-      return false;
-    }
-    try {
-      final configured = Uri.parse(serverUrl);
-      final official = Uri.parse(AppConfig.officialMemosServer);
-      return configured.host.toLowerCase() == official.host.toLowerCase();
-    } on Object {
-      return false;
-    }
   }
 
   Future<void> _confirmAndClearLocalData() async {
@@ -236,82 +171,6 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
       if (mounted) {
         setState(() => _isClearingLocalData = false);
       }
-    }
-  }
-
-  Future<void> _openDeletionRequest() async {
-    setState(() => _isOpeningRequest = true);
-    try {
-      final appProvider = context.read<AppProvider>();
-      final user = appProvider.user;
-      final serverUrl =
-          user?.serverUrl ?? appProvider.appConfig.memosApiUrl ?? '';
-      final email = user?.email?.trim();
-      final uri = AppConfig.accountDeletionUri.replace(
-        queryParameters: {
-          'source': 'app',
-          'platform': defaultTargetPlatform.name,
-          'version': AppConfig.getFullVersionInfo(),
-          if (user != null && user.username.trim().isNotEmpty)
-            'username': user.username,
-          if (email != null && email.isNotEmpty) 'email': email,
-          if (serverUrl.trim().isNotEmpty) 'server': serverUrl,
-        },
-      );
-
-      final opened = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
-      if (!opened && mounted) {
-        await _copyDeletionRequestTemplate();
-      }
-    } on Object catch (_) {
-      if (mounted) {
-        await _copyDeletionRequestTemplate();
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isOpeningRequest = false);
-      }
-    }
-  }
-
-  Future<void> _copyDeletionRequestTemplate() async {
-    final appProvider = context.read<AppProvider>();
-    final user = appProvider.user;
-    final serverUrl =
-        user?.serverUrl ?? appProvider.appConfig.memosApiUrl ?? '';
-    final text = _isZh
-        ? '''
-账号与数据删除申请
-
-账号：${user?.username ?? '未登录'}
-邮箱：${user?.email ?? '未设置'}
-服务器：${serverUrl.isEmpty ? '未连接' : serverUrl}
-应用版本：${AppConfig.getFullVersionInfo()}
-平台：${defaultTargetPlatform.name}
-
-我申请删除官方服务器账号及与该账号关联的数据。
-'''
-        : '''
-Account and data deletion request
-
-Account: ${user?.username ?? 'Not signed in'}
-Email: ${user?.email ?? 'Not set'}
-Server: ${serverUrl.isEmpty ? 'Not connected' : serverUrl}
-App version: ${AppConfig.getFullVersionInfo()}
-Platform: ${defaultTargetPlatform.name}
-
-I request deletion of my official server account and associated data.
-''';
-
-    await Clipboard.setData(ClipboardData(text: text.trim()));
-    if (mounted) {
-      SnackBarUtils.showSuccess(
-        context,
-        _isZh ? '删除申请信息已复制' : 'Deletion request details copied',
-      );
     }
   }
 }

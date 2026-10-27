@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -46,11 +47,26 @@ class ImageViewerScreen extends StatefulWidget {
 }
 
 class _ImageViewerScreenState extends State<ImageViewerScreen> {
+  /// 查看器解码宽度硬上限。
+  ///
+  /// 之前是按原图解码（4000×3000 的图约 48MB 纹理），进出查看器都要申请/释放
+  /// 这么大的纹理，退出转场必掉帧；同时会把 ImageCache 挤爆，导致返回详情页
+  /// 时缩略图集体重解码。按屏幕宽 ×2 解码已经够放大看细节，内存却只有几分之一。
+  static const int _maxViewerDecodeWidth = 2560;
+
   late final PageController _pageController;
   late int _currentIndex;
   bool _currentPageZoomed = false;
 
   String get _currentImagePath => widget.imagePaths[_currentIndex];
+
+  /// 查看器实际使用的解码宽度（屏幕宽 ×2，封顶 [_maxViewerDecodeWidth]）。
+  static int viewerDecodeWidth(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final screenPixels = (media.size.width * media.devicePixelRatio).round();
+    final target = screenPixels * 2;
+    return target > _maxViewerDecodeWidth ? _maxViewerDecodeWidth : target;
+  }
 
   @override
   void initState() {
@@ -245,13 +261,24 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
       );
 
   void _precacheAround(int index) {
+    final decodeWidth = viewerDecodeWidth(context);
     for (final nextIndex in [index - 1, index + 1]) {
       if (nextIndex < 0 || nextIndex >= widget.imagePaths.length) {
         continue;
       }
-      precacheImage(
-        getImageProvider(widget.imagePaths[nextIndex], context),
-        context,
+      // 预取同样按查看器尺寸解码：之前的无限制原图预取会在进入瞬间解码
+      // 两三张全尺寸大图，用户立刻退出时这些解码还在抢主线程。
+      unawaited(
+        precacheImage(
+          getImageProvider(
+            widget.imagePaths[nextIndex],
+            context,
+            maxWidth: decodeWidth,
+          ),
+          context,
+        ).catchError((Object _) {
+          // 预取失败不影响当前图片展示
+        }),
       );
     }
   }
@@ -288,10 +315,16 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
   Size? _imageSize;
   Object? _imageError;
   bool _isZoomed = false;
+  String? _resolvedPath;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // 依赖变化（系统栏、转场里的 MediaQuery 抖动）不该重新解码一次大图，
+    // 也不该把用户已经缩放好的位置重置掉。
+    if (_resolvedPath == widget.imagePath) {
+      return;
+    }
     _resolveImage();
   }
 
@@ -308,6 +341,12 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
     if (_imageStream != null && _imageStreamListener != null) {
       _imageStream!.removeListener(_imageStreamListener!);
     }
+    // 查看器的高清图解码尺寸与列表/详情不同，对其它页面没有复用价值；
+    // 退出时主动 evict，别让几十 MB 的纹理把详情页缩略图挤出缓存。
+    final provider = _imageProvider;
+    if (provider != null) {
+      unawaited(provider.evict());
+    }
     _detachPreview();
     _transformationController.dispose();
     super.dispose();
@@ -315,10 +354,12 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
 
   void _resolveImage() {
     _detachPreview();
+    _resolvedPath = widget.imagePath;
 
     final provider = _ImageViewerScreenState.getImageProvider(
       widget.imagePath,
       context,
+      maxWidth: _ImageViewerScreenState.viewerDecodeWidth(context),
     );
     final stream = provider.resolve(createLocalImageConfiguration(context));
 
@@ -376,7 +417,7 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
       final provider = _ImageViewerScreenState.getImageProvider(
         widget.imagePath,
         context,
-        maxWidth: 240,
+        maxWidth: 480,
       );
       _previewProvider = provider;
       final stream = provider.resolve(createLocalImageConfiguration(context));
@@ -515,7 +556,7 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
             child: Image(
               image: activeProvider,
               fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
+              // 保持默认 medium 插值：high（三次插值）在缩放拖动时非常吃 GPU
               // 缩略图 → 原图切换时保留旧帧，避免闪一下黑
               gaplessPlayback: true,
             ),

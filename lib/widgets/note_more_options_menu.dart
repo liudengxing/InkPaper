@@ -21,7 +21,7 @@ class NoteMoreOptionsMenu {
   static const double _maxWidth = 300;
 
   /// 卡片高度上限占屏幕比例，避免又变成「铺满整屏」
-  static const double _maxHeightRatio = 0.62;
+  static const double _maxHeightRatio = 0.66;
 
   /// 显示更多选项菜单（在点击位置附近弹出）
   static Future<void> show({
@@ -269,7 +269,7 @@ class NoteMoreOptionsMenu {
         children: [
           // 顶部独立操作块：分享 / 编辑 / 复制
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
             child: Row(
               children: [
                 _buildQuickAction(
@@ -408,7 +408,7 @@ class NoteMoreOptionsMenu {
           Divider(height: 0.5, thickness: 0.5, color: dividerColor),
           // 元信息固定在卡片最下面
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -447,12 +447,12 @@ class NoteMoreOptionsMenu {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(vertical: 4),
             child: Column(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     color: isDarkMode
                         ? Colors.white.withValues(alpha: 0.06)
@@ -461,11 +461,11 @@ class NoteMoreOptionsMenu {
                   ),
                   child: Icon(
                     icon,
-                    size: 20,
+                    size: 19,
                     color: isDarkMode ? Colors.grey[300] : Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 4),
                 Text(
                   label,
                   style: TextStyle(
@@ -482,7 +482,7 @@ class NoteMoreOptionsMenu {
   /// 元信息行（灰色小字，左侧标签右侧值）。
   static Widget _buildMetaRow(String label, String value, Color? color) =>
       Padding(
-        padding: const EdgeInsets.only(bottom: 3),
+        padding: const EdgeInsets.only(bottom: 2),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -514,7 +514,7 @@ class NoteMoreOptionsMenu {
       InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
           child: _buildMenuItem(
             icon: icon,
             label: label,

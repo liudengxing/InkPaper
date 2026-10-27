@@ -585,28 +585,28 @@ class _HomeScreenState extends State<HomeScreen>
       elevation: 10,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       // 贴着标题的一张小卡片，不要铺满大半个屏幕
-      constraints: const BoxConstraints(minWidth: 168, maxWidth: 220),
+      constraints: const BoxConstraints(minWidth: 196, maxWidth: 248),
       items: [
         _buildSortMenuItem(
-          l10n?.newestFirst ?? '最新在上',
+          l10n?.newestFirst ?? '创建时间：从新到旧',
           SortOrder.newest,
           primaryColor,
           textColor,
         ),
         _buildSortMenuItem(
-          l10n?.oldestFirst ?? '最早在上',
+          l10n?.oldestFirst ?? '创建时间：从旧到新',
           SortOrder.oldest,
           primaryColor,
           textColor,
         ),
         _buildSortMenuItem(
-          l10n?.updatedTime ?? '最近编辑',
+          l10n?.updatedTime ?? '编辑时间：从新到旧',
           SortOrder.updated,
           primaryColor,
           textColor,
         ),
         _buildSortMenuItem(
-          l10n?.oldestEdited ?? '最久未编辑',
+          l10n?.oldestEdited ?? '编辑时间：从旧到新',
           SortOrder.updatedOldest,
           primaryColor,
           textColor,

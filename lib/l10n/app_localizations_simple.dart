@@ -1059,10 +1059,10 @@ class AppLocalizationsSimple {
   String get refreshSuccess => _t('refreshSuccess', fallback: '刷新成功');
   String get refreshFailed => _t('refreshFailed', fallback: '刷新失败');
   // sortBy已在前面定义(line 186)
-  String get newestFirst => _t('newestFirst', fallback: '最新在上');
-  String get oldestFirst => _t('oldestFirst', fallback: '最早在上');
-  String get updatedTime => _t('updatedTime', fallback: '最近编辑');
-  String get oldestEdited => _t('oldestEdited', fallback: '最久未编辑');
+  String get newestFirst => _t('newestFirst', fallback: '创建时间：从新到旧');
+  String get oldestFirst => _t('oldestFirst', fallback: '创建时间：从旧到新');
+  String get updatedTime => _t('updatedTime', fallback: '编辑时间：从新到旧');
+  String get oldestEdited => _t('oldestEdited', fallback: '编辑时间：从旧到新');
   String get createFailed => _t('createFailed', fallback: '创建失败');
   String get addedFromShare => _t('addedFromShare', fallback: '已添加来自分享的笔记');
   // updateFailed已在前面定义(line 80)

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:inkpaper/config/app_config.dart' as Config;
@@ -8,11 +10,20 @@ import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/note_actions_ui.dart';
 import 'package:provider/provider.dart';
 
-/// 🎨 笔记更多选项菜单组件（Popup菜单版）
+/// 🎨 笔记更多选项菜单（flomo 式悬浮卡片）
 ///
-/// 在点击位置附近弹出，符合iOS上下文菜单设计规范
+/// 锚定在点击的「⋯」按钮旁边弹出，而不是铺满屏幕的底部面板：
+/// - 顶部独立一块：分享 / 编辑 / 复制
+/// - 中间：其余操作（内容超高时在这一块里滚动）
+/// - 底部固定：字数统计 / 创建时间 / 最后编辑
 class NoteMoreOptionsMenu {
-  /// 显示更多选项菜单（在点击位置附近）
+  /// 卡片宽度上限（逻辑像素）
+  static const double _maxWidth = 300;
+
+  /// 卡片高度上限占屏幕比例，避免又变成「铺满整屏」
+  static const double _maxHeightRatio = 0.62;
+
+  /// 显示更多选项菜单（在点击位置附近弹出）
   static Future<void> show({
     required BuildContext context,
     required Note note,
@@ -20,37 +31,33 @@ class NoteMoreOptionsMenu {
     // 覆盖默认删除行为（例如示例笔记只提示、不落库）。
     VoidCallback? onDeleteOverride,
   }) {
-    // 自动获取点击按钮的位置
-    final renderBox = context.findRenderObject() as RenderBox?;
-    final offset = renderBox?.localToGlobal(Offset.zero) ?? Offset.zero;
-    final size = renderBox?.size ?? Size.zero;
+    final box = context.findRenderObject() as RenderBox?;
+    final anchor = box != null && box.hasSize
+        ? box.localToGlobal(Offset.zero) & box.size
+        : Rect.fromLTWH(
+            MediaQuery.sizeOf(context).width - 48,
+            MediaQuery.paddingOf(context).top + 56,
+            32,
+            32,
+          );
 
-    // 计算菜单弹出位置（在按钮右下方）
-    final position = RelativeRect.fromLTRB(
-      offset.dx + size.width - 200, // 左边距：按钮右边往左200px
-      offset.dy + size.height, // 上边距：按钮底部
-      offset.dx, // 右边距
-      0, // 下边距
-    );
-
-    return _showMenuAt(
+    return _showAnchoredMenu(
       context: context,
       note: note,
-      position: position,
+      anchor: anchor,
       onNoteUpdated: onNoteUpdated,
       onDeleteOverride: onDeleteOverride,
     );
   }
 
-  /// 内部方法：在指定位置显示菜单
-  static Future<void> _showMenuAt({
+  /// 内部方法：在锚点附近渲染悬浮卡片 + 统一处理选项
+  static Future<void> _showAnchoredMenu({
     required BuildContext context,
     required Note note,
-    required RelativeRect position,
+    required Rect anchor,
     VoidCallback? onNoteUpdated,
     VoidCallback? onDeleteOverride,
   }) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final localizations = AppLocalizationsSimple.of(context);
     var currentNote = note;
 
@@ -64,187 +71,37 @@ class NoteMoreOptionsMenu {
       currentNote = updatedNote;
     }
 
-    return showMenu<String>(
+    return showGeneralDialog<String>(
       context: context,
-      position: position,
-      elevation: 8,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+      barrierDismissible: true,
+      barrierLabel: 'note-more-options',
+      // 只留极淡的遮罩，保持「悬浮」观感，不压暗整页
+      barrierColor: Colors.black.withValues(alpha: 0.06),
+      transitionDuration: const Duration(milliseconds: 140),
+      pageBuilder: (dialogContext, _, __) => CustomSingleChildLayout(
+        delegate: _AnchoredMenuLayout(
+          anchor: anchor,
+          gap: 6,
+          margin: 12,
+          maxWidth: _maxWidth,
+          maxHeightRatio: _maxHeightRatio,
+        ),
+        child: _buildCard(dialogContext, currentNote, localizations),
       ),
-      color: isDarkMode ? const Color(0xFF2C2C2E) : Colors.white,
-      items: [
-        // 分享
-        PopupMenuItem<String>(
-          value: 'share',
-          height: 44,
-          child: _buildMenuItem(
-            icon: Icons.ios_share_rounded,
-            label: localizations?.share ?? '分享',
-            isDarkMode: isDarkMode,
+      transitionBuilder: (dialogContext, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.94, end: 1).animate(curved),
+            alignment: Alignment.topRight,
+            child: child,
           ),
-        ),
-        // 复制
-        PopupMenuItem<String>(
-          value: 'copy',
-          height: 44,
-          child: _buildMenuItem(
-            icon: Icons.copy_rounded,
-            label: localizations?.copyNote ?? '复制',
-            isDarkMode: isDarkMode,
-          ),
-        ),
-        // 编辑
-        PopupMenuItem<String>(
-          value: 'edit',
-          height: 44,
-          child: _buildMenuItem(
-            icon: Icons.edit_rounded,
-            label: localizations?.edit ?? '编辑',
-            isDarkMode: isDarkMode,
-          ),
-        ),
-        // 查看批注
-        PopupMenuItem<String>(
-          value: 'annotations',
-          height: 44,
-          child: _buildMenuItem(
-            icon: Icons.comment_outlined,
-            label: localizations?.viewAnnotations ?? '查看批注',
-            isDarkMode: isDarkMode,
-            trailing: currentNote.annotations.isNotEmpty
-                ? Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${currentNote.annotations.length}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.orange.shade700,
-                      ),
-                    ),
-                  )
-                : null,
-          ),
-        ),
-        // 置顶/取消置顶
-        PopupMenuItem<String>(
-          value: 'pin',
-          height: 44,
-          child: _buildMenuItem(
-            icon:
-                currentNote.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-            label: currentNote.isPinned
-                ? (localizations?.unpinNote ?? '取消置顶')
-                : (localizations?.pinNote ?? '置顶'),
-            isDarkMode: isDarkMode,
-          ),
-        ),
-        // AI点评
-        PopupMenuItem<String>(
-          value: 'ai',
-          height: 44,
-          child: _buildMenuItem(
-            icon: Icons.rate_review_rounded,
-            label: localizations?.aiReview ?? 'AI点评',
-            isDarkMode: isDarkMode,
-          ),
-        ),
-        // 链接
-        PopupMenuItem<String>(
-          value: 'link',
-          height: 44,
-          child: _buildMenuItem(
-            icon: Icons.link_rounded,
-            label: localizations?.linkNote ?? '链接',
-            isDarkMode: isDarkMode,
-          ),
-        ),
-        // 引用详情
-        PopupMenuItem<String>(
-          value: 'reference',
-          height: 44,
-          child: _buildMenuItem(
-            icon: Icons.account_tree_outlined,
-            label: localizations?.referenceDetails ?? '引用详情',
-            isDarkMode: isDarkMode,
-          ),
-        ),
-        // 提醒设置（根据配置显示）
-        if (Config.AppConfig.enableReminders)
-          PopupMenuItem<String>(
-            value: 'reminder',
-            height: 44,
-            child: _buildMenuItem(
-              icon: Icons.alarm_add,
-              label: localizations?.setReminder ?? '提醒设置',
-              isDarkMode: isDarkMode,
-              trailing: currentNote.reminderTime != null
-                  ? Text(
-                      localizations?.reminderSet ?? '已设置',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDarkMode ? Colors.grey[500] : Colors.grey[600],
-                      ),
-                    )
-                  : null,
-            ),
-          ),
-        // 可见性
-        PopupMenuItem<String>(
-          value: 'visibility',
-          height: 44,
-          child: _buildMenuItem(
-            icon: currentNote.isPublic ? Icons.public : Icons.lock_outline,
-            label: localizations?.noteVisibility ?? '可见性',
-            isDarkMode: isDarkMode,
-            trailing: Text(
-              currentNote.isPublic
-                  ? (localizations?.public ?? '公开')
-                  : (localizations?.private ?? '私有'),
-              style: TextStyle(
-                fontSize: 13,
-                color: isDarkMode ? Colors.grey[500] : Colors.grey[600],
-              ),
-            ),
-          ),
-        ),
-        // 修改时间
-        PopupMenuItem<String>(
-          value: 'change_time',
-          height: 44,
-          child: _buildMenuItem(
-            icon: Icons.access_time_rounded,
-            label: localizations?.changeTime ?? '修改时间',
-            isDarkMode: isDarkMode,
-          ),
-        ),
-        // 详细信息
-        PopupMenuItem<String>(
-          value: 'info',
-          height: 44,
-          child: _buildMenuItem(
-            icon: Icons.info_outline,
-            label: localizations?.detailedInfo ?? '详细信息',
-            isDarkMode: isDarkMode,
-          ),
-        ),
-        // 删除
-        PopupMenuItem<String>(
-          value: 'delete',
-          height: 44,
-          child: _buildMenuItem(
-            icon: Icons.delete_rounded,
-            label: localizations?.delete ?? '删除',
-            isDarkMode: isDarkMode,
-            isDanger: true,
-          ),
-        ),
-      ],
+        );
+      },
     ).then((value) async {
       if (value == null) {
         return;
@@ -384,6 +241,295 @@ class NoteMoreOptionsMenu {
           }
       }
     });
+  }
+
+  /// 悬浮卡片本体：快捷操作块 + 操作列表 + 底部元信息。
+  static Widget _buildCard(
+    BuildContext context,
+    Note note,
+    AppLocalizationsSimple? localizations,
+  ) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final surface = isDarkMode ? const Color(0xFF1C1C1E) : Colors.white;
+    final secondaryText = isDarkMode ? Colors.grey[500] : Colors.grey[600];
+    final dividerColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.06);
+
+    void select(String value) => Navigator.of(context).pop(value);
+
+    return Material(
+      color: surface,
+      elevation: 12,
+      shadowColor: Colors.black.withValues(alpha: 0.28),
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 顶部独立操作块：分享 / 编辑 / 复制
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+            child: Row(
+              children: [
+                _buildQuickAction(
+                  icon: Icons.ios_share_rounded,
+                  label: localizations?.share ?? '分享',
+                  isDarkMode: isDarkMode,
+                  onTap: () => select('share'),
+                ),
+                _buildQuickAction(
+                  icon: Icons.edit_rounded,
+                  label: localizations?.edit ?? '编辑',
+                  isDarkMode: isDarkMode,
+                  onTap: () => select('edit'),
+                ),
+                _buildQuickAction(
+                  icon: Icons.copy_rounded,
+                  label: localizations?.copyNote ?? '复制',
+                  isDarkMode: isDarkMode,
+                  onTap: () => select('copy'),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 0.5, thickness: 0.5, color: dividerColor),
+          // 其它操作（超高时只让这一块滚动）
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                children: [
+                  _buildSheetAction(
+                    icon: Icons.comment_outlined,
+                    label: localizations?.viewAnnotations ?? '查看批注',
+                    isDarkMode: isDarkMode,
+                    onTap: () => select('annotations'),
+                    trailing: note.annotations.isNotEmpty
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${note.annotations.length}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                          )
+                        : null,
+                  ),
+                  _buildSheetAction(
+                    icon: note.isPinned
+                        ? Icons.push_pin
+                        : Icons.push_pin_outlined,
+                    label: note.isPinned
+                        ? (localizations?.unpinNote ?? '取消置顶')
+                        : (localizations?.pinNote ?? '置顶'),
+                    isDarkMode: isDarkMode,
+                    onTap: () => select('pin'),
+                  ),
+                  _buildSheetAction(
+                    icon: Icons.rate_review_rounded,
+                    label: localizations?.aiReview ?? 'AI点评',
+                    isDarkMode: isDarkMode,
+                    onTap: () => select('ai'),
+                  ),
+                  _buildSheetAction(
+                    icon: Icons.link_rounded,
+                    label: localizations?.linkNote ?? '链接',
+                    isDarkMode: isDarkMode,
+                    onTap: () => select('link'),
+                  ),
+                  _buildSheetAction(
+                    icon: Icons.account_tree_outlined,
+                    label: localizations?.referenceDetails ?? '引用详情',
+                    isDarkMode: isDarkMode,
+                    onTap: () => select('reference'),
+                  ),
+                  if (Config.AppConfig.enableReminders)
+                    _buildSheetAction(
+                      icon: Icons.alarm_add,
+                      label: localizations?.setReminder ?? '提醒设置',
+                      isDarkMode: isDarkMode,
+                      onTap: () => select('reminder'),
+                      trailing: note.reminderTime != null
+                          ? Text(
+                              localizations?.reminderSet ?? '已设置',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: secondaryText,
+                              ),
+                            )
+                          : null,
+                    ),
+                  _buildSheetAction(
+                    icon: note.isPublic ? Icons.public : Icons.lock_outline,
+                    label: localizations?.noteVisibility ?? '可见性',
+                    isDarkMode: isDarkMode,
+                    onTap: () => select('visibility'),
+                    trailing: Text(
+                      note.isPublic
+                          ? (localizations?.public ?? '公开')
+                          : (localizations?.private ?? '私有'),
+                      style: TextStyle(fontSize: 13, color: secondaryText),
+                    ),
+                  ),
+                  _buildSheetAction(
+                    icon: Icons.access_time_rounded,
+                    label: localizations?.changeTime ?? '修改时间',
+                    isDarkMode: isDarkMode,
+                    onTap: () => select('change_time'),
+                  ),
+                  _buildSheetAction(
+                    icon: Icons.info_outline,
+                    label: localizations?.detailedInfo ?? '详细信息',
+                    isDarkMode: isDarkMode,
+                    onTap: () => select('info'),
+                  ),
+                  _buildSheetAction(
+                    icon: Icons.delete_rounded,
+                    label: localizations?.delete ?? '删除',
+                    isDarkMode: isDarkMode,
+                    isDanger: true,
+                    onTap: () => select('delete'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Divider(height: 0.5, thickness: 0.5, color: dividerColor),
+          // 元信息固定在卡片最下面
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildMetaRow(
+                  localizations?.characterCount ?? '字数统计',
+                  '${note.content.length}',
+                  secondaryText,
+                ),
+                _buildMetaRow(
+                  localizations?.createdTime ?? '创建时间',
+                  _formatMenuTime(note.createdAt),
+                  secondaryText,
+                ),
+                _buildMetaRow(
+                  localizations?.lastEdited ?? '最后编辑',
+                  _formatMenuTime(note.updatedAt),
+                  secondaryText,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 顶部圆形图标按钮（flomo 快捷操作）。
+  static Widget _buildQuickAction({
+    required IconData icon,
+    required String label,
+    required bool isDarkMode,
+    required VoidCallback onTap,
+  }) =>
+      Expanded(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: isDarkMode
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.04),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: isDarkMode ? Colors.grey[300] : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDarkMode ? Colors.grey[300] : Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  /// 元信息行（灰色小字，左侧标签右侧值）。
+  static Widget _buildMetaRow(String label, String value, Color? color) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(fontSize: 12, color: color)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: color,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  /// 长列表里的操作行。
+  static Widget _buildSheetAction({
+    required IconData icon,
+    required String label,
+    required bool isDarkMode,
+    required VoidCallback onTap,
+    bool isDanger = false,
+    Widget? trailing,
+  }) =>
+      InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          child: _buildMenuItem(
+            icon: icon,
+            label: label,
+            isDarkMode: isDarkMode,
+            isDanger: isDanger,
+            trailing: trailing,
+          ),
+        ),
+      );
+
+  static String _formatMenuTime(DateTime time) {
+    final local = time.toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} '
+        '${two(local.hour)}:${two(local.minute)}';
   }
 
   /// 显示修改时间对话框
@@ -544,4 +690,67 @@ class NoteMoreOptionsMenu {
       ],
     );
   }
+}
+
+/// 把悬浮卡片摆到锚点（「⋯」按钮）附近：优先向下展开，放不下就向上，
+/// 左右方向贴住按钮并夹在屏幕安全边距内。
+class _AnchoredMenuLayout extends SingleChildLayoutDelegate {
+  const _AnchoredMenuLayout({
+    required this.anchor,
+    required this.gap,
+    required this.margin,
+    required this.maxWidth,
+    required this.maxHeightRatio,
+  });
+
+  final Rect anchor;
+  final double gap;
+  final double margin;
+  final double maxWidth;
+  final double maxHeightRatio;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    final width = math.min(maxWidth, constraints.maxWidth - margin * 2);
+    final maxHeight = math.min(
+      constraints.maxHeight * maxHeightRatio,
+      constraints.maxHeight - margin * 2,
+    );
+    return BoxConstraints(
+      minWidth: width,
+      maxWidth: width,
+      maxHeight: maxHeight,
+    );
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final maxLeft = size.width - margin - childSize.width;
+    final left = (anchor.right - childSize.width)
+        .clamp(margin, math.max(margin, maxLeft))
+        .toDouble();
+
+    final below = anchor.bottom + gap;
+    final above = anchor.top - gap - childSize.height;
+
+    double top;
+    if (below + childSize.height <= size.height - margin) {
+      top = below;
+    } else if (above >= margin) {
+      top = above;
+    } else {
+      // 上下都放不下：贴着屏幕底部往上摆
+      top = math.max(margin, size.height - margin - childSize.height);
+    }
+
+    return Offset(left, top);
+  }
+
+  @override
+  bool shouldRelayout(_AnchoredMenuLayout oldDelegate) =>
+      anchor != oldDelegate.anchor ||
+      gap != oldDelegate.gap ||
+      margin != oldDelegate.margin ||
+      maxWidth != oldDelegate.maxWidth ||
+      maxHeightRatio != oldDelegate.maxHeightRatio;
 }

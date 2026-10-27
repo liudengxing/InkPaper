@@ -6,6 +6,7 @@ import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
+import 'package:inkpaper/utils/image_decode_width.dart';
 import 'package:inkpaper/widgets/image_viewer_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -50,29 +51,33 @@ class NoteImageGrid extends StatelessWidget {
   }
 
   Widget _buildSingle(BuildContext context) {
-    final decodeWidth = (MediaQuery.sizeOf(context).width *
-            MediaQuery.devicePixelRatioOf(context))
-        .clamp(320, 1440)
-        .round();
-
     // 单图铺满宽度、不裁切：按原比例自适应高度
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: GestureDetector(
-        onTap: () => ImageViewerScreen.open(
-          context,
-          imagePaths: imagePaths,
-        ),
-        onLongPress:
-            onLongPress == null ? null : () => onLongPress!(imagePaths.first),
-        child: _buildImage(
-          context,
-          imagePaths.first,
-          decodeWidth,
-          fit: BoxFit.contain,
-          placeholderHeight: 220,
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final decodeWidth = bucketedDecodeWidth(
+          constraints.maxWidth,
+          MediaQuery.devicePixelRatioOf(context),
+        );
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: GestureDetector(
+            onTap: () => ImageViewerScreen.open(
+              context,
+              imagePaths: imagePaths,
+            ),
+            onLongPress:
+                onLongPress == null ? null : () => onLongPress!(imagePaths.first),
+            child: _buildImage(
+              context,
+              imagePaths.first,
+              decodeWidth,
+              fit: BoxFit.contain,
+              placeholderHeight: 220,
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -82,8 +87,10 @@ class NoteImageGrid extends StatelessWidget {
         final count = imagePaths.length;
         final tileWidth =
             (constraints.maxWidth - spacing * (count - 1)) / count;
-        final decodeWidth =
-            (tileWidth * MediaQuery.devicePixelRatioOf(context)).round();
+        final decodeWidth = bucketedDecodeWidth(
+          tileWidth,
+          MediaQuery.devicePixelRatioOf(context),
+        );
 
         return Row(
           children: [
@@ -105,29 +112,51 @@ class NoteImageGrid extends StatelessWidget {
   Widget _buildGrid(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final columns = crossAxisCount;
         final tileWidth =
-            (constraints.maxWidth - spacing * (crossAxisCount - 1)) /
-                crossAxisCount;
-        // 按格子实际像素解码，避免整页原图像素解码把内存顶满
-        final decodeWidth =
-            (tileWidth * MediaQuery.devicePixelRatioOf(context)).round();
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+        // 按格子实际像素解码（并收敛到固定档位），避免整页原图像素解码把内存顶满
+        final decodeWidth = bucketedDecodeWidth(
+          tileWidth,
+          MediaQuery.devicePixelRatioOf(context),
+        );
 
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
-          itemCount: imagePaths.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: spacing,
-            mainAxisSpacing: spacing,
-          ),
-          itemBuilder: (context, index) => _buildTile(
-            context,
-            imagePaths[index],
-            index,
-            decodeWidth,
-          ),
+        // 手动分行：GridView(shrinkWrap) 在 SingleChildScrollView 里会多跑一次
+        // 布局，图片一多就明显；这里直接拼 Column/Row，只布局一遍。
+        final rows = <Widget>[];
+        for (var start = 0; start < imagePaths.length; start += columns) {
+          if (start > 0) {
+            rows.add(SizedBox(height: spacing));
+          }
+          final children = <Widget>[];
+          for (var offset = 0; offset < columns; offset++) {
+            final index = start + offset;
+            if (offset > 0) {
+              children.add(SizedBox(width: spacing));
+            }
+            children.add(
+              Expanded(
+                child: index < imagePaths.length
+                    ? AspectRatio(
+                        aspectRatio: 1,
+                        child: _buildTile(
+                          context,
+                          imagePaths[index],
+                          index,
+                          decodeWidth,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            );
+          }
+          rows.add(Row(children: children));
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: rows,
         );
       },
     );
@@ -139,16 +168,19 @@ class NoteImageGrid extends StatelessWidget {
     int index,
     int decodeWidth,
   ) =>
-      GestureDetector(
-        onTap: () => ImageViewerScreen.open(
-          context,
-          imagePaths: imagePaths,
-          initialIndex: index,
-        ),
-        onLongPress: onLongPress == null ? null : () => onLongPress!(path),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(borderRadius),
-          child: _buildImage(context, path, decodeWidth),
+      // 每张图独立成层：解码完成后的淡入、长按水波纹都不会连带整页重绘
+      RepaintBoundary(
+        child: GestureDetector(
+          onTap: () => ImageViewerScreen.open(
+            context,
+            imagePaths: imagePaths,
+            initialIndex: index,
+          ),
+          onLongPress: onLongPress == null ? null : () => onLongPress!(path),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(borderRadius),
+            child: _buildImage(context, path, decodeWidth),
+          ),
         ),
       );
 
@@ -166,6 +198,9 @@ class NoteImageGrid extends StatelessWidget {
         cachedAttachment,
         fit: fit,
         cacheWidth: decodeWidth,
+        gaplessPlayback: true,
+        // 缩略图不需要高质量重采样，low 档解码上屏更快
+        filterQuality: FilterQuality.low,
         errorBuilder: (context, error, stackTrace) => _broken(context),
       );
     }
@@ -175,6 +210,8 @@ class NoteImageGrid extends StatelessWidget {
         File(path.replaceFirst('file://', '')),
         fit: fit,
         cacheWidth: decodeWidth,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.low,
         errorBuilder: (context, error, stackTrace) => _broken(context),
       );
     }
@@ -221,18 +258,13 @@ class NoteImageGrid extends StatelessWidget {
     return _broken(context);
   }
 
+  /// 静态占位块（不要放转圈动画）：N 张图同时加载时，N 个逐帧动画会让整页
+  /// 每帧重绘，转场和首屏都会明显掉帧。
   Widget _placeholder(BuildContext context, {double height = 0}) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Container(
       height: height > 0 ? height : null,
       color: isDarkMode ? Colors.grey[800] : Colors.grey[200],
-      child: const Center(
-        child: SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      ),
     );
   }
 

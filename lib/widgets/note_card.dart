@@ -17,6 +17,7 @@ import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart'; // 🔥 添加长期缓存管理器
+import 'package:inkpaper/utils/image_decode_width.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:inkpaper/utils/note_preview_builder.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
@@ -515,7 +516,8 @@ class _NoteCardState extends State<NoteCard>
     int? decodeWidth,
   }) {
     // 缩略图按卡片格子的实际像素宽度解码；全屏查看由 ImageViewerScreen 自己加载原图。
-    final memWidth = (decodeWidth ?? 720).clamp(160, 720);
+    // 宽度收敛到固定档位，和详情页九宫格用同一份缓存，进出详情不必重复解码。
+    final memWidth = bucketPixelWidth(decodeWidth ?? 720, maxWidth: 720);
     try {
       // 数据维护里缓存过的服务端附件：直接读本地副本
       final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);

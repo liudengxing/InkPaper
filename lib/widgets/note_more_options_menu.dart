@@ -387,30 +387,6 @@ class NoteMoreOptionsMenu {
                 ],
               ),
             ),
-            // 元信息：字数 / 创建时间 / 最后编辑
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildMetaRow(
-                    localizations?.characterCount ?? '字数统计',
-                    '${note.content.length}',
-                    secondaryText,
-                  ),
-                  _buildMetaRow(
-                    localizations?.createdTime ?? '创建时间',
-                    _formatMenuTime(note.createdAt),
-                    secondaryText,
-                  ),
-                  _buildMetaRow(
-                    localizations?.lastEdited ?? '最后编辑',
-                    _formatMenuTime(note.updatedAt),
-                    secondaryText,
-                  ),
-                ],
-              ),
-            ),
             Divider(height: 0.5, thickness: 0.5, color: dividerColor),
             // 其它操作
             Flexible(
@@ -521,6 +497,31 @@ class NoteMoreOptionsMenu {
                     ),
                   ],
                 ),
+              ),
+            ),
+            Divider(height: 0.5, thickness: 0.5, color: dividerColor),
+            // 元信息固定在面板最下面
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildMetaRow(
+                    localizations?.characterCount ?? '字数统计',
+                    '${note.content.length}',
+                    secondaryText,
+                  ),
+                  _buildMetaRow(
+                    localizations?.createdTime ?? '创建时间',
+                    _formatMenuTime(note.createdAt),
+                    secondaryText,
+                  ),
+                  _buildMetaRow(
+                    localizations?.lastEdited ?? '最后编辑',
+                    _formatMenuTime(note.updatedAt),
+                    secondaryText,
+                  ),
+                ],
               ),
             ),
           ],

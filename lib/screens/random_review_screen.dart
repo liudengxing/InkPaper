@@ -17,6 +17,7 @@ import 'package:inkpaper/widgets/intelligent_related_notes_sheet.dart';
 import 'package:inkpaper/widgets/memos_markdown_renderer.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
+import 'package:inkpaper/widgets/on_this_day_card.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -36,6 +37,9 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
 
   List<Note> _reviewNotes = [];
   int _currentIndex = 0;
+
+  /// 被置顶到第一条的「去年今日」笔记 id（用于在时间后加标签）。
+  String? _onThisDayNoteId;
 
   // 回顾设置
   int _reviewDays = 999999; // 默认回顾全部笔记
@@ -64,13 +68,25 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
   }
 
   // 加载回顾笔记
-  void _loadReviewNotes() {
+  Future<void> _loadReviewNotes() async {
     final appProvider = Provider.of<AppProvider>(context, listen: false);
     final allNotes = appProvider.notes;
 
-    if (allNotes.isEmpty) {
+    // 🕰️ 往年同月同日的笔记：默认作为第一条回顾
+    var onThisDayNotes = const <Note>[];
+    try {
+      onThisDayNotes = await appProvider.loadNotesOnThisDay();
+    } on Object catch (e) {
+      debugPrint('RandomReview: 加载去年今日失败: $e');
+    }
+    if (!mounted) {
+      return;
+    }
+
+    if (allNotes.isEmpty && onThisDayNotes.isEmpty) {
       setState(() {
         _reviewNotes = [];
+        _onThisDayNoteId = null;
         _currentIndex = 0;
       });
       return;
@@ -84,8 +100,15 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
       random: _random,
     );
 
+    final pinned = onThisDayNotes.isEmpty ? null : onThisDayNotes.first;
+    final merged = <Note>[
+      if (pinned != null) pinned,
+      ...selectedNotes.where((note) => note.id != pinned?.id),
+    ];
+
     setState(() {
-      _reviewNotes = selectedNotes;
+      _reviewNotes = merged;
+      _onThisDayNoteId = pinned?.id;
       _currentIndex = 0;
     });
 
@@ -163,7 +186,7 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
               if (!mounted || !context.mounted) {
                 return;
               }
-              _loadReviewNotes(); // 重新加载笔记
+              await _loadReviewNotes(); // 重新加载笔记
             } on Object catch (e) {
               if (mounted && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -988,7 +1011,6 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
                       Padding(
                         padding: const EdgeInsets.all(16),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               DateFormat('yyyy-MM-dd HH:mm:ss')
@@ -998,6 +1020,17 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
                                 color: secondaryTextColor,
                               ),
                             ),
+                            if (note.id == _onThisDayNoteId) ...[
+                              const SizedBox(width: 8),
+                              OnThisDayBadge(
+                                label: '去年今日',
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? AppTheme.primaryLightColor
+                                    : AppTheme.primaryColor,
+                              ),
+                            ],
+                            const Spacer(),
                             Builder(
                               builder: (btnContext) => InkWell(
                                 onTap: () {

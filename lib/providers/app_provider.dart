@@ -164,6 +164,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   void _invalidateStatisticsNotes() {
     _statisticsNotes = null;
   }
+
   DateTime? get _lastLoadTime => _notesStore.lastLoadTime; // 上次加载时间
   set _lastLoadTime(DateTime? value) => _notesStore.lastLoadTime = value;
   Stopwatch get _loadStopwatch => _notesStore.loadStopwatch; // 性能计时器
@@ -477,6 +478,47 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   }
 
   Future<List<Note>> getAllNotesForStats() async => _databaseService.getNotes();
+
+  // ── 🕰️ 去年今日（往年同月同日的笔记） ──────────────────────────
+
+  DateTime? _onThisDayCacheDate;
+  List<Note> _onThisDayCache = const <Note>[];
+
+  /// 往年同月同日的笔记，按年份从近到远（去年在最前）。
+  ///
+  /// 走数据库按月-日匹配，不受首页分页影响；同一天只查一次库。
+  Future<List<Note>> loadNotesOnThisDay({
+    DateTime? today,
+    bool forceRefresh = false,
+  }) async {
+    final now = today ?? DateTime.now();
+    final cachedDate = _onThisDayCacheDate;
+    final sameDay = cachedDate != null &&
+        cachedDate.year == now.year &&
+        cachedDate.month == now.month &&
+        cachedDate.day == now.day;
+    if (sameDay && !forceRefresh) {
+      return _onThisDayCache;
+    }
+
+    try {
+      final notes = await _databaseService.getNotesOnMonthDay(
+        month: now.month,
+        day: now.day,
+        excludeYear: now.year,
+      );
+      final visible = _excludePendingDeletedNotes(notes)
+          .where(_isVisibleNote)
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _onThisDayCacheDate = DateTime(now.year, now.month, now.day);
+      _onThisDayCache = List<Note>.unmodifiable(visible);
+      return _onThisDayCache;
+    } on Object catch (e) {
+      debugPrint('AppProvider: 加载往年今日失败: $e');
+      return const <Note>[];
+    }
+  }
 
   // 🚀 WebDAV getters
   WebDavConfig get webDavConfig => _webDavConfig;
@@ -1485,9 +1527,11 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   ///
   /// Memos 与 WebDAV 双通道并存时，同一条笔记会拿到两个 id 各存一行，
   /// 这里给出「保留哪些、删掉哪些」，不写库。
-  Future<({DedupeResult result, int groupCount})>
-      previewDuplicateNotes({bool matchContentOnly = false}) async {
-    final notes = _excludePendingDeletedNotes(await _databaseService.getNotes());
+  Future<({DedupeResult result, int groupCount})> previewDuplicateNotes({
+    bool matchContentOnly = false,
+  }) async {
+    final notes =
+        _excludePendingDeletedNotes(await _databaseService.getNotes());
     final groupCount = groupNotesByContentHash(notes)
         .values
         .where((group) => group.length > 1)
@@ -4482,8 +4526,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   /// 不在每次操作前刷新，附件就永远取不回来（表现为一直「未缓存 N」）。
   void _refreshMemosCredentialsForWebDav() {
     _webDavSyncEngine?.updateMemosCredentials(
-      baseUrl:
-          _appConfig.memosApiUrl ?? _user?.serverUrl ?? _appConfig.lastServerUrl,
+      baseUrl: _appConfig.memosApiUrl ??
+          _user?.serverUrl ??
+          _appConfig.lastServerUrl,
       token: _user?.token ?? _appConfig.lastToken,
     );
   }

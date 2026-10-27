@@ -677,6 +677,28 @@ class DatabaseService {
     return List.generate(maps.length, (i) => Note.fromMap(maps[i]));
   }
 
+  /// 查询「往年同月同日」的笔记，按创建时间倒序（最近的年份在前）。
+  ///
+  /// createdAt 在库里存的是本地时区的 ISO8601 文本，SQLite 的 strftime
+  /// 可以直接按月-日匹配，不必把整库笔记读进内存再过滤。
+  Future<List<Note>> getNotesOnMonthDay({
+    required int month,
+    required int day,
+    required int excludeYear,
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    String two(int value) => value.toString().padLeft(2, '0');
+    final maps = await db.rawQuery(
+      'SELECT * FROM $viewActiveNotes '
+      "WHERE strftime('%m-%d', createdAt) = ? "
+      "AND strftime('%Y', createdAt) <> ? "
+      'ORDER BY createdAt DESC',
+      ['${two(month)}-${two(day)}', two(excludeYear)],
+    );
+    return maps.map(Note.fromMap).toList();
+  }
+
   /// 获取笔记总数
   Future<int> getNotesCount() async {
     final db = await database;

@@ -21,6 +21,7 @@ import 'package:inkpaper/utils/responsive_utils.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/note_card.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
+import 'package:inkpaper/widgets/on_this_day_card.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:provider/provider.dart';
@@ -113,6 +114,10 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isLoadingMore = false;
   bool _hasHandledWidgetQuickAction = false;
 
+  // 🕰️ 去年今日：往年同月同日的笔记（去年在最前），首页顶部展示
+  List<Note> _onThisDayNotes = const <Note>[];
+  bool _onThisDayDismissed = false;
+
   // ListView.builder 本身是懒构建，不需要再手写「分帧递增可见数量」。
 
   @override
@@ -121,6 +126,11 @@ class _HomeScreenState extends State<HomeScreen>
 
     // 📝 欢迎笔记：时间取首次构建时刻，列表为空时展示
     _welcomeNoteTime = DateTime.now();
+
+    // 🕰️ 去年今日：首帧之后异步查库，避免阻塞启动
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadOnThisDay();
+    });
 
     // 🚀 大厂做法：先渲染 UI，再异步初始化（不阻塞 UI）
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -506,6 +516,53 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // ── 🕰️ 去年今日 ──────────────────────────────────────────
+
+  /// 当天的日期键（yyyy-MM-dd），用于「今天关掉就不再出现」。
+  static String _todayKey([DateTime? now]) {
+    final date = now ?? DateTime.now();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${date.year}-${two(date.month)}-${two(date.day)}';
+  }
+
+  Future<void> _loadOnThisDay() async {
+    final dismissed =
+        await PreferencesService().isOnThisDayDismissed(_todayKey());
+    if (!mounted) {
+      return;
+    }
+    if (dismissed) {
+      setState(() => _onThisDayDismissed = true);
+      return;
+    }
+
+    final notes = await Provider.of<AppProvider>(context, listen: false)
+        .loadNotesOnThisDay();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _onThisDayNotes = notes);
+  }
+
+  Future<void> _dismissOnThisDay() async {
+    setState(() {
+      _onThisDayDismissed = true;
+      _onThisDayNotes = const <Note>[];
+    });
+    await PreferencesService().dismissOnThisDay(_todayKey());
+  }
+
+  Widget _buildOnThisDayCard() {
+    if (_onThisDayDismissed || _onThisDayNotes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return OnThisDayCard(
+      notes: _onThisDayNotes,
+      onClose: _dismissOnThisDay,
+      onOpenNote: (note) => context.push('/note/${note.id}'),
+    );
+  }
+
   // 打开侧边栏
   void _openDrawer() {
     _scaffoldKey.currentState?.openDrawer();
@@ -599,8 +656,7 @@ class _HomeScreenState extends State<HomeScreen>
               style: TextStyle(
                 fontSize: 15,
                 color: isSelected ? primaryColor : textColor,
-                fontWeight:
-                    isSelected ? FontWeight.w600 : FontWeight.normal,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
           ),
@@ -1131,9 +1187,8 @@ class _HomeScreenState extends State<HomeScreen>
                 onPressed: _openDrawer,
               )
             : null,
-        titleSpacing: (!isDesktop && !_isSearchActive)
-            ? 0
-            : (isDesktop ? 20 : 16),
+        titleSpacing:
+            (!isDesktop && !_isSearchActive) ? 0 : (isDesktop ? 20 : 16),
         title: AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
           switchInCurve: Curves.easeOutCubic,
@@ -1332,27 +1387,24 @@ class _HomeScreenState extends State<HomeScreen>
                                     // 会被「屏幕高度 - 240」压出 RenderFlex 溢出
                                     if (showSearchSummary && _isSearchLoading)
                                       SizedBox(
-                                        height: MediaQuery.of(context)
-                                                .size
-                                                .height -
-                                            240,
+                                        height:
+                                            MediaQuery.of(context).size.height -
+                                                240,
                                         child: _buildSearchLoadingState(),
                                       )
                                     else if (showSearchSummary)
                                       SizedBox(
-                                        height: MediaQuery.of(context)
-                                                .size
-                                                .height -
-                                            240,
+                                        height:
+                                            MediaQuery.of(context).size.height -
+                                                240,
                                         child:
                                             _buildSearchEmptyState(searchQuery),
                                       )
                                     else if (_isSearchActive)
                                       SizedBox(
-                                        height: MediaQuery.of(context)
-                                                .size
-                                                .height -
-                                            240,
+                                        height:
+                                            MediaQuery.of(context).size.height -
+                                                240,
                                         child: _buildEmptyState(),
                                       )
                                     // 首屏数据没就绪时给骨架，别先闪一条「欢迎笔记」
@@ -1371,14 +1423,20 @@ class _HomeScreenState extends State<HomeScreen>
                                       notes.length + 3, // +1头部 +1加载指示器 +1底部间距
                                   padding: EdgeInsets.zero,
                                   itemBuilder: (context, index) {
-                                    // 第一个item是通知栏或搜索结果摘要
+                                    // 第一个item是「去年今日」+ 通知栏 / 搜索结果摘要
                                     if (index == 0) {
                                       if (showSearchSummary) {
                                         return _buildSearchSummary(
                                           notes.length,
                                         );
                                       }
-                                      return _buildNotificationBanner();
+                                      return Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _buildOnThisDayCard(),
+                                          _buildNotificationBanner(),
+                                        ],
+                                      );
                                     }
 
                                     // 倒数第二个item是加载更多指示器

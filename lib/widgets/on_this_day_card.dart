@@ -3,7 +3,7 @@ import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
 
-/// 「去年今日」卡片：首页列表顶部的可滑动回顾。
+/// 「那年今日」卡片：首页列表顶部的可滑动回顾。
 ///
 /// 卡片里按年份从近到远排列往年同月同日的笔记，左右滑动切换；
 /// 右上角的关闭按钮由调用方处理（当天不再出现）。
@@ -88,7 +88,7 @@ class _OnThisDayCardState extends State<OnThisDayCard> {
               padding: const EdgeInsets.fromLTRB(12, 6, 4, 0),
               child: Row(
                 children: [
-                  OnThisDayBadge(label: '去年今日', color: accentColor),
+                  OnThisDayBadge(label: '那年今日', color: accentColor),
                   const Spacer(),
                   if (multiple)
                     Text(
@@ -206,7 +206,7 @@ class _OnThisDayCardState extends State<OnThisDayCard> {
   }
 }
 
-/// 「去年今日」小胶囊标签，首页卡片与随机回顾页共用。
+/// 「那年今日」小胶囊标签，首页卡片与随机回顾页共用。
 class OnThisDayBadge extends StatelessWidget {
   const OnThisDayBadge({
     required this.label,

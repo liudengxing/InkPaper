@@ -479,7 +479,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
   Future<List<Note>> getAllNotesForStats() async => _databaseService.getNotes();
 
-  // ── 🕰️ 去年今日（往年同月同日的笔记） ──────────────────────────
+  // ── 🕰️ 那年今日（往年同月同日的笔记） ──────────────────────────
 
   DateTime? _onThisDayCacheDate;
   List<Note> _onThisDayCache = const <Note>[];

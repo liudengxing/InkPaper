@@ -36,7 +36,7 @@ class PreferencesService {
   // 侧边栏置顶标签（标签路径数组，JSON 存储）
   static const String _pinnedTagsKey = 'sidebar_pinned_tags';
 
-  // 「去年今日」卡片被关闭的日期（yyyy-MM-dd），只压当天，第二天自动恢复
+  // 「那年今日」卡片被关闭的日期（yyyy-MM-dd），只压当天，第二天自动恢复
   static const String _onThisDayDismissedKey = 'on_this_day_dismissed_date';
 
   // 🔒 安全存储配置：卸载时自动清除数据（符合银行App标准）
@@ -442,16 +442,16 @@ class PreferencesService {
   }
 
   // ========================================
-  // 🕰️ 去年今日
+  // 🕰️ 那年今日
   // ========================================
 
-  /// 「去年今日」卡片在 [dateKey]（yyyy-MM-dd）当天是否被用户关掉。
+  /// 「那年今日」卡片在 [dateKey]（yyyy-MM-dd）当天是否被用户关掉。
   Future<bool> isOnThisDayDismissed(String dateKey) async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_onThisDayDismissedKey) == dateKey;
   }
 
-  /// 记录「去年今日」卡片在哪一天被关掉；同一天内不再展示。
+  /// 记录「那年今日」卡片在哪一天被关掉；同一天内不再展示。
   Future<void> dismissOnThisDay(String dateKey) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_onThisDayDismissedKey, dateKey);

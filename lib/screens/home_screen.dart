@@ -114,7 +114,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isLoadingMore = false;
   bool _hasHandledWidgetQuickAction = false;
 
-  // 🕰️ 去年今日：往年同月同日的笔记（去年在最前），首页顶部展示
+  // 🕰️ 那年今日：往年同月同日的笔记（去年在最前），首页顶部展示
   List<Note> _onThisDayNotes = const <Note>[];
   bool _onThisDayDismissed = false;
 
@@ -127,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen>
     // 📝 欢迎笔记：时间取首次构建时刻，列表为空时展示
     _welcomeNoteTime = DateTime.now();
 
-    // 🕰️ 去年今日：首帧之后异步查库，避免阻塞启动
+    // 🕰️ 那年今日：首帧之后异步查库，避免阻塞启动
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadOnThisDay();
     });
@@ -516,7 +516,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // ── 🕰️ 去年今日 ──────────────────────────────────────────
+  // ── 🕰️ 那年今日 ──────────────────────────────────────────
 
   /// 当天的日期键（yyyy-MM-dd），用于「今天关掉就不再出现」。
   static String _todayKey([DateTime? now]) {
@@ -1423,7 +1423,7 @@ class _HomeScreenState extends State<HomeScreen>
                                       notes.length + 3, // +1头部 +1加载指示器 +1底部间距
                                   padding: EdgeInsets.zero,
                                   itemBuilder: (context, index) {
-                                    // 第一个item是「去年今日」+ 通知栏 / 搜索结果摘要
+                                    // 第一个item是「那年今日」+ 通知栏 / 搜索结果摘要
                                     if (index == 0) {
                                       if (showSearchSummary) {
                                         return _buildSearchSummary(

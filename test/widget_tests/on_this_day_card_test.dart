@@ -18,7 +18,7 @@ Widget _wrap(Widget child) => MaterialApp(
 
 void main() {
   group('OnThisDayCard', () {
-    testWidgets('OTD-01 展示「去年今日」标签与年份', (tester) async {
+    testWidgets('OTD-01 展示「那年今日」标签与年份', (tester) async {
       await tester.pumpWidget(
         _wrap(
           OnThisDayCard(
@@ -29,7 +29,7 @@ void main() {
         ),
       );
 
-      expect(find.text('去年今日'), findsOneWidget);
+      expect(find.text('那年今日'), findsOneWidget);
       expect(find.text('2024 年的今天'), findsOneWidget);
       expect(find.text('2024 年的记录'), findsOneWidget);
     });
@@ -101,7 +101,7 @@ void main() {
       );
 
       expect(find.byType(Material), findsWidgets);
-      expect(find.text('去年今日'), findsNothing);
+      expect(find.text('那年今日'), findsNothing);
     });
   });
 }

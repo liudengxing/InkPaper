@@ -38,7 +38,7 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
   List<Note> _reviewNotes = [];
   int _currentIndex = 0;
 
-  /// 被置顶到第一条的「去年今日」笔记 id（用于在时间后加标签）。
+  /// 被置顶到第一条的「那年今日」笔记 id（用于在时间后加标签）。
   String? _onThisDayNoteId;
 
   // 回顾设置
@@ -77,7 +77,7 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
     try {
       onThisDayNotes = await appProvider.loadNotesOnThisDay();
     } on Object catch (e) {
-      debugPrint('RandomReview: 加载去年今日失败: $e');
+      debugPrint('RandomReview: 加载那年今日失败: $e');
     }
     if (!mounted) {
       return;
@@ -1023,7 +1023,7 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
                             if (note.id == _onThisDayNoteId) ...[
                               const SizedBox(width: 8),
                               OnThisDayBadge(
-                                label: '去年今日',
+                                label: '那年今日',
                                 color: Theme.of(context).brightness ==
                                         Brightness.dark
                                     ? AppTheme.primaryLightColor

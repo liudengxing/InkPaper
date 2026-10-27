@@ -33,6 +33,9 @@ class PreferencesService {
   static const String _useCustomServerKey = 'use_custom_server';
   static const String _customServerUrlKey = 'custom_server_url';
 
+  // 侧边栏置顶标签（标签路径数组，JSON 存储）
+  static const String _pinnedTagsKey = 'sidebar_pinned_tags';
+
   // 🔒 安全存储配置：卸载时自动清除数据（符合银行App标准）
   final _storage = const FlutterSecureStorage(
     iOptions: IOSOptions(
@@ -393,6 +396,46 @@ class PreferencesService {
   Future<String?> getCustomServerUrl() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_customServerUrlKey);
+  }
+
+  // ========================================
+  // 🎯 侧边栏置顶标签
+  // ========================================
+
+  /// 读取置顶标签路径（顺序即展示顺序）。
+  Future<List<String>> getPinnedTagPaths() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_pinnedTagsKey);
+    if (raw == null || raw.isEmpty) {
+      return const <String>[];
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded
+            .whereType<String>()
+            .map((path) => path.trim())
+            .where((path) => path.isNotEmpty)
+            .toList(growable: false);
+      }
+    } on Object catch (e) {
+      debugPrint('PreferencesService: 解析置顶标签失败: $e');
+    }
+    return const <String>[];
+  }
+
+  /// 保存置顶标签路径；传空列表等价于清空。
+  Future<void> savePinnedTagPaths(List<String> paths) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cleaned = <String>{
+      for (final path in paths)
+        if (path.trim().isNotEmpty) path.trim(),
+    }.toList(growable: false);
+    if (cleaned.isEmpty) {
+      await prefs.remove(_pinnedTagsKey);
+      return;
+    }
+    await prefs.setString(_pinnedTagsKey, jsonEncode(cleaned));
   }
 
   // 保存导出历史

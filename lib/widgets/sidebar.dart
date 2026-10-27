@@ -125,6 +125,9 @@ class _SidebarState extends State<Sidebar> {
 
   static const int _tagPreviewLimit = 12;
 
+  // 置顶标签（路径），显示在标签区顶部、“全部标签”之上
+  List<String> _pinnedTagPaths = const [];
+
   @override
   void initState() {
     super.initState();
@@ -134,6 +137,7 @@ class _SidebarState extends State<Sidebar> {
         setState(() {
           _isLoading = false;
         });
+        unawaited(_loadPinnedTags());
       }
     });
 
@@ -583,7 +587,7 @@ class _SidebarState extends State<Sidebar> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(7),
                   onTap: () => _openTagDetail(context, path),
-                  onLongPress: () => _copyTag(context, path),
+                  onLongPress: () => _showTagActions(context, path),
                   child: Tooltip(
                     message: '#$path',
                     waitDuration: const Duration(milliseconds: 500),
@@ -1044,25 +1048,17 @@ class _SidebarState extends State<Sidebar> {
     // 从索引3开始（0-2被头部占用）
     var menuIndex = 3;
 
-    for (final menuItem in visibleMenuItems) {
-      // 决定是否使用 push 路由（辅助功能如"帮助"和"设置"）
-      final isPushRoute = menuItem.id == 'help' || menuItem.id == 'settings';
+    // 「全部标签」固定排在最后（flomo：标签区收尾就是全部标签入口）
+    SidebarMenuItem? allTagsItem;
 
-      // ✅ 专业产品信息架构：把“标签树”放进“全部标签”这一项里
+    for (final menuItem in visibleMenuItems) {
       if (menuItem.id == 'all_tags') {
-        items.add(
-          _buildAllTagsExpandableItem(
-            context: context,
-            isDarkMode: Theme.of(context).brightness == Brightness.dark,
-            notes: notes,
-            currentPath: currentPath,
-            selectedTagPath: _selectedTagPathFromRoute(context),
-            index: menuIndex++,
-            menuItem: menuItem,
-          ),
-        );
+        allTagsItem = menuItem;
         continue;
       }
+
+      // 决定是否使用 push 路由（辅助功能如"帮助"和"设置"）
+      final isPushRoute = menuItem.id == 'help' || menuItem.id == 'settings';
 
       items.add(
         _buildMenuItem(
@@ -1077,7 +1073,207 @@ class _SidebarState extends State<Sidebar> {
       );
     }
 
+    // 置顶标签区（没有置顶时不占位置）
+    if (_pinnedTagPaths.isNotEmpty) {
+      items.add(_buildPinnedTagsSection(context, _pinnedTagPaths));
+    }
+
+    // ✅ 标签树放进「全部标签」，并固定在最后
+    if (allTagsItem != null) {
+      items.add(
+        _buildAllTagsExpandableItem(
+          context: context,
+          isDarkMode: Theme.of(context).brightness == Brightness.dark,
+          notes: notes,
+          currentPath: currentPath,
+          selectedTagPath: _selectedTagPathFromRoute(context),
+          index: menuIndex++,
+          menuItem: allTagsItem,
+        ),
+      );
+    }
+
     return items;
+  }
+
+  Future<void> _loadPinnedTags() async {
+    try {
+      final prefs =
+          Provider.of<AppProvider>(context, listen: false).preferencesService;
+      final pinned = await prefs.getPinnedTagPaths();
+      if (!mounted) {
+        return;
+      }
+      if (pinned.length == _pinnedTagPaths.length &&
+          (pinned.isEmpty || pinned.join('|') == _pinnedTagPaths.join('|'))) {
+        return;
+      }
+      setState(() => _pinnedTagPaths = pinned);
+    } on Object catch (e) {
+      debugPrint('Sidebar: 加载置顶标签失败: $e');
+    }
+  }
+
+  Future<void> _togglePinnedTag(String path) async {
+    final next = <String>[..._pinnedTagPaths];
+    if (next.contains(path)) {
+      next.remove(path);
+    } else {
+      next.add(path);
+    }
+    setState(() => _pinnedTagPaths = next);
+    try {
+      final prefs =
+          Provider.of<AppProvider>(context, listen: false).preferencesService;
+      await prefs.savePinnedTagPaths(next);
+    } on Object catch (e) {
+      debugPrint('Sidebar: 保存置顶标签失败: $e');
+    }
+  }
+
+  Future<void> _showTagActions(BuildContext context, String path) async {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final isPinned = _pinnedTagPaths.contains(path);
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: isDarkMode ? const Color(0xFF1C1C1E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(
+                isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+              ),
+              title: Text(
+                isPinned
+                    ? _localizedText(
+                        sheetContext,
+                        zh: '取消置顶标签',
+                        en: 'Unpin tag',
+                      )
+                    : _localizedText(
+                        sheetContext,
+                        zh: '置顶标签',
+                        en: 'Pin tag',
+                      ),
+              ),
+              onTap: () => Navigator.of(sheetContext).pop('pin'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy_rounded),
+              title: Text(
+                _localizedText(sheetContext, zh: '复制标签', en: 'Copy tag'),
+              ),
+              onTap: () => Navigator.of(sheetContext).pop('copy'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || selected == null || !context.mounted) {
+      return;
+    }
+    if (selected == 'copy') {
+      _copyTag(context, path);
+      return;
+    }
+    await _togglePinnedTag(path);
+  }
+
+  Widget _buildPinnedTagsSection(BuildContext context, List<String> paths) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final mutedColor = isDarkMode ? Colors.grey[500] : const Color(0xFF7A818C);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 4),
+            child: Text(
+              _localizedText(context, zh: '置顶标签', en: 'Pinned tags'),
+              style: TextStyle(
+                fontSize: 11,
+                letterSpacing: 0.4,
+                color: mutedColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          for (final path in paths)
+            _buildPinnedTagRow(context, path, isDarkMode),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPinnedTagRow(
+    BuildContext context,
+    String path,
+    bool isDarkMode,
+  ) {
+    final isSelected = _selectedTagPathFromRoute(context) == path;
+    final activeColor = _tagActiveColor(isDarkMode);
+    final textColor = isSelected
+        ? activeColor
+        : (isDarkMode
+            ? AppTheme.darkTextPrimaryColor
+            : AppTheme.textPrimaryColor);
+    final segments = path.split('/').where((p) => p.isNotEmpty).toList();
+    final label = segments.isEmpty ? path : segments.last;
+
+    return Container(
+      height: 34,
+      margin: const EdgeInsets.only(bottom: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color:
+            isSelected ? _tagSelectedBgColor(isDarkMode) : Colors.transparent,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.push_pin,
+            size: 13,
+            color: isSelected
+                ? activeColor
+                : (isDarkMode ? Colors.grey[600] : Colors.grey[400]),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(7),
+                onTap: () => _openTagDetail(context, path),
+                onLongPress: () => _showTagActions(context, path),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.1,
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // 获取菜单项的本地化标题

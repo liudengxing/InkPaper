@@ -39,6 +39,70 @@ class NoteImageGrid extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    // flomo 式自适应：1 张铺满，2~3 张一行，4 张以上九宫格
+    if (imagePaths.length == 1) {
+      return _buildSingle(context);
+    }
+    if (imagePaths.length <= 3) {
+      return _buildRow(context);
+    }
+    return _buildGrid(context);
+  }
+
+  Widget _buildSingle(BuildContext context) {
+    final decodeWidth = (MediaQuery.sizeOf(context).width *
+            MediaQuery.devicePixelRatioOf(context))
+        .clamp(320, 1440)
+        .round();
+
+    // 单图铺满宽度、不裁切：按原比例自适应高度
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: GestureDetector(
+        onTap: () => ImageViewerScreen.open(
+          context,
+          imagePaths: imagePaths,
+        ),
+        onLongPress:
+            onLongPress == null ? null : () => onLongPress!(imagePaths.first),
+        child: _buildImage(
+          context,
+          imagePaths.first,
+          decodeWidth,
+          fit: BoxFit.contain,
+          placeholderHeight: 220,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRow(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final count = imagePaths.length;
+        final tileWidth =
+            (constraints.maxWidth - spacing * (count - 1)) / count;
+        final decodeWidth =
+            (tileWidth * MediaQuery.devicePixelRatioOf(context)).round();
+
+        return Row(
+          children: [
+            for (var i = 0; i < count; i++) ...[
+              if (i > 0) SizedBox(width: spacing),
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _buildTile(context, imagePaths[i], i, decodeWidth),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildGrid(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final tileWidth =
@@ -88,13 +152,19 @@ class NoteImageGrid extends StatelessWidget {
         ),
       );
 
-  Widget _buildImage(BuildContext context, String path, int decodeWidth) {
+  Widget _buildImage(
+    BuildContext context,
+    String path,
+    int decodeWidth, {
+    BoxFit fit = BoxFit.cover,
+    double placeholderHeight = 0,
+  }) {
     // 数据维护缓存过的服务端附件：直接读本地副本
     final cachedAttachment = AttachmentCache.instance.fileFor(path);
     if (cachedAttachment != null) {
       return Image.file(
         cachedAttachment,
-        fit: BoxFit.cover,
+        fit: fit,
         cacheWidth: decodeWidth,
         errorBuilder: (context, error, stackTrace) => _broken(context),
       );
@@ -103,7 +173,7 @@ class NoteImageGrid extends StatelessWidget {
     if (path.startsWith('file://')) {
       return Image.file(
         File(path.replaceFirst('file://', '')),
-        fit: BoxFit.cover,
+        fit: fit,
         cacheWidth: decodeWidth,
         errorBuilder: (context, error, stackTrace) => _broken(context),
       );
@@ -115,10 +185,11 @@ class NoteImageGrid extends StatelessWidget {
       return CachedNetworkImage(
         imageUrl: path,
         cacheManager: ImageCacheManager.authImageCache,
-        fit: BoxFit.cover,
+        fit: fit,
         memCacheWidth: decodeWidth,
         fadeInDuration: const Duration(milliseconds: 150),
-        placeholder: (context, url) => _placeholder(context),
+        placeholder: (context, url) =>
+            _placeholder(context, height: placeholderHeight),
         errorWidget: (context, url, error) => _broken(context),
       );
     }
@@ -138,10 +209,11 @@ class NoteImageGrid extends StatelessWidget {
         imageUrl: fullUrl,
         cacheManager: ImageCacheManager.authImageCache,
         httpHeaders: token != null ? {'Authorization': 'Bearer $token'} : null,
-        fit: BoxFit.cover,
+        fit: fit,
         memCacheWidth: decodeWidth,
         fadeInDuration: const Duration(milliseconds: 150),
-        placeholder: (context, url) => _placeholder(context),
+        placeholder: (context, url) =>
+            _placeholder(context, height: placeholderHeight),
         errorWidget: (context, url, error) => _broken(context),
       );
     }
@@ -149,9 +221,10 @@ class NoteImageGrid extends StatelessWidget {
     return _broken(context);
   }
 
-  Widget _placeholder(BuildContext context) {
+  Widget _placeholder(BuildContext context, {double height = 0}) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Container(
+      height: height > 0 ? height : null,
       color: isDarkMode ? Colors.grey[800] : Colors.grey[200],
       child: const Center(
         child: SizedBox(

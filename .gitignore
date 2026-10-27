@@ -126,3 +126,6 @@ Ego_v1.2.3_decompiled/
 
 # Local dev environment notes (machine-specific, NOT project source)
 LOCAL_DEV_SETUP.md
+
+# Local scratch dir (screenshots / throwaway scripts, NOT project source)
+_backup/

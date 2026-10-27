@@ -893,6 +893,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                 return MemosMarkdownRenderer.fromNote(
                                   note: _note!,
                                   serverUrl: serverUrl,
+                                  // 图片统一走九宫格，不再逐张插进正文
+                                  gridImages: true,
                                   onCheckboxTap:
                                       _toggleTodoInNote, // 🎯 复选框点击回调（传递索引）
                                   onTagTap: (tagName) {

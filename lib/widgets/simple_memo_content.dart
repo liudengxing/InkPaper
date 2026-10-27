@@ -20,6 +20,7 @@ import 'package:inkpaper/utils/tag_path_utils.dart';
 import 'package:inkpaper/utils/text_style_helper.dart';
 import 'package:inkpaper/widgets/animated_checkbox.dart';
 import 'package:inkpaper/widgets/image_viewer_screen.dart';
+import 'package:inkpaper/widgets/note_image_grid.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -40,6 +41,8 @@ class SimpleMemoContent extends StatefulWidget {
     this.highlightQuery,
     this.referenceNotes,
     this.compactHeadings = false,
+    this.gridImages = false,
+    this.imagePaths,
   });
   final String content;
   final String? serverUrl;
@@ -52,6 +55,12 @@ class SimpleMemoContent extends StatefulWidget {
   final String? highlightQuery;
   final List<Note>? referenceNotes;
   final bool compactHeadings;
+
+  /// 图片以九宫格排在正文下方（flomo 式），不再逐张插进正文。
+  final bool gridImages;
+
+  /// 九宫格要展示的图片；为空时自动从 [note] 资源或 [content] 里提取。
+  final List<String>? imagePaths;
 
   @override
   State<SimpleMemoContent> createState() => _SimpleMemoContentState();
@@ -287,8 +296,24 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
       referenceNotes,
     );
 
+    // 九宫格模式：图片从正文里摘出来，正文只留文字，图片统一排在下方
+    final gridImagePaths = widget.gridImages
+        ? (widget.imagePaths?.isNotEmpty ?? false
+            ? widget.imagePaths!
+            : (widget.note != null
+                ? MemosContentHelper.extractNoteImagePaths(widget.note!)
+                : MemosContentHelper.extractMarkdownImagePaths(rawContent)))
+        : const <String>[];
+    // 图片摘走后会留下空行，顺手压一下，避免正文里出现大段空白
+    final contentForMarkdown = gridImagePaths.isEmpty
+        ? processedContent
+        : MemosContentHelper.removeMarkdownImages(processedContent)
+            .replaceAll(RegExp(r'[ \t]+\n'), '\n')
+            .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+            .trim();
+
     final converter = MemosMarkdownConverter(serverUrl: widget.serverUrl);
-    final convertedContent = converter.convert(processedContent);
+    final convertedContent = converter.convert(contentForMarkdown);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -543,9 +568,47 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
           );
         }
 
+        if (gridImagePaths.isNotEmpty) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              markdownBody,
+              const SizedBox(height: 10),
+              NoteImageGrid(
+                imagePaths: gridImagePaths,
+                serverUrl: widget.serverUrl,
+                onLongPress: (path) => _saveGridImage(context, path),
+              ),
+            ],
+          );
+        }
+
         return markdownBody;
       },
     );
+  }
+
+  /// 九宫格长按：服务端资源要补全 URL 和鉴权头再交给保存流程。
+  void _saveGridImage(BuildContext context, String path) {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    if (MemosResourceService.isServerResourcePath(path)) {
+      final service = appProvider.resourceService;
+      final baseUrl = widget.serverUrl ??
+          appProvider.appConfig.memosApiUrl ??
+          appProvider.appConfig.lastServerUrl ??
+          '';
+      final fullUrl =
+          service != null ? service.buildImageUrl(path) : '$baseUrl$path';
+      final token = appProvider.user?.token;
+      _showImageSaveDialog(
+        context,
+        fullUrl,
+        headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+      );
+      return;
+    }
+    _showImageSaveDialog(context, path);
   }
 
   // 构建图片组件 - 支持token认证和缓存

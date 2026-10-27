@@ -27,6 +27,7 @@ import 'package:inkpaper/utils/todo_parser.dart';
 import 'package:inkpaper/widgets/annotations_sidebar.dart';
 import 'package:inkpaper/widgets/image_viewer_screen.dart';
 import 'package:inkpaper/widgets/note_actions_ui.dart';
+import 'package:inkpaper/widgets/note_image_grid.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
 import 'package:inkpaper/widgets/note_preview_text.dart';
 import 'package:inkpaper/widgets/saveable_image.dart';
@@ -748,6 +749,18 @@ class _NoteCardState extends State<NoteCard>
     );
   }
 
+  /// 进详情前先把图片预取掉：解码/读缓存挤进路由转场，详情首帧不再等图。
+  void _precacheDetailImages(BuildContext context) {
+    if (widget.isExample) {
+      return;
+    }
+    final imagePaths = MemosContentHelper.extractNoteImagePaths(widget.note);
+    if (imagePaths.isEmpty) {
+      return;
+    }
+    NoteImageGrid.precacheNoteImages(context, imagePaths);
+  }
+
   /// 侧滑操作项：圆形小图标 + 文字（flomo 风格）。
   ///
   /// 背景保持透明，露出页面底色，而不是一整条彩色块。
@@ -891,6 +904,7 @@ class _NoteCardState extends State<NoteCard>
       onTapCancel: () => _controller.reverse(),
       onTap: () {
         // 🎯 单击：跳转到笔记详情页（查看模式）
+        _precacheDetailImages(context);
         context.push('/note/${widget.id}');
       },
       onLongPress: _copyNoteContent,

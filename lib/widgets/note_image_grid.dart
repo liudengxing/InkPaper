@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
@@ -278,5 +280,128 @@ class NoteImageGrid extends StatelessWidget {
         color: Colors.grey[500],
       ),
     );
+  }
+
+  /// 详情页内容区宽度估算。
+  ///
+  /// 详情页里网格的可用宽度 = 卡片上限（桌面 900）减去容器 16×2、内层 16×2
+  /// 和 Card 默认 margin 4×2。预取必须按这个宽度算解码尺寸，跟渲染对不上
+  /// 就会解出两份缓存，等于白解一次还更慢。
+  static double _estimateDetailContentWidth(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
+    final maxWidth = isDesktop && screenWidth > 900 ? 900.0 : screenWidth;
+    final contentWidth = maxWidth - 72;
+    return contentWidth < 160 ? 160 : contentWidth;
+  }
+
+  /// 点击卡片时预取详情页要显示的图片。
+  ///
+  /// 把解码（本地大图）和缓存读取（远程图）挤进路由转场的时间里，等详情页
+  /// 首帧渲染时 ImageCache 已经有现成的帧。失败静默忽略，真正的加载有
+  /// errorBuilder 兜底。
+  static void precacheNoteImages(
+    BuildContext context,
+    List<String> imagePaths, {
+    String? serverUrl,
+  }) {
+    if (imagePaths.isEmpty) {
+      return;
+    }
+
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final contentWidth = _estimateDetailContentWidth(context);
+    final count = imagePaths.length;
+
+    // 与 _buildSingle / _buildRow / _buildGrid 用同一套宽度规则
+    final int decodeWidth;
+    if (count == 1) {
+      decodeWidth = bucketedDecodeWidth(contentWidth, dpr);
+    } else {
+      final columns = count <= 3 ? count : 3;
+      final tileWidth = (contentWidth - 6.0 * (columns - 1)) / columns;
+      decodeWidth = bucketedDecodeWidth(tileWidth, dpr);
+    }
+
+    for (final path in imagePaths) {
+      final provider = _providerFor(
+        context,
+        path,
+        decodeWidth,
+        serverUrl: serverUrl,
+      );
+      if (provider == null) {
+        continue;
+      }
+      unawaited(
+        precacheImage(provider, context).catchError((Object _) {
+          // 预取失败不影响正常展示
+        }),
+      );
+    }
+  }
+
+  /// 构造与网格渲染完全一致的 [ImageProvider]，保证 ImageCache key 命中。
+  static ImageProvider? _providerFor(
+    BuildContext context,
+    String path,
+    int decodeWidth, {
+    String? serverUrl,
+  }) {
+    final cachedAttachment = AttachmentCache.instance.fileFor(path);
+    if (cachedAttachment != null) {
+      return ResizeImage.resizeIfNeeded(
+        decodeWidth,
+        null,
+        FileImage(cachedAttachment),
+      );
+    }
+
+    if (path.startsWith('file://')) {
+      return ResizeImage.resizeIfNeeded(
+        decodeWidth,
+        null,
+        FileImage(File(path.replaceFirst('file://', ''))),
+      );
+    }
+
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return ResizeImage.resizeIfNeeded(
+        decodeWidth,
+        null,
+        CachedNetworkImageProvider(
+          path,
+          cacheManager: ImageCacheManager.authImageCache,
+        ),
+      );
+    }
+
+    if (MemosResourceService.isServerResourcePath(path)) {
+      final service = appProvider.resourceService;
+      final baseUrl = serverUrl ??
+          appProvider.appConfig.memosApiUrl ??
+          appProvider.appConfig.lastServerUrl ??
+          '';
+      final fullUrl = service != null
+          ? service.buildImageUrl(path)
+          : (baseUrl.isEmpty ? path : '$baseUrl$path');
+      final token = appProvider.user?.token;
+
+      return ResizeImage.resizeIfNeeded(
+        decodeWidth,
+        null,
+        CachedNetworkImageProvider(
+          fullUrl,
+          cacheManager: ImageCacheManager.authImageCache,
+          headers: token != null
+              ? {'Authorization': 'Bearer $token'}
+              : null,
+        ),
+      );
+    }
+
+    return null;
   }
 }

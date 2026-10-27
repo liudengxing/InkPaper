@@ -14,6 +14,7 @@ import 'package:inkpaper/services/ai_review_service.dart';
 import 'package:inkpaper/services/intelligent_related_notes_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/logger.dart';
+import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_path_utils.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
@@ -50,10 +51,27 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   bool _isGeneratingSummary = false;
   bool _showSummary = false;
 
+  /// 正文（含资源图片拼接结果）与图片路径只在笔记数据变化时算一次。
+  /// 放在 build 里的话，每次 setState 都要重跑好几遍全文正则。
+  String? _renderContent;
+  List<String> _renderImagePaths = const <String>[];
+
   @override
   void initState() {
     super.initState();
     _loadNote();
+  }
+
+  /// 统一更新笔记，并同步正文/图片路径缓存。只能在 setState 内调用。
+  void _setNote(Note? note) {
+    _note = note;
+    if (note == null) {
+      _renderContent = null;
+      _renderImagePaths = const <String>[];
+      return;
+    }
+    _renderContent = MemosContentHelper.contentWithResourceImages(note);
+    _renderImagePaths = MemosContentHelper.extractNoteImagePaths(note);
   }
 
   Future<void> _loadNote() async {
@@ -64,7 +82,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       return;
     }
     setState(() {
-      _note = note;
+      _setNote(note);
     });
   }
 
@@ -546,11 +564,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
 
     setState(() {
-      _note = previousNote.copyWith(
-        content: newContent,
-        updatedAt: DateTime.now(),
-        tags: tag_utils.extractTagsFromContent(newContent),
-        isSynced: false,
+      _setNote(
+        previousNote.copyWith(
+          content: newContent,
+          updatedAt: DateTime.now(),
+          tags: tag_utils.extractTagsFromContent(newContent),
+          isSynced: false,
+        ),
       );
     });
 
@@ -565,7 +585,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       if (success) {
         _loadNote(); // 刷新笔记数据
       } else {
-        setState(() => _note = previousNote);
+        setState(() => _setNote(previousNote));
         SnackBarUtils.showError(
           context,
           AppLocalizationsSimple.of(context)?.updateFailed ?? '更新失败',
@@ -578,7 +598,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _note = previousNote);
+      setState(() => _setNote(previousNote));
       SnackBarUtils.showError(
         context,
         AppLocalizationsSimple.of(context)?.updateFailed ?? '更新失败',
@@ -890,8 +910,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                   listen: false,
                                 ).appConfig.memosApiUrl;
 
-                                return MemosMarkdownRenderer.fromNote(
-                                  note: _note!,
+                                // 正文与图片路径由 _setNote 预计算，重建时不再重跑正则
+                                return MemosMarkdownRenderer(
+                                  content: _renderContent ?? _note!.content,
+                                  note: _note,
+                                  imagePaths: _renderImagePaths,
                                   serverUrl: serverUrl,
                                   // 图片统一走九宫格，不再逐张插进正文
                                   gridImages: true,
@@ -1066,12 +1089,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             ),
           ),
         ),
-        onEnd: () {
-          // 反向动画
-          if (mounted) {
-            setState(() {});
-          }
-        },
       );
 
   /// 生成 AI 摘要
@@ -1319,7 +1336,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                   );
                   appProvider.updateNote(updatedNote, updatedNote.content);
                   this.setState(() {
-                    _note = updatedNote;
+                    _setNote(updatedNote);
                   });
                   Navigator.pop(context);
                   SnackBarUtils.showSuccess(
@@ -1440,7 +1457,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                   );
                   appProvider.updateNote(updatedNote, updatedNote.content);
                   this.setState(() {
-                    _note = updatedNote;
+                    _setNote(updatedNote);
                   });
                   Navigator.pop(context);
                   SnackBarUtils.showSuccess(
@@ -1488,7 +1505,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
               appProvider.updateNote(updatedNote, updatedNote.content);
               setState(() {
-                _note = updatedNote;
+                _setNote(updatedNote);
               });
 
               Navigator.pop(context);
@@ -1530,7 +1547,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
     appProvider.updateNote(updatedNote, updatedNote.content);
     setState(() {
-      _note = updatedNote;
+      _setNote(updatedNote);
     });
 
     SnackBarUtils.showSuccess(context, '已标记为已解决');

@@ -25,6 +25,7 @@ class MemosMarkdownRenderer extends StatelessWidget {
     this.highlightQuery,
     this.referenceNotes,
     this.gridImages = false,
+    this.imagePaths,
   });
 
   MemosMarkdownRenderer.fromNote({
@@ -40,6 +41,7 @@ class MemosMarkdownRenderer extends StatelessWidget {
     this.highlightQuery,
     this.referenceNotes,
     this.gridImages = false,
+    this.imagePaths,
     bool appendResourceImages = true,
   })  : note = note,
         content = appendResourceImages
@@ -61,6 +63,10 @@ class MemosMarkdownRenderer extends StatelessWidget {
   /// 图片以九宫格展示在正文下方（详情页使用）。
   final bool gridImages;
 
+  /// 外部预先算好的图片路径；为空时才内部从 note/content 提取。
+  /// 详情页会把结果缓存下来，避免每次重建重跑正则。
+  final List<String>? imagePaths;
+
   @override
   Widget build(BuildContext context) => SimpleMemoContent(
         content: content,
@@ -75,8 +81,11 @@ class MemosMarkdownRenderer extends StatelessWidget {
         referenceNotes: referenceNotes,
         compactHeadings: mode == MemosMarkdownMode.cardPreview,
         gridImages: gridImages,
-        imagePaths: gridImages && note != null
-            ? MemosContentHelper.extractNoteImagePaths(note!)
+        imagePaths: gridImages
+            ? (imagePaths ??
+                (note != null
+                    ? MemosContentHelper.extractNoteImagePaths(note!)
+                    : null))
             : null,
       );
 }

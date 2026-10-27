@@ -69,6 +69,26 @@ class SimpleMemoContent extends StatefulWidget {
 class _SimpleMemoContentState extends State<SimpleMemoContent> {
   int _checkboxCounter = 0; // 用于追踪当前是第几个复选框
 
+  // Markdown 转换要跑好几遍全文正则，按「源文本 + 服务端地址」缓存结果，
+  // 避免父级每次 setState（例如图片加载完成、动画帧）都重跑一遍。
+  String? _convertedSource;
+  String? _convertedServerUrl;
+  String _convertedValue = '';
+
+  String _convertCached(String source) {
+    if (_convertedSource == source &&
+        _convertedServerUrl == widget.serverUrl) {
+      return _convertedValue;
+    }
+    final converted = MemosMarkdownConverter(
+      serverUrl: widget.serverUrl,
+    ).convert(source);
+    _convertedSource = source;
+    _convertedServerUrl = widget.serverUrl;
+    _convertedValue = converted;
+    return converted;
+  }
+
   @override
   void didUpdateWidget(SimpleMemoContent oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -312,8 +332,7 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
             .replaceAll(RegExp(r'\n{3,}'), '\n\n')
             .trim();
 
-    final converter = MemosMarkdownConverter(serverUrl: widget.serverUrl);
-    final convertedContent = converter.convert(contentForMarkdown);
+    final convertedContent = _convertCached(contentForMarkdown);
 
     return LayoutBuilder(
       builder: (context, constraints) {

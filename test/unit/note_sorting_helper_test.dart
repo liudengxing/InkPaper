@@ -73,4 +73,32 @@ void main() {
     // a.created > b.created => newest
     expect(inferCurrentSortOrder(notes), SortOrder.newest);
   });
+
+  test('SORT-06 updatedOldest sorts by updatedAt asc', () {
+    final notes = [
+      _n('1', created: DateTime(2024), updated: DateTime(2024, 3)),
+      _n('2', created: DateTime(2024, 1, 2), updated: DateTime(2024, 2)),
+    ];
+    final sorted = sortedNotesCopy(notes, SortOrder.updatedOldest);
+    expect(sorted.map((n) => n.id).toList(), ['2', '1']);
+  });
+
+  test('SORT-07 inferCurrentSortOrder detects updatedOldest', () {
+    final notes = [
+      _n('a', created: DateTime(2024, 1, 3), updated: DateTime(2024, 2)),
+      _n('b', created: DateTime(2024), updated: DateTime(2024, 2, 5)),
+      _n('c', created: DateTime(2024, 1, 2), updated: DateTime(2024, 2, 9)),
+    ];
+    // created 3→1→2 不单调，updated 1→5→9 单调升序
+    expect(inferCurrentSortOrder(notes), SortOrder.updatedOldest);
+  });
+
+  test('SORT-08 inferCurrentSortOrder detects updated (desc)', () {
+    final notes = [
+      _n('a', created: DateTime(2024, 1, 2), updated: DateTime(2024, 2, 9)),
+      _n('b', created: DateTime(2024, 1, 3), updated: DateTime(2024, 2, 5)),
+      _n('c', created: DateTime(2024), updated: DateTime(2024, 2)),
+    ];
+    expect(inferCurrentSortOrder(notes), SortOrder.updated);
+  });
 }

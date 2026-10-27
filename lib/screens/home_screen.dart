@@ -547,20 +547,26 @@ class _HomeScreenState extends State<HomeScreen>
       constraints: const BoxConstraints(minWidth: 168, maxWidth: 220),
       items: [
         _buildSortMenuItem(
-          l10n?.newestFirst ?? '最新优先',
+          l10n?.newestFirst ?? '最新在上',
           SortOrder.newest,
           primaryColor,
           textColor,
         ),
         _buildSortMenuItem(
-          l10n?.oldestFirst ?? '最旧优先',
+          l10n?.oldestFirst ?? '最早在上',
           SortOrder.oldest,
           primaryColor,
           textColor,
         ),
         _buildSortMenuItem(
-          l10n?.updatedTime ?? '更新时间',
+          l10n?.updatedTime ?? '最近编辑',
           SortOrder.updated,
+          primaryColor,
+          textColor,
+        ),
+        _buildSortMenuItem(
+          l10n?.oldestEdited ?? '最久未编辑',
+          SortOrder.updatedOldest,
           primaryColor,
           textColor,
         ),
@@ -1088,9 +1094,46 @@ class _HomeScreenState extends State<HomeScreen>
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         automaticallyImplyLeading: false,
-        // 标题贴最左（flomo 那种布局），抽屉入口挪到右侧图标组，
-        // 左边缘右滑仍然可以拉出侧边栏。
-        titleSpacing: isDesktop ? 20 : 16,
+        // 抽屉入口固定在左上角（flomo 布局），标题紧随其后。
+        leadingWidth: 44,
+        leading: (!isDesktop && !_isSearchActive)
+            ? IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 16,
+                        height: 2,
+                        decoration: BoxDecoration(
+                          color: iconColor,
+                          borderRadius: BorderRadius.circular(1),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        width: 10,
+                        height: 2,
+                        decoration: BoxDecoration(
+                          color: iconColor,
+                          borderRadius: BorderRadius.circular(1),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                tooltip: '菜单',
+                onPressed: _openDrawer,
+              )
+            : null,
+        titleSpacing: (!isDesktop && !_isSearchActive)
+            ? 0
+            : (isDesktop ? 20 : 16),
         title: AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
           switchInCurve: Curves.easeOutCubic,
@@ -1196,43 +1239,6 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         centerTitle: false,
         actions: [
-          if (!isDesktop && !_isSearchActive) ...[
-            // 抽屉入口（原来在左侧 leading，现在让位给标题）
-            IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: backgroundColor,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 16,
-                      height: 2,
-                      decoration: BoxDecoration(
-                        color: iconColor,
-                        borderRadius: BorderRadius.circular(1),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: 10,
-                      height: 2,
-                      decoration: BoxDecoration(
-                        color: iconColor,
-                        borderRadius: BorderRadius.circular(1),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              tooltip: '菜单',
-              onPressed: _openDrawer,
-            ),
-            SizedBox(width: ResponsiveUtils.fontScaledSpacing(context, 2)),
-          ],
           if (!_isSearchActive) ...[
             // 搜索按钮
             IconButton(

@@ -518,24 +518,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   // ── 🕰️ 那年今日 ──────────────────────────────────────────
 
-  /// 当天的日期键（yyyy-MM-dd），用于「今天关掉就不再出现」。
-  static String _todayKey([DateTime? now]) {
-    final date = now ?? DateTime.now();
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${date.year}-${two(date.month)}-${two(date.day)}';
-  }
-
   Future<void> _loadOnThisDay() async {
-    final dismissed =
-        await PreferencesService().isOnThisDayDismissed(_todayKey());
-    if (!mounted) {
-      return;
-    }
-    if (dismissed) {
-      setState(() => _onThisDayDismissed = true);
-      return;
-    }
-
     final notes = await Provider.of<AppProvider>(context, listen: false)
         .loadNotesOnThisDay();
     if (!mounted) {
@@ -544,12 +527,13 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _onThisDayNotes = notes);
   }
 
-  Future<void> _dismissOnThisDay() async {
+  /// 关闭只收起本次会话的卡片：避免关一次就整天看不到，
+  /// 想再看时重启应用即可恢复。
+  void _dismissOnThisDay() {
     setState(() {
       _onThisDayDismissed = true;
       _onThisDayNotes = const <Note>[];
     });
-    await PreferencesService().dismissOnThisDay(_todayKey());
   }
 
   Widget _buildOnThisDayCard() {

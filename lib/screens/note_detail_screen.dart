@@ -725,9 +725,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // 详情页展示创建时间：最后编辑时间会随批注、待办等
+                          // 操作不断变化，不便于定位这条笔记是什么时候记下的。
                           Text(
                             DateFormat('yyyy-MM-dd HH:mm:ss')
-                                .format(_note!.updatedAt),
+                                .format(_note!.createdAt),
                             style: TextStyle(
                               fontSize: 14,
                               color: secondaryTextColor,

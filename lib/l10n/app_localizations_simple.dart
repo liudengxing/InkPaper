@@ -277,6 +277,9 @@ class AppLocalizationsSimple {
 
   // ===== 排序 =====
   String get sortBy => locale.languageCode == 'zh' ? '排序方式' : 'Sort By';
+  String get relatedNotes => _t('relatedNotes', fallback: '相关笔记');
+  String get findingRelatedNotes =>
+      _t('findingRelatedNotes', fallback: '正在查找相关笔记…');
   String get sortNewest => locale.languageCode == 'zh' ? '最新创建' : 'Newest';
   String get sortOldest => locale.languageCode == 'zh' ? '最早创建' : 'Oldest';
   String get sortUpdated =>

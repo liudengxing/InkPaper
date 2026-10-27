@@ -9,10 +9,12 @@ import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/screens/note_detail_screen.dart';
 import 'package:inkpaper/services/ai_review_service.dart';
+import 'package:inkpaper/services/intelligent_related_notes_service.dart';
 import 'package:inkpaper/services/note_actions_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/annotations_sidebar.dart';
+import 'package:inkpaper/widgets/intelligent_related_notes_sheet.dart';
 import 'package:inkpaper/widgets/ios_datetime_picker.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:inkpaper/widgets/permission_guide_dialog.dart';
@@ -689,6 +691,62 @@ class NoteActionsUi {
         SnackBarUtils.showError(
           context,
           '${AppLocalizationsSimple.of(context)?.operationFailed ?? '操作失败'}: $e',
+        );
+      }
+    }
+  }
+
+  /// 查找并展示与当前笔记相关的笔记。
+  ///
+  /// 走详情页同一套智能相关笔记服务：先给一个浮动的"查找中"提示，
+  /// 有结果就弹抽屉，没有结果给一条轻提示。
+  static Future<void> showRelatedNotes({
+    required BuildContext context,
+    required Note note,
+  }) async {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final localizations = AppLocalizationsSimple.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(
+          localizations?.findingRelatedNotes ?? '正在查找相关笔记…',
+        ),
+        duration: const Duration(seconds: 30),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    try {
+      final result = await IntelligentRelatedNotesService()
+          .findIntelligentRelatedNotes(
+        currentNote: note,
+        allNotes: appProvider.notes,
+        apiKey: appProvider.appConfig.aiApiKey,
+        apiUrl: appProvider.appConfig.aiApiUrl,
+        model: appProvider.appConfig.aiModel,
+      );
+
+      messenger?.hideCurrentSnackBar();
+      if (!context.mounted) {
+        return;
+      }
+
+      if (result.isEmpty) {
+        SnackBarUtils.showInfo(
+          context,
+          localizations?.aiRelatedNotesEmpty ?? '未找到相关笔记',
+        );
+      } else {
+        await IntelligentRelatedNotesSheet.show(context, result);
+      }
+    } on Object catch (e) {
+      messenger?.hideCurrentSnackBar();
+      if (context.mounted) {
+        SnackBarUtils.showError(
+          context,
+          '${localizations?.operationFailed ?? '操作失败'}: $e',
         );
       }
     }

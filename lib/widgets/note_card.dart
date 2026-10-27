@@ -746,6 +746,51 @@ class _NoteCardState extends State<NoteCard>
     );
   }
 
+  /// 侧滑操作项：圆形小图标 + 文字（flomo 风格）。
+  ///
+  /// 背景保持透明，露出页面底色，而不是一整条彩色块。
+  Widget _buildSlideAction({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return CustomSlidableAction(
+      onPressed: (actionContext) {
+        unawaited(Slidable.of(actionContext)?.close());
+        onPressed();
+      },
+      backgroundColor: Colors.transparent,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: isDarkMode ? 0.2 : 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 19, color: color),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              height: 1.1,
+              color: isDarkMode ? Colors.grey[400] : Colors.grey[700],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -780,118 +825,29 @@ class _NoteCardState extends State<NoteCard>
         child: Slidable(
           key: ValueKey(widget.id),
           dragStartBehavior: DragStartBehavior.start,
+          // flomo 式滑出：两个小圆图标 + 文字，底色透明，不糊一大块颜色
           endActionPane: ActionPane(
-            motion: const DrawerMotion(), // 🔥 类似微信的抽屉效果
-            extentRatio: 0.55, // 🔥 侧滑区域占55%宽度，完美显示3个按钮
+            motion: const DrawerMotion(),
+            extentRatio: 0.46,
             children: [
-              // 🎯 置顶按钮
-              SlidableAction(
-                onPressed: (context) {
-                  // 🔥 先保存侧滑上下文
-                  final slidableContext = Slidable.of(context);
-                  widget.onPin();
-                  // 🔥 操作后自动关闭侧滑
-                  slidableContext?.close();
-                },
-                backgroundColor: widget.isPinned
-                    ? Colors.grey.shade600
-                    : AppTheme.primaryColor,
-                foregroundColor: Colors.white,
-                label: widget.isPinned
-                    ? (AppLocalizationsSimple.of(context)?.unpinAction ??
-                        '取消置顶')
-                    : (AppLocalizationsSimple.of(context)?.pinAction ?? '置顶'),
-                padding: EdgeInsets.zero,
+              _buildSlideAction(
+                icon: Icons.hub_outlined,
+                label:
+                    AppLocalizationsSimple.of(context)?.relatedNotes ?? '相关笔记',
+                color: AppTheme.primaryColor,
+                onPressed: () => NoteActionsUi.showRelatedNotes(
+                  context: context,
+                  note: widget.note,
+                ),
               ),
-              // 🎯 提醒按钮（如果已有提醒则直接取消，否则设置）
-              SlidableAction(
-                onPressed: (slidableContext) async {
-                  // 🔥 保存侧滑上下文和稳定的 widget context
-                  final slidable = Slidable.of(slidableContext);
-                  final stableContext =
-                      context; // widget 的 context，只要 widget 存在就有效
-
-                  if (widget.note.reminderTime != null) {
-                    // 已有提醒，直接取消
-                    final appProvider =
-                        Provider.of<AppProvider>(stableContext, listen: false);
-                    try {
-                      await appProvider.cancelNoteReminder(widget.note.id);
-                      widget.onNoteUpdated?.call();
-                      if (mounted && stableContext.mounted) {
-                        SnackBarUtils.showSuccess(
-                          stableContext,
-                          AppLocalizationsSimple.of(context)?.cancelSuccess ??
-                              '取消成功',
-                        );
-                        // 🔥 延迟后关闭侧滑，确保通知能正常显示
-                        await Future.delayed(const Duration(milliseconds: 200));
-                        unawaited(slidable?.close());
-                      }
-                      return; // 取消操作完成，直接返回
-                    } on Object {
-                      if (mounted && stableContext.mounted) {
-                        SnackBarUtils.showError(
-                          stableContext,
-                          AppLocalizationsSimple.of(context)?.cancelFailed ??
-                              '取消失败',
-                        );
-                        await Future.delayed(const Duration(milliseconds: 200));
-                        unawaited(slidable?.close());
-                      }
-                      return; // 失败也返回
-                    }
-                  } else {
-                    // 没有提醒，打开设置
-                    final result = await NoteActionsUi.showReminderSettings(
-                      context: stableContext,
-                      note: widget.note,
-                      onUpdated: () {
-                        widget.onNoteUpdated?.call();
-                      },
-                    );
-
-                    // 🔥 使用 widget 的 context 显示通知
-                    if (mounted && stableContext.mounted) {
-                      if (result ?? false) {
-                        SnackBarUtils.showSuccess(
-                          stableContext,
-                          AppLocalizationsSimple.of(context)?.setSuccess ??
-                              '设置成功',
-                        );
-                      } else if (result == false) {
-                        SnackBarUtils.showError(
-                          stableContext,
-                          AppLocalizationsSimple.of(context)?.setFailed ??
-                              '设置失败',
-                        );
-                      }
-                    }
-                  }
-                  // 🔥 延迟后关闭侧滑，确保通知能正常显示
-                  await Future.delayed(const Duration(milliseconds: 200));
-                  unawaited(slidable?.close());
-                },
-                backgroundColor: widget.note.reminderTime != null
-                    ? Colors.grey // 已有提醒时显示灰色（表示取消）
-                    : const Color(0xFFFF9500), // iOS橙色（表示设置）
-                foregroundColor: Colors.white,
-                label: widget.note.reminderTime != null
-                    ? (AppLocalizationsSimple.of(context)?.cancelReminder ??
-                        '取消提醒')
-                    : (AppLocalizationsSimple.of(context)?.setReminder ?? '提醒'),
-                padding: EdgeInsets.zero,
-              ),
-              // 🎯 删除按钮
-              SlidableAction(
-                onPressed: (context) {
-                  widget.onDelete();
-                  // 删除不需要关闭，因为项目会被移除
-                },
-                backgroundColor: const Color(0xFFFF3B30), // iOS红色
-                foregroundColor: Colors.white,
-                label: AppLocalizationsSimple.of(context)?.deleteAction ?? '删除',
-                padding: EdgeInsets.zero,
+              _buildSlideAction(
+                icon: Icons.auto_awesome_outlined,
+                label: AppLocalizationsSimple.of(context)?.aiInsight ?? 'AI 洞察',
+                color: const Color(0xFF7C4DFF),
+                onPressed: () => NoteActionsUi.showAiReview(
+                  context: context,
+                  note: widget.note,
+                ),
               ),
             ],
           ),

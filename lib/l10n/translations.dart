@@ -1211,6 +1211,8 @@ class Translations {
     'refreshSuccess': {'zh': '刷新成功', 'en': 'Refresh successful'},
     'refreshFailed': {'zh': '刷新失败', 'en': 'Refresh failed'},
     'sortBy': {'zh': '排序方式', 'en': 'Sort By'},
+    'relatedNotes': {'zh': '相关笔记', 'en': 'Related'},
+    'findingRelatedNotes': {'zh': '正在查找相关笔记…', 'en': 'Finding related notes…'},
     'newestFirst': {'zh': '最新优先', 'en': 'Newest First'},
     'oldestFirst': {'zh': '最旧优先', 'en': 'Oldest First'},
     'updatedTime': {'zh': '更新时间', 'en': 'Updated Time'},

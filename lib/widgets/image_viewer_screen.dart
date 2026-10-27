@@ -70,21 +70,33 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
     super.dispose();
   }
 
+  /// 构建查看器用的 ImageProvider。
+  ///
+  /// [maxWidth] 非空时按该像素宽解码（用于先出缩略图），为空则是原图。
   static ImageProvider getImageProvider(
     String uriString,
-    BuildContext context,
-  ) {
+    BuildContext context, {
+    int? maxWidth,
+  }) {
     try {
       // 已缓存到本地的服务端附件：看原图也走本地文件
       final cachedAttachment = AttachmentCache.instance.fileFor(uriString);
       if (cachedAttachment != null) {
-        return FileImage(cachedAttachment);
+        final fileImage = FileImage(cachedAttachment);
+        if (maxWidth == null) {
+          return fileImage;
+        }
+        return ResizeImage(
+          fileImage,
+          width: maxWidth,
+        );
       }
 
       if (uriString.startsWith('http://') || uriString.startsWith('https://')) {
         return CachedNetworkImageProvider(
           uriString,
           cacheManager: ImageCacheManager.authImageCache,
+          maxWidth: maxWidth,
         );
       }
 
@@ -100,11 +112,21 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
           fullUrl,
           headers: token != null ? {'Authorization': 'Bearer $token'} : null,
           cacheManager: ImageCacheManager.authImageCache,
+          maxWidth: maxWidth,
         );
       }
 
       if (uriString.startsWith('file://')) {
-        return FileImage(File(uriString.replaceFirst('file://', '')));
+        final fileImage = FileImage(
+          File(uriString.replaceFirst('file://', '')),
+        );
+        if (maxWidth == null) {
+          return fileImage;
+        }
+        return ResizeImage(
+          fileImage,
+          width: maxWidth,
+        );
       }
 
       if (uriString.startsWith('resource:')) {
@@ -256,6 +278,11 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
   ImageProvider? _imageProvider;
   ImageStream? _imageStream;
   ImageStreamListener? _imageStreamListener;
+  // 缩略图：原图解码期间先顶上，避免打开查看器时黑屏等半天
+  ImageProvider? _previewProvider;
+  ImageStream? _previewStream;
+  ImageStreamListener? _previewListener;
+  Size? _previewSize;
   Size? _viewportSize;
   Size? _displaySize;
   Size? _imageSize;
@@ -281,11 +308,14 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
     if (_imageStream != null && _imageStreamListener != null) {
       _imageStream!.removeListener(_imageStreamListener!);
     }
+    _detachPreview();
     _transformationController.dispose();
     super.dispose();
   }
 
   void _resolveImage() {
+    _detachPreview();
+
     final provider = _ImageViewerScreenState.getImageProvider(
       widget.imagePath,
       context,
@@ -300,10 +330,15 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
     _viewportSize = null;
     _displaySize = null;
     _imageSize = null;
+    _previewSize = null;
     _imageError = null;
     _transformationController.value = Matrix4.identity();
     _isZoomed = false;
     widget.onZoomChanged?.call(false);
+
+    // 缩略图先上：磁盘缓存命中时几十毫秒就能出图，
+    // 原图解码完会由 _imageSize 到达时的 setState 自动替换。
+    _resolvePreview();
 
     _imageStreamListener = ImageStreamListener(
       (imageInfo, _) {
@@ -333,6 +368,51 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
 
     _imageStream = stream;
     stream.addListener(_imageStreamListener!);
+  }
+
+  /// 解析 240px 缩略图，只用于原图就绪前的临时展示。
+  void _resolvePreview() {
+    try {
+      final provider = _ImageViewerScreenState.getImageProvider(
+        widget.imagePath,
+        context,
+        maxWidth: 240,
+      );
+      _previewProvider = provider;
+      final stream = provider.resolve(createLocalImageConfiguration(context));
+      final listener = ImageStreamListener(
+        (imageInfo, _) {
+          if (!mounted || _imageSize != null) {
+            return;
+          }
+          setState(() {
+            _previewSize = Size(
+              imageInfo.image.width.toDouble(),
+              imageInfo.image.height.toDouble(),
+            );
+          });
+        },
+        onError: (error, stackTrace) {
+          // 缩略图失败就安静地等原图，不额外弹错误
+        },
+      );
+      stream.addListener(listener);
+      _previewStream = stream;
+      _previewListener = listener;
+    } on Object catch (e) {
+      if (kDebugMode) {
+        debugPrint('ImageViewer: preview resolve failed: $e');
+      }
+    }
+  }
+
+  void _detachPreview() {
+    if (_previewStream != null && _previewListener != null) {
+      _previewStream!.removeListener(_previewListener!);
+    }
+    _previewStream = null;
+    _previewListener = null;
+    _previewProvider = null;
   }
 
   @override
@@ -405,14 +485,17 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
       );
     }
 
-    if (_imageProvider == null || _imageSize == null) {
+    // 原图还没解码完就先画缩略图，尺寸比例相同，替换时不会跳
+    final activeProvider = _imageSize != null ? _imageProvider : _previewProvider;
+    final activeSize = _imageSize ?? _previewSize;
+    if (activeProvider == null || activeSize == null) {
       return _buildImageLoading(context);
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenSize = Size(constraints.maxWidth, constraints.maxHeight);
-        final displaySize = _containSize(_imageSize!, screenSize);
+        final displaySize = _containSize(activeSize, screenSize);
         _syncPhotoLayout(screenSize, displaySize);
 
         return InteractiveViewer(
@@ -430,9 +513,10 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
             width: displaySize.width,
             height: displaySize.height,
             child: Image(
-              image: _imageProvider!,
+              image: activeProvider,
               fit: BoxFit.contain,
               filterQuality: FilterQuality.high,
+              // 缩略图 → 原图切换时保留旧帧，避免闪一下黑
               gaplessPlayback: true,
             ),
           ),

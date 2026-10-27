@@ -572,10 +572,17 @@ class _HomeScreenState extends State<HomeScreen>
       anchorBox.size.bottomRight(Offset.zero),
       ancestor: overlayBox,
     );
+    final anchorRect = Rect.fromPoints(topLeft, bottomRight);
+    // showMenu 会把菜单顶部对齐到锚点顶部，那样正好盖住标题文字，
+    // 因此把定位矩形整体挪到标题下方，并留一点缝隙。
     final position = RelativeRect.fromRect(
-      Rect.fromPoints(topLeft, bottomRight),
+      anchorRect.translate(0, anchorRect.height + 6),
       Offset.zero & overlayBox.size,
     );
+
+    final headerColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.5)
+        : Colors.black.withValues(alpha: 0.5);
 
     final l10n = AppLocalizationsSimple.of(context);
     final selected = await showMenu<SortOrder>(
@@ -587,6 +594,8 @@ class _HomeScreenState extends State<HomeScreen>
       // 贴着标题的一张小卡片，不要铺满大半个屏幕
       constraints: const BoxConstraints(minWidth: 196, maxWidth: 248),
       items: [
+        _buildSortMenuHeader(l10n?.sortBy ?? '排序方式', headerColor),
+        const PopupMenuDivider(height: 1),
         _buildSortMenuItem(
           l10n?.newestFirst ?? '创建时间：从新到旧',
           SortOrder.newest,
@@ -619,6 +628,24 @@ class _HomeScreenState extends State<HomeScreen>
     }
     setState(() => _currentSortOrder = selected);
     _applySorting();
+  }
+
+  /// 菜单头：只是标题，不可点击，也不会被选中
+  PopupMenuItem<SortOrder> _buildSortMenuHeader(String title, Color color) {
+    return PopupMenuItem<SortOrder>(
+      enabled: false,
+      height: 34,
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 2),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.4,
+          color: color,
+        ),
+      ),
+    );
   }
 
   PopupMenuItem<SortOrder> _buildSortMenuItem(

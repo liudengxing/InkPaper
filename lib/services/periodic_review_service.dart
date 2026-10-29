@@ -148,7 +148,8 @@ class PeriodicReviewService {
       );
     }
 
-    final cacheKey = _cacheKeyFor(period, range);
+    // 提示词变了也要让旧结果失效，否则用户改完 Prompt 仍看到老总结
+    final cacheKey = _cacheKeyFor(period, range, _promptSignature(period, config));
 
     if (!forceRefresh) {
       final cached = await _readCache(cacheKey, stats.noteCount);
@@ -184,7 +185,7 @@ class PeriodicReviewService {
         model: config.aiModel,
       );
       final messages = <Map<String, String>>[
-        DeepSeekApiService.buildSystemMessage(_systemPrompt(period)),
+        DeepSeekApiService.buildSystemMessage(_systemPrompt(period, config)),
         DeepSeekApiService.buildUserMessage(
           _userPrompt(period, range, stats, periodNotes),
         ),
@@ -226,9 +227,16 @@ class PeriodicReviewService {
   }
 
   /// 清掉本期缓存，强制下次重新生成。
+  ///
+  /// 缓存键里带了提示词指纹，所以按前缀删，避免漏掉换过提示词的那几份。
   Future<void> invalidate(ReviewPeriod period, {DateTime? now}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_cacheKeyFor(period, ReviewRange.of(period, now: now)));
+    final prefix = '$_cachePrefix${period.name}_';
+    final stamp = _stampOf(ReviewRange.of(period, now: now).start);
+    final keys = prefs.getKeys().where((key) => key.startsWith('$prefix$stamp'));
+    for (final key in keys.toList()) {
+      await prefs.remove(key);
+    }
   }
 
   List<Note> _notesIn(List<Note> notes, ReviewRange range) {
@@ -318,7 +326,17 @@ class PeriodicReviewService {
     return buffer.toString().trim();
   }
 
-  String _systemPrompt(ReviewPeriod period) {
+  String _systemPrompt(ReviewPeriod period, AppConfig config) {
+    final custom = _customPrompt(config);
+    if (custom != null) {
+      // 自定义提示词只负责"写成什么样"，输出格式的硬性要求仍由这里兜住，
+      // 否则用户随手写的 Prompt 很容易让模型输出 Markdown 或寒暄。
+      return '$custom\n\n'
+          '额外硬性要求：只用中文，纯文本分段，不要 Markdown 标题、列表符号或代码块；'
+          '只基于给出的笔记内容，不要编造笔记里没有的事实；'
+          '直接输出回顾正文，不要"好的""以下是"之类的开场白。';
+    }
+
     final unit = period == ReviewPeriod.week ? '一周' : '一个月';
     return '''
 你是一位懂知识管理的写作教练，擅长从零散笔记里看出一个人的思考轨迹。
@@ -383,13 +401,34 @@ class PeriodicReviewService {
     return result.trim();
   }
 
-  String _cacheKeyFor(ReviewPeriod period, ReviewRange range) {
-    final start = range.start;
-    final stamp = '${start.year}'
-        '${start.month.toString().padLeft(2, '0')}'
-        '${start.day.toString().padLeft(2, '0')}';
-    return '$_cachePrefix${period.name}_$stamp';
+  /// 用户在设置里配置的回顾提示词（未启用自定义或留空时为 null）。
+  String? _customPrompt(AppConfig config) {
+    if (!config.useCustomPrompt) {
+      return null;
+    }
+    final prompt = config.customPeriodicReviewPrompt?.trim();
+    if (prompt == null || prompt.isEmpty) {
+      return null;
+    }
+    return prompt;
   }
+
+  /// 提示词指纹：进缓存键，保证改完 Prompt 立刻重新生成。
+  String _promptSignature(ReviewPeriod period, AppConfig config) {
+    final custom = _customPrompt(config);
+    return (custom ?? 'default_${period.name}').hashCode.toRadixString(16);
+  }
+
+  String _stampOf(DateTime start) => '${start.year}'
+      '${start.month.toString().padLeft(2, '0')}'
+      '${start.day.toString().padLeft(2, '0')}';
+
+  String _cacheKeyFor(
+    ReviewPeriod period,
+    ReviewRange range,
+    String signature,
+  ) =>
+      '$_cachePrefix${period.name}_${_stampOf(range.start)}_$signature';
 
   Future<(String, bool)?> _readCache(String key, int noteCount) async {
     try {

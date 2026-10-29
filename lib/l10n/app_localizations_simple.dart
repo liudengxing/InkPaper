@@ -683,6 +683,12 @@ class AppLocalizationsSimple {
   String get reviewCopy => _t('reviewCopy', fallback: '复制');
   String get periodicReviewCopied => _t('periodicReviewCopied', fallback: '已复制');
   String get reviewNoNotes => _t('reviewNoNotes', fallback: '这个周期还没有笔记');
+  String get periodicReviewPrompt =>
+      _t('periodicReviewPrompt', fallback: '回顾提示词');
+  String get periodicReviewPromptHint => _t(
+        'periodicReviewPromptHint',
+        fallback: '用于侧边栏「回顾」里的周回顾 / 月回顾，留空使用默认提示词',
+      );
 
   // ===== 反馈页面补充 =====
   String get feedbackTitle => _t('feedbackTitle', fallback: '意见反馈');

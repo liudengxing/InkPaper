@@ -26,6 +26,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   final _customContinuationPromptController = TextEditingController();
   final _customTagInsightPromptController = TextEditingController();
   final _customTagRecommendationPromptController = TextEditingController();
+  final _customPeriodicReviewPromptController = TextEditingController();
   final _iflytekAppIdController = TextEditingController();
   final _iflytekApiKeyController = TextEditingController();
   final _iflytekApiSecretController = TextEditingController();
@@ -55,6 +56,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         appConfig.customTagInsightPrompt ?? '';
     _customTagRecommendationPromptController.text =
         appConfig.customTagRecommendationPrompt ?? '';
+    _customPeriodicReviewPromptController.text =
+        appConfig.customPeriodicReviewPrompt ?? '';
     _iflytekAppIdController.text = appConfig.iflytekAppId ?? '';
     _iflytekApiKeyController.text = appConfig.iflytekApiKey ?? '';
     _iflytekApiSecretController.text = appConfig.iflytekApiSecret ?? '';
@@ -73,6 +76,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _customContinuationPromptController.dispose();
     _customTagInsightPromptController.dispose();
     _customTagRecommendationPromptController.dispose();
+    _customPeriodicReviewPromptController.dispose();
     _iflytekAppIdController.dispose();
     _iflytekApiKeyController.dispose();
     _iflytekApiSecretController.dispose();
@@ -2142,6 +2146,90 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // 周回顾 / 月回顾 Prompt
+                  Text(
+                    localizations?.periodicReviewPrompt ?? '回顾提示词',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // 🎯 大厂标准：明确说明作用范围
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          size: 14,
+                          color: AppTheme.primaryColor,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            localizations?.periodicReviewPromptHint ??
+                                '用于侧边栏「回顾」里的周回顾 / 月回顾，留空使用默认提示词',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: textColor.withValues(alpha: 0.7),
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _customPeriodicReviewPromptController,
+                    maxLines: 8,
+                    minLines: 3,
+                    style: TextStyle(fontSize: 14, color: textColor),
+                    decoration: InputDecoration(
+                      hintText: localizations?.periodicReviewPromptHint ??
+                          '例如：用 200 字指出这一周在关注什么，并给一个下周可以尝试的动作',
+                      hintStyle: TextStyle(color: secondaryColor),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(
+                          color: isDarkMode
+                              ? Colors.grey[700]!
+                              : Colors.grey[300]!,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(
+                          color: isDarkMode
+                              ? Colors.grey[700]!
+                              : Colors.grey[300]!,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(
+                          color: AppTheme.primaryColor,
+                          width: 2,
+                        ),
+                      ),
+                      filled: true,
+                      fillColor:
+                          isDarkMode ? Colors.grey[900] : Colors.grey[50],
+                      contentPadding: const EdgeInsets.all(12),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -2212,12 +2300,15 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         _customTagInsightPromptController.text.trim();
     final customTagRecommendationPrompt =
         _customTagRecommendationPromptController.text.trim();
+    final customPeriodicReviewPrompt =
+        _customPeriodicReviewPromptController.text.trim();
     final hasCustomPrompt = appProvider.appConfig.useCustomPrompt &&
         (customInsightPrompt.isNotEmpty ||
             customReviewPrompt.isNotEmpty ||
             customContinuationPrompt.isNotEmpty ||
             customTagInsightPrompt.isNotEmpty ||
-            customTagRecommendationPrompt.isNotEmpty);
+            customTagRecommendationPrompt.isNotEmpty ||
+            customPeriodicReviewPrompt.isNotEmpty);
     final iflytekAppId = _iflytekAppIdController.text.trim();
     final iflytekApiKey = _iflytekApiKeyController.text.trim();
     final iflytekApiSecret = _iflytekApiSecretController.text.trim();
@@ -2264,11 +2355,15 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       customTagRecommendationPrompt: customTagRecommendationPrompt.isEmpty
           ? null
           : customTagRecommendationPrompt,
+      customPeriodicReviewPrompt: customPeriodicReviewPrompt.isEmpty
+          ? null
+          : customPeriodicReviewPrompt,
       updateCustomInsightPrompt: true,
       updateCustomReviewPrompt: true,
       updateCustomContinuationPrompt: true,
       updateCustomTagInsightPrompt: true,
       updateCustomTagRecommendationPrompt: true,
+      updateCustomPeriodicReviewPrompt: true,
     );
 
     await appProvider.updateConfig(updatedConfig);

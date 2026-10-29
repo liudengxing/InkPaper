@@ -92,6 +92,14 @@ class _NoteCardState extends State<NoteCard>
     with SingleTickerProviderStateMixin {
   // Feed cards collapse only the text body. Media is laid out separately.
   static const int _maxLines = 6;
+
+  /// 缩略图延迟挂载：先铺静态占位，过一小段再真正解码。
+  ///
+  /// 一张九图笔记会在同一帧发起 9 次解码（每张 480px 级别的纹理上传），
+  /// 直接把一帧的预算撑爆，滑到带图笔记就会顿一下。首个延迟让卡片先完成布局，
+  /// 再按序号错开，把解码摊到后面几帧，滚动帧就不会被集中砸中。
+  static const Duration _thumbDecodeDelay = Duration(milliseconds: 90);
+  static const Duration _thumbDecodeStep = Duration(milliseconds: 30);
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   final ValueNotifier<bool> _expandedNotifier = ValueNotifier<bool>(false);
@@ -150,9 +158,8 @@ class _NoteCardState extends State<NoteCard>
     final hasTextContent = !preview.isEmpty;
 
     // 「全文」按钮的估算文本：剔除图片与纯标签行，避免把标签列表算进 6 行预览。
-    final expansionText = MemosContentHelper.previewTextForExpansion(
-      MemosContentHelper.removeMarkdownImages(note.content),
-    );
+    // 走缓存版：卡片会被反复重建，每次重跑 Markdown 解析是滚动/翻页掉帧的主因之一。
+    final expansionText = MemosContentHelper.cachedExpansionText(note.content);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -366,6 +373,17 @@ class _NoteCardState extends State<NoteCard>
     return width;
   }
 
+  /// 解码前的静态占位块。
+  ///
+  /// 刻意不放转圈动画：N 张图同时等待时，N 个逐帧动画会让整张卡片每帧重绘，
+  /// 反而比空占位更卡。
+  Widget _buildThumbPlaceholder() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return ColoredBox(
+      color: isDarkMode ? AppTheme.darkCardColor : Colors.grey[200]!,
+    );
+  }
+
   // 构建统一大小的单个图片项
   Widget _buildUniformImageItem(
     String imagePath, {
@@ -389,10 +407,15 @@ class _NoteCardState extends State<NoteCard>
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: _buildImageWidget(
-              imagePath,
-              context,
-              decodeWidth: decodeWidth,
+            child: _DeferredThumbnail(
+              delay:
+                  _thumbDecodeDelay + _thumbDecodeStep * index.clamp(0, 8),
+              placeholder: _buildThumbPlaceholder(),
+              builder: () => _buildImageWidget(
+                imagePath,
+                context,
+                decodeWidth: decodeWidth,
+              ),
             ),
           ),
         ),
@@ -540,6 +563,9 @@ class _NoteCardState extends State<NoteCard>
           key: ValueKey(cachedAttachment.path),
           fit: BoxFit.cover,
           cacheWidth: memWidth,
+          gaplessPlayback: true,
+          // 缩略图不需要高质量重采样，low 档解码上屏更快
+          filterQuality: FilterQuality.low,
           errorBuilder: (context, error, stackTrace) => Center(
             child: Icon(Icons.broken_image, color: Colors.grey[600]),
           ),
@@ -571,6 +597,8 @@ class _NoteCardState extends State<NoteCard>
                       snapshot.data!,
                       fit: BoxFit.cover,
                       cacheWidth: memWidth,
+                      gaplessPlayback: true,
+                      filterQuality: FilterQuality.low,
                     );
                   }
                   return Container(
@@ -658,6 +686,8 @@ class _NoteCardState extends State<NoteCard>
                       snapshot.data!,
                       fit: BoxFit.cover,
                       cacheWidth: memWidth,
+                      gaplessPlayback: true,
+                      filterQuality: FilterQuality.low,
                     );
                   }
                   return Container(
@@ -682,6 +712,8 @@ class _NoteCardState extends State<NoteCard>
           fit: BoxFit.cover,
           // 与网络图一致：按格子像素宽度解码，避免 4K 原图整张进内存
           cacheWidth: memWidth,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.low,
           errorBuilder: (context, error, stackTrace) {
             if (kDebugMode) {
               debugPrint('Local file image error: $error for $filePath');
@@ -1530,4 +1562,64 @@ class _NoteCardState extends State<NoteCard>
       note: note,
     );
   }
+}
+
+/// 先占位、延迟挂载的缩略图。
+///
+/// [delay] 到了之后才执行 [builder]，让同一张卡片里的多张图不要挤在同一帧解码；
+/// 卡片被回收重建时会重新计时，但命中 ImageCache 的图会立刻出图，不会闪。
+class _DeferredThumbnail extends StatefulWidget {
+  const _DeferredThumbnail({
+    required this.delay,
+    required this.placeholder,
+    required this.builder,
+  });
+
+  final Duration delay;
+  final Widget placeholder;
+  final Widget Function() builder;
+
+  @override
+  State<_DeferredThumbnail> createState() => _DeferredThumbnailState();
+}
+
+class _DeferredThumbnailState extends State<_DeferredThumbnail> {
+  Timer? _timer;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _schedule();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DeferredThumbnail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.delay != widget.delay) {
+      _timer?.cancel();
+      _ready = false;
+      _schedule();
+    }
+  }
+
+  void _schedule() {
+    _timer?.cancel();
+    _timer = Timer(widget.delay, () {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _ready = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _ready ? widget.builder() : widget.placeholder;
 }

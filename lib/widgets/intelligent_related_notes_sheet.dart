@@ -652,11 +652,14 @@ class _IntelligentRelatedNotesSheetState
   }
 
   /// 🏷️ 相似度徽章
+  ///
+  /// 打分已归一化到 0~1（内容相似度占主导），实际命中值多在 20%~60% 之间，
+  /// 沿用 80/60 的门槛会让所有结果都显示成"橙色低相关"，这里按新分布重设。
   Widget _buildSimilarityBadge(int similarity, bool isDark) {
     Color color;
-    if (similarity >= 80) {
+    if (similarity >= 60) {
       color = Colors.green;
-    } else if (similarity >= 60) {
+    } else if (similarity >= 35) {
       color = AppTheme.primaryColor;
     } else {
       color = Colors.orange;

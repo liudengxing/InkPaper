@@ -82,8 +82,20 @@ class IntelligentRelatedNotesService {
 
     try {
       // 🔥 Step 0: 检查缓存
-      final cacheKey =
-          '${currentNote.id}_${currentNote.updatedAt.millisecondsSinceEpoch}';
+      //
+      // key 里带上「整个笔记集合的指纹」（数量 + 最新更新时间）：旧实现只看当前
+      // 笔记的 updatedAt，6 小时内新增/改写别的笔记都不会让推荐失效，用起来就像
+      // "规则不准"——明明刚写过高度相关的一条，却怎么都推荐不出来。
+      var latestUpdateMillis = 0;
+      for (final note in allNotes) {
+        final millis = note.updatedAt.millisecondsSinceEpoch;
+        if (millis > latestUpdateMillis) {
+          latestUpdateMillis = millis;
+        }
+      }
+      final cacheKey = '${currentNote.id}_'
+          '${currentNote.updatedAt.millisecondsSinceEpoch}_'
+          '${allNotes.length}_$latestUpdateMillis';
       final cachedResult = await _getCachedResult(cacheKey, allNotes);
       if (cachedResult != null) {
         debugPrint('💾 使用缓存结果（6小时有效期）');
@@ -167,20 +179,26 @@ class IntelligentRelatedNotesService {
       final noteDomains = _extractLinkDomains(note.content);
       final noteBM25 = bm25Model[note.id] ?? {};
 
-      // 🎯 多维度评分（权重经过大量实验优化）
-      var score = 0.0;
+      // 🎯 多维度评分（0~1 归一化，权重之和为 1）
+      //
+      // 之前时间项占 0.15、且阈值低到 0.08，导致"刚更新过的笔记"仅凭时间就能
+      // 越过门槛，推荐结果变成"最近写的一批"而不是"内容相关的一批"。现在让
+      // 内容相似度占主导，标签/链接作为强证据提权，时间和行为只做微调。
+      const contentWeight = 0.45;
+      const tagWeight = 0.25;
+      const linkWeight = 0.15;
+      const timeWeight = 0.08;
+      const collaborativeWeight = 0.07;
 
-      // 1️⃣ BM25 相似度（35%权重）- 比TF-IDF更准确
+      // 1️⃣ 内容相似度（BM25 余弦）
       final contentScore =
           _calculateBM25Similarity(currentBM25, noteBM25, note.content.length);
-      score += contentScore * 0.35;
 
-      // 2️⃣ 标签相似度（20%权重）- Jaccard + 个性化加权
+      // 2️⃣ 标签相似度（Jaccard + 个性化加权）
       var tagScore = 0.0;
       final tagIntersection = currentTags.intersection(noteTags);
       final tagUnion = currentTags.union(noteTags);
       if (tagUnion.isNotEmpty) {
-        // Jaccard相似度
         tagScore = tagIntersection.length / tagUnion.length;
 
         // 🧠 个性化加权：用户喜欢的标签提升权重
@@ -193,14 +211,9 @@ class IntelligentRelatedNotesService {
           }
         }
       }
-      score += tagScore.clamp(0.0, 1.0) * 0.2;
+      tagScore = tagScore.clamp(0.0, 1.0);
 
-      // 显式共同标签是强关系，避免短笔记因正文太少被漏掉。
-      if (tagIntersection.isNotEmpty) {
-        score += min(0.18, tagIntersection.length * 0.09);
-      }
-
-      // 3️⃣ 链接关系（20%权重）- 双向链接 + 共同链接 + 图中心性
+      // 3️⃣ 链接关系（双向链接 + 共同链接 + 图中心性）
       var linkScore = 0.0;
       if (currentLinks.contains(note.id) ||
           noteLinks.contains(currentNote.id)) {
@@ -220,38 +233,48 @@ class IntelligentRelatedNotesService {
       // 加入图中心性（重要笔记提权）
       final graphScore = graphScores[note.id] ?? 0.0;
       linkScore = (linkScore + graphScore * 0.3).clamp(0.0, 1.0);
-      score += linkScore * 0.2;
 
-      // 4️⃣ 时间新鲜度（15%权重）- 指数衰减
+      // 4️⃣ 时间新鲜度
       final timeScore = _calculateTimeScore(note.updatedAt);
-      score += timeScore * 0.15;
 
-      // 5️⃣ 协同过滤（10%权重）- 基于用户历史行为预测
+      // 5️⃣ 协同过滤（用户高频标签近似）
       var collaborativeScore = 0.0;
       if (hasPersonalization) {
-        // 如果用户经常点击某些关系类型的笔记，提升这类笔记的分数
-        // （这里简化：通过标签重叠近似）
         for (final tag in noteTags) {
           final freq = userPreference.favoriteTags[tag] ?? 0;
           if (freq > userPreference.totalClicks * 0.1) {
-            // 高频标签
             collaborativeScore += 0.3;
           }
         }
       }
-      score += collaborativeScore.clamp(0.0, 1.0) * 0.1;
+      collaborativeScore = collaborativeScore.clamp(0.0, 1.0);
 
-      // 🔥 最终门槛：动态调整（有个性化数据时更宽松）
+      var score = contentScore * contentWeight +
+          tagScore * tagWeight +
+          linkScore * linkWeight +
+          timeScore * timeWeight +
+          collaborativeScore * collaborativeWeight;
+
+      // 共同标签是强关系：用乘性提权（最多 +24%），不再用加法加分 ——
+      // 加法会破坏 0~1 的归一化，界面上甚至出现 100% 以上的"相似度"。
+      if (tagIntersection.isNotEmpty) {
+        score *= 1 + min(0.24, tagIntersection.length * 0.08);
+      }
+      score = score.clamp(0.0, 1.0);
+
+      // 🔥 最终门槛：内容真的像才算相关；显式关系（共同标签 / 互链 / 同域名）
+      // 可以放宽一点，但仍然要求除时间外还有其他证据。
       final hasExplicitRelation = tagIntersection.isNotEmpty ||
           currentLinks.contains(note.id) ||
           noteLinks.contains(currentNote.id) ||
           commonDomains.isNotEmpty;
+      final hasContentEvidence = contentScore >= 0.12 || linkScore >= 0.5;
       final threshold = hasExplicitRelation
-          ? 0.08
+          ? 0.14
           : hasPersonalization
-              ? 0.1
-              : 0.12;
-      if (score > threshold) {
+              ? 0.16
+              : 0.18;
+      if (score >= threshold && (hasExplicitRelation || hasContentEvidence)) {
         scored.add(_ScoredNote(note, score));
       }
     }
@@ -1057,7 +1080,8 @@ class IntelligentRelation {
   final RelationType relationType;
   final String reason;
 
-  int get similarityPercent => (similarity * 100).round();
+  /// 展示用百分比：夹在 0~100，避免旧的加权方式算出 100% 以上。
+  int get similarityPercent => (similarity.clamp(0.0, 1.0) * 100).round();
 }
 
 /// 📊 相关笔记结果（多路径）

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -30,6 +31,28 @@ class SpeechService {
   bool _isInitialized = false;
   bool _isListening = false;
   String _lastRecognizedText = '';
+
+  /// 连续识别：系统一次 listen 结束（静音超时 / 达到时长上限）后自动续听，
+  /// 把新一段文本拼在已识别文本后面，长口述不会说一半就断。
+  bool _keepListening = false;
+  int _restartCount = 0;
+  static const int _maxRestarts = 6;
+  String _committedText = '';
+
+  /// 本段是否听到过内容：用来区分"说完停顿"和"一直没说话"，
+  /// 后者不该无限续听（否则录音状态会一直挂着）。
+  bool _segmentHasWords = false;
+
+  String? _lastError;
+  String? _activeLocaleId;
+  Function(String)? _doneCallback;
+  Function(String)? _errorCallback;
+
+  /// 最近一次失败原因（用于弹窗展示具体问题）
+  String? get lastError => _lastError;
+
+  /// 实际使用的识别语言，例如 `zh_CN`
+  String? get activeLocaleId => _activeLocaleId;
 
   // 用户偏好设置
   static const String _prefKeyUseCloud = 'speech_use_cloud';
@@ -64,16 +87,175 @@ class SpeechService {
       // 初始化本地语音识别
       _speech = stt.SpeechToText();
       _isInitialized = await _speech.initialize(
-        onError: (error) {},
-        onStatus: (status) {
-          _isListening = status == 'listening';
+        // 以前这里的 onError 是空的，出错时用户只会看到"语音不可用"，
+        // 完全不知道是没网、没权限还是设备没有识别服务。
+        onError: (error) {
+          _lastError = _describeError(error.errorMsg, error.permanent);
+          debugPrint('SpeechService: 识别错误 ${error.errorMsg}');
+          if (error.permanent) {
+            _keepListening = false;
+            _errorCallback?.call(_lastError!);
+          }
         },
+        onStatus: _handleStatus,
       );
 
+      if (_isInitialized) {
+        _activeLocaleId = await _resolveLocaleId();
+      } else {
+        _lastError ??= '设备上没有可用的语音识别服务，可在设置中改用讯飞语音';
+      }
+
       return _isInitialized;
-    } on Object {
+    } on Object catch (e) {
+      _lastError = '语音识别初始化失败：$e';
       _isInitialized = false;
       return false;
+    }
+  }
+
+  /// 系统识别状态变化：自动收尾或无缝续听
+  void _handleStatus(String status) {
+    final wasListening = _isListening;
+    _isListening = status == 'listening';
+
+    if (status != 'done' && status != 'notListening') {
+      return;
+    }
+
+    // 只有"这一段确实听到了话"才续听：说完停顿会再等 5 秒收尾，
+    // 而一直没出声就直接结束，不会把录音状态挂在那里。
+    if (_keepListening && _segmentHasWords && _restartCount < _maxRestarts) {
+      _restartCount++;
+      _committedText = _lastRecognizedText;
+      // 等系统释放麦克风再重开，否则部分机型直接返回 busy
+      Future<void>.delayed(const Duration(milliseconds: 250), () {
+        if (!_keepListening || !_isInitialized) {
+          return;
+        }
+        unawaited(
+          _listenLocal(
+            onResult: _activeOnResult,
+            onSoundLevel: _activeOnSoundLevel,
+          ),
+        );
+      });
+      return;
+    }
+
+    _keepListening = false;
+    if (wasListening || status == 'done') {
+      final callback = _doneCallback;
+      _doneCallback = null;
+      callback?.call(_lastRecognizedText);
+    }
+  }
+
+  /// 从设备支持的语种里挑一个：优先简体中文，否则用系统默认的第一个。
+  ///
+  /// 旧实现把 localeId 写死成 `zh_CN`，英文或粤语用户识别率会明显偏低，
+  /// 部分机型甚至直接报 `error_language_not_supported`。
+  Future<String?> _resolveLocaleId() async {
+    try {
+      final locales = await _speech.locales();
+      if (locales.isEmpty) {
+        return null; // 交给系统默认
+      }
+      final simplified = locales.where(
+        (locale) =>
+            locale.localeId.toLowerCase() == 'zh_cn' ||
+            locale.localeId.toLowerCase().startsWith('zh-hans'),
+      );
+      if (simplified.isNotEmpty) {
+        return simplified.first.localeId;
+      }
+      final chinese = locales.where(
+        (locale) => locale.localeId.toLowerCase().startsWith('zh'),
+      );
+      if (chinese.isNotEmpty) {
+        return chinese.first.localeId;
+      }
+      return locales.first.localeId;
+    } on Object {
+      return null;
+    }
+  }
+
+  Function(String)? _activeOnResult;
+  Function(double)? _activeOnSoundLevel;
+
+  /// 真正调用系统识别的入口（含续听时会复用）
+  Future<void> _listenLocal({
+    Function(String)? onResult,
+    Function(double)? onSoundLevel,
+    Duration? timeout,
+  }) async {
+    _activeOnResult = onResult;
+    _segmentHasWords = false;
+    await _speech.listen(
+      onResult: (result) {
+        if (result.recognizedWords.trim().isNotEmpty) {
+          _segmentHasWords = true;
+        }
+        final merged = _mergeRecognized(_committedText, result.recognizedWords);
+        _lastRecognizedText = merged;
+        // 实时回调：中间结果也回调，编辑器里能像微信一样边说边出字
+        onResult?.call(merged);
+      },
+      onSoundLevelChange: (level) {
+        if (onSoundLevel == null) {
+          return;
+        }
+        onSoundLevel(level > 0.1 ? level : 0);
+      },
+      listenOptions: stt.SpeechListenOptions(
+        // 单段上限从 30 秒放宽到 60 秒，到点由 _handleStatus 续听，
+        // 用户不用因为说长句被硬生生截断而重来。
+        listenFor: timeout ?? const Duration(seconds: 60),
+        // 停顿 3 秒就断句太急，思考一下就没了；5 秒更接近日常语速
+        pauseFor: const Duration(seconds: 5),
+        localeId: _activeLocaleId,
+      ),
+    );
+  }
+
+  /// 拼接续听文本：系统每次返回的是"本段"结果，已完成的段要保留。
+  String _mergeRecognized(String committed, String incoming) {
+    final next = incoming.trim();
+    if (committed.isEmpty) {
+      return next;
+    }
+    if (next.isEmpty) {
+      return committed;
+    }
+    if (next.startsWith(committed)) {
+      return next;
+    }
+    return '$committed $next';
+  }
+
+  String _describeError(String errorMsg, bool permanent) {
+    final suffix = permanent ? '（需重新打开语音识别）' : '';
+    switch (errorMsg) {
+      case 'error_no_match':
+        return '没有识别到语音内容，靠近麦克风再说一次';
+      case 'error_speech_timeout':
+        return '等待说话超时，请重新开始';
+      case 'error_network':
+      case 'error_network_timeout':
+      case 'error_server':
+        return '语音识别需要联网，请检查网络后重试';
+      case 'error_busy':
+        return '识别服务正忙，稍等一下再试$suffix';
+      case 'error_permission':
+      case 'error_insufficient_permissions':
+        return '缺少麦克风或语音识别权限$suffix';
+      case 'error_language_not_supported':
+        return '设备没有安装当前语言的识别包，可在系统设置里下载语音数据';
+      case 'error_client':
+        return '这台设备没有可用的语音识别服务$suffix';
+      default:
+        return '$errorMsg$suffix';
     }
   }
 
@@ -112,6 +294,10 @@ class SpeechService {
     Duration? timeout,
     BuildContext? context,
     AppConfig? appConfig,
+    // 系统识别自动结束（静音 / 到时长上限）时是否自动续听
+    bool continuous = true,
+    // 识别被系统主动结束时的回调，调用方据此同步"录音中"状态
+    Function(String)? onDone,
   }) async {
     try {
       if (appConfig?.speechRecognitionMode == AppConfig.SPEECH_MODE_IFLYTEK) {
@@ -158,36 +344,30 @@ class SpeechService {
         return false;
       }
 
-      await _speech.listen(
-        onResult: (result) {
-          _lastRecognizedText = result.recognizedWords;
-          // 🎯 实时回调：不仅在 finalResult 时回调，中间结果也回调
-          if (onResult != null) {
-            onResult(_lastRecognizedText);
-          }
-        },
-        // 🎤 监听音量变化，用于动画效果
-        onSoundLevelChange: (level) {
-          // 🎯 只在有声音时回调（过滤静音）
-          if (onSoundLevel != null && level > 0.1) {
-            onSoundLevel(level);
-          } else if (onSoundLevel != null) {
-            onSoundLevel(0); // 静音时返回 0
-          }
-        },
-        listenOptions: stt.SpeechListenOptions(
-          listenFor: timeout ?? const Duration(seconds: 30),
-          pauseFor: const Duration(seconds: 3),
-          localeId: 'zh_CN',
-          cancelOnError: true,
-        ),
+      // 重置一次会话的状态：续听次数、已确认文本、结束回调
+      _committedText = '';
+      _lastRecognizedText = '';
+      _restartCount = 0;
+      _keepListening = continuous;
+      _doneCallback = onDone;
+      _errorCallback = onError;
+      _activeLocaleId ??= await _resolveLocaleId();
+
+      _activeOnResult = onResult;
+      _activeOnSoundLevel = onSoundLevel;
+      await _listenLocal(
+        onResult: onResult,
+        onSoundLevel: onSoundLevel,
+        timeout: timeout,
       );
 
       _isListening = true;
       return true;
     } on Object catch (e) {
+      _lastError = e.toString();
+      _keepListening = false;
       if (onError != null) {
-        onError(e.toString());
+        onError(_lastError!);
       }
 
       // 本地识别失败，提示用户
@@ -281,6 +461,10 @@ class SpeechService {
   Future<void> stopListening() async {
     try {
       _isListening = false;
+      // 用户主动停止：不再续听，也不再回调 onDone（由调用方自己收尾）
+      _keepListening = false;
+      _doneCallback = null;
+      _committedText = '';
 
       // 停止百度实时识别
       if (_baiduRealtime.isListening) {
@@ -490,6 +674,16 @@ class SpeechService {
               AppLocalizationsSimple.of(context)?.localSpeechUnavailable ??
                   '本地语音识别功能暂时不可用。',
             ),
+            if (_lastError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '具体原因：$_lastError',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.orange[800],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),

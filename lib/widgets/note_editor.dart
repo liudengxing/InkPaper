@@ -2772,6 +2772,27 @@ class _NoteEditorState extends State<NoteEditor>
   // 防止重复点击的标志
   bool _isProcessing = false;
 
+  /// 系统识别自己收尾时（静音超时、达到时长上限且不再续听）：
+  /// 把结果落进正文并复位"录音中"状态，用户不用再点一次停止。
+  void _handleSpeechDone(String text) {
+    if (!mounted || !_isSpeechListening) {
+      return;
+    }
+    final recognized =
+        text.trim().isNotEmpty ? text.trim() : _partialSpeechText.trim();
+    if (recognized.isNotEmpty) {
+      _insertText(recognized);
+    }
+    _speechAnimationController.stop();
+    _speechAnimationController.reset();
+    setState(() {
+      _isSpeechListening = false;
+      _partialSpeechText = '';
+    });
+    // 顺手释放麦克风，下次点击能立刻重新开始
+    unawaited(_speechService.stopListening());
+  }
+
   // 启动识别（可重用）
   Future<void> _startRecognition() async {
     // 🎯 不在这里启动动画，等有声音时再启动（像大厂一样）
@@ -2807,6 +2828,9 @@ class _NoteEditorState extends State<NoteEditor>
           }
         }
       },
+      // 系统把这次识别收尾了（静音超时 / 达到时长上限且不再续听）：
+      // 把文本落进正文并把"录音中"状态复位，避免按钮一直停在停止态。
+      onDone: _handleSpeechDone,
     );
 
     if (!success) {

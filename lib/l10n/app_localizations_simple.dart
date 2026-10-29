@@ -676,6 +676,8 @@ class AppLocalizationsSimple {
 
   // ===== 周回顾 / 月回顾 =====
   String get periodicReview => _t('periodicReview', fallback: '回顾');
+  String get askNotes => _t('askNotes', fallback: '问笔记');
+  String get askNotesHint => _t('askNotesHint', fallback: '问问你的笔记…');
   String get weeklyReview => _t('weeklyReview', fallback: '本周');
   String get monthlyReview => _t('monthlyReview', fallback: '本月');
   String get reviewGenerating => _t('reviewGenerating', fallback: '正在生成回顾…');

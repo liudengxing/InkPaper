@@ -1306,6 +1306,27 @@ class _HomeScreenState extends State<HomeScreen>
         centerTitle: false,
         actions: [
           if (!_isSearchActive) ...[
+            // 问笔记：把全库笔记当资料，跟 AI 对话
+            IconButton(
+              icon: Container(
+                padding: EdgeInsets.all(
+                  ResponsiveUtils.fontScaledSpacing(context, 8),
+                ),
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveUtils.fontScaledBorderRadius(context, 8),
+                  ),
+                ),
+                child: Icon(
+                  Icons.forum_outlined,
+                  size: ResponsiveUtils.fontScaledIconSize(context, 20),
+                  color: iconColor,
+                ),
+              ),
+              tooltip: AppLocalizationsSimple.of(context)?.askNotes ?? '问笔记',
+              onPressed: () => context.pushNamed('noteChat'),
+            ),
             // 搜索按钮
             IconButton(
               icon: Container(

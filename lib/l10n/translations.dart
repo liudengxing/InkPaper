@@ -1212,6 +1212,8 @@ class Translations {
     'refreshFailed': {'zh': '刷新失败', 'en': 'Refresh failed'},
     'sortBy': {'zh': '排序方式', 'en': 'Sort By'},
     'periodicReview': {'zh': '回顾', 'en': 'Review'},
+    'askNotes': {'zh': '问笔记', 'en': 'Ask notes'},
+    'askNotesHint': {'zh': '问问你的笔记…', 'en': 'Ask your notes…'},
     'weeklyReview': {'zh': '本周', 'en': 'This week'},
     'monthlyReview': {'zh': '本月', 'en': 'This month'},
     'reviewGenerating': {'zh': '正在生成回顾…', 'en': 'Generating review…'},

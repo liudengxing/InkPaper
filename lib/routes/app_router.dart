@@ -23,6 +23,7 @@ import 'package:inkpaper/screens/laboratory_screen.dart';
 
 import 'package:inkpaper/screens/local_backup_restore_screen.dart';
 import 'package:inkpaper/screens/login_screen.dart';
+import 'package:inkpaper/screens/note_chat_screen.dart';
 import 'package:inkpaper/screens/note_detail_screen.dart';
 import 'package:inkpaper/screens/notifications_screen.dart';
 import 'package:inkpaper/screens/notion_settings_screen.dart';
@@ -547,6 +548,33 @@ class AppRouter {
             begin: const Offset(-0.15, 0),
             child: const DesktopLayout(
               child: RandomReviewScreen(),
+            ),
+          );
+        },
+      ),
+
+      // 💬 问笔记：以全库笔记为资料跟 AI 对话
+      GoRoute(
+        path: '/note-chat',
+        name: 'noteChat',
+        pageBuilder: (context, state) {
+          final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
+
+          if (isDesktop) {
+            return NoTransitionPage<void>(
+              key: state.pageKey,
+              child: const DesktopLayout(
+                child: NoteChatScreen(),
+              ),
+            );
+          }
+
+          return buildSlideTransition(
+            context: context,
+            state: state,
+            begin: const Offset(0, 0.06),
+            child: const DesktopLayout(
+              child: NoteChatScreen(),
             ),
           );
         },

@@ -1385,6 +1385,22 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     return updatedNote;
   }
 
+  /// 取一份全量笔记快照（只读数据库，不改动列表 / 分页状态）。
+  ///
+  /// 首页列表是分页的，`notes` 只包含已加载的那部分；「问笔记」这类需要
+  /// 完整语料的功能必须走这里，否则 AI 只能看到最近几十条。
+  Future<List<Note>> loadAllNotesSnapshot() async {
+    try {
+      final all = await _databaseService.getNotes();
+      return _excludePendingDeletedNotes(all)
+          .where(_isVisibleNote)
+          .toList(growable: false);
+    } on Object catch (e) {
+      debugPrint('加载全量笔记快照失败: $e');
+      return notes;
+    }
+  }
+
   List<Note> _excludePendingDeletedNotes(List<Note> notes) {
     if (_pendingDeleteIds.isEmpty) {
       return notes;

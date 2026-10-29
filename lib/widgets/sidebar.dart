@@ -1057,8 +1057,8 @@ class _SidebarState extends State<Sidebar> {
         continue;
       }
 
-      // 决定是否使用 push 路由（辅助功能如"帮助"和"设置"）
-      final isPushRoute = menuItem.id == 'help' || menuItem.id == 'settings';
+      // 决定是否使用 push 路由（辅助功能如"设置"）
+      final isPushRoute = menuItem.id == 'settings';
 
       items.add(
         _buildMenuItem(
@@ -1291,8 +1291,6 @@ class _SidebarState extends State<Sidebar> {
         return l10n?.periodicReview ?? '回顾';
       case 'knowledge_graph':
         return l10n?.knowledgeGraph ?? '知识图谱';
-      case 'help':
-        return l10n?.help ?? '帮助中心';
       case 'settings':
         return l10n?.settings ?? '设置';
       default:

@@ -26,7 +26,6 @@ enum SidebarMenuItem {
     Icons.account_tree_rounded,
     true,
   ),
-  help('help', '帮助中心', '/help', Icons.help_outline_rounded, true),
   settings('settings', '设置', '/settings', Icons.settings_outlined, true);
 
   const SidebarMenuItem(
@@ -57,8 +56,6 @@ enum SidebarMenuItem {
         return l10n?.periodicReview ?? label;
       case 'knowledge_graph':
         return l10n?.knowledgeGraph ?? label;
-      case 'help':
-        return l10n?.help ?? label;
       case 'settings':
         return l10n?.settings ?? label;
       default:
@@ -96,8 +93,11 @@ class SidebarConfig {
         .toList();
 
     // 🎯 迁移逻辑：确保新增的菜单项（如 settings）被添加到旧配置中
+    final allItemIds = SidebarMenuItem.values.map((item) => item.id).toList();
+
     if (savedVisibleItems != null) {
-      final allItemIds = SidebarMenuItem.values.map((item) => item.id).toList();
+      // 已被移除的菜单项（如「帮助中心」）要从旧配置里清掉，否则会留下脏 id
+      savedVisibleItems.removeWhere((id) => !allItemIds.contains(id));
       for (final itemId in allItemIds) {
         if (!savedVisibleItems.contains(itemId)) {
           // 新增的菜单项默认添加到可见列表
@@ -107,12 +107,25 @@ class SidebarConfig {
     }
 
     if (savedItemOrder != null) {
-      final allItemIds = SidebarMenuItem.values.map((item) => item.id).toList();
+      savedItemOrder.removeWhere((id) => !allItemIds.contains(id));
       for (final itemId in allItemIds) {
         if (!savedItemOrder.contains(itemId)) {
           // 新增的菜单项添加到顺序列表末尾
           savedItemOrder.add(itemId);
         }
+      }
+
+      // 「回顾」固定在「设置」上面：早期版本是按"追加到末尾"迁移的，
+      // 老用户的配置里它排在设置之后，这里做一次性纠正。
+      final reviewId = SidebarMenuItem.periodicReview.id;
+      final settingsId = SidebarMenuItem.settings.id;
+      final reviewIndex = savedItemOrder.indexOf(reviewId);
+      final settingsIndex = savedItemOrder.indexOf(settingsId);
+      if (reviewIndex != -1 &&
+          settingsIndex != -1 &&
+          reviewIndex > settingsIndex) {
+        savedItemOrder.removeAt(reviewIndex);
+        savedItemOrder.insert(settingsIndex, reviewId);
       }
     }
 

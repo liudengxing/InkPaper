@@ -44,7 +44,7 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
   static const List<String> _suggestions = <String>[
     '我这周主要在关注什么？',
     '关于运动，我的记录里有哪些进展？',
-    '最近的情绪起伏和什么有关？',
+    '我最早关于运动的笔记是什么时候？',
   ];
 
   @override
@@ -77,6 +77,16 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
   }
 
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
+
+  String _contextLabel(NotesContext context) {
+    final base = context.truncated
+        ? '已读入 ${context.noteCount} / ${context.totalCandidates} 条'
+        : '已读入 ${context.noteCount} 条笔记';
+    if (!context.hasRetrieval) {
+      return base;
+    }
+    return '$base · 相关 ${context.relevantCount} 条';
+  }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -189,10 +199,9 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
             ),
             if (_lastContext != null)
               Text(
-                // 有截断时把"装了多少 / 总共多少"说清楚，别让人以为全读了
-                _lastContext!.truncated
-                    ? '已读入 ${_lastContext!.noteCount} / ${_lastContext!.totalCandidates} 条'
-                    : '已读入 ${_lastContext!.noteCount} 条笔记',
+                // 有截断时把"装了多少 / 总共多少"说清楚，别让人以为全读了；
+                // 检索命中时再补一句"其中多少条和这次问题相关"
+                _contextLabel(_lastContext!),
                 style: TextStyle(
                   fontSize: 11,
                   color: isDarkMode ? Colors.grey[500] : Colors.grey[600],

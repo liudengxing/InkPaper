@@ -43,7 +43,9 @@ class NotesQaService {
     required List<QaTurn> history,
     required String question,
   }) async {
-    final context = NotesContextBuilder.build(notes);
+    // 先按问题检索相关笔记，再用最近笔记填满预算：
+    // 光按时间取最近 200 条，问到"去年跑马拉松"这种就会被截掉。
+    final context = NotesContextBuilder.buildForQuestion(notes, question);
 
     if (!config.aiEnabled ||
         (config.aiApiUrl?.trim().isEmpty ?? true) ||
@@ -107,14 +109,19 @@ class NotesQaService {
     final today = DateFormat('yyyy-MM-dd').format(now);
     final weekdays = <String>['一', '二', '三', '四', '五', '六', '日'];
     final coverage = context.truncated
-        ? '下面是其中最近 ${context.noteCount} 条（共 ${context.totalCandidates} 条有文字内容的笔记，更早的未附上）'
+        ? '下面是其中 ${context.noteCount} 条（共 ${context.totalCandidates} 条有文字内容的笔记，更早的未附上）'
         : '下面是全部 ${context.noteCount} 条笔记';
+    final retrieval = context.hasRetrieval
+        ? '''
+
+笔记分成两个区块：「与问题相关的笔记」是系统按这次提问检索出来的，按相关度从高到低排列，「最近的笔记」是近期笔记，用来补足上下文。优先依据相关笔记回答；两者不一致时以相关笔记为准，并把相关笔记覆盖的时间范围说清楚。'''
+        : '';
     return '''
 你是 InkPaper 的笔记助手，帮用户回顾和理解他自己的笔记。
 
 今天是 $today（周${weekdays[now.weekday - 1]}）。用户说"这周""最近"时，按最近 7 天理解；说"本月"按最近 30 天。
 
-$coverage 的内容（按时间倒序，图片、音频等附件已省略，只保留文字）。
+$coverage 的内容（图片、音频等附件已省略，只保留文字）。$retrieval
 
 回答规则：
 1. 只依据下面给出的笔记内容回答，笔记里没有的信息就直接说"你的笔记里没有提到"，不要用常识或想象补足；问题涉及的时间段超出笔记覆盖范围时，说明"更早的笔记没有提供"；

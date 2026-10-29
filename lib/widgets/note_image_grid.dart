@@ -16,7 +16,7 @@ import 'package:provider/provider.dart';
 ///
 /// flomo 的做法：图片不再一张张插在正文里，而是统一按 3 列方块排在正文下方，
 /// 点开才进全屏查看器。首页卡片和详情页共用同一套视觉。
-class NoteImageGrid extends StatelessWidget {
+class NoteImageGrid extends StatefulWidget {
   const NoteImageGrid({
     required this.imagePaths,
     super.key,
@@ -35,6 +35,56 @@ class NoteImageGrid extends StatelessWidget {
 
   /// 长按回调（详情页用来弹保存菜单）；为空时长按不响应。
   final void Function(String path)? onLongPress;
+
+  @override
+  State<NoteImageGrid> createState() => _NoteImageGridState();
+
+  /// 点击卡片进详情前预取图片（实现见 State，与网格渲染共用同一套解码宽度）。
+  static void precacheNoteImages(
+    BuildContext context,
+    List<String> imagePaths, {
+    String? serverUrl,
+  }) =>
+      _NoteImageGridState.precacheNoteImages(
+        context,
+        imagePaths,
+        serverUrl: serverUrl,
+      );
+}
+
+class _NoteImageGridState extends State<NoteImageGrid> {
+  /// 首帧只铺静态占位，等路由转场走完再挂真正的 Image。
+  ///
+  /// 多图笔记进详情时，N 张图原本会在同一帧一起发起解码；大图解码与转场动画
+  /// 抢同一条时间线，表现就是"点开多图笔记必卡一下"。延后一小段后，正文先上屏，
+  /// 解码落在之后的帧里，转场不再掉帧。
+  static const Duration _decodeDelay = Duration(milliseconds: 90);
+
+  Timer? _decodeTimer;
+  bool _imagesReady = false;
+
+  List<String> get imagePaths => widget.imagePaths;
+  String? get serverUrl => widget.serverUrl;
+  int get crossAxisCount => widget.crossAxisCount;
+  double get spacing => widget.spacing;
+  double get borderRadius => widget.borderRadius;
+  void Function(String path)? get onLongPress => widget.onLongPress;
+
+  @override
+  void initState() {
+    super.initState();
+    _decodeTimer = Timer(_decodeDelay, () {
+      if (mounted) {
+        setState(() => _imagesReady = true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _decodeTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +139,7 @@ class NoteImageGrid extends StatelessWidget {
         final count = imagePaths.length;
         final tileWidth =
             (constraints.maxWidth - spacing * (count - 1)) / count;
-        final decodeWidth = bucketedDecodeWidth(
+        final decodeWidth = gridTileDecodeWidth(
           tileWidth,
           MediaQuery.devicePixelRatioOf(context),
         );
@@ -117,8 +167,9 @@ class NoteImageGrid extends StatelessWidget {
         final columns = crossAxisCount;
         final tileWidth =
             (constraints.maxWidth - spacing * (columns - 1)) / columns;
-        // 按格子实际像素解码（并收敛到固定档位），避免整页原图像素解码把内存顶满
-        final decodeWidth = bucketedDecodeWidth(
+        // 按格子实际像素解码（并收敛到固定档位），避免整页原图像素解码把内存顶满；
+        // 档位与首页卡片共用，进详情时能直接命中列表已解好的那份缓存
+        final decodeWidth = gridTileDecodeWidth(
           tileWidth,
           MediaQuery.devicePixelRatioOf(context),
         );
@@ -193,6 +244,11 @@ class NoteImageGrid extends StatelessWidget {
     BoxFit fit = BoxFit.cover,
     double placeholderHeight = 0,
   }) {
+    // 延后解码期间先用同尺寸占位，避免首帧一次性解码整页大图
+    if (!_imagesReady) {
+      return _placeholder(context, height: placeholderHeight);
+    }
+
     // 数据维护缓存过的服务端附件：直接读本地副本
     final cachedAttachment = AttachmentCache.instance.fileFor(path);
     if (cachedAttachment != null) {
@@ -300,6 +356,11 @@ class NoteImageGrid extends StatelessWidget {
   /// 把解码（本地大图）和缓存读取（远程图）挤进路由转场的时间里，等详情页
   /// 首帧渲染时 ImageCache 已经有现成的帧。失败静默忽略，真正的加载有
   /// errorBuilder 兜底。
+  ///
+  /// 只预取首屏能看到的前几张：九张图一起解码会在转场期间跑满解码线程，
+  /// 抢 CPU 的结果是转场掉帧、详情首帧反而更晚；其余图片详情页自己按需加载。
+  static const int _maxPrecacheCount = 3;
+
   static void precacheNoteImages(
     BuildContext context,
     List<String> imagePaths, {
@@ -320,10 +381,10 @@ class NoteImageGrid extends StatelessWidget {
     } else {
       final columns = count <= 3 ? count : 3;
       final tileWidth = (contentWidth - 6.0 * (columns - 1)) / columns;
-      decodeWidth = bucketedDecodeWidth(tileWidth, dpr);
+      decodeWidth = gridTileDecodeWidth(tileWidth, dpr);
     }
 
-    for (final path in imagePaths) {
+    for (final path in imagePaths.take(_maxPrecacheCount)) {
       final provider = _providerFor(
         context,
         path,

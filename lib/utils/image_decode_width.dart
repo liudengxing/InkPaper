@@ -34,6 +34,25 @@ int bucketedDecodeWidth(
   );
 }
 
+/// 网格缩略图（一行 2~3 张、九宫格）的统一解码宽度。
+///
+/// 列表卡片每格约 105~110dp、详情页九宫格约 100~110dp，若按精确像素分桶会分别
+/// 落到 320 / 480 这两个相邻档位，`ImageCache` 认为它们是两张不同的图，于是每次
+/// 进出详情都要把同一批图重新解码一遍。这里把网格缩略图收敛到 480 / 720 两个粗档，
+/// 让列表与详情共用同一份解码结果。
+int gridTileDecodeWidth(
+  double logicalWidth,
+  double devicePixelRatio, {
+  int minWidth = 320,
+  int maxWidth = 720,
+}) {
+  final raw = logicalWidth * devicePixelRatio;
+  if (!raw.isFinite || raw <= 0) {
+    return minWidth;
+  }
+  return (raw <= 480 ? 480 : 720).clamp(minWidth, maxWidth);
+}
+
 /// 直接对已有的像素宽度做分桶（调用方已乘过像素密度时使用）。
 int bucketPixelWidth(
   int pixelWidth, {

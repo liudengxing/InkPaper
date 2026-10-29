@@ -161,6 +161,13 @@ Future<void> _initializeApp() async {
   // 初始化图片缓存管理器
   await ImageCacheManager.initialize();
 
+  // 图片纹理缓存上限：默认 100MB/1000 张，在「列表缩略图 → 详情多图 →
+  // 查看器大图」之间来回切换时，刚解好的图很容易被挤掉，回到列表/详情又要
+  // 重新解码。适量上调后跨页面复用更稳定（三档解码宽度已统一，命中率更高）。
+  PaintingBinding.instance.imageCache
+    ..maximumSize = 300
+    ..maximumSizeBytes = 300 << 20;
+
   // 预热服务端附件的本地缓存目录（渲染时同步查本地副本）
   await AttachmentCache.instance.prepare();
 

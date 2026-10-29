@@ -50,21 +50,23 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   /// 查看器解码宽度硬上限。
   ///
   /// 之前是按原图解码（4000×3000 的图约 48MB 纹理），进出查看器都要申请/释放
-  /// 这么大的纹理，退出转场必掉帧；同时会把 ImageCache 挤爆，导致返回详情页
-  /// 时缩略图集体重解码。按屏幕宽 ×2 解码已经够放大看细节，内存却只有几分之一。
-  static const int _maxViewerDecodeWidth = 2560;
+  /// 这么大的纹理，退出转场必掉帧；按屏幕宽 ×2（2560）解码仍然要近 20MB/张，
+  /// 翻页时前后几张同时存在很容易把内存顶满。手机屏 1080~1440 像素宽，
+  /// 放大到 1.5 倍屏幕宽（封顶 1600）已经能看清细节，纹理体积只有原来的 1/3。
+  static const int _maxViewerDecodeWidth = 1600;
 
   late final PageController _pageController;
   late int _currentIndex;
   bool _currentPageZoomed = false;
+  Timer? _precacheTimer;
 
   String get _currentImagePath => widget.imagePaths[_currentIndex];
 
-  /// 查看器实际使用的解码宽度（屏幕宽 ×2，封顶 [_maxViewerDecodeWidth]）。
+  /// 查看器实际使用的解码宽度（屏幕宽 ×1.5，封顶 [_maxViewerDecodeWidth]）。
   static int viewerDecodeWidth(BuildContext context) {
     final media = MediaQuery.of(context);
     final screenPixels = (media.size.width * media.devicePixelRatio).round();
-    final target = screenPixels * 2;
+    final target = (screenPixels * 1.5).round();
     return target > _maxViewerDecodeWidth ? _maxViewerDecodeWidth : target;
   }
 
@@ -82,6 +84,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
 
   @override
   void dispose() {
+    _precacheTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
@@ -260,27 +263,36 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
         ),
       );
 
+  /// 预取相邻的一张（没有下一张时退回上一张）。
+  ///
+  /// 两点收敛：一是只取一张，二是等翻页/进入动画结束再解码。之前的实现会同时
+  /// 预取左右两张超大图，解码线程与转场动画抢同一段时间线，于是"打开查看器"
+  /// 和"左右滑动"都会卡一下。
   void _precacheAround(int index) {
-    final decodeWidth = viewerDecodeWidth(context);
-    for (final nextIndex in [index - 1, index + 1]) {
-      if (nextIndex < 0 || nextIndex >= widget.imagePaths.length) {
-        continue;
+    _precacheTimer?.cancel();
+    _precacheTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted) {
+        return;
       }
-      // 预取同样按查看器尺寸解码：之前的无限制原图预取会在进入瞬间解码
-      // 两三张全尺寸大图，用户立刻退出时这些解码还在抢主线程。
+      final nextIndex = index + 1 < widget.imagePaths.length
+          ? index + 1
+          : index - 1;
+      if (nextIndex < 0 || nextIndex == index) {
+        return;
+      }
       unawaited(
         precacheImage(
           getImageProvider(
             widget.imagePaths[nextIndex],
             context,
-            maxWidth: decodeWidth,
+            maxWidth: viewerDecodeWidth(context),
           ),
           context,
         ).catchError((Object _) {
           // 预取失败不影响当前图片展示
         }),
       );
-    }
+    });
   }
 }
 

@@ -517,8 +517,14 @@ class _NoteCardState extends State<NoteCard>
     int? decodeWidth,
   }) {
     // 缩略图按卡片格子的实际像素宽度解码；全屏查看由 ImageViewerScreen 自己加载原图。
-    // 宽度收敛到固定档位，和详情页九宫格用同一份缓存，进出详情不必重复解码。
-    final memWidth = bucketPixelWidth(decodeWidth ?? 720, maxWidth: 720);
+    // 网格缩略图统一收敛到 480/720 两个粗档，与详情页九宫格共用同一份缓存，
+    // 进出详情时不必把同一批图重新解码一遍。
+    final memWidth = decodeWidth == null
+        ? 720
+        : gridTileDecodeWidth(
+            decodeWidth.toDouble(),
+            1,
+          );
     try {
       // 数据维护里缓存过的服务端附件：直接读本地副本
       final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);

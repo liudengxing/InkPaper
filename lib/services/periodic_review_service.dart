@@ -190,7 +190,9 @@ class PeriodicReviewService {
       final (content, error) = await service.chat(
         messages: messages,
         temperature: 0.6,
-        maxTokens: 900,
+        // reasoning 类模型会先吃掉一大截思维链 token，900 的上限经常只换来
+        // 一个空的 content，看起来就像"AI 调用失败"。
+        maxTokens: 1600,
       );
 
       if (content == null || content.trim().isEmpty) {
@@ -199,7 +201,8 @@ class PeriodicReviewService {
           stats: stats,
           content: fallback,
           usedRemote: false,
-          remoteError: error ?? 'AI 返回内容为空',
+          remoteError: error ??
+              '模型没有返回正文（可能是 max_tokens 被思维链占满），可换模型或减少笔记再试',
         );
       }
 

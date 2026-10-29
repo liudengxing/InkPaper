@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 ///
 /// 按官方 logo 的轮廓拟合成的矢量剪影：身体外轮廓 + 嘴部镂空 + 眼睛镂空，
 /// 用 even-odd 填充规则挖空。好处是不必带着位图素材，深色/浅色、任意尺寸
-/// 下都清晰；深蓝底由调用方给，图标本身是纯色剪影。
+/// 下都清晰；默认是透明底的蓝色鲸鱼，需要反白时传 [color]。
 class DeepSeekWhale extends StatelessWidget {
   const DeepSeekWhale({
     required this.size,
-    this.color = Colors.white,
+    this.color = brandBlue,
     super.key,
   });
 

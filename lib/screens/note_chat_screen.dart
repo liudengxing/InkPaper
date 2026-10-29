@@ -472,26 +472,17 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
     );
   }
 
-  /// AI 侧的头像：DeepSeek 那只胖鲸鱼
+  /// AI 侧的头像：透明底的蓝色胖鲸鱼
   Widget _buildWhaleAvatar({bool dimmed = false}) {
-    return Container(
+    return SizedBox(
       width: 34,
       height: 34,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: dimmed
-              ? [Colors.grey[400]!, Colors.grey[500]!]
-              : const [
-                  DeepSeekWhale.brandBlue,
-                  DeepSeekWhale.brandBlueLight,
-                ],
+      child: Center(
+        child: DeepSeekWhale(
+          size: 26,
+          color: dimmed ? Colors.grey[400]! : DeepSeekWhale.brandBlue,
         ),
       ),
-      alignment: Alignment.center,
-      child: const DeepSeekWhale(size: 21),
     );
   }
 

@@ -1308,19 +1308,18 @@ class _HomeScreenState extends State<HomeScreen>
         actions: [
           if (!_isSearchActive) ...[
             // 问笔记：把全库笔记当资料，跟 AI 对话。
-            // 用 DeepSeek 蓝底 + 胖鲸鱼，和聊天页里的 AI 头像保持同一套视觉。
+            // 透明底的蓝色鲸鱼，和聊天页里的 AI 头像保持同一套视觉。
             IconButton(
               icon: Container(
                 padding: EdgeInsets.all(
                   ResponsiveUtils.fontScaledSpacing(context, 8),
                 ),
-                decoration: BoxDecoration(
-                  color: DeepSeekWhale.brandBlue,
-                  borderRadius: BorderRadius.circular(
-                    ResponsiveUtils.fontScaledBorderRadius(context, 8),
-                  ),
+                child: DeepSeekWhale(
+                  size: 20,
+                  color: isDarkMode
+                      ? DeepSeekWhale.brandBlueLight
+                      : DeepSeekWhale.brandBlue,
                 ),
-                child: const DeepSeekWhale(size: 20),
               ),
               tooltip: AppLocalizationsSimple.of(context)?.askNotes ?? '问笔记',
               onPressed: () => context.pushNamed('noteChat'),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/periodic_review_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
@@ -29,6 +31,12 @@ class _PeriodicReviewScreenState extends State<PeriodicReviewScreen> {
   bool _isLoading = false;
   String? _error;
 
+  /// 生成时笔记集合的指纹（条数 + 最新时间）：
+  /// 首页数据是分页加载的，进页面时笔记可能还没读完，之前会直接判定
+  /// "这个周期还没有笔记"；数据到位后要能自动重算。
+  String? _notesFingerprint;
+  Timer? _refreshDebounce;
+
   @override
   void initState() {
     super.initState();
@@ -39,7 +47,44 @@ class _PeriodicReviewScreenState extends State<PeriodicReviewScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _refreshDebounce?.cancel();
+    super.dispose();
+  }
+
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
+
+  String _fingerprintOf(List<Note> notes) {
+    var latest = 0;
+    for (final note in notes) {
+      final millis = note.displayTime.millisecondsSinceEpoch;
+      if (millis > latest) {
+        latest = millis;
+      }
+    }
+    return '${notes.length}_$latest';
+  }
+
+  /// 笔记集合变了（首次加载完成 / 刚写了新笔记）就重算，防抖避免连续触发
+  void _syncNotesFingerprint(String fingerprint) {
+    if (_isLoading) {
+      return;
+    }
+    if (_notesFingerprint == null) {
+      _notesFingerprint = fingerprint;
+      return;
+    }
+    if (_notesFingerprint == fingerprint) {
+      return;
+    }
+    _refreshDebounce?.cancel();
+    _refreshDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        _generate();
+      }
+    });
+  }
 
   Future<void> _generate({bool force = false}) async {
     if (_isLoading) {
@@ -64,6 +109,7 @@ class _PeriodicReviewScreenState extends State<PeriodicReviewScreen> {
       setState(() {
         _result = result;
         _isLoading = false;
+        _notesFingerprint = _fingerprintOf(provider.notes);
       });
     } on Object catch (e) {
       if (!mounted) {
@@ -159,6 +205,7 @@ class _PeriodicReviewScreenState extends State<PeriodicReviewScreen> {
           if (appProvider.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
+          _syncNotesFingerprint(_fingerprintOf(appProvider.notes));
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             children: [
@@ -168,7 +215,7 @@ class _PeriodicReviewScreenState extends State<PeriodicReviewScreen> {
               if (_result == null)
                 _buildLoading()
               else if (_result!.stats.isEmpty)
-                _buildEmpty(isDarkMode)
+                _buildEmpty(_result!, isDarkMode)
               else ...[
                 _buildStatsCard(_result!, isDarkMode),
                 const SizedBox(height: 14),
@@ -188,8 +235,8 @@ class _PeriodicReviewScreenState extends State<PeriodicReviewScreen> {
   Widget _buildPeriodSwitcher(bool isDarkMode) {
     final l10n = AppLocalizationsSimple.of(context);
     final items = <(ReviewPeriod, String)>[
-      (ReviewPeriod.week, l10n?.weeklyReview ?? '本周'),
-      (ReviewPeriod.month, l10n?.monthlyReview ?? '本月'),
+      (ReviewPeriod.week, l10n?.last7Days ?? '近7天'),
+      (ReviewPeriod.month, l10n?.last30Days ?? '近30天'),
     ];
 
     return Row(
@@ -526,7 +573,7 @@ class _PeriodicReviewScreenState extends State<PeriodicReviewScreen> {
     );
   }
 
-  Widget _buildEmpty(bool isDarkMode) {
+  Widget _buildEmpty(PeriodicReviewResult result, bool isDarkMode) {
     final secondaryColor = isDarkMode ? Colors.grey[500] : Colors.grey[600];
     return Padding(
       padding: const EdgeInsets.only(top: 80),
@@ -538,6 +585,12 @@ class _PeriodicReviewScreenState extends State<PeriodicReviewScreen> {
             AppLocalizationsSimple.of(context)?.reviewNoNotes ??
                 '这个周期还没有笔记',
             style: TextStyle(fontSize: 14, color: secondaryColor),
+          ),
+          const SizedBox(height: 6),
+          // 把实际统计区间写出来，避免"我明明写了"和系统口径对不上
+          Text(
+            '统计范围：${result.range.shortLabel}',
+            style: TextStyle(fontSize: 12, color: secondaryColor),
           ),
         ],
       ),

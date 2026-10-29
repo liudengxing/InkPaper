@@ -7,39 +7,36 @@ import 'package:inkpaper/services/deepseek_api_service.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 回顾周期：按自然周 / 自然月切分。
+/// 回顾周期。
+///
+/// 用"最近 7 天 / 最近 30 天"的滚动窗口，而不是自然周 / 自然月：
+/// 站内「本周 / 本月」的既有语义就是滚动窗口（见通知分组），自然周会让
+/// 周一凌晨的笔记突然"掉出本周"，用户很难理解。
 enum ReviewPeriod { week, month }
 
 /// 一个自然周或自然月的区间（左闭右开）。
 class ReviewRange {
   const ReviewRange({required this.start, required this.end});
 
-  /// [offset] 为周期偏移：0 是本期，-1 是上一期（用于环比）。
+  /// [offset] 为周期偏移：0 是本期，-1 是紧邻的上一期（用于环比）。
+  ///
+  /// 本期窗口是「含今天的最近 7 / 30 天」，上一期紧贴在它前面，互不重叠。
   factory ReviewRange.of(
     ReviewPeriod period, {
     DateTime? now,
     int offset = 0,
   }) {
     final today = now ?? DateTime.now();
-    if (period == ReviewPeriod.week) {
-      // 周一为一周起点，与日历一致
-      final monday = DateTime(today.year, today.month, today.day)
-          .subtract(Duration(days: today.weekday - 1));
-      final start = DateTime(
-        monday.year,
-        monday.month,
-        monday.day + offset * 7,
-      );
-      return ReviewRange(
-        start: start,
-        end: DateTime(start.year, start.month, start.day + 7),
-      );
-    }
-    final start = DateTime(today.year, today.month + offset);
-    return ReviewRange(
-      start: start,
-      end: DateTime(start.year, start.month + 1),
+    final days = period == ReviewPeriod.week ? 7 : 30;
+    // 明天 0 点作为右边界，保证"今天"整天都算进来
+    final todayEnd = DateTime(today.year, today.month, today.day + 1);
+    final end = DateTime(
+      todayEnd.year,
+      todayEnd.month,
+      todayEnd.day + offset * days,
     );
+    final start = DateTime(end.year, end.month, end.day - days);
+    return ReviewRange(start: start, end: end);
   }
 
   final DateTime start;
@@ -299,7 +296,7 @@ class PeriodicReviewService {
     ReviewRange range,
     ReviewStats stats,
   ) {
-    final unit = period == ReviewPeriod.week ? '本周' : '本月';
+    final unit = period == ReviewPeriod.week ? '最近 7 天' : '最近 30 天';
     final buffer = StringBuffer()
       ..writeln('$unit（${range.shortLabel}）共记录 ${stats.noteCount} 条，'
           '活跃 ${stats.activeDays} 天，约 ${stats.charCount} 字。');
@@ -337,7 +334,7 @@ class PeriodicReviewService {
           '直接输出回顾正文，不要"好的""以下是"之类的开场白。';
     }
 
-    final unit = period == ReviewPeriod.week ? '一周' : '一个月';
+    final unit = period == ReviewPeriod.week ? '7 天' : '30 天';
     return '''
 你是一位懂知识管理的写作教练，擅长从零散笔记里看出一个人的思考轨迹。
 
@@ -358,7 +355,7 @@ class PeriodicReviewService {
     ReviewStats stats,
     List<Note> periodNotes,
   ) {
-    final unit = period == ReviewPeriod.week ? '本周' : '本月';
+    final unit = period == ReviewPeriod.week ? '最近 7 天' : '最近 30 天';
     final buffer = StringBuffer()
       ..writeln('周期：${range.start.year}年${range.shortLabel}（$unit，共 ${range.days} 天）')
       ..writeln('笔记 ${stats.noteCount} 条，活跃 ${stats.activeDays} 天，'

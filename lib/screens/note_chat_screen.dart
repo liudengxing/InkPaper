@@ -10,6 +10,7 @@ import 'package:inkpaper/services/notes_context_builder.dart';
 import 'package:inkpaper/services/notes_qa_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/widgets/deepseek_whale.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
 import 'package:provider/provider.dart';
 
@@ -35,7 +36,7 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
   NotesContext? _lastContext;
 
   /// DeepSeek 品牌蓝，AI 气泡底色
-  static const Color _whaleBlue = Color(0xFF4D6BFE);
+  static const Color _whaleBlue = DeepSeekWhale.brandBlue;
 
   /// 全量笔记快照：第一次提问时读一次，之后复用，避免每次发送都查一遍数据库
   List<Note>? _allNotesSnapshot;
@@ -471,7 +472,7 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
     );
   }
 
-  /// AI 侧的头像：一只胖鲸鱼（DeepSeek 风格）
+  /// AI 侧的头像：DeepSeek 那只胖鲸鱼
   Widget _buildWhaleAvatar({bool dimmed = false}) {
     return Container(
       width: 34,
@@ -483,14 +484,14 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
           end: Alignment.bottomRight,
           colors: dimmed
               ? [Colors.grey[400]!, Colors.grey[500]!]
-              : const [Color(0xFF4D6BFE), Color(0xFF7C8CF8)],
+              : const [
+                  DeepSeekWhale.brandBlue,
+                  DeepSeekWhale.brandBlueLight,
+                ],
         ),
       ),
       alignment: Alignment.center,
-      child: const Text(
-        '🐳',
-        style: TextStyle(fontSize: 17, height: 1.1),
-      ),
+      child: const DeepSeekWhale(size: 21),
     );
   }
 

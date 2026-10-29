@@ -19,6 +19,7 @@ import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/responsive_utils.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/widgets/deepseek_whale.dart';
 import 'package:inkpaper/widgets/note_card.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:inkpaper/widgets/on_this_day_card.dart';
@@ -1306,23 +1307,20 @@ class _HomeScreenState extends State<HomeScreen>
         centerTitle: false,
         actions: [
           if (!_isSearchActive) ...[
-            // 问笔记：把全库笔记当资料，跟 AI 对话
+            // 问笔记：把全库笔记当资料，跟 AI 对话。
+            // 用 DeepSeek 蓝底 + 胖鲸鱼，和聊天页里的 AI 头像保持同一套视觉。
             IconButton(
               icon: Container(
                 padding: EdgeInsets.all(
                   ResponsiveUtils.fontScaledSpacing(context, 8),
                 ),
                 decoration: BoxDecoration(
-                  color: backgroundColor,
+                  color: DeepSeekWhale.brandBlue,
                   borderRadius: BorderRadius.circular(
                     ResponsiveUtils.fontScaledBorderRadius(context, 8),
                   ),
                 ),
-                child: Icon(
-                  Icons.forum_outlined,
-                  size: ResponsiveUtils.fontScaledIconSize(context, 20),
-                  color: iconColor,
-                ),
+                child: const DeepSeekWhale(size: 20),
               ),
               tooltip: AppLocalizationsSimple.of(context)?.askNotes ?? '问笔记',
               onPressed: () => context.pushNamed('noteChat'),

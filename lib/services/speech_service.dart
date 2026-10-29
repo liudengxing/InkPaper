@@ -48,6 +48,17 @@ class SpeechService {
   Function(String)? _doneCallback;
   Function(String)? _errorCallback;
 
+  /// 平台通道调用兜底超时。
+  ///
+  /// `speech_to_text` 在 Android 上的 `locales()` 是"发广播等回包"的实现，
+  /// 没装语音数据包的机型经常等不到回包，Future 永远不完成；而它就在开始识别
+  /// 的主路径上（`initialize()` → `_resolveLocaleId()` → `locales()`）。一旦卡住，
+  /// 调用方会一直停在"正在聆听"，点停止也没反应。
+  static const Duration _platformTimeout = Duration(seconds: 3);
+
+  /// 启动识别本身也要兜底：识别器被占用 / 服务异常时 `listen()` 可能不返回。
+  static const Duration _startTimeout = Duration(seconds: 8);
+
   /// 最近一次失败原因（用于弹窗展示具体问题）
   String? get lastError => _lastError;
 
@@ -86,19 +97,31 @@ class SpeechService {
 
       // 初始化本地语音识别
       _speech = stt.SpeechToText();
-      _isInitialized = await _speech.initialize(
-        // 以前这里的 onError 是空的，出错时用户只会看到"语音不可用"，
-        // 完全不知道是没网、没权限还是设备没有识别服务。
-        onError: (error) {
-          _lastError = _describeError(error.errorMsg, error.permanent);
-          debugPrint('SpeechService: 识别错误 ${error.errorMsg}');
-          if (error.permanent) {
-            _keepListening = false;
-            _errorCallback?.call(_lastError!);
-          }
-        },
-        onStatus: _handleStatus,
-      );
+      _isInitialized = await _speech
+          .initialize(
+            // 以前这里的 onError 是空的，出错时用户只会看到"语音不可用"，
+            // 完全不知道是没网、没权限还是设备没有识别服务。
+            onError: (error) {
+              _lastError = _describeError(error.errorMsg, error.permanent);
+              debugPrint('SpeechService: 识别错误 ${error.errorMsg}');
+              if (error.permanent) {
+                _keepListening = false;
+              }
+              // 所有错误都要上报：识别器中途挂掉（比如没有识别引擎、被别的应用
+              // 占用）时系统只发一次 error，之前只有 permanent 才通知调用方，
+              // 界面就会一直停在"正在聆听"却什么都没在录。
+              _errorCallback?.call(_lastError!);
+            },
+            onStatus: _handleStatus,
+          )
+          // 识别服务没就绪时初始化可能永远不返回，超时按失败处理，让界面能收尾
+          .timeout(
+            _startTimeout,
+            onTimeout: () {
+              _lastError ??= '语音识别服务响应超时，可稍后重试或在设置里改用讯飞语音';
+              return false;
+            },
+          );
 
       if (_isInitialized) {
         _activeLocaleId = await _resolveLocaleId();
@@ -157,7 +180,8 @@ class SpeechService {
   /// 部分机型甚至直接报 `error_language_not_supported`。
   Future<String?> _resolveLocaleId() async {
     try {
-      final locales = await _speech.locales();
+      // locales() 在 Android 上是发广播等回包，等不到就永远不完成 → 加超时降级为系统默认
+      final locales = await _speech.locales().timeout(_platformTimeout);
       if (locales.isEmpty) {
         return null; // 交给系统默认
       }
@@ -192,31 +216,49 @@ class SpeechService {
   }) async {
     _activeOnResult = onResult;
     _segmentHasWords = false;
-    await _speech.listen(
-      onResult: (result) {
-        if (result.recognizedWords.trim().isNotEmpty) {
-          _segmentHasWords = true;
-        }
-        final merged = _mergeRecognized(_committedText, result.recognizedWords);
-        _lastRecognizedText = merged;
-        // 实时回调：中间结果也回调，编辑器里能像微信一样边说边出字
-        onResult?.call(merged);
-      },
-      onSoundLevelChange: (level) {
-        if (onSoundLevel == null) {
-          return;
-        }
-        onSoundLevel(level > 0.1 ? level : 0);
-      },
-      listenOptions: stt.SpeechListenOptions(
-        // 单段上限从 30 秒放宽到 60 秒，到点由 _handleStatus 续听，
-        // 用户不用因为说长句被硬生生截断而重来。
-        listenFor: timeout ?? const Duration(seconds: 60),
-        // 停顿 3 秒就断句太急，思考一下就没了；5 秒更接近日常语速
-        pauseFor: const Duration(seconds: 5),
-        localeId: _activeLocaleId,
-      ),
-    );
+    await _speech
+        .listen(
+          onResult: (result) {
+            if (result.recognizedWords.trim().isNotEmpty) {
+              _segmentHasWords = true;
+            }
+            final merged = _mergeRecognized(
+              _committedText,
+              result.recognizedWords,
+            );
+            _lastRecognizedText = merged;
+            // 实时回调：中间结果也回调，编辑器里能像微信一样边说边出字
+            onResult?.call(merged);
+          },
+          onSoundLevelChange: (level) {
+            if (onSoundLevel == null) {
+              return;
+            }
+            onSoundLevel(level > 0.1 ? level : 0);
+          },
+          listenOptions: stt.SpeechListenOptions(
+            // 单段上限从 30 秒放宽到 60 秒，到点由 _handleStatus 续听，
+            // 用户不用因为说长句被硬生生截断而重来。
+            listenFor: timeout ?? const Duration(seconds: 60),
+            // 停顿 3 秒就断句太急，思考一下就没了；5 秒更接近日常语速
+            pauseFor: const Duration(seconds: 5),
+            localeId: _activeLocaleId,
+          ),
+        )
+        // 识别器被占用 / 服务异常时这里可能不返回，超时抛出去交给上层收敛状态
+        .timeout(_startTimeout);
+  }
+
+  /// 确认这次识别真的起来了。
+  ///
+  /// 平台在拒绝启动时只返回 `started = false`，`speech_to_text` 会把它吞掉，
+  /// 调用方毫无感知。这里回读插件状态，再给一帧的余量应对通道时序。
+  Future<bool> _confirmListeningStarted() async {
+    if (_speech.isListening) {
+      return true;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    return _speech.isListening;
   }
 
   /// 拼接续听文本：系统每次返回的是"本段"结果，已完成的段要保留。
@@ -336,7 +378,8 @@ class SpeechService {
       }
 
       // 检查权限状态
-      final available = await _speech.hasPermission;
+      final available = await _speech.hasPermission
+          .timeout(_platformTimeout, onTimeout: () => false);
       if (!available) {
         if (context != null && context.mounted) {
           _showPermissionDeniedDialog(context);
@@ -361,7 +404,19 @@ class SpeechService {
         timeout: timeout,
       );
 
-      _isListening = true;
+      // 平台会"静默拒绝"启动：没初始化好、识别器被别的会话占着、系统没有可用的
+      // 识别引擎时，`listen()` 既不抛异常也不录音。以前这里无条件当成成功，
+      // 界面就一直停在"正在聆听"、麦克风其实根本没开。以插件自己的状态为准。
+      _isListening = await _confirmListeningStarted();
+      if (!_isListening) {
+        _keepListening = false;
+        _lastError ??= '识别引擎没有响应，可能被其他应用占用或系统缺少语音服务';
+        onError?.call(_lastError!);
+        if (context != null && context.mounted) {
+          _showLocalSpeechFailedDialog(context, onError);
+        }
+        return false;
+      }
       return true;
     } on Object catch (e) {
       _lastError = e.toString();
@@ -477,7 +532,8 @@ class SpeechService {
 
       // 停止本地识别
       if (_speech.isListening) {
-        await _speech.stop();
+        // 带超时：停止被卡住时也要能回到"已停止"，否则界面一直挂在录音态
+        await _speech.stop().timeout(_platformTimeout);
 
         // 等待系统完全释放麦克风权限
         await Future.delayed(const Duration(milliseconds: 100));
@@ -494,7 +550,7 @@ class SpeechService {
       if (_iflytekSpeech?.isListening ?? false) {
         await _iflytekSpeech?.stopListening();
       }
-      await _speech.cancel();
+      await _speech.cancel().timeout(_platformTimeout);
       _isListening = false;
       _lastRecognizedText = '';
     }
@@ -507,7 +563,7 @@ class SpeechService {
     }
 
     if (_isInitialized) {
-      final locales = await _speech.locales();
+      final locales = await _speech.locales().timeout(_platformTimeout);
       return locales.map((locale) => locale.localeId).toList();
     }
     return ['zh-CN', 'en-US'];
@@ -545,7 +601,7 @@ class SpeechService {
       }
 
       // 4. 获取可用语言
-      final locales = await _speech.locales();
+      final locales = await _speech.locales().timeout(_platformTimeout);
       result['availableLocales'] = locales.map((l) => l.localeId).toList();
       result['hasChineseSupport'] =
           locales.any((l) => l.localeId.startsWith('zh'));
@@ -565,7 +621,7 @@ class SpeechService {
     try {
       if (_isListening || _speech.isListening) {
         // 🔥 确保完全释放麦克风资源
-        await _speech.cancel();
+        await _speech.cancel().timeout(_platformTimeout);
       }
       if (_iflytekSpeech?.isListening ?? false) {
         await _iflytekSpeech?.stopListening();

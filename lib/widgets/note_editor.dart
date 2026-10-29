@@ -565,6 +565,7 @@ class _NoteEditorState extends State<NoteEditor>
     _tagSuggestionOverlay = null;
 
     // 🔥 确保停止语音识别，释放麦克风资源
+    _speechWatchdog?.cancel();
     if (_isSpeechListening) {
       _speechService.stopListening();
       _speechAnimationController.stop();
@@ -2770,11 +2771,29 @@ class _NoteEditorState extends State<NoteEditor>
   }
 
   // 防止重复点击的标志
-  bool _isProcessing = false;
+  //
+  // 之前是 bool + try/finally 复位，但开始/停止都要 await 平台通道调用；某些机型
+  // 上这些调用会一直不返回，标志就永久停在 true，之后点麦克风、点"正在聆听"整条
+  // 都变成哑的 —— 用户看到的就是"停不了"。改成带超时的判断：最多挡 3 秒，
+  // 卡住的等待不会再把这个按钮锁死。
+  static const Duration _speechToggleGuard = Duration(seconds: 3);
+  DateTime? _speechToggleStartedAt;
+
+  /// 识别"哑火"看门狗：开始后这么久既没声音也没出字，就判定识别没工作。
+  static const Duration _speechSilenceTimeout = Duration(seconds: 12);
+  Timer? _speechWatchdog;
+  bool _speechHeardAnySound = false;
+
+  bool get _isProcessing {
+    final startedAt = _speechToggleStartedAt;
+    return startedAt != null &&
+        DateTime.now().difference(startedAt) < _speechToggleGuard;
+  }
 
   /// 系统识别自己收尾时（静音超时、达到时长上限且不再续听）：
   /// 把结果落进正文并复位"录音中"状态，用户不用再点一次停止。
   void _handleSpeechDone(String text) {
+    _speechWatchdog?.cancel();
     if (!mounted || !_isSpeechListening) {
       return;
     }
@@ -2793,6 +2812,25 @@ class _NoteEditorState extends State<NoteEditor>
     unawaited(_speechService.stopListening());
   }
 
+  /// 识别中途出错（没有识别引擎、被别的应用占用、没网…）：
+  /// 把界面从"正在聆听"收回来，并把原因告诉用户。
+  ///
+  /// 系统在这种情况只发一次 error，之前没人接，录音条就一直挂在屏幕上。
+  void _handleSpeechError(String message) {
+    _speechWatchdog?.cancel();
+    if (!mounted || !_isSpeechListening) {
+      return;
+    }
+    debugPrint('NoteEditor: 语音识别出错 - $message');
+    _speechAnimationController.stop();
+    _speechAnimationController.reset();
+    setState(() {
+      _isSpeechListening = false;
+      _partialSpeechText = '';
+    });
+    SnackBarUtils.showError(context, message);
+  }
+
   // 启动识别（可重用）
   Future<void> _startRecognition() async {
     // 🎯 不在这里启动动画，等有声音时再启动（像大厂一样）
@@ -2805,6 +2843,8 @@ class _NoteEditorState extends State<NoteEditor>
         debugPrint('NoteEditor: 收到识别结果 - "$text"');
 
         if (text.isNotEmpty && mounted) {
+          // 有结果说明识别链路是通的，看门狗可以撤了
+          _speechWatchdog?.cancel();
           // 🎯 实时显示识别文本（像微信一样）
           setState(() {
             _partialSpeechText = text;
@@ -2816,6 +2856,8 @@ class _NoteEditorState extends State<NoteEditor>
         if (mounted) {
           // 🎯 只在有声音时播放动画（像大厂一样）
           if (level > 0.1) {
+            _speechHeardAnySound = true;
+            _speechWatchdog?.cancel();
             if (!_speechAnimationController.isAnimating) {
               _speechAnimationController.repeat();
             }
@@ -2831,6 +2873,9 @@ class _NoteEditorState extends State<NoteEditor>
       // 系统把这次识别收尾了（静音超时 / 达到时长上限且不再续听）：
       // 把文本落进正文并把"录音中"状态复位，避免按钮一直停在停止态。
       onDone: _handleSpeechDone,
+      // 识别中途出错（没有识别引擎 / 被别的应用占用 / 没网）：
+      // 立刻把界面从"正在聆听"收回来，并把原因告诉用户。
+      onError: _handleSpeechError,
     );
 
     if (!success) {
@@ -2839,7 +2884,39 @@ class _NoteEditorState extends State<NoteEditor>
           _isSpeechListening = false;
         });
       }
+      return;
     }
+
+    // 系统"假装"启动成功时（没有识别引擎 / 麦克风被别的应用占着），
+    // 既不会有结果也不会有错误回调，界面就一直挂在"正在聆听"。
+    // 这里起一个看门狗：只要期间既没听到声音也没出过字，就自己收尾并说明原因。
+    _speechHeardAnySound = false;
+    _speechWatchdog?.cancel();
+    _speechWatchdog = Timer(_speechSilenceTimeout, () {
+      if (!mounted || !_isSpeechListening || _speechHeardAnySound) {
+        return;
+      }
+      if (_partialSpeechText.isNotEmpty) {
+        return;
+      }
+      debugPrint('NoteEditor: 识别长时间无输入，判定识别未工作');
+      _abortSpeechWithHint('没有检测到麦克风输入，语音识别可能不可用');
+    });
+  }
+
+  /// 看门狗判定识别没有真正工作时，收尾并提示。
+  void _abortSpeechWithHint(String message) {
+    _speechWatchdog?.cancel();
+    _speechAnimationController.stop();
+    _speechAnimationController.reset();
+    if (mounted) {
+      setState(() {
+        _isSpeechListening = false;
+        _partialSpeechText = '';
+      });
+      SnackBarUtils.showError(context, message);
+    }
+    unawaited(_speechService.stopListening());
   }
 
   // 开始/停止语音识别
@@ -2850,11 +2927,12 @@ class _NoteEditorState extends State<NoteEditor>
       return;
     }
 
-    _isProcessing = true;
+    _speechToggleStartedAt = DateTime.now();
 
     try {
       if (_isSpeechListening) {
         debugPrint('NoteEditor: 停止语音识别');
+        _speechWatchdog?.cancel();
         // 停止语音识别 - 将当前识别的文本插入
         final recognizedText = _partialSpeechText.trim().isNotEmpty
             ? _partialSpeechText.trim()
@@ -2863,17 +2941,20 @@ class _NoteEditorState extends State<NoteEditor>
           _insertText(recognizedText);
         }
 
-        // 🔥 Android: 确保完全释放麦克风资源
-        await _speechService.stopListening();
-
-        // 🎯 停止动画
+        // 🎯 先复位界面，再去等平台释放麦克风：
+        // 平台调用即使卡住，用户也不会再看到"正在聆听"一直挂在屏幕上
         _speechAnimationController.stop();
         _speechAnimationController.reset();
-
         setState(() {
           _isSpeechListening = false;
           _partialSpeechText = '';
         });
+
+        // 🔥 Android: 确保完全释放麦克风资源（带超时，卡住也不拖死界面）
+        await _speechService.stopListening().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {},
+        );
 
         // 🎯 给用户反馈，确认已停止
         if (mounted) {
@@ -2908,10 +2989,9 @@ class _NoteEditorState extends State<NoteEditor>
         await _startRecognition();
       }
     } finally {
-      // 延迟重置防抖标志
-      Future.delayed(const Duration(milliseconds: 500), () {
-        _isProcessing = false;
-      });
+      // 立刻释放防抖标志；即使上面的 await 一直不返回，_isProcessing 也会在
+      // [_speechToggleGuard] 之后自动过期，按钮不会永久失效
+      _speechToggleStartedAt = null;
     }
   }
 

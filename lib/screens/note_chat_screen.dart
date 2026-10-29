@@ -34,6 +34,9 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
   bool _isSending = false;
   NotesContext? _lastContext;
 
+  /// DeepSeek 品牌蓝，AI 气泡底色
+  static const Color _whaleBlue = Color(0xFF4D6BFE);
+
   /// 全量笔记快照：第一次提问时读一次，之后复用，避免每次发送都查一遍数据库
   List<Note>? _allNotesSnapshot;
   int _totalNoteCount = 0;
@@ -319,8 +322,6 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
     final accent =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
     final cardColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
-    final textColor =
-        isDarkMode ? AppTheme.darkTextPrimaryColor : Colors.black87;
 
     if (message.isUser) {
       return Align(
@@ -350,90 +351,136 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
     }
 
     if (message.isPending) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 14, right: 48),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.8,
-                  color: accent,
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildWhaleAvatar(),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 14, right: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: const BoxDecoration(
+                color: _whaleBlue,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(6),
+                  topRight: Radius.circular(16),
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
                 ),
               ),
-              const SizedBox(width: 10),
-              Text(
-                '正在翻你的笔记…',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.8,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '正在翻你的笔记…',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       );
     }
 
     final isError = message.isError;
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14, right: 32),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(14),
-          border: isError
-              ? Border.all(color: Colors.orange.withValues(alpha: 0.4))
-              : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              message.text,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.65,
-                color: isError ? Colors.orange[800] : textColor,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildWhaleAvatar(dimmed: isError),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 14, right: 32),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            decoration: BoxDecoration(
+              // 正常回答用 DeepSeek 的深蓝，错误仍留在浅色卡片里保证可读
+              color: isError ? cardColor : _whaleBlue,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(6),
+                topRight: Radius.circular(16),
+                bottomLeft: Radius.circular(16),
+                bottomRight: Radius.circular(16),
               ),
+              border: isError
+                  ? Border.all(color: Colors.orange.withValues(alpha: 0.4))
+                  : null,
             ),
-            if (!isError)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    minimumSize: const Size(0, 32),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  onPressed: () => _copy(message.text),
-                  icon: Icon(
-                    Icons.copy_rounded,
-                    size: 14,
-                    color: isDarkMode ? Colors.grey[500] : Colors.grey[600],
-                  ),
-                  label: Text(
-                    '复制',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDarkMode ? Colors.grey[500] : Colors.grey[600],
-                    ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message.text,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.65,
+                    color: isError ? Colors.orange[800] : Colors.white,
                   ),
                 ),
-              ),
-          ],
+                if (!isError)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () => _copy(message.text),
+                      icon: Icon(
+                        Icons.copy_rounded,
+                        size: 14,
+                        color: Colors.white.withValues(alpha: 0.75),
+                      ),
+                      label: Text(
+                        '复制',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.75),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
+      ],
+    );
+  }
+
+  /// AI 侧的头像：一只胖鲸鱼（DeepSeek 风格）
+  Widget _buildWhaleAvatar({bool dimmed = false}) {
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: dimmed
+              ? [Colors.grey[400]!, Colors.grey[500]!]
+              : const [Color(0xFF4D6BFE), Color(0xFF7C8CF8)],
+        ),
+      ),
+      alignment: Alignment.center,
+      child: const Text(
+        '🐳',
+        style: TextStyle(fontSize: 17, height: 1.1),
       ),
     );
   }

@@ -202,6 +202,12 @@ class _NoteCardState extends State<NoteCard>
                           (!isExpanded && needsExpansion) ? _maxLines : null,
                       highlightQuery: widget.highlightQuery,
                       onCheckboxTap: _toggleTodoItem,
+                      // 正文里的 #标签 可点击：直接进该标签的笔记列表，
+                      // 比先跳详情再找标签少一步（标签页复用现有路由与筛选逻辑）
+                      onTagTap: (tagPath) => context.pushNamed(
+                        'tag-notes',
+                        queryParameters: {'tag': tagPath},
+                      ),
                     ),
                   ),
                   if (needsExpansion)

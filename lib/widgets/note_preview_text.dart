@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:inkpaper/utils/note_preview_builder.dart';
+import 'package:inkpaper/utils/tag_utils.dart';
 
 /// 列表卡片用的轻量 Markdown 预览。
 ///
@@ -16,6 +17,7 @@ class NotePreviewText extends StatefulWidget {
     this.maxLines,
     this.highlightQuery,
     this.onCheckboxTap,
+    this.onTagTap,
     this.accentColor,
     super.key,
   });
@@ -33,6 +35,9 @@ class NotePreviewText extends StatefulWidget {
 
   /// 点击待办勾选框时回调，参数与 `TodoParser.parseTodos` 的索引一致。
   final ValueChanged<int>? onCheckboxTap;
+
+  /// 点击正文里的 `#标签` 时回调，参数是不带 `#` 的标签路径。
+  final ValueChanged<String>? onTagTap;
 
   /// 链接、行内代码的强调色。
   final Color? accentColor;
@@ -110,14 +115,19 @@ class _NotePreviewTextState extends State<NotePreviewText> {
     final text = _preview.text;
     final query = widget.highlightQuery?.trim() ?? '';
     final highlights = _findHighlightRanges(text, query);
+    final tags = _findTagRanges(text);
 
-    // 所有需要切断文本的边界：样式区间 + 高亮区间 + 勾选框字符
+    // 所有需要切断文本的边界：样式区间 + 高亮区间 + 勾选框字符 + 标签
     final cuts = <int>{0, text.length};
     for (final range in _preview.ranges) {
       cuts.add(range.start.clamp(0, text.length));
       cuts.add(range.end.clamp(0, text.length));
     }
     for (final range in highlights) {
+      cuts.add(range.$1);
+      cuts.add(range.$2);
+    }
+    for (final range in tags) {
       cuts.add(range.$1);
       cuts.add(range.$2);
     }
@@ -157,6 +167,15 @@ class _NotePreviewTextState extends State<NotePreviewText> {
         (range) => range.$1 <= start && range.$2 >= end,
       );
 
+      // 落在某个 `#标签` 区间内的片段：整段着色 + 可点击跳转
+      String? tagPath;
+      for (final tag in tags) {
+        if (tag.$1 <= start && tag.$2 >= end) {
+          tagPath = text.substring(tag.$1, tag.$2).substring(1);
+          break;
+        }
+      }
+
       final checkbox = checkboxByOffset[start];
       final isCheckboxSegment = checkbox != null && end == start + 1;
       // 段落空行：4px 字号 × 2.0 行高 = 8px，与详情页 blockSpacing 对齐
@@ -167,10 +186,18 @@ class _NotePreviewTextState extends State<NotePreviewText> {
           text: text.substring(start, end),
           style: isSpacerLine
               ? const TextStyle(fontSize: 4, height: 2)
-              : _styleFor(styles, accent, brightness, isHighlighted),
+              : _styleFor(
+                  styles,
+                  accent,
+                  brightness,
+                  isHighlighted,
+                  isTag: tagPath != null,
+                ),
           recognizer: isCheckboxSegment && widget.onCheckboxTap != null
               ? _recognizerFor(checkbox.index)
-              : null,
+              : (tagPath != null && widget.onTagTap != null)
+                  ? _tagRecognizerFor(tagPath)
+                  : null,
         ),
       );
     }
@@ -185,12 +212,40 @@ class _NotePreviewTextState extends State<NotePreviewText> {
     return recognizer;
   }
 
+  TapGestureRecognizer _tagRecognizerFor(String tagPath) {
+    final recognizer = TapGestureRecognizer()
+      ..onTap = () => widget.onTagTap?.call(tagPath);
+    _recognizers.add(recognizer);
+    return recognizer;
+  }
+
+  /// 找出预览文本里所有 `#标签` 的区间（含 `#`），排除 URL 里的 `#`。
+  List<(int, int)> _findTagRanges(String text) {
+    if (!text.contains('#')) {
+      return const <(int, int)>[];
+    }
+    final hasUrl = text.contains(RegExp('[a-zA-Z]+://'));
+    final ranges = <(int, int)>[];
+    for (final match in getTagRegex().allMatches(text)) {
+      final name = match.group(1);
+      if (name == null || name.isEmpty) {
+        continue;
+      }
+      if (hasUrl && isTagInUrl(text, match.start, match.end)) {
+        continue;
+      }
+      ranges.add((match.start, match.end));
+    }
+    return ranges;
+  }
+
   TextStyle _styleFor(
     Set<PreviewInlineStyle> styles,
     Color accent,
     Brightness brightness,
-    bool highlighted,
-  ) {
+    bool highlighted, {
+    bool isTag = false,
+  }) {
     var style = const TextStyle();
 
     if (styles.contains(PreviewInlineStyle.bold)) {
@@ -224,6 +279,13 @@ class _NotePreviewTextState extends State<NotePreviewText> {
         color: brightness == Brightness.dark
             ? Colors.grey.shade500
             : Colors.grey.shade600,
+      );
+    }
+    if (isTag) {
+      // 正文里的 #标签 用强调色 + 稍重的字重，提示"这里可以点"
+      style = style.copyWith(
+        color: accent,
+        fontWeight: FontWeight.w500,
       );
     }
     if (highlighted) {

@@ -36,9 +36,10 @@ class NotesContext {
 class NotesContextBuilder {
   NotesContextBuilder._();
 
-  /// 约 1.2 万 token 的正文预算，多数模型都能一次吃完。
-  static const int defaultMaxCharacters = 18000;
-  static const int defaultMaxNotes = 120;
+  /// 约 2 万 token 的正文预算：再大就会拖慢首字并抬高成本，
+  /// 所以超出的部分用"只带了最近 N 条"的方式明确告知用户。
+  static const int defaultMaxCharacters = 28000;
+  static const int defaultMaxNotes = 200;
 
   /// 单条笔记最多保留的字符数。
   static const int perNoteLimit = 400;

@@ -186,7 +186,10 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
             ),
             if (_lastContext != null)
               Text(
-                '已读入 ${_lastContext!.noteCount} 条笔记',
+                // 有截断时把"装了多少 / 总共多少"说清楚，别让人以为全读了
+                _lastContext!.truncated
+                    ? '已读入 ${_lastContext!.noteCount} / ${_lastContext!.totalCandidates} 条'
+                    : '已读入 ${_lastContext!.noteCount} 条笔记',
                 style: TextStyle(
                   fontSize: 11,
                   color: isDarkMode ? Colors.grey[500] : Colors.grey[600],

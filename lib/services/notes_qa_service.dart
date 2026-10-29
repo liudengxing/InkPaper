@@ -2,6 +2,7 @@ import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/services/deepseek_api_service.dart';
 import 'package:inkpaper/services/notes_context_builder.dart';
+import 'package:intl/intl.dart';
 
 /// 一轮对话。
 class QaTurn {
@@ -102,16 +103,21 @@ class NotesQaService {
   }
 
   String _systemPrompt(NotesContext context) {
+    final now = DateTime.now();
+    final today = DateFormat('yyyy-MM-dd').format(now);
+    final weekdays = <String>['一', '二', '三', '四', '五', '六', '日'];
     final coverage = context.truncated
         ? '下面是其中最近 ${context.noteCount} 条（共 ${context.totalCandidates} 条有文字内容的笔记，更早的未附上）'
         : '下面是全部 ${context.noteCount} 条笔记';
     return '''
 你是 InkPaper 的笔记助手，帮用户回顾和理解他自己的笔记。
 
+今天是 $today（周${weekdays[now.weekday - 1]}）。用户说"这周""最近"时，按最近 7 天理解；说"本月"按最近 30 天。
+
 $coverage 的内容（按时间倒序，图片、音频等附件已省略，只保留文字）。
 
 回答规则：
-1. 只依据下面给出的笔记内容回答，笔记里没有的信息就直接说"你的笔记里没有提到"，不要用常识或想象补足；
+1. 只依据下面给出的笔记内容回答，笔记里没有的信息就直接说"你的笔记里没有提到"，不要用常识或想象补足；问题涉及的时间段超出笔记覆盖范围时，说明"更早的笔记没有提供"；
 2. 先给结论，再给依据；引用时用「10-25」这样的日期或笔记序号，不要编造日期、数字和原文；
 3. 中文回答，纯文本分段，可以用短横线列出 2-4 条要点，不要 Markdown 标题或代码块；
 4. 涉及"多少条""几次""进展"这类问题时，尽量给出可在笔记中核对的数字；

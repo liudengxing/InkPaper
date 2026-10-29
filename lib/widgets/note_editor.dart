@@ -17,6 +17,7 @@ import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/services/speech_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
+import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/memo_editing_controller.dart';
 import 'package:intl/intl.dart';
@@ -883,7 +884,23 @@ class _NoteEditorState extends State<NoteEditor>
     final localImagePath = '${imagesDir.path}/$fileName';
 
     // 用 readAsBytes() 兼容 Android content URI（部分 OEM 如 vivo/iQOO 返回的不是文件路径）
-    final bytes = await pickedFile.readAsBytes();
+    var bytes = await pickedFile.readAsBytes();
+
+    // Live 图（Motion Photo）：照片尾部嵌了一段 MP4。把视频抽出来单独存一份，
+    // 图片本身只保留静态部分 —— 既能让查看器播放动效，又能让图片体积和解码量
+    // 回到普通照片的水平（原图带着几十 MB 的视频会让进详情明显变慢）。
+    final motionPhoto = LivePhotoUtils.extractMotionPhoto(bytes);
+    if (motionPhoto != null) {
+      try {
+        await File(
+          LivePhotoUtils.videoPathFor(localImagePath),
+        ).writeAsBytes(motionPhoto.videoBytes, flush: true);
+        bytes = bytes.sublist(0, motionPhoto.imageLength);
+      } on Object catch (e) {
+        debugPrint('保存 Live 图视频片段失败: $e');
+      }
+    }
+
     await File(localImagePath).writeAsBytes(bytes);
     if (!mounted) {
       return;

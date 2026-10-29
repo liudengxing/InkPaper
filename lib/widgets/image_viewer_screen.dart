@@ -11,7 +11,9 @@ import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/image_utils.dart';
+import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 
 class ImageViewerScreen extends StatefulWidget {
   const ImageViewerScreen({
@@ -329,6 +331,19 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
   bool _isZoomed = false;
   String? _resolvedPath;
 
+  // Live 图（Motion Photo）：图片旁边存了一份内嵌视频，点角标播放
+  VideoPlayerController? _liveController;
+  bool _hasLiveVideo = false;
+  bool _livePlaying = false;
+  bool _liveLoading = false;
+  bool _liveFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _hasLiveVideo = LivePhotoUtils.hasLiveVideo(widget.imagePath);
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -345,7 +360,158 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.imagePath != widget.imagePath) {
       _resolveImage();
+      _disposeLiveController();
+      _hasLiveVideo = LivePhotoUtils.hasLiveVideo(widget.imagePath);
+      _liveFailed = false;
     }
+  }
+
+  void _disposeLiveController() {
+    final controller = _liveController;
+    _liveController = null;
+    _livePlaying = false;
+    _liveLoading = false;
+    if (controller != null) {
+      unawaited(controller.dispose());
+    }
+  }
+
+  /// 点击 LIVE 角标：首次点击才创建播放器，避免打开查看器就解码视频。
+  Future<void> _toggleLive() async {
+    if (_livePlaying) {
+      await _liveController?.pause();
+      if (mounted) {
+        setState(() => _livePlaying = false);
+      }
+      return;
+    }
+    if (_liveFailed) {
+      return;
+    }
+
+    var controller = _liveController;
+    if (controller == null) {
+      setState(() => _liveLoading = true);
+      final created = VideoPlayerController.file(
+        File(LivePhotoUtils.videoPathFor(widget.imagePath)),
+      );
+      try {
+        await created.initialize();
+        await created.setLooping(true);
+        _liveController = created;
+        controller = created;
+      } on Object catch (e) {
+        debugPrint('LivePhoto: 视频初始化失败: $e');
+        unawaited(created.dispose());
+        if (mounted) {
+          setState(() {
+            _liveFailed = true;
+            _liveLoading = false;
+          });
+        }
+        return;
+      }
+    }
+
+    try {
+      await controller.seekTo(Duration.zero);
+      await controller.play();
+    } on Object catch (e) {
+      debugPrint('LivePhoto: 播放失败: $e');
+      if (mounted) {
+        setState(() {
+          _liveFailed = true;
+          _liveLoading = false;
+        });
+      }
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _livePlaying = true;
+        _liveLoading = false;
+      });
+    }
+  }
+
+  Widget _buildLiveBadge() {
+    if (!_hasLiveVideo) {
+      return const SizedBox.shrink();
+    }
+    final topInset = MediaQuery.paddingOf(context).top + 12;
+    return Positioned(
+      left: 12,
+      top: topInset,
+      child: GestureDetector(
+        onTap: _toggleLive,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_liveLoading)
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.6,
+                    color: Colors.white,
+                  ),
+                )
+              else
+                Icon(
+                  Icons.motion_photos_on_rounded,
+                  size: 14,
+                  color: _liveFailed ? Colors.grey : Colors.white,
+                ),
+              const SizedBox(width: 4),
+              Text(
+                'LIVE',
+                style: TextStyle(
+                  color: _liveFailed ? Colors.grey : Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLiveOverlay() {
+    final controller = _liveController;
+    if (!_livePlaying ||
+        controller == null ||
+        !controller.value.isInitialized) {
+      return const SizedBox.shrink();
+    }
+    final aspectRatio =
+        controller.value.aspectRatio <= 0 ? 3 / 4 : controller.value.aspectRatio;
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: () {
+          unawaited(controller.pause());
+          setState(() => _livePlaying = false);
+        },
+        child: ColoredBox(
+          color: Colors.black,
+          child: Center(
+            child: AspectRatio(
+              aspectRatio: aspectRatio,
+              child: VideoPlayer(controller),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -360,6 +526,7 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
       unawaited(provider.evict());
     }
     _detachPreview();
+    _disposeLiveController();
     _transformationController.dispose();
     super.dispose();
   }
@@ -469,23 +636,31 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
   }
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          Navigator.of(context).maybePop();
-        },
-        onDoubleTapDown: (details) {
-          _doubleTapPosition = details.localPosition;
-        },
-        onDoubleTap: () => _toggleZoom(context, focalPoint: _doubleTapPosition),
-        child: ColoredBox(
-          color: Colors.black,
-          child: SafeArea(
-            top: false,
-            bottom: false,
-            child: _buildZoomableImage(context),
+  Widget build(BuildContext context) => Stack(
+        fit: StackFit.expand,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              Navigator.of(context).maybePop();
+            },
+            onDoubleTapDown: (details) {
+              _doubleTapPosition = details.localPosition;
+            },
+            onDoubleTap: () =>
+                _toggleZoom(context, focalPoint: _doubleTapPosition),
+            child: ColoredBox(
+              color: Colors.black,
+              child: SafeArea(
+                top: false,
+                bottom: false,
+                child: _buildZoomableImage(context),
+              ),
+            ),
           ),
-        ),
+          _buildLiveBadge(),
+          _buildLiveOverlay(),
+        ],
       );
 
   void _toggleZoom(BuildContext context, {Offset? focalPoint}) {

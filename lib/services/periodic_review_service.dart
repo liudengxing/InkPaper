@@ -192,7 +192,7 @@ class PeriodicReviewService {
         temperature: 0.6,
         // reasoning 类模型会先吃掉一大截思维链 token，900 的上限经常只换来
         // 一个空的 content，看起来就像"AI 调用失败"。
-        maxTokens: 1600,
+        maxTokens: 2400,
       );
 
       if (content == null || content.trim().isEmpty) {

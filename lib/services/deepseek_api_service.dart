@@ -62,12 +62,32 @@ class DeepSeekApiService {
             : null;
         final message = choice?['message'] as Map<String, dynamic>?;
         final content = message?['content'] as String?;
+        final finishReason = choice?['finish_reason'] as String?;
+        final reasoning =
+            (message?['reasoning_content'] as String?)?.trim() ?? '';
 
-        if (content != null) {
+        if (content != null && content.trim().isNotEmpty) {
           return (content, null);
-        } else {
-          return (null, 'AI响应格式错误');
         }
+
+        // 空正文要区分原因，否则界面只能看到含糊的"返回内容为空"：
+        // 推理型模型会先写 reasoning_content，max_tokens 不够时正文就是空的。
+        if (finishReason == 'length') {
+          return (
+            null,
+            '输出被 max_tokens 截断（finish_reason=length），请调大输出上限或换非推理模型',
+          );
+        }
+        if (reasoning.isNotEmpty) {
+          return (
+            null,
+            '模型只返回了思考过程、没有正文（reasoning ${reasoning.length} 字），请换用非推理模型',
+          );
+        }
+        if (choice == null) {
+          return (null, 'AI 响应里没有 choices 字段，接口可能不是 OpenAI 兼容格式');
+        }
+        return (null, 'AI 返回空内容（finish_reason=${finishReason ?? 'unknown'}）');
       } else if (response.statusCode == 401) {
         return (null, 'API密钥无效，请检查配置');
       } else if (response.statusCode == 429) {

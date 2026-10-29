@@ -79,7 +79,12 @@ class NoteCard extends StatefulWidget {
 
   // 🚀 便捷访问属性
   String get content => note.content;
-  DateTime get timestamp => note.updatedAt;
+  /// 卡片右上角展示的时间：统一用创建时间，与详情页一致。
+  ///
+  /// 之前取的是 updatedAt，而详情页展示 createdAt、首页默认又按 createdAt 排序，
+  /// 结果同一条笔记在列表里和详情里是两个时间，列表的日期顺序看起来也乱。
+  /// 编辑时间本身还会随批注、待办勾选、同步不断变化，不适合当"这条笔记是什么时候写的"。
+  DateTime get timestamp => note.createdAt;
   List<String> get tags => note.tags;
   bool get isPinned => note.isPinned;
   String get id => note.id;

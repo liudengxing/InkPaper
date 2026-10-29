@@ -1287,6 +1287,8 @@ class _SidebarState extends State<Sidebar> {
         return l10n?.randomReview ?? '随机回顾';
       case 'all_tags':
         return l10n?.allTags ?? '全部标签';
+      case 'periodic_review':
+        return l10n?.periodicReview ?? '回顾';
       case 'knowledge_graph':
         return l10n?.knowledgeGraph ?? '知识图谱';
       case 'help':

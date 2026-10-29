@@ -674,6 +674,16 @@ class AppLocalizationsSimple {
   String get copyContent => _t('copyContent', fallback: '复制内容');
   String get itemsNote => _t('itemsNote', fallback: '条笔记');
 
+  // ===== 周回顾 / 月回顾 =====
+  String get periodicReview => _t('periodicReview', fallback: '回顾');
+  String get weeklyReview => _t('weeklyReview', fallback: '本周');
+  String get monthlyReview => _t('monthlyReview', fallback: '本月');
+  String get reviewGenerating => _t('reviewGenerating', fallback: '正在生成回顾…');
+  String get reviewRegenerate => _t('reviewRegenerate', fallback: '重新生成');
+  String get reviewCopy => _t('reviewCopy', fallback: '复制');
+  String get periodicReviewCopied => _t('periodicReviewCopied', fallback: '已复制');
+  String get reviewNoNotes => _t('reviewNoNotes', fallback: '这个周期还没有笔记');
+
   // ===== 反馈页面补充 =====
   String get feedbackTitle => _t('feedbackTitle', fallback: '意见反馈');
   String get feedbackWelcome =>

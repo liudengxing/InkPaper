@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -37,14 +38,20 @@ class DeepSeekApiService {
         'stream': false,
       };
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $apiKey',
-        },
-        body: jsonEncode(requestBody),
-      );
+      // 必须设超时：周/月回顾这类长 prompt 一旦服务端不返回，没有超时的话
+      // 请求会一直挂着，用户只能看到"生成中"转圈。
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $apiKey',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: Config.AppConfig.aiRequestTimeoutSeconds),
+          );
 
       if (response.statusCode == 200) {
         final data =
@@ -69,6 +76,8 @@ class DeepSeekApiService {
         final errorMessage = _parseErrorMessage(response.body);
         return (null, errorMessage ?? 'AI服务错误: ${response.statusCode}');
       }
+    } on TimeoutException {
+      return (null, 'AI服务响应超时，请稍后重试');
     } on Object catch (e) {
       return (null, '网络请求失败: $e');
     }

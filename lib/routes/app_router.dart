@@ -28,6 +28,7 @@ import 'package:inkpaper/screens/notifications_screen.dart';
 import 'package:inkpaper/screens/notion_settings_screen.dart';
 import 'package:inkpaper/screens/onboarding_screen.dart';
 import 'package:inkpaper/screens/performance_dashboard_screen.dart';
+import 'package:inkpaper/screens/periodic_review_screen.dart';
 import 'package:inkpaper/screens/preferences_screen.dart';
 
 import 'package:inkpaper/screens/random_review_screen.dart';
@@ -546,6 +547,34 @@ class AppRouter {
             begin: const Offset(-0.15, 0),
             child: const DesktopLayout(
               child: RandomReviewScreen(),
+            ),
+          );
+        },
+      ),
+
+      // 🎯 主功能页面 - 回顾（周回顾 / 月回顾）
+      // 与随机回顾同级，走侧边栏专用转场
+      GoRoute(
+        path: '/periodic-review',
+        name: 'periodicReview',
+        pageBuilder: (context, state) {
+          final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
+
+          if (isDesktop) {
+            return NoTransitionPage<void>(
+              key: state.pageKey,
+              child: const DesktopLayout(
+                child: PeriodicReviewScreen(),
+              ),
+            );
+          }
+
+          return buildSlideTransition(
+            context: context,
+            state: state,
+            begin: const Offset(-0.15, 0),
+            child: const DesktopLayout(
+              child: PeriodicReviewScreen(),
             ),
           );
         },

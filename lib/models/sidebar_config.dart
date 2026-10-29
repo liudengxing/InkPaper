@@ -12,6 +12,13 @@ enum SidebarMenuItem {
     true,
   ),
   allTags('all_tags', '全部标签', '/tags', Icons.local_offer_outlined, true),
+  periodicReview(
+    'periodic_review',
+    '回顾',
+    '/periodic-review',
+    Icons.auto_stories_rounded,
+    true,
+  ),
   knowledgeGraph(
     'knowledge_graph',
     '知识图谱',
@@ -46,6 +53,8 @@ enum SidebarMenuItem {
         return l10n?.randomReview ?? label;
       case 'all_tags':
         return l10n?.allTags ?? label;
+      case 'periodic_review':
+        return l10n?.periodicReview ?? label;
       case 'knowledge_graph':
         return l10n?.knowledgeGraph ?? label;
       case 'help':

@@ -7,6 +7,7 @@ This directory contains project documentation for users and maintainers.
 - New users: [Getting Started](user-guide/getting-started.md)
 - **Resuming development / handing over: [HANDOFF](HANDOFF.md)**
 - **Business flows, parameters and device setup: [Business Overview](BUSINESS_OVERVIEW.md)**
+- **IDE project instructions (paste into settings): [Project Instructions](PROJECT_INSTRUCTIONS.md)**
 - Project structure and builds: [Project Structure and Build Guide](PROJECT_STRUCTURE_AND_BUILD.md)
 - Maintainers: [Maintenance](MAINTENANCE.md)
 - Store review: [Store Compliance](STORE_COMPLIANCE.md)

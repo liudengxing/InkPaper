@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/models/sort_order.dart';
-import 'package:inkpaper/services/notes_pagination_helper.dart';
+import 'package:inkpaper/utils/notes_pagination_helper.dart';
 
 /// 笔记域状态（`STATE-CORE-005` 第二步）。
 ///

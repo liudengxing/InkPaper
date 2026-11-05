@@ -1,7 +1,7 @@
 import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/services/deepseek_api_service.dart';
-import 'package:inkpaper/services/notes_context_builder.dart';
+import 'package:inkpaper/utils/notes_context_builder.dart';
 import 'package:intl/intl.dart';
 
 /// 一轮对话。

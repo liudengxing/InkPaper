@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/load_more_state.dart';
-import 'package:inkpaper/services/notes_pagination_helper.dart';
+import 'package:inkpaper/utils/notes_pagination_helper.dart';
 
 void main() {
   test('PAGE-01 initial state is page 0, hasMore, idle', () {

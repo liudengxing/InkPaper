@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
-import 'package:inkpaper/services/notes_context_builder.dart';
+import 'package:inkpaper/utils/notes_context_builder.dart';
 
 void main() {
   group('NotesContextBuilder.extractQueryTerms', () {

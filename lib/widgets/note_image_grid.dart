@@ -5,11 +5,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/screens/image_viewer_screen.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/image_decode_width.dart';
-import 'package:inkpaper/widgets/image_viewer_screen.dart';
 import 'package:provider/provider.dart';
 
 /// 笔记图片九宫格。

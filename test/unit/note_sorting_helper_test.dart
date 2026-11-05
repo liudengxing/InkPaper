@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/models/sort_order.dart';
-import 'package:inkpaper/services/note_sorting_helper.dart';
+import 'package:inkpaper/utils/note_sorting_helper.dart';
 
 Note _n(
   String id, {

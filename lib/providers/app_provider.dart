@@ -31,15 +31,10 @@ import 'package:inkpaper/services/feed_snapshot_service.dart';
 import 'package:inkpaper/services/local_reference_service.dart';
 import 'package:inkpaper/services/memos_api_service_fixed.dart'; // 使用修复版API服务
 import 'package:inkpaper/services/memos_resource_service.dart'; // 图片上传服务
-import 'package:inkpaper/services/note_sorting_helper.dart';
-import 'package:inkpaper/services/note_tags_helper.dart' as note_tags;
-import 'package:inkpaper/services/notes_pagination_helper.dart' as paging;
 import 'package:inkpaper/services/notification_service.dart';
 import 'package:inkpaper/services/notion_sync_service.dart';
 import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/services/reminder_notification_service.dart';
-import 'package:inkpaper/services/sync_merge_helper.dart' as sync_merge;
-import 'package:inkpaper/services/sync_status_helper.dart' as sync_status;
 import 'package:inkpaper/services/unified_reference_manager.dart';
 import 'package:inkpaper/services/webdav_service.dart';
 import 'package:inkpaper/services/webdav_sync_engine.dart';
@@ -48,7 +43,12 @@ import 'package:inkpaper/utils/error_handler.dart';
 // 🚀 大厂标准：监控工具
 import 'package:inkpaper/utils/logger.dart';
 import 'package:inkpaper/utils/note_dedupe.dart';
+import 'package:inkpaper/utils/note_sorting_helper.dart';
+import 'package:inkpaper/utils/note_tags_helper.dart' as note_tags;
+import 'package:inkpaper/utils/notes_pagination_helper.dart' as paging;
 import 'package:inkpaper/utils/performance_tracker.dart';
+import 'package:inkpaper/utils/sync_merge_helper.dart' as sync_merge;
+import 'package:inkpaper/utils/sync_status_helper.dart' as sync_status;
 import 'package:inkpaper/widgets/cached_avatar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';

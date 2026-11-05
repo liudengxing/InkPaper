@@ -1,3 +1,39 @@
+## 2026-11-05 · L2：抽出图片锚点与标签补全的纯函数并补 39 项单测 · done
+
+- 背景：`note_editor.dart` 里图片偏移换算、`#` 标签补全全是纯算术，但埋在 State 里，一行测试都没有
+- 改动（`3eae4f8`，3850 → 3293 行，交互零变化）：
+  - 新增 `utils/note_image_anchor.dart`：`NoteImageAnchor` / `TextDiff` / `shiftImageOffsets` / `splitRangeByImages`，替代 State 里的 `_AnchoredImage` / `_TextDiff` / `_rangesWithImages` / `_shiftRangeSegment` / `_insertedLengthBefore(OrAt)` / `_syncImageAnchorsForTextChange`
+  - 新增 `utils/tag_input_helper.dart`：`detectTagPrefix` / `rankTagSuggestions` / `applyTagInsertion`，替代 `_detectTagInput` / `_insertTag` 的内联实现
+  - 关键设计：两个新文件都不认识 `MemoStyleRange`，`splitRangeByImages` 只返回索引区间，调用方套回样式类型——避免 `utils → widgets` 逆依赖（`MemoStyleRange` 定义在 `widgets/memo_editing_controller.dart`）
+- 新增测试 `test/unit/note_image_anchor_test.dart`（IA-01..17）+ `test/unit/tag_input_helper_test.dart`（TI-01..22），覆盖插入/删除/替换三种 diff、锚点前后插入、null 锚点保留、区间横跨图片断段且图片不被样式覆盖、图片正好在区间端点不切开、`#` 前补空格的三种字符类型、光标越界不抛异常
+- 验证：
+```
+$ dart tool/inkpaper.dart analyze
+No issues found!
+$ dart tool/inkpaper.dart test
+01:47 +569: All tests passed!   # 530 + 39
+$ dart tool/inkpaper.dart build android-release
+√ Built build\\app\\outputs\\flutter-apk\\app-release.apk (50.1MB)
+```
+- 未验证：**真机**（设备 `adb connect` 仍超时）。图片锚点与标签补全都是纯函数，逻辑有测试兜底，但「编辑器里插图后加粗、标签弹出的位置」这类**视觉结果**仍需真机点一遍
+
+## 2026-11-05 · L1：抽出三块寄生 UI，合并两份已漂移的批注实现 · done
+
+- 背景：三个高频文件的「体积」不是业务复杂度，是寄生在里面的独立 UI + 重复实现
+- 改动（`f719baa`）：
+  - `home_screen.dart` 2926 → 1950 行：`_AiInsightScreen`（977 行）→ 公开 `screens/ai_insight_screen.dart::AiInsightScreen`
+  - `note_editor.dart` 3850 → 3469 行：`_NoteReferenceDialog`（382 行）→ 公开 `widgets/note_reference_dialog.dart::NoteReferenceDialog`
+  - 批注 CRUD：`note_card.dart` 与 `note_actions_ui.dart` **各有一份副本且行为已漂移**（前者直接 `AppProvider.updateNote`，后者走 `NoteActionsService`），合并为 `widgets/note_annotation_dialogs.dart::NoteAnnotationDialogs`；note_card 1630 → 1298、note_actions_ui 1791 → 1413
+  - 新增 `onAnnotationOpened` 参数：首页卡片点批注要跳详情页，详情页侧边栏只弹提示，同一实现两种用法
+  - 三个类均公开命名（去掉下划线），`super.key` 按 `always_put_required_named_parameters_first` 放到 required 之后
+- 验证：`analyze` 无告警、`test` 530 项全绿
+
+## 2026-11-05 · 清理：iOS 语音权限删除 + analyze 退出码归零（DOC-001）· done
+
+- `ios/Runner/Info.plist`：删 `NSSpeechRecognitionUsageDescription`（系统识别 1.1.57 已移除，该权限不再被请求）；`NSMicrophoneUsageDescription` 保留（讯飞录音需要）
+- `analysis_options.yaml`：`exclude` 加 `_backup/**`。此前 `_backup/analyze_backup.dart:61` 的 `require_trailing_commas` 让 analyze 退出码长期为 1
+- 验证：`dart tool/inkpaper.dart analyze` → `No issues found!`，**退出码 0，首次全绿**
+
 ## 2026-11-05 · 结构归位：9 个错层文件各回各位 · done
 
 - 背景：`lib/` 164 个文件 / 10.3 万行，分层骨架没问题，但有文件放错层，看目录猜不到

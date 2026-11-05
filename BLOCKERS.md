@@ -13,16 +13,35 @@
 - **验收**：`dart tool/inkpaper.dart analyze` 仅剩 `_backup` 历史 info；`test` 530 项全绿（新增 6 项覆盖 `speechInputEnabled` 组合）；`build android-release` 成功（50.1MB）。
 - **仍未验证**：**讯飞端到端真机**。本机 `adb connect 192.168.0.108:35819` 超时（设备离线），所以「填三件套 → 首页出现麦克风 → 说长句 → 判停自动落字」这条链只有编译与单测保证，没有真机证据。
 
-## STRUCT-001 · 结构与巨型文件（部分完成，2026-11-05 · 1.1.57 `eed02f3`）
+## STRUCT-001 · 结构与巨型文件（L1/L2 完成，L3 待做 · 1.1.59）
 
-- **已做（P0，纯机械）**：`widgets→screens` 2 个页面（`image_viewer_screen`、`share_image_preview_screen`）；`services→utils` 7 个纯函数工具（`note_sorting_helper` / `note_tags_helper` / `notes_pagination_helper` / `sync_merge_helper` / `sync_status_helper` / `weread_parser` / `notes_context_builder`）。目录规模：screens 37 / widgets 23 / services 39 / utils 32。
+**结论先行**：拆分的价值不在「行数」，在**改动的隔离面**与**逻辑能否被测**。按最近 300 次提交的 churn 排序，只有 5 个文件值得动：
+
+| 文件 | 行数 | churn | 判断 |
+|---|---|---|---|
+| `app_provider.dart` | 4966 | 38 | ✅ 该拆（L3） |
+| `home_screen.dart` | 2926 → **1950** | 26 | ✅ 已做（L1） |
+| `note_card.dart` | 1630 → **1298** | 23 | ✅ 已做（L1） |
+| `note_editor.dart` | 3850 → **3293** | 13 | ✅ 已做（L1+L2） |
+| `local_backup_restore_screen.dart` | 2768 | 11 | ⏳ 边界，看后续 |
+| `preferences_screen.dart` | 2764 | **2** | ❌ 不做 |
+| `share_utils.dart` | 2441 | **2** | ❌ 不做 |
+| `ai_settings_screen.dart` | 2351 | 4 | ❌ 不做 |
+| `share_image_preview_screen.dart` | 1644 | **1** | ❌ 不做 |
+
+`preferences` / `share_utils` / `ai_settings` / `share_image_preview` 合计 9200 行，但一个季度只改 9 次——拆它们要动 9200 行，换 0 次未来收益。
+
+- **已做 P0（1.1.57 `eed02f3`，纯机械）**：`widgets→screens` 2 个页面；`services→utils` 7 个纯函数工具。
+- **已做 L1（1.1.58 `f719baa`）**：抽出三块寄生 UI —— `_AiInsightScreen`（977 行 → `screens/ai_insight_screen.dart`）、`_NoteReferenceDialog`（382 行 → `widgets/note_reference_dialog.dart`）、批注 CRUD（**两处副本已漂移**，合并为 `widgets/note_annotation_dialogs.dart`，note_card 与 note_actions_ui 各减 355/378 行）。
+- **已做 L2（1.1.59 `3eae4f8`）**：`utils/note_image_anchor.dart`（`TextDiff` / `shiftImageOffsets` / `splitRangeByImages`）、`utils/tag_input_helper.dart`（`detectTagPrefix` / `rankTagSuggestions` / `applyTagInsertion`），补 39 项单测。这两个新文件都**不认识 `MemoStyleRange`**，只返回索引区间，避免 `utils → widgets` 逆依赖。
 - **刻意没做（附理由）**：
-  - `utils/share_utils.dart`（2441 行）是 Canvas 绘制/截图逻辑，`utils/share_image_widget.dart` 被它依赖；把 widget 挪进 `widgets/` 会制造 `utils → widgets` 逆依赖，因此两者保持原位
-  - `services/note_actions_service.dart` 是唯一一处 `services → providers` 逆向依赖，需要改结构（动作函数下沉），不在机械改动范围
-- **仍欠**：
-  1. 5 个巨型文件：`app_provider.dart` 4966 / `note_editor.dart` 3844 / `home_screen.dart` 2920 / `local_backup_restore_screen.dart` 2768 / `preferences_screen.dart` 2764 行。建议沿 `app_provider_sync.part.dart` 的做法继续切 part（AI、导入导出），而不是搬文件夹
-  2. 根目录仍有 4 个内部文档（`ARCHITECTURE.md` 停在 1.0.15 / `AUDIT.md` / `BASELINE.md` / `LOCAL_DEV_SETUP.md`）未进 `docs/`，`docs/README.md` 没有索引它们
-  3. 不建议 feature-first 重排：路径全变会让 `HANDOFF` / `BUSINESS_OVERVIEW` 里几十处「文件:行号」作废，且一次几百文件的 diff 无法 review
+  - `utils/share_utils.dart` 是 Canvas 绘制/截图逻辑，`share_image_widget.dart` 被它依赖；把 widget 挪进 `widgets/` 会制造 `utils → widgets` 逆依赖
+  - `services/note_actions_service.dart` 是唯一一处 `services → providers` 逆向依赖，需要改结构（动作函数下沉）
+- **仍欠（L3，等设备上线再做）**：
+  1. `app_provider.dart` 的真实构成不是「全能上帝类」：约 **1500 行（30%）是账号与云验证**，跟笔记无关；AI 与导入导出早就不在里面。拆法是把账号域（~900 行）+ 云验证（~600 行）搬去 `lib/core/auth/`，再抽一个 `_mutateNote()` 统一 9 件事的编排（现在 `createNote` / `updateNote` 各复制一遍）
+  2. **`core/state/` 的 37 条纯转发 getter/setter 要在 L3 一并删掉**，让方法直接写 `_notesStore.notes`。`STATE-CORE-005` 只搬了字段没搬行为，留着这层转发只会让人误判「拆分已完成」，而且行数不降反升
+  3. 根目录 4 个内部文档（`ARCHITECTURE.md` 停在 1.0.15 / `AUDIT.md` / `BASELINE.md` / `LOCAL_DEV_SETUP.md`）未进 `docs/`
+- **不建议**：feature-first 重排 166 个文件。路径全变会让文档里几十处「文件:行号」作废，git blame 断代，一次几百文件的 diff 无法 review。
 
 ## ORIENT-001 · App 未做方向锁，行为完全跟随系统（待决策，2026-11-05）
 
@@ -36,11 +55,10 @@
 - **未做**：真机前后对比。需要一条 9 图笔记的完整回归：进详情页首屏、连续左右翻大图、Live 图播放，看 `FrameTiming` 或肉眼是否仍有掉帧。
 - **风险**：`fc1b832` 的延后解码在低端机上可能表现为"图片出得慢"，需要在真机确认不是以「长时间灰底」换取流畅。
 
-## DOC-001 · 工具链与发布文档的噪音（未解，2026-11-05）
+## DOC-001 · 工具链与发布文档的噪音（部分解决，2026-11-05 · 1.1.58 `1ee212e`）
 
-- `_backup/analyze_backup.dart:61` 触发 `require_trailing_commas`（info），导致 `dart tool/inkpaper.dart analyze` / `verify` 退出码为 1，容易被误判为"分析失败"。
-- `CHANGELOG.md` 最新条目仍是 `1.1.13`（2026-06-22），落后约 40 个版本；期间变更只记在 `PROGRESS.md`。
-- 建议：删掉或纳入 `.gitignore` 的 `_backup/`；CHANGELOG 要么按大版本补齐，要么在文件头声明「内部变更以 PROGRESS.md 为准」。
+- ✅ `analyze` 退出码已归零：`analysis_options.yaml` 的 `exclude` 增加 `_backup/**`。该目录既不参与编译也不该参与分析，此前它让退出码长期为 1，把真正的告警淹没了。现在 `dart tool/inkpaper.dart analyze` → `No issues found!`，退出码 0（首次全绿）。
+- ⏳ `CHANGELOG.md` 仍停在 `1.1.13`（2026-06-22），落后约 45 个版本；期间变更只记在 `PROGRESS.md`。**待决策**：按大版本补齐，还是在文件头声明「内部变更以 PROGRESS.md 为准」——后者成本低得多，倾向后者。
 
 ## ARCH-LAYER-002 · A-09 · 字体许可结论（2026-10-21）
 

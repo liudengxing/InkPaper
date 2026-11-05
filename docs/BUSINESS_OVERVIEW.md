@@ -1,7 +1,7 @@
 # 业务框架与流程 / 参数手册
 
 > 配套 `docs/HANDOFF.md`：**HANDOFF 讲「怎么开工」，本文讲「这个 App 是怎么运转的」**。
-> 最后更新：2026-11-05 · 版本 `1.1.57+10153`
+> 最后更新：2026-11-05 · 版本 `1.1.59+10155`
 > 所有结论都带文件行号依据，行号为主分支 `main` 当时快照，重构后可能漂移，按方法名检索即可。
 
 ---
@@ -27,13 +27,15 @@ lib/
   models/                数据模型（note / app_config / annotation / resource / draft …）
   providers/             AppProvider（全局状态 + 业务编排）、app_provider_sync.part.dart（同步）、settings
   services/              39 个服务：数据库、Memos API、AI、语音、通知、小组件、导入导出…
-  screens/               37 个页面
-  widgets/               23 个可复用组件（note_card / note_image_grid / note_editor…）
-  utils/                 32 个纯函数工具（标签、排序、分页、同步合并、Markdown、解码宽度、草稿…）
+  screens/               38 个页面
+  widgets/               25 个可复用组件（note_card / note_image_grid / note_editor / 批注对话框…）
+  utils/                 34 个纯函数工具（标签、排序、分页、同步合并、图片锚点、Markdown、解码宽度、草稿…）
   themes/ l10n/          主题与中英文案（自建 AppLocalizationsSimple，不走 gen-l10n）
 ```
 
 依赖方向：`screens/widgets → providers → services → models/utils`，**services 之间不做互相调用**。纯函数工具（`note_sorting_helper` / `sync_merge_helper` / `weread_parser` / `notes_context_builder` 等）已在 1.1.57 从 `services/` 归位到 `utils/`——它们没有 IO 和生命周期，放 services 容易误导。
+
+1.1.59 起 `utils/` 里新增的两个编辑器工具（`note_image_anchor` / `tag_input_helper`）**刻意不认识 `MemoStyleRange`**：只返回 `({int start, int end})` 索引区间，由调用方套回样式类型。原因见 §4.13。
 
 ### 页面清单（按用途分组）
 
@@ -188,6 +190,10 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
 - 缓存：`ImageCache.maximumSize = 300` 条、`maximumSizeBytes = 300MB`（`main.dart:168-169`）
 - 首屏优化：卡片缩略图 `90ms + index×30ms` 错峰挂载；进详情前 `precacheImage` 预取；大图查看器同样延后解码
 - Live 图：导入时识别 Motion Photo / 配对 MOV，抽视频到私有目录，查看器用 `video_player` 播放；失败降级为静态图
+- **编辑区的图片锚点换算**（1.1.59 抽到 `utils/note_image_anchor.dart`）：编辑框里显示的是去掉 `![]()` 之后的纯文本，图片以卡片插在视觉位置。两道换算都在这个文件里：
+  - 打字时：`shiftImageOffsets` 用公共前后缀求出差异区间，把每个图片的 `offset` 平移过去（`null` 表示该图已删除，保留占位）
+  - 保存时：`splitRangeByImages` 把加粗/斜体等样式区间**在图片位置断开**再平移，避免 `![]()` 被样式包进去
+  - 它只返回 `({int start, int end})`，不认识 `MemoStyleRange`——因为后者定义在 `widgets/memo_editing_controller.dart`，让 utils 反过来依赖 widgets 会破坏分层
 
 ---
 

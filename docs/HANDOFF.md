@@ -1,7 +1,7 @@
 # 交接文档（HANDOFF）
 
 > 面向「接着改代码的人 / 新开的 AI 窗口」。目标：读完这一篇就能开工，不用翻聊天记录。
-> 最后更新：2026-11-05 · 版本 `1.1.57+10153`
+> 最后更新：2026-11-05 · 版本 `1.1.59+10155`
 >
 > 配套文档：
 > - **`docs/BUSINESS_OVERVIEW.md`** — 业务框架、13 条业务流程、参数速查、真机调试参数（改具体功能前必读）
@@ -27,7 +27,7 @@ cd "f:\VibeCoding Project\InkPaper"
 dart tool/inkpaper.dart doctor            # 环境检查
 dart tool/inkpaper.dart deps              # flutter pub get
 dart tool/inkpaper.dart analyze           # 静态分析
-dart tool/inkpaper.dart test              # 全量单测（当前 530 项）
+dart tool/inkpaper.dart test              # 全量单测（当前 569 项）
 dart tool/inkpaper.dart verify            # deps + analyze + test
 dart tool/inkpaper.dart build android-debug
 dart tool/inkpaper.dart build android-release
@@ -63,6 +63,11 @@ adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来�
 | 详情页九宫格（延后解码的**样板实现**） | `lib/widgets/note_image_grid.dart` |
 | 大图 / Live 图查看器 | `lib/screens/image_viewer_screen.dart` |
 | 编辑器（语音状态机、草稿、标签） | `lib/widgets/note_editor.dart` |
+| 编辑器里的图片锚点偏移换算 | `lib/utils/note_image_anchor.dart`（`shiftImageOffsets` / `splitRangeByImages`） |
+| `#` 标签补全（前缀识别、候选排序、插入） | `lib/utils/tag_input_helper.dart` |
+| 批注（侧边栏 + 三个对话框 + 写操作） | `lib/widgets/note_annotation_dialogs.dart` |
+| 「引用笔记」选择框 | `lib/widgets/note_reference_dialog.dart` |
+| AI 洞察页 | `lib/screens/ai_insight_screen.dart` |
 | 语音服务（仅讯飞，默认关闭） | `lib/services/speech_service.dart`、`lib/services/iflytek_speech_service.dart` |
 | 周/月回顾 | `lib/services/periodic_review_service.dart`、`ai_review_service.dart`、`lib/screens/periodic_review_screen.dart` |
 | 「问笔记」上下文预算 | `lib/utils/notes_context_builder.dart` |
@@ -77,6 +82,9 @@ adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来�
 
 | commit | 内容 | 关键实现 |
 | --- | --- | --- |
+| `1ee212e` | 清理：iOS 语音权限 + analyze 归零 | 删 `NSSpeechRecognitionUsageDescription`；`analysis_options.yaml` exclude 加 `_backup/**`，`analyze` 退出码首次为 0 |
+| `f719baa` | L1 抽出三块寄生 UI | `_AiInsightScreen`(977) → `screens/ai_insight_screen.dart`；`_NoteReferenceDialog`(382) → `widgets/note_reference_dialog.dart`；批注 CRUD **两处漂移副本合并**为 `widgets/note_annotation_dialogs.dart`。home 2926→1950、note_card 1630→1298、note_actions_ui 1791→1413 |
+| `3eae4f8` | L2 抽纯函数 + 39 项单测 | `utils/note_image_anchor.dart`、`utils/tag_input_helper.dart`；note_editor 3850→3293；新文件不认识 `MemoStyleRange`，只返回索引，避免 `utils → widgets` 逆依赖 |
 | `d8f395c` | 语音默认关闭 + 只留讯飞；系统识别、百度识别全删 | `AppConfig.speechInputEnabled`（开关 && 三件套齐全）决定首页/编辑器麦克风显隐；`speech_service.dart` 892 → 135 行；移除 `speech_to_text` 依赖；`IflytekSpeechService` 补 `onDone`（VAD 判停后自动落字） |
 | `c75fa13` / `eed02f3` | 结构归位（纯机械） | `widgets→screens` 2 个页面（`image_viewer_screen`、`share_image_preview_screen`）；`services→utils` 7 个纯函数工具（排序/标签/分页/同步合并/同步状态/微信读书解析/上下文预算）；逻辑零改动 |
 | `8cedbe7` → `67d7339` → `bf209ca` | AI 图标统一为 DeepSeek 鲸鱼，最终定为**透明底蓝色** | `deepseek_whale.dart` 用 27×20 坐标系的三次贝塞尔路径 + `PathFillType.evenOdd` 挖空嘴/眼；按用户给的 27×20 位图逐像素拟合（IoU 0.87，剩余差异全是 1px 抗锯齿）。对外 API 只有 `size` / `color` |
@@ -103,7 +111,7 @@ adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来�
 | ~~VOICE-001~~ | **已解决（1.1.57 `d8f395c`）**：不再赌设备有没有系统识别引擎 | 根因不再追：系统识别在部分国产 ROM 上「静默假启动」，留着就是隐患。改为「默认关闭 + 仅讯飞」，两个麦克风入口都由 `speechInputEnabled` 控制显隐；百度死链路一并删除。结论与验证见 `BLOCKERS.md` | 待办只剩一次讯飞端到端真机验证（本机 adb 目前连不上） |
 | ORIENT-001 | **App 没有方向锁** | `lib/` 内无 `SystemChrome.setPreferredOrientations`，`AndroidManifest.xml` 无 `android:screenOrientation`；设备当前 `accelerometer_rotation=0`（锁定竖屏）、`user_rotation=0`。即：转不转完全由系统开关决定 | 若希望 App 行为确定，可在 `main()` 锁竖屏，仅在图片查看器放开横屏；需产品确认 |
 | PERF-IMG-001 | **多图笔记详情页 / 大图查看器是否还卡** | `fc1b832` 已统一解码档位并延后解码，但**没有做过真机前后对比**，是否彻底解决未知 | 用 9 图笔记复测：进详情页、连续翻图、Live 图播放，看是否还有掉帧 |
-| DOC-001 | **工具链噪音** | `_backup/analyze_backup.dart` 触发一条 `require_trailing_commas` info，导致 `dart tool/inkpaper.dart analyze` 退出码为 1；`CHANGELOG.md` 停在 `1.1.13`，落后约 40 个版本 | 删/忽略 `_backup/`；CHANGELOG 要么按阶段补齐，要么声明「以 PROGRESS.md 为准」 |
+| DOC-001 | **工具链噪音（一半已解）** | ✅ `_backup/` 已进 `analysis_options.yaml` 的 exclude，`analyze` 退出码归 0；⏳ `CHANGELOG.md` 仍停在 `1.1.13`，落后约 45 个版本 | 只剩 CHANGELOG：要么按阶段补齐，要么声明「以 PROGRESS.md 为准」（倾向后者） |
 
 ---
 
@@ -130,12 +138,12 @@ adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来�
 
 ## 7. 硬性约定（新窗口必读）
 
-1. **改代码就升版本**：`pubspec.yaml` 的 `version: x.y.z+N`，patch +1、`N` 同步 +1（例：`1.1.57+10153` → `1.1.58+10154`），否则真机 `install -r` 会报 `INSTALL_FAILED_VERSION_DOWNGRADE`。
+1. **改代码就升版本**：`pubspec.yaml` 的 `version: x.y.z+N`，patch +1、`N` 同步 +1（例：`1.1.59+10155` → `1.1.60+10156`），否则真机 `install -r` 会报 `INSTALL_FAILED_VERSION_DOWNGRADE`。
 2. **构建/测试只走 `dart tool/inkpaper.dart`**，不要手写零散 `flutter build`。
 3. **提交粒度**：一个连贯改动一个 commit；不相关模块（CI / 业务代码 / 文档）拆开提交；只 `git add` 本次涉及的文件（仓库长期有大量未提交改动）；信息用 Conventional Commits + 中文，如 `fix(voice): ...`。
 4. **不动 git config**，不用 `--amend` / `--force`，除非用户明确要求。
 5. **不要删 `.codebuddy/`**；不要提交 `_backup/`、`build/`、临时截图。
-6. 交付前至少跑：`dart tool/inkpaper.dart analyze`（只剩 `_backup` 那条历史 info 可忽略）+ 相关单测；改动涉及 UI / 原生能力时，装到真机点一遍再汇报。
+6. 交付前至少跑：`dart tool/inkpaper.dart analyze`（**必须 0 issue、退出码 0**，`_backup/` 已 exclude）+ 相关单测；改动涉及 UI / 原生能力时，装到真机点一遍再汇报。
 7. 回答用中文，先给结论再给证据；性能和视觉类改动要说明「怎么验证的」。
 
 ---
@@ -146,7 +154,7 @@ adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来�
 
 ```text
 你在 InkPaper 仓库继续开发：F:\VibeCoding Project\InkPaper
-（Flutter 笔记应用，包名 com.didichou.inkpaper，深链 inkpaper://，当前版本见 pubspec.yaml，写作时 1.1.57+10153）
+（Flutter 笔记应用，包名 com.didichou.inkpaper，深链 inkpaper://，当前版本见 pubspec.yaml，写作时 1.1.59+10155）
 
 【这是个什么项目】
 本地优先的笔记应用：纯文本/Markdown + 本地图片，数据全在本机 notes.db（schema v12，查询一律走 active_notes 视图）；
@@ -164,7 +172,7 @@ adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来�
 <要改什么 / 期望行为 / 验收标准；bug 附复现步骤与设备型号>
 
 【硬性约束】
-- 改任何代码后，pubspec.yaml 的 version patch +1、versionCode +1（1.1.57+10153 → 1.1.58+10154），否则真机覆盖安装会报 VERSION_DOWNGRADE。
+- 改任何代码后，pubspec.yaml 的 version patch +1、versionCode +1（1.1.59+10155 → 1.1.60+10156），否则真机覆盖安装会报 VERSION_DOWNGRADE。
 - 构建/测试只用 dart tool/inkpaper.dart（analyze / test / build android-debug / build android-release），不要手写零散 flutter 命令。
 - 最小改动：不顺手重构无关文件、不动公开 API、不引入新依赖（确实需要先说明理由）。
 - 不改数据契约：notes 表字段、rowStatus 语义、displayTime 的三种时间口径都别擅自动（见 BUSINESS_OVERVIEW §3）。

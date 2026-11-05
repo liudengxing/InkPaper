@@ -8,7 +8,7 @@ extension AppProviderSyncPart on AppProvider {
 
     try {
       // 检查并快速重新初始化API服务
-      if (_memosApiService == null) {
+      if (_authStore.apiService == null) {
         await _ensureApiServiceInitialized();
       }
 
@@ -28,7 +28,7 @@ extension AppProviderSyncPart on AppProvider {
       _setSyncMessage('获取远程笔记...');
 
       debugPrint('AppProvider: 从服务器获取笔记');
-      final response = await _memosApiService!.getMemos();
+      final response = await _authStore.apiService!.getMemos();
       final isRemoteComplete = response['isComplete'] as bool? ?? true;
 
       _setSyncMessage('处理笔记数据...');
@@ -141,7 +141,7 @@ extension AppProviderSyncPart on AppProvider {
 
       // 4. 🚀 同步完成后重新完整加载笔记
       // 大厂标准：同步完成后应该从数据库重新加载全部数据，确保数据一致性
-      _totalNotesCount = mergedNotes.length;
+      _setTotalNotesCount(mergedNotes.length);
 
       // 🔥 关键修复：从数据库重新加载全部笔记（确保数据新鲜且正确排序）
       final dbNotes = _excludePendingDeletedNotes(
@@ -149,9 +149,9 @@ extension AppProviderSyncPart on AppProvider {
       ); // 加载全部数据
 
       // ✅ 保护内存中的批注数据（批注是本地增强功能，不同步到服务器）
-      final memoryNotesMap = {for (final note in _notes) note.id: note};
+      final memoryNotesMap = {for (final note in _notesStore.notes) note.id: note};
 
-      _notes = dbNotes.map((dbNote) {
+      _notesStore.notes = dbNotes.map((dbNote) {
         // 如果内存中有这个笔记且有批注，保留其批注
         final memoryNote = memoryNotesMap[dbNote.id];
         if (memoryNote != null && memoryNote.annotations.isNotEmpty) {
@@ -161,9 +161,9 @@ extension AppProviderSyncPart on AppProvider {
       }).toList();
 
       // 重置分页状态
-      _pagingState = paging.NotesPaginationState(
+      _notesStore.pagingState = paging.NotesPaginationState(
         currentPage:
-            (_notes.length / AppProvider._pageSize).floor(), // 根据实际加载的数量计算页码
+            (_notesStore.notes.length / AppProvider._pageSize).floor(), // 根据实际加载的数量计算页码
         hasMoreData: false, // 已经全部加载
         loadMoreState: LoadMoreState.idle,
       );
@@ -171,7 +171,7 @@ extension AppProviderSyncPart on AppProvider {
       _setSyncMessage('同步完成');
 
       debugPrint(
-        'AppProvider: ✅ 笔记同步完成！数据库总计 $_totalNotesCount 条，已全部加载 ${_notes.length} 条到内存',
+        'AppProvider: ✅ 笔记同步完成！数据库总计 ${_notesStore.totalNotesCount} 条，已全部加载 ${_notesStore.notes.length} 条到内存',
       );
     } on Object catch (e, stackTrace) {
       debugPrint('AppProvider: 从服务器获取数据失败: $e');
@@ -221,7 +221,7 @@ extension AppProviderSyncPart on AppProvider {
 
   // 从云端同步数据
   Future<void> syncWithServer() async {
-    if (!isLoggedIn || _memosApiService == null) {
+    if (!isLoggedIn || _authStore.apiService == null) {
       throw Exception('请先登录您的账号');
     }
 
@@ -292,7 +292,7 @@ extension AppProviderSyncPart on AppProvider {
       // 2. 从服务器获取最新数据
       _setSyncMessage('获取服务器数据...');
 
-      final response = await _memosApiService!.getMemos();
+      final response = await _authStore.apiService!.getMemos();
       final isRemoteComplete = response['isComplete'] as bool? ?? true;
 
       final memosList = response['memos'] as List<dynamic>;
@@ -368,7 +368,7 @@ extension AppProviderSyncPart on AppProvider {
       }
 
       // 5. 更新内存中的列表
-      _notes = _excludePendingDeletedNotes(await _databaseService.getNotes());
+      _notesStore.notes = _excludePendingDeletedNotes(await _databaseService.getNotes());
 
       // 冲突条数落盘，重启后仍能在服务器信息页看到上次同步的情况
       await _preferencesService.saveLastSyncConflicts(_lastSyncConflicts);
@@ -413,12 +413,12 @@ extension AppProviderSyncPart on AppProvider {
   /// 只在确实有笔记要上传时才多拉这一次；失败则索引为 null，
   /// 退化成原来的「直接创建」行为，不影响同步本身。
   Future<void> _primeServerContentIndex({required bool needed}) async {
-    if (!needed || _memosApiService == null) {
+    if (!needed || _authStore.apiService == null) {
       _serverContentIndex = null;
       return;
     }
     try {
-      final response = await _memosApiService!.getMemos();
+      final response = await _authStore.apiService!.getMemos();
       final memosList = response['memos'] as List<dynamic>;
       final serverNotes = memosList
           .map((memo) => Note.fromJson(memo as Map<String, dynamic>))

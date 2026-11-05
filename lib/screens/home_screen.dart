@@ -12,7 +12,6 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/models/sort_order.dart';
 import 'package:inkpaper/providers/app_provider.dart';
-import 'package:inkpaper/screens/ai_insight_screen.dart';
 import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/responsive_utils.dart';
@@ -1913,34 +1912,5 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     return const SizedBox.shrink();
-  }
-
-  // AI洞察对话框
-  // 首页顶栏的 AI 入口已去掉；页面本身保留，后续可以挪到侧边栏或设置页。
-  // ignore: unused_element
-  void _showAiInsightDialog() {
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final appConfig = appProvider.appConfig;
-
-    // 检查AI功能
-    if (!appConfig.aiEnabled) {
-      SnackBarUtils.showWarning(context, '请先在设置中启用AI功能');
-      return;
-    }
-
-    if (appConfig.aiApiUrl == null || appConfig.aiApiKey == null) {
-      SnackBarUtils.showWarning(context, '请先在设置中配置AI API');
-      return;
-    }
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => AiInsightScreen(
-          notes: appProvider.notes,
-          appConfig: appConfig,
-        ),
-        fullscreenDialog: true,
-      ),
-    );
   }
 }

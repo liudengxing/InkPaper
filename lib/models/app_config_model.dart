@@ -32,10 +32,8 @@ class AppConfig {
     this.iflytekApiKey,
     this.iflytekApiSecret,
     this.useCustomPrompt = false, // 默认不使用自定义Prompt
-    this.customInsightPrompt, // 自定义笔记洞察Prompt（首页AI洞察）
     this.customReviewPrompt, // 自定义点评Prompt
     this.customContinuationPrompt, // 自定义续写Prompt
-    this.customTagInsightPrompt, // 自定义标签洞察Prompt（标签详情页洞察）
     this.customTagRecommendationPrompt, // 自定义标签推荐Prompt
     this.customPeriodicReviewPrompt, // 自定义周/月回顾Prompt
     SidebarConfig? sidebarConfig,
@@ -74,10 +72,8 @@ class AppConfig {
         iflytekApiKey: json['iflytekApiKey'],
         iflytekApiSecret: json['iflytekApiSecret'],
         useCustomPrompt: json['useCustomPrompt'] ?? false,
-        customInsightPrompt: json['customInsightPrompt'],
         customReviewPrompt: json['customReviewPrompt'],
         customContinuationPrompt: json['customContinuationPrompt'],
-        customTagInsightPrompt: json['customTagInsightPrompt'],
         customTagRecommendationPrompt: json['customTagRecommendationPrompt'],
         customPeriodicReviewPrompt: json['customPeriodicReviewPrompt'],
         sidebarConfig: json['sidebarConfig'] != null
@@ -170,10 +166,8 @@ class AppConfig {
 
   // AI自定义Prompt配置
   final bool useCustomPrompt; // 是否使用自定义Prompt
-  final String? customInsightPrompt; // 自定义笔记洞察Prompt（用于：首页AI洞察）
   final String? customReviewPrompt; // 自定义点评Prompt（用于：笔记详情页AI智能点评）
   final String? customContinuationPrompt; // 自定义续写Prompt（用于：笔记编辑器AI续写）
-  final String? customTagInsightPrompt; // 自定义标签洞察Prompt（用于：标签详情页洞察分析）
   final String? customTagRecommendationPrompt; // 自定义标签推荐Prompt（用于：标签智能推荐）
   final String? customPeriodicReviewPrompt; // 自定义回顾Prompt（用于：周回顾/月回顾）
 
@@ -301,16 +295,12 @@ class AppConfig {
     bool updateIflytekApiKey = false,
     bool updateIflytekApiSecret = false,
     bool? useCustomPrompt,
-    String? customInsightPrompt,
     String? customReviewPrompt,
     String? customContinuationPrompt,
-    String? customTagInsightPrompt,
     String? customTagRecommendationPrompt,
     String? customPeriodicReviewPrompt,
-    bool updateCustomInsightPrompt = false,
     bool updateCustomReviewPrompt = false,
     bool updateCustomContinuationPrompt = false,
-    bool updateCustomTagInsightPrompt = false,
     bool updateCustomTagRecommendationPrompt = false,
     bool updateCustomPeriodicReviewPrompt = false,
     SidebarConfig? sidebarConfig,
@@ -360,18 +350,12 @@ class AppConfig {
             ? iflytekApiSecret
             : (iflytekApiSecret ?? this.iflytekApiSecret),
         useCustomPrompt: useCustomPrompt ?? this.useCustomPrompt,
-        customInsightPrompt: updateCustomInsightPrompt
-            ? customInsightPrompt
-            : (customInsightPrompt ?? this.customInsightPrompt),
         customReviewPrompt: updateCustomReviewPrompt
             ? customReviewPrompt
             : (customReviewPrompt ?? this.customReviewPrompt),
         customContinuationPrompt: updateCustomContinuationPrompt
             ? customContinuationPrompt
             : (customContinuationPrompt ?? this.customContinuationPrompt),
-        customTagInsightPrompt: updateCustomTagInsightPrompt
-            ? customTagInsightPrompt
-            : (customTagInsightPrompt ?? this.customTagInsightPrompt),
         customTagRecommendationPrompt: updateCustomTagRecommendationPrompt
             ? customTagRecommendationPrompt
             : (customTagRecommendationPrompt ??
@@ -413,10 +397,8 @@ class AppConfig {
         'iflytekApiKey': iflytekApiKey,
         'iflytekApiSecret': iflytekApiSecret,
         'useCustomPrompt': useCustomPrompt,
-        'customInsightPrompt': customInsightPrompt,
         'customReviewPrompt': customReviewPrompt,
         'customContinuationPrompt': customContinuationPrompt,
-        'customTagInsightPrompt': customTagInsightPrompt,
         'customTagRecommendationPrompt': customTagRecommendationPrompt,
         'customPeriodicReviewPrompt': customPeriodicReviewPrompt,
         'sidebarConfig': sidebarConfig.toJson(),

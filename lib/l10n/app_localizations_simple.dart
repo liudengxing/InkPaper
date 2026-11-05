@@ -2370,28 +2370,18 @@ class AppLocalizationsSimple {
       locale.languageCode == 'zh' ? '自定义提示词' : 'Custom Prompts';
   String get enableCustomPrompts =>
       locale.languageCode == 'zh' ? '启用自定义提示词' : 'Enable Custom Prompts';
-  String get insightPrompt =>
-      locale.languageCode == 'zh' ? '洞察提示词' : 'Insight Prompt';
   String get reviewPrompt =>
       locale.languageCode == 'zh' ? '点评提示词' : 'Review Prompt';
   String get continuationPrompt =>
       locale.languageCode == 'zh' ? '续写提示词' : 'Continuation Prompt';
-  String get tagInsightPrompt =>
-      locale.languageCode == 'zh' ? '标签洞察提示词' : 'Tag Insight Prompt';
   String get tagRecommendationPrompt =>
       locale.languageCode == 'zh' ? '标签推荐提示词' : 'Tag Recommendation Prompt';
-  String get insightPromptHint => locale.languageCode == 'zh'
-      ? '自定义AI洞察的提示词，留空使用默认提示词'
-      : 'Customize AI insight prompt, leave empty to use default';
   String get reviewPromptHint => locale.languageCode == 'zh'
       ? '自定义AI点评的提示词，留空使用默认提示词'
       : 'Customize AI review prompt, leave empty to use default';
   String get continuationPromptHint => locale.languageCode == 'zh'
       ? '自定义AI续写的提示词，留空使用默认提示词'
       : 'Customize AI continuation prompt, leave empty to use default';
-  String get tagInsightPromptHint => locale.languageCode == 'zh'
-      ? '自定义标签洞察的提示词，留空使用默认提示词'
-      : 'Customize tag insight prompt, leave empty to use default';
   String get tagRecommendationPromptHint => locale.languageCode == 'zh'
       ? '自定义标签推荐的提示词，留空使用默认提示词'
       : 'Customize tag recommendation prompt, leave empty to use default';

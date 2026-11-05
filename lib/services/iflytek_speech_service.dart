@@ -24,12 +24,19 @@ class IflytekSpeechService {
   bool _isListening = false;
   String _lastText = '';
 
+  /// VAD 判停 / 连接结束时回调一次「这一段说完了」，调用方据此把文本落库并复位 UI。
+  ValueChanged<String>? _onDone;
+  bool _doneEmitted = false;
+
   bool get isListening => _isListening;
   String get lastText => _lastText;
 
+  /// 语音开关 + 三件套齐全即可用。
+  ///
+  /// 不再校验 `speechRecognitionMode`：系统识别已移除，老配置里残留的
+  /// `'system'` 只用于兼容读取，不该把已经填好密钥的用户挡在门外。
   bool get isConfigured =>
       config.iflytekSpeechEnabled &&
-      config.speechRecognitionMode == AppConfig.SPEECH_MODE_IFLYTEK &&
       (config.iflytekAppId?.trim().isNotEmpty ?? false) &&
       (config.iflytekApiKey?.trim().isNotEmpty ?? false) &&
       (config.iflytekApiSecret?.trim().isNotEmpty ?? false);
@@ -38,6 +45,7 @@ class IflytekSpeechService {
     required ValueChanged<String> onResult,
     ValueChanged<String>? onError,
     ValueChanged<double>? onSoundLevel,
+    ValueChanged<String>? onDone,
   }) async {
     if (_isListening) {
       return false;
@@ -54,6 +62,8 @@ class IflytekSpeechService {
       }
 
       _lastText = '';
+      _onDone = onDone;
+      _doneEmitted = false;
       _channel = IOWebSocketChannel.connect(_authenticatedUrl());
       _socketSubscription = _channel!.stream.listen(
         (message) => _handleMessage(message, onResult, onError),
@@ -63,6 +73,7 @@ class IflytekSpeechService {
         },
         onDone: () {
           _isListening = false;
+          _emitDone();
         },
       );
 
@@ -210,11 +221,21 @@ class IflytekSpeechService {
 
       final status = (data['data'] as Map?)?['status'];
       if (status == 2) {
+        _emitDone();
         unawaited(stopListening());
       }
     } on Object catch (e) {
       onError?.call('讯飞语音结果解析失败: $e');
     }
+  }
+
+  /// 只通知一次「这一段结束」，避免「VAD 判停」和「连接关闭」重复回调。
+  void _emitDone() {
+    if (_doneEmitted) {
+      return;
+    }
+    _doneEmitted = true;
+    _onDone?.call(_lastText);
   }
 
   String _parseText(Map<String, dynamic> data) {

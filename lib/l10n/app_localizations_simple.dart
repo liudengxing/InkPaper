@@ -2847,8 +2847,6 @@ class AppLocalizationsSimple {
       _t('useCloudRecognition', fallback: '使用云端识别');
   String get cloudRecognitionNotConfigured =>
       _t('cloudRecognitionNotConfigured', fallback: '云端识别未配置');
-  String get baiduSpeechNotConfigured =>
-      _t('baiduSpeechNotConfigured', fallback: '百度语音识别 API 尚未配置。');
 
   // ===== Flomo 导入 =====
   String get htmlFileNotFoundTitle =>

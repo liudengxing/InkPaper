@@ -33,7 +33,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   bool _obscureApiKey = true;
   bool _obscureIflytekApiKey = true;
   bool _obscureIflytekApiSecret = true;
-  bool _useIflytekSpeech = false;
+  bool _speechInputEnabled = false;
 
   String _text(String zh, String en) =>
       Localizations.localeOf(context).languageCode == 'zh' ? zh : en;
@@ -61,7 +61,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _iflytekAppIdController.text = appConfig.iflytekAppId ?? '';
     _iflytekApiKeyController.text = appConfig.iflytekApiKey ?? '';
     _iflytekApiSecretController.text = appConfig.iflytekApiSecret ?? '';
-    _useIflytekSpeech =
+    _speechInputEnabled =
         appConfig.speechRecognitionMode == AppConfig.SPEECH_MODE_IFLYTEK &&
             appConfig.iflytekSpeechEnabled;
   }
@@ -536,7 +536,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     final subTextColor = isDarkMode ? Colors.grey[400] : Colors.grey[600];
     final iconColor =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
-    final useIflytek = _useIflytekSpeech;
+    final speechEnabled = _speechInputEnabled;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -570,7 +570,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _text('语音转文字', 'Speech to Text'),
+                      _text('语音输入', 'Voice input'),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -580,57 +580,33 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                     const SizedBox(height: 4),
                     Text(
                       _text(
-                        '点击编辑器麦克风，或长按首页 + 号直接语音新建。',
-                        'Use the editor mic button, or long-press + on Home to start a voice note.',
+                        '开启并填好讯飞密钥后，首页输入条右侧才出现麦克风。',
+                        'Enable it and fill in the iFlytek keys to show the mic in the Home composer bar.',
                       ),
                       style: TextStyle(fontSize: 13, color: subTextColor),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SegmentedButton<String>(
-            segments: [
-              ButtonSegment<String>(
-                value: AppConfig.SPEECH_MODE_SYSTEM,
-                icon: const Icon(Icons.phone_iphone_rounded),
-                label: Text(_text('系统识别', 'System')),
-              ),
-              const ButtonSegment<String>(
-                value: AppConfig.SPEECH_MODE_IFLYTEK,
-                icon: Icon(Icons.cloud_outlined),
-                label: Text('讯飞'),
+              Switch(
+                value: speechEnabled,
+                onChanged: (value) {
+                  setState(() {
+                    _speechInputEnabled = value;
+                  });
+                },
               ),
             ],
-            selected: {
-              if (useIflytek)
-                AppConfig.SPEECH_MODE_IFLYTEK
-              else
-                AppConfig.SPEECH_MODE_SYSTEM,
-            },
-            onSelectionChanged: (selection) {
-              final mode = selection.first;
-              setState(() {
-                _useIflytekSpeech = mode == AppConfig.SPEECH_MODE_IFLYTEK;
-              });
-            },
           ),
           const SizedBox(height: 12),
           Text(
-            useIflytek
-                ? _text(
-                    '开启后语音会发送到讯飞接口转写，调用费用由你的讯飞账号承担。',
-                    'When enabled, audio is sent to iFlytek for transcription. Usage costs belong to your iFlytek account.',
-                  )
-                : _text(
-                    '默认使用系统语音识别，免费、低门槛，能力受系统和设备环境影响。',
-                    'System recognition is free and simple, but quality depends on the OS and device environment.',
-                  ),
+            _text(
+              '仅支持讯飞云识别：语音会发送到讯飞接口转写，费用由你的讯飞账号承担。系统自带识别已移除。',
+              'iFlytek cloud recognition only: audio is sent to iFlytek and billed to your iFlytek account. On-device recognition has been removed.',
+            ),
             style: TextStyle(fontSize: 12, height: 1.5, color: subTextColor),
           ),
-          if (useIflytek) ...[
+          if (speechEnabled) ...[
             const SizedBox(height: 16),
             _buildInputCard(
               context,
@@ -1396,10 +1372,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     final apiKey = _iflytekApiKeyController.text.trim();
     final apiSecret = _iflytekApiSecretController.text.trim();
     return base.copyWith(
-      speechRecognitionMode: _useIflytekSpeech
-          ? AppConfig.SPEECH_MODE_IFLYTEK
-          : AppConfig.SPEECH_MODE_SYSTEM,
-      iflytekSpeechEnabled: _useIflytekSpeech,
+      speechRecognitionMode: AppConfig.SPEECH_MODE_IFLYTEK,
+      iflytekSpeechEnabled: _speechInputEnabled,
       iflytekAppId: appId.isEmpty ? null : appId,
       iflytekApiKey: apiKey.isEmpty ? null : apiKey,
       iflytekApiSecret: apiSecret.isEmpty ? null : apiSecret,
@@ -1421,13 +1395,13 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                   '2. 创建应用，开通“语音听写/实时语音转写”能力\n'
                   '3. 在应用详情复制 APPID、APIKey、APISecret\n'
                   '4. 回到 InkPaper 填入上方三个字段并测试连接\n'
-                  '5. 首页长按 + 号即可语音新建，编辑器里也可点麦克风补充\n\n'
+                  '5. 返回首页，输入条右侧会出现麦克风；编辑器里也可点麦克风补充\n\n'
                   '注意：开启后语音会发送到讯飞接口识别，调用额度和费用由你的讯飞账号承担。',
               '1. Open iFlytek Open Platform and enter the console\n'
                   '2. Create an app and enable speech dictation / real-time ASR\n'
                   '3. Copy APPID, APIKey, and APISecret from the app detail page\n'
                   '4. Enter them in InkPaper and test the connection\n'
-                  '5. Long-press + on Home to create a voice note; use the editor mic to add more\n\n'
+                  '5. Back on Home, a mic appears in the composer bar; the editor mic works too\n\n'
                   'Note: when enabled, audio is sent to iFlytek for recognition. Quota and costs belong to your iFlytek account.',
             ),
           ),
@@ -2313,7 +2287,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     final iflytekApiKey = _iflytekApiKeyController.text.trim();
     final iflytekApiSecret = _iflytekApiSecretController.text.trim();
 
-    if (_useIflytekSpeech &&
+    if (_speechInputEnabled &&
         (iflytekAppId.isEmpty ||
             iflytekApiKey.isEmpty ||
             iflytekApiSecret.isEmpty)) {
@@ -2333,10 +2307,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       aiModel: model.isEmpty ? appProvider.appConfig.aiModel : model,
       updateAiApiUrl: true,
       updateAiApiKey: true,
-      speechRecognitionMode: _useIflytekSpeech
-          ? AppConfig.SPEECH_MODE_IFLYTEK
-          : AppConfig.SPEECH_MODE_SYSTEM,
-      iflytekSpeechEnabled: _useIflytekSpeech,
+      speechRecognitionMode: AppConfig.SPEECH_MODE_IFLYTEK,
+      iflytekSpeechEnabled: _speechInputEnabled,
       iflytekAppId: iflytekAppId.isEmpty ? null : iflytekAppId,
       iflytekApiKey: iflytekApiKey.isEmpty ? null : iflytekApiKey,
       iflytekApiSecret: iflytekApiSecret.isEmpty ? null : iflytekApiSecret,

@@ -527,7 +527,7 @@ class _NoteEditorState extends State<NoteEditor>
     _updateLineCount();
 
     _focusEditorAfterOpen();
-    if (widget.startWithSpeech) {
+    if (widget.startWithSpeech && _speechEnabled) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Future<void>.delayed(const Duration(milliseconds: 320), () {
           if (mounted && !_isSpeechListening) {
@@ -1459,15 +1459,16 @@ class _NoteEditorState extends State<NoteEditor>
                                 ),
                               ),
 
-                              // 语音识别按钮 - 固定在右上角
-                              Positioned(
-                                top: 4,
-                                right: 12,
-                                child: _buildSpeechButton(
-                                  iconColor,
-                                  secondaryTextColor,
+                              // 语音识别按钮 - 固定在右上角；语音未开启时不渲染
+                              if (_speechEnabled)
+                                Positioned(
+                                  top: 4,
+                                  right: 12,
+                                  child: _buildSpeechButton(
+                                    iconColor,
+                                    secondaryTextColor,
+                                  ),
                                 ),
-                              ),
 
                               // 实时识别文本提示 - 大厂级别的炫酷动效
                               if (_isSpeechListening)
@@ -2779,6 +2780,12 @@ class _NoteEditorState extends State<NoteEditor>
   static const Duration _speechToggleGuard = Duration(seconds: 3);
   DateTime? _speechToggleStartedAt;
 
+  /// 语音入口是否可见：与首页同一口径（设置里开启 + 讯飞密钥填全）。
+  bool get _speechEnabled =>
+      Provider.of<AppProvider>(context, listen: false)
+          .appConfig
+          .speechInputEnabled;
+
   /// 识别"哑火"看门狗：开始后这么久既没声音也没出字，就判定识别没工作。
   static const Duration _speechSilenceTimeout = Duration(seconds: 12);
   Timer? _speechWatchdog;
@@ -2790,7 +2797,7 @@ class _NoteEditorState extends State<NoteEditor>
         DateTime.now().difference(startedAt) < _speechToggleGuard;
   }
 
-  /// 系统识别自己收尾时（静音超时、达到时长上限且不再续听）：
+  /// 讯飞的 VAD 判停（说完停顿 3s）会把这一段结束掉：
   /// 把结果落进正文并复位"录音中"状态，用户不用再点一次停止。
   void _handleSpeechDone(String text) {
     _speechWatchdog?.cancel();
@@ -2815,7 +2822,7 @@ class _NoteEditorState extends State<NoteEditor>
   /// 识别中途出错（没有识别引擎、被别的应用占用、没网…）：
   /// 把界面从"正在聆听"收回来，并把原因告诉用户。
   ///
-  /// 系统在这种情况只发一次 error，之前没人接，录音条就一直挂在屏幕上。
+  /// 讯飞只在出错时回调一次，之前没人接，录音条就会一直挂在屏幕上。
   void _handleSpeechError(String message) {
     _speechWatchdog?.cancel();
     if (!mounted || !_isSpeechListening) {
@@ -2837,7 +2844,6 @@ class _NoteEditorState extends State<NoteEditor>
     // 动画由 onSoundLevel 回调控制
 
     final success = await _speechService.startListening(
-      context: context,
       appConfig: Provider.of<AppProvider>(context, listen: false).appConfig,
       onResult: (text) async {
         debugPrint('NoteEditor: 收到识别结果 - "$text"');
@@ -2870,7 +2876,7 @@ class _NoteEditorState extends State<NoteEditor>
           }
         }
       },
-      // 系统把这次识别收尾了（静音超时 / 达到时长上限且不再续听）：
+      // 讯飞判停把这次识别收尾了：
       // 把文本落进正文并把"录音中"状态复位，避免按钮一直停在停止态。
       onDone: _handleSpeechDone,
       // 识别中途出错（没有识别引擎 / 被别的应用占用 / 没网）：

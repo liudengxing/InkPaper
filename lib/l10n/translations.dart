@@ -2711,10 +2711,6 @@ class Translations {
       'zh': '云端识别未配置',
       'en': 'Cloud Recognition Not Configured',
     },
-    'baiduSpeechNotConfigured': {
-      'zh': '百度语音识别 API 尚未配置。',
-      'en': 'Baidu Speech Recognition API is not configured.',
-    },
 
     // ===== Flomo 导入 =====
     'htmlFileNotFoundTitle': {

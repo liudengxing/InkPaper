@@ -124,31 +124,6 @@ class AppConfig {
     'speech_to_text': false,
   };
 
-  // ==================== 🚀 百度语音识别配置 ====================
-
-  /// 百度语音识别 API Key
-  /// 应用名称：墨根
-  /// 应用描述：用于语音识别
-  /// 应用ID：7257984
-  static const String baiduSpeechApiKey = String.fromEnvironment(
-    'BAIDU_SPEECH_API_KEY',
-  );
-
-  /// 百度语音识别 Secret Key
-  static const String baiduSpeechSecretKey = String.fromEnvironment(
-    'BAIDU_SPEECH_SECRET_KEY',
-  );
-
-  /// 百度语音识别应用ID
-  static const String baiduSpeechAppId = String.fromEnvironment(
-    'BAIDU_SPEECH_APP_ID',
-  );
-
-  /// 是否启用百度语音识别
-  static const bool enableBaiduSpeech = bool.fromEnvironment(
-    'ENABLE_BAIDU_SPEECH',
-  );
-
   // ==================== 🚀 AI配置 ====================
 
   /// AI模型常量

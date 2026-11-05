@@ -1601,7 +1601,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// 一条横贯底部、悬浮在列表之上的玻璃条，从左到右分三段：
   /// - 左：加号 → 直接进入新建笔记
   /// - 中：点击进入编辑（占位文案提示）
-  /// - 右：语音入口（先占位，复用 NoteEditor 的语音启动）
+  /// - 右：语音入口（仅在设置里开启语音并配好讯飞密钥后出现）
   ///
   /// 玻璃效果交给 `liquid_glass_renderer` 的 iOS 27 regular 预设：
   /// 倒角折射、frost、glint、暗边都由它算，不再是手搓的半透明叠加。
@@ -1617,6 +1617,11 @@ class _HomeScreenState extends State<HomeScreen>
     const barHeight = 58.0;
     const shapeRadius = 26.0;
     final radius = BorderRadius.circular(shapeRadius);
+    // 语音入口只在「设置里开启 + 讯飞密钥填全」后出现：默认配置下不展示，
+    // 避免用户点了麦克风却没有任何可用识别引擎（历史 VOICE-001）。
+    final speechEnabled = context.select<AppProvider, bool>(
+      (provider) => provider.appConfig.speechInputEnabled,
+    );
 
     return SafeArea(
       top: false,
@@ -1693,22 +1698,23 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                     ),
-                    // 右：语音（先占位，点击复用编辑器的语音入口）
-                    InkWell(
-                      onTap: () => _showAddNoteForm(startWithSpeech: true),
-                      borderRadius: radius,
-                      splashColor: iconColor.withValues(alpha: 0.12),
-                      highlightColor: iconColor.withValues(alpha: 0.06),
-                      child: SizedBox(
-                        width: barHeight,
-                        height: barHeight,
-                        child: Icon(
-                          Icons.mic_none_rounded,
-                          color: iconColor.withValues(alpha: 0.75),
-                          size: 22,
+                    // 右：语音（关闭语音输入时不渲染该入口）
+                    if (speechEnabled)
+                      InkWell(
+                        onTap: () => _showAddNoteForm(startWithSpeech: true),
+                        borderRadius: radius,
+                        splashColor: iconColor.withValues(alpha: 0.12),
+                        highlightColor: iconColor.withValues(alpha: 0.06),
+                        child: SizedBox(
+                          width: barHeight,
+                          height: barHeight,
+                          child: Icon(
+                            Icons.mic_none_rounded,
+                            color: iconColor.withValues(alpha: 0.75),
+                            size: 22,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),

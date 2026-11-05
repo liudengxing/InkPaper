@@ -1662,7 +1662,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '按功能分别定义 AI 输出规则。关闭开关会暂时停用，清空输入框并保存才会删除。',
+                        '按功能分别定义 AI 输出规则。留空的项使用该功能的默认提示词；关闭开关则全部停用。',
                         style: TextStyle(
                           fontSize: 13,
                           color: secondaryColor,
@@ -2098,11 +2098,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         _customTagRecommendationPromptController.text.trim();
     final customPeriodicReviewPrompt =
         _customPeriodicReviewPromptController.text.trim();
-    final hasCustomPrompt = appProvider.appConfig.useCustomPrompt &&
-        (customReviewPrompt.isNotEmpty ||
-            customContinuationPrompt.isNotEmpty ||
-            customTagRecommendationPrompt.isNotEmpty ||
-            customPeriodicReviewPrompt.isNotEmpty);
+    // 开关在切换时就已经即时写进配置了，这里原样保存。四块输入框全空时不能
+    // 把开关改回关闭：各 AI 服务本来就按字段判空、留空即回退默认提示词
+    // （ai_review_service:79、periodic_review_service:406），所以「开着但全空」
+    // 在功能上等价于关闭。旧逻辑却把它当成「没启用」写回去，用户点保存只会
+    // 看到开关自己弹回去，以为保存失败。
+    final useCustomPrompt = appProvider.appConfig.useCustomPrompt;
     final iflytekAppId = _iflytekAppIdController.text.trim();
     final iflytekApiKey = _iflytekApiKeyController.text.trim();
     final iflytekApiSecret = _iflytekApiSecretController.text.trim();
@@ -2135,7 +2136,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       updateIflytekAppId: true,
       updateIflytekApiKey: true,
       updateIflytekApiSecret: true,
-      useCustomPrompt: hasCustomPrompt,
+      useCustomPrompt: useCustomPrompt,
       customReviewPrompt:
           customReviewPrompt.isEmpty ? null : customReviewPrompt,
       customContinuationPrompt:

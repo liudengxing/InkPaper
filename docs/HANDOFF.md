@@ -2,7 +2,12 @@
 
 > 面向「接着改代码的人 / 新开的 AI 窗口」。目标：读完这一篇就能开工，不用翻聊天记录。
 > 最后更新：2026-11-05 · 版本 `1.1.56+10152`
-> 详细历史见 `PROGRESS.md`（逐条工作记录）、`BLOCKERS.md`（未解决 / 待决策）、`CHANGELOG.md`（对外发布日志，**目前落后，只到 1.1.13**）。
+>
+> 配套文档：
+> - **`docs/BUSINESS_OVERVIEW.md`** — 业务框架、13 条业务流程、参数速查、真机调试参数（改具体功能前必读）
+> - `PROGRESS.md` — 逐条工作记录（最新在最前）
+> - `BLOCKERS.md` — 未解决 / 待决策条目
+> - `CHANGELOG.md` — 对外发布日志（**目前落后，只到 1.1.13**）
 
 ---
 
@@ -45,6 +50,8 @@ adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来�
 ---
 
 ## 3. 代码地图（改之前先认路）
+
+> 业务怎么跑、每个流程落在哪些方法、有哪些数值参数（AI 预算、解码档位、防抖、分页、同步间隔…），见 `docs/BUSINESS_OVERVIEW.md`。本节只做「快速定位」。
 
 | 关注点 | 位置 |
 | --- | --- |
@@ -133,33 +140,51 @@ adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来�
 
 ## 8. 新窗口开场 Prompt（直接复制）
 
+> 用法：整段粘贴，只改 `【本次任务】`。一次只放一件事；任务多就拆成多次对话，上下文一长模型容易开始「顺手重构」。
+
 ```text
-你在 InkPaper 仓库继续开发：F:\VibeCoding Project\InkPaper（Flutter，包名 com.didichou.inkpaper）。
-这是一个已经上线迭代了很久的项目，当前版本见 pubspec.yaml（写作时是 1.1.56+10152）。
+你在 InkPaper 仓库继续开发：F:\VibeCoding Project\InkPaper
+（Flutter 笔记应用，包名 com.didichou.inkpaper，深链 inkpaper://，当前版本见 pubspec.yaml，写作时 1.1.56+10152）
+
+【这是个什么项目】
+本地优先的笔记应用：纯文本/Markdown + 本地图片，数据全在本机 notes.db（schema v12，查询一律走 active_notes 视图）；
+可选登录用户自建的 Memos 服务器做双向同步；AI 侧有「问笔记」（全库笔记当资料对话）和「周/月回顾」；
+另有语音输入（系统/讯飞/百度三种模式）、定时提醒（Android 原生精确闹钟）、桌面小组件、Flomo/微信读书导入、JSON/ZIP 备份。
 
 【先读，再动手】
-1. docs/HANDOFF.md（现状、代码地图、未解决问题、约定）
-2. PROGRESS.md 顶部 3 条记录（最近做了什么）
-3. BLOCKERS.md 里 VOICE-001 / ORIENT-001 / PERF-IMG-001 / DOC-001
-读完先用 3~5 行告诉我：你理解的当前状态 + 你打算怎么改，等我确认后再写代码。
+1. docs/HANDOFF.md —— 现状、代码地图、未解决问题、硬性约定
+2. docs/BUSINESS_OVERVIEW.md —— 业务框架、13 条业务流程、参数速查（AI 预算/解码档位/防抖/分页）、真机调试参数
+3. PROGRESS.md 顶部 3 条记录 —— 最近做了什么
+4. BLOCKERS.md 的 VOICE-001 / ORIENT-001 / PERF-IMG-001 / DOC-001
+读完先用 3~5 行汇报：你理解的当前状态 + 你打算动哪几个文件 + 验收标准，等我确认后再写代码。
 
 【本次任务】
-<在这里写清楚：要改什么、期望行为、验收标准；如果是 bug，附复现步骤>
+<要改什么 / 期望行为 / 验收标准；bug 附复现步骤与设备型号>
 
 【硬性约束】
-- 改任何代码后，pubspec.yaml 的 version patch +1、versionCode +1（如 1.1.56+10152 → 1.1.57+10153）。
+- 改任何代码后，pubspec.yaml 的 version patch +1、versionCode +1（1.1.56+10152 → 1.1.57+10153），否则真机覆盖安装会报 VERSION_DOWNGRADE。
 - 构建/测试只用 dart tool/inkpaper.dart（analyze / test / build android-debug / build android-release），不要手写零散 flutter 命令。
-- 最小改动，不要顺手重构无关文件；不要删 .codebuddy/、_backup/、build/。
-- 提交：一个连贯改动一个 commit，Conventional Commits + 中文（如 fix(voice): ...）；只 add 本次涉及的文件；不要动 git config，不用 --amend/--force。
-- 真机：adb -s 192.168.0.108:35819（没有设备就明说，不要假装验证过）。
+- 最小改动：不顺手重构无关文件、不动公开 API、不引入新依赖（确实需要先说明理由）。
+- 不改数据契约：notes 表字段、rowStatus 语义、displayTime 的三种时间口径都别擅自动（见 BUSINESS_OVERVIEW §3）。
+- 提交：一个连贯改动一个 commit，Conventional Commits + 中文（如 fix(voice): ...）；只 add 本次涉及的文件；不碰 git config，不用 --amend/--force。
+- 不要删 .codebuddy/、_backup/、build/。
 
-【环境坑（避免白费时间）】
-- 这台设备 logcat 读不到内容，排查用 dumpsys + 截图。
-- release 包不可 run-as，要读 shared_prefs / databases 先装 debug 包。
-- screencap 用 `adb shell screencap -p /sdcard/x.png` 再 `adb pull`，别用 exec-out 重定向。
-- release 全量构建约 115s，别中途打断。
+【真机参数（Android）】
+- 设备：adb connect 192.168.0.108:35819（小米 HyperOS 23127PN0CC，1200×2670）；命令里显式 -s 192.168.0.108:35819。
+- 装机：adb -s … install -r build/app/outputs/flutter-apk/app-release.apk（release 需要 android/key.properties）。
+- 启停：adb -s … shell am force-stop com.didichou.inkpaper / am start -n com.didichou.inkpaper/.MainActivity。
+- 操作：adb -s … shell input tap X Y / input swipe X1 Y1 X2 Y2 120（坐标=截图像素）。
+- 截图：adb -s … shell screencap -p /sdcard/x.png → adb -s … pull /sdcard/x.png 本地路径；不要用 exec-out 重定向（会破坏二进制）。
+- 没有设备就明说「未真机验证」，不要假装验证过。
+
+【环境坑】
+- 这台设备 logcat 读不到内容（系统缓冲区不可用），排查只能用 dumpsys + 截图。
+- release 包不可 run-as；要读 databases/ shared_prefs/ 必须先装 debug 包。
+- 常见排查命令：dumpsys audio（录音活动是否为空）、dumpsys package <pkg>（versionName）、settings get system accelerometer_rotation（方向锁）。
+- release 全量构建约 115s，别中途打断；debug 增量约 40s。
 
 【交付要求】
-- 汇报分四段：改了什么（含文件路径）、为什么这么改、怎么验证的（命令 + 真机现象）、还剩什么风险/未验证点。
-- 性能与视觉改动必须给出验证方式，不要只说「应该会变好」。
+- 分四段汇报：改了什么（文件路径 + 关键行号）、为什么这么改、怎么验证的（命令 + 真机现象）、还剩什么风险/未验证点。
+- 性能与视觉改动必须给出可复现的验证方式，不要只说「应该会变好」。
+- 如果发现文档与实际代码不一致，先指出来，再改代码。
 ```

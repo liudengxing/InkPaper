@@ -1,7 +1,7 @@
 # 交接文档（HANDOFF）
 
 > 面向「接着改代码的人 / 新开的 AI 窗口」。目标：读完这一篇就能开工，不用翻聊天记录。
-> 最后更新：2026-11-05 · 版本 `1.1.61+10157`
+> 最后更新：2026-11-06 · 版本 `1.1.62+10158`
 >
 > 配套文档：
 > - **`docs/BUSINESS_OVERVIEW.md`** — 业务框架、13 条业务流程、参数速查、真机调试参数（改具体功能前必读）
@@ -156,7 +156,7 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 
 ## 7. 硬性约定（新窗口必读）
 
-1. **改代码就升版本**：`pubspec.yaml` 的 `version: x.y.z+N`，patch +1、`N` 同步 +1（例：`1.1.61+10157` → `1.1.62+10158`），否则真机 `install -r` 会报 `INSTALL_FAILED_VERSION_DOWNGRADE`。
+1. **改代码就升版本**：`pubspec.yaml` 的 `version: x.y.z+N`，patch +1、`N` 同步 +1（例：`1.1.62+10158` → `1.1.63+10159`），否则真机 `install -r` 会报 `INSTALL_FAILED_VERSION_DOWNGRADE`。
 2. **构建/测试只走 `dart tool/inkpaper.dart`**，不要手写零散 `flutter build`。
 3. **提交粒度**：一个连贯改动一个 commit；不相关模块（CI / 业务代码 / 文档）拆开提交；只 `git add` 本次涉及的文件（仓库长期有大量未提交改动）；信息用 Conventional Commits + 中文，如 `fix(voice): ...`。
 4. **不动 git config**，不用 `--amend` / `--force`，除非用户明确要求。
@@ -172,7 +172,7 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 
 ```text
 你在 InkPaper 仓库继续开发：F:\VibeCoding Project\InkPaper
-（Flutter 笔记应用，包名 com.didichou.inkpaper，深链 inkpaper://，当前版本见 pubspec.yaml，写作时 1.1.61+10157）
+（Flutter 笔记应用，包名 com.didichou.inkpaper，深链 inkpaper://，当前版本见 pubspec.yaml，写作时 1.1.62+10158）
 
 【这是个什么项目】
 本地优先的笔记应用：纯文本/Markdown + 本地图片，数据全在本机 notes.db（schema v12，查询一律走 active_notes 视图）；
@@ -190,7 +190,7 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 <要改什么 / 期望行为 / 验收标准；bug 附复现步骤与设备型号>
 
 【硬性约束】
-- 改任何代码后，pubspec.yaml 的 version patch +1、versionCode +1（1.1.61+10157 → 1.1.62+10158），否则真机覆盖安装会报 VERSION_DOWNGRADE。
+- 改任何代码后，pubspec.yaml 的 version patch +1、versionCode +1（1.1.62+10158 → 1.1.63+10159），否则真机覆盖安装会报 VERSION_DOWNGRADE。
 - 构建/测试只用 dart tool/inkpaper.dart（analyze / test / build android-debug / build android-release），不要手写零散 flutter 命令。
 - 最小改动：不顺手重构无关文件、不动公开 API、不引入新依赖（确实需要先说明理由）。
 - 不改数据契约：notes 表字段、rowStatus 语义、displayTime 的三种时间口径都别擅自动（见 BUSINESS_OVERVIEW §3）。

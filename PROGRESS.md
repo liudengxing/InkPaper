@@ -1,3 +1,13 @@
+## 2026-11-05 · 自定义提示词开关不再悄悄弹回（1.1.62+10158）· done
+
+- 现象（1.1.61 真机验证时发现，旧版本就有）：打开「启用自定义提示词」、四个输入框都不填、点保存，开关会自己弹回关闭，像没保存成功
+- 根因：`ai_settings_screen.dart` 保存时先算 `hasCustomPrompt = 开关 && 至少一块非空`，再把这个结果写回 `useCustomPrompt`。开关的 `onChanged` 本来就即时落库过一次，保存时又被这个派生值覆盖成 false
+- 判断：这道门槛是多余的。两个真实消费者都按字段判空并回退默认值——`ai_review_service:79` 要求 `customReviewPrompt` 非空，`periodic_review_service:406` 走 `_customPrompt()` 判空。所以「开着但全空」在功能上等价于关闭，没必要替用户改回去
+- 改法（`e92df47`）：保存时原样写 `appProvider.appConfig.useCustomPrompt`；说明文案从「关闭开关会暂时停用，清空输入框并保存才会删除」改为「留空的项使用该功能的默认提示词；关闭开关则全部停用」，把「留空」和「关闭」两件事讲清（开关关闭时输入框是隐藏的，原文案暗示的「清空后保存即删除」在关闭状态下根本没法操作）
+- 验证：analyze 无 issue，579 项测试全绿
+- **真机验证通过**（1.1.62 release，versionName=1.1.62）：开开关、不填任何内容 → 保存 → 返回设置页 → 重进 AI 设置，开关仍为开、输入区仍在；随后把开关关回并保存，恢复原状
+- 未做：`TAG-REC-001`（「标签推荐提示词」零消费者）仍待决，本次只修开关语义，没动它的去留
+
 ## 2026-11-05 · 删除无入口的 AI 洞察页与死配置（1.1.61+10157）· done
 
 - 背景（`AI-INSIGHT-001`）：`ai_insight_screen.dart` 是 L1 从 `home_screen.dart` 抽出的 989 行完整页面，唯一入口 `_showAiInsightDialog()` 带着 `// ignore: unused_element`，自 `c059bf8`「移除顶栏 AI 入口」后无任何调用方。真机上点不到，但 `docs/HANDOFF.md` 还把它当可用功能列着

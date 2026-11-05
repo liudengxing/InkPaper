@@ -18,7 +18,9 @@ import 'package:inkpaper/services/speech_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/live_photo_utils.dart';
+import 'package:inkpaper/utils/note_image_anchor.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/utils/tag_input_helper.dart';
 import 'package:inkpaper/widgets/memo_editing_controller.dart';
 import 'package:inkpaper/widgets/note_reference_dialog.dart';
 import 'package:path/path.dart' as path;
@@ -180,94 +182,42 @@ class _NoteEditorState extends State<NoteEditor>
       return;
     }
 
-    final diff = _TextDiff.from(_lastTextForImageAnchors, nextText);
-    for (var i = 0; i < _imageAnchors.length; i++) {
-      final anchor = _imageAnchors[i];
-      if (anchor == null) {
-        continue;
-      }
-      _imageAnchors[i] = diff.transformOffset(anchor);
-    }
+    _imageAnchors = shiftImageOffsets(
+      offsets: _imageAnchors,
+      previousText: _lastTextForImageAnchors,
+      currentText: nextText,
+    );
     _lastTextForImageAnchors = nextText;
   }
 
   // 🚀 检测标签输入
+  //
+  // 「光标是否在 #标签里」和候选排序都是纯字符串逻辑，见
+  // utils/tag_input_helper.dart；这里只负责取数据与挂 Overlay。
   void _detectTagInput() {
-    final text = _textController.text;
-    final cursorPos = _textController.selection.baseOffset;
-
-    if (cursorPos <= 0) {
+    final tagContext = detectTagPrefix(
+      text: _textController.text,
+      cursorPosition: _textController.selection.baseOffset,
+    );
+    if (tagContext == null) {
       _hideTagSuggestions();
       return;
     }
 
-    // 查找光标前最近的 # 符号
-    var hashIndex = -1;
-    for (var i = cursorPos - 1; i >= 0; i--) {
-      if (text[i] == '#') {
-        hashIndex = i;
-        break;
-      }
-      // 如果遇到空格或换行，说明不在标签输入中
-      if (text[i] == ' ' || text[i] == '\n') {
-        break;
-      }
-    }
-
-    if (hashIndex == -1) {
-      _hideTagSuggestions();
-      return;
-    }
-
-    // 提取 # 后面的文本作为搜索关键词
-    final tagPrefix = text.substring(hashIndex + 1, cursorPos);
-
-    // 🚀 从所有笔记中收集标签
     final appProvider = Provider.of<AppProvider>(context, listen: false);
     final allTagsSet = <String>{};
     for (final note in appProvider.notes) {
       allTagsSet.addAll(note.tags);
     }
-    final allTags = allTagsSet.toList()..sort(); // 排序便于查找
+    final allTags = allTagsSet.toList()..sort();
 
-    // 🚀 智能过滤和排序（参考VSCode/微信逻辑）
-    var suggestions = <String>[];
-    if (tagPrefix.isEmpty) {
-      // 没有输入任何字符，显示最常用的前10个标签
-      suggestions = allTags.take(10).toList();
-    } else {
-      final lowerPrefix = tagPrefix.toLowerCase();
-
-      // 分类匹配
-      final exactMatches = <String>[]; // 完全匹配
-      final prefixMatches = <String>[]; // 前缀匹配
-      final containsMatches = <String>[]; // 包含匹配
-
-      for (final tag in allTags) {
-        final lowerTag = tag.toLowerCase();
-
-        if (lowerTag == lowerPrefix) {
-          // 完全匹配（最高优先级）
-          exactMatches.add(tag);
-        } else if (lowerTag.startsWith(lowerPrefix)) {
-          // 前缀匹配（次优先级）
-          prefixMatches.add(tag);
-        } else if (lowerTag.contains(lowerPrefix)) {
-          // 包含匹配（最低优先级）
-          containsMatches.add(tag);
-        }
-      }
-
-      // 按优先级组合：完全匹配 → 前缀匹配 → 包含匹配
-      suggestions = [
-        ...exactMatches,
-        ...prefixMatches,
-        ...containsMatches,
-      ].take(10).toList();
-    }
+    final suggestions = rankTagSuggestions(
+      allTags: allTags,
+      prefix: tagContext.prefix,
+    );
 
     if (suggestions.isNotEmpty) {
-      _tagStartPosition = hashIndex;
+      _tagStartPosition = tagContext.start;
       _showTagSuggestions(suggestions);
     } else {
       _hideTagSuggestions();
@@ -382,31 +332,16 @@ class _NoteEditorState extends State<NoteEditor>
 
   // 🚀 插入选中的标签
   void _insertTag(String tag) {
-    final text = _textController.text;
-    final cursorPos = _textController.selection.baseOffset;
-
-    // 🎯 检查 # 前面是否是字母/数字，如果是则需要添加空格
-    var prefix = '';
-    if (_tagStartPosition > 0) {
-      final charBefore = text[_tagStartPosition - 1];
-      // 如果前面是字母、数字或中文，添加空格
-      if (RegExp(r'[\w\u4e00-\u9fff]').hasMatch(charBefore)) {
-        prefix = ' ';
-      }
-    }
-
-    // 替换从 # 开始到光标位置的文本
-    final newText =
-        '${text.substring(0, _tagStartPosition)}$prefix#$tag ${text.substring(cursorPos)}';
-
-    final newCursorPos = _tagStartPosition +
-        prefix.length +
-        tag.length +
-        2; // +2 for # and space
+    final result = applyTagInsertion(
+      text: _textController.text,
+      cursorPosition: _textController.selection.baseOffset,
+      tagStart: _tagStartPosition,
+      tag: tag,
+    );
 
     _textController.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newCursorPos),
+      text: result.text,
+      selection: TextSelection.collapsed(offset: result.cursor),
     );
 
     _hideTagSuggestions();
@@ -926,7 +861,7 @@ class _NoteEditorState extends State<NoteEditor>
       return bodyMarkdown.trim().isEmpty ? '' : bodyMarkdown;
     }
 
-    final anchoredImages = <_AnchoredImage>[];
+    final anchoredImages = <NoteImageAnchor>[];
     final trailingImages = <String>[];
     for (var i = 0; i < _imageList.length; i++) {
       final img = _imageList[i];
@@ -937,7 +872,7 @@ class _NoteEditorState extends State<NoteEditor>
         trailingImages.add(mdCode);
       } else {
         anchoredImages.add(
-          _AnchoredImage(
+          NoteImageAnchor(
             offset: anchor.clamp(0, bodyText.length),
             markdown: mdCode,
             order: i,
@@ -974,10 +909,7 @@ class _NoteEditorState extends State<NoteEditor>
 
     final finalContent = MemoMarkdownEditingCodec.encode(
       buffer.toString(),
-      _rangesWithImages(
-        images: anchoredImages,
-        trailingImageMarkdown: trailingImages,
-      ),
+      _rangesWithImages(images: anchoredImages),
     );
     return finalContent.trim().isEmpty ? '' : finalContent;
   }
@@ -1030,9 +962,12 @@ class _NoteEditorState extends State<NoteEditor>
     }
   }
 
+  /// 样式区间 → 最终 markdown 里的位置。
+  ///
+  /// 区间若横跨图片会在图片处断开（图片本身不吃样式），切段算法在
+  /// `utils/note_image_anchor.dart` 的 `splitRangeByImages`。
   List<MemoStyleRange> _rangesWithImages({
-    required List<_AnchoredImage> images,
-    required List<String> trailingImageMarkdown,
+    required List<NoteImageAnchor> images,
   }) {
     final sourceRanges = _textController.ranges;
     if (sourceRanges.isEmpty || images.isEmpty) {
@@ -1041,71 +976,15 @@ class _NoteEditorState extends State<NoteEditor>
 
     final ranges = <MemoStyleRange>[];
     for (final range in sourceRanges) {
-      var segmentStart = range.start;
-      final innerImages = images
-          .where(
-            (image) => image.offset > range.start && image.offset < range.end,
-          )
-          .toList()
-        ..sort((a, b) => a.offset.compareTo(b.offset));
-
-      for (final image in innerImages) {
-        if (segmentStart < image.offset) {
-          ranges.add(
-            _shiftRangeSegment(
-              range,
-              start: segmentStart,
-              end: image.offset,
-              images: images,
-            ),
-          );
-        }
-        segmentStart = image.offset;
-      }
-
-      if (segmentStart < range.end) {
-        ranges.add(
-          _shiftRangeSegment(
-            range,
-            start: segmentStart,
-            end: range.end,
-            images: images,
-          ),
-        );
+      for (final segment in splitRangeByImages(
+        rangeStart: range.start,
+        rangeEnd: range.end,
+        images: images,
+      )) {
+        ranges.add(range.copyWith(start: segment.start, end: segment.end));
       }
     }
     return ranges;
-  }
-
-  MemoStyleRange _shiftRangeSegment(
-    MemoStyleRange range, {
-    required int start,
-    required int end,
-    required List<_AnchoredImage> images,
-  }) =>
-      range.copyWith(
-        start: start + _insertedLengthBeforeOrAt(start, images),
-        end: end + _insertedLengthBefore(end, images),
-      );
-
-  int _insertedLengthBefore(int offset, List<_AnchoredImage> images) {
-    var inserted = 0;
-    for (final image in images) {
-      if (image.offset < offset) {
-        inserted += image.markdown.length;
-      }
-    }
-    return inserted;
-  }
-
-  int _insertedLengthBeforeOrAt(int offset, List<_AnchoredImage> images) {
-    var inserted = 0;
-    for (final image in images) {
-      if (image.offset <= offset) {
-        inserted += image.markdown.length;
-      }
-    }
-    return inserted;
   }
 
   bool get _hasUnsavedChanges {
@@ -3411,58 +3290,4 @@ class _ImageItem {
         alt: alt ?? this.alt,
         uploadStatus: uploadStatus ?? this.uploadStatus,
       );
-}
-
-class _AnchoredImage {
-  const _AnchoredImage({
-    required this.offset,
-    required this.markdown,
-    required this.order,
-  });
-
-  final int offset;
-  final String markdown;
-  final int order;
-}
-
-class _TextDiff {
-  const _TextDiff({
-    required this.start,
-    required this.oldEnd,
-    required this.newEnd,
-  });
-
-  final int start;
-  final int oldEnd;
-  final int newEnd;
-
-  int transformOffset(int offset) {
-    if (offset <= start) {
-      return offset;
-    }
-    if (offset >= oldEnd) {
-      return offset + (newEnd - oldEnd);
-    }
-    return newEnd;
-  }
-
-  static _TextDiff from(String oldText, String newText) {
-    var start = 0;
-    while (start < oldText.length &&
-        start < newText.length &&
-        oldText[start] == newText[start]) {
-      start++;
-    }
-
-    var oldEnd = oldText.length;
-    var newEnd = newText.length;
-    while (oldEnd > start &&
-        newEnd > start &&
-        oldText[oldEnd - 1] == newText[newEnd - 1]) {
-      oldEnd--;
-      newEnd--;
-    }
-
-    return _TextDiff(start: start, oldEnd: oldEnd, newEnd: newEnd);
-  }
 }

@@ -1,4 +1,26 @@
-## 2026-11-05 · L3：删转发层 + 抽取笔记收尾流程 + 账号域独立成 part（1.1.60+10156）· done
+## 2026-11-05 · 删除无入口的 AI 洞察页与死配置（1.1.61+10157）· done
+
+- 背景（`AI-INSIGHT-001`）：`ai_insight_screen.dart` 是 L1 从 `home_screen.dart` 抽出的 989 行完整页面，唯一入口 `_showAiInsightDialog()` 带着 `// ignore: unused_element`，自 `c059bf8`「移除顶栏 AI 入口」后无任何调用方。真机上点不到，但 `docs/HANDOFF.md` 还把它当可用功能列着
+- 决策依据：查清用户以为的「首页蓝色飞鱼」是 `DeepSeekWhale` 图标 →「问笔记」`NoteChatScreen`（RAG 多轮对话），「菜单栏一周/一月分析」是 `PeriodicReviewScreen`（近7/30天 + 标签统计 + 环比 + 结果缓存 + 提示词可配）。三者曾各司其职，但洞察页的能力已被这两个覆盖，独有卖点只剩「任意时间窗 + 标签筛选组合」，且无入口期间无人反馈缺失
+- 删除范围（`cabb86f`，净减 1234 行）：
+  - `lib/screens/ai_insight_screen.dart` 整文件
+  - `home_screen.dart` 的 `_showAiInsightDialog()` + import
+  - 设置页「洞察提示词」「标签洞察提示词」两块输入框，及两个 controller 的声明/初始化/dispose/保存
+  - `AppConfig.customInsightPrompt` / `customTagInsightPrompt`（构造、字段、fromJson、toJson、copyWith 的实参与形参）
+  - l10n 四键：`insightPrompt` / `insightPromptHint` / `tagInsightPrompt` / `tagInsightPromptHint`
+  - `_initializeScreenshotDemoState` 里的 `customInsightPrompt` 默认值
+- 保留：`useCustomPrompt` 开关（回顾也在用），以及点评（`ai_review_service`）、续写、回顾（`periodic_review_service`）三块提示词——逐个 grep 确认过有真实读者
+- 踩坑记录：按行号删 UI 时把外层 `Padding > Column > children` 的 5 行开头一起删了，analyze 报 28 个语法错。教训是删除 UI 块不能只看「块起始注释行 → 块末 SizedBox」，得先确认块与块是否**共享同一个父 widget**——这里 6 块提示词全在同一个 `Column.children` 里，每块只是 `children` 的一项，没有各自的开闭骨架
+- 验证：
+```
+$ dart tool/inkpaper.dart analyze
+No issues found! (ran in 17.5s)
+$ dart tool/inkpaper.dart test
+02:19 +579: All tests passed!
+```
+- 未验证：真机。设置页少了两块输入框属视觉变化，需装机看一眼布局
+- 遗留：`customTagRecommendationPrompt`（标签推荐提示词）同样是零消费者的死配置，本次按「洞察」范围未动，记入 `BLOCKERS.md` `TAG-REC-001`
+
 
 - 背景：`STATE-CORE-005` 把字段搬进 `core/state/` 的 7 个 Store，但 `AppProvider` 里留了 36 条 `get _x => _store.x` 的纯转发。转发层让「拆分完成」看起来没完成、行数不降反升，且每个方法里仍是旧名字，读代码无法判断数据到底归谁管
 - 改动一（`cdd5adb`）：36 条转发全部删除，方法体直接写 `_notesStore.notes` / `_authStore.user` / `_webDavStore.config`。`_totalNotesCount` 是例外——它的 setter 要顺带把统计快照置空，保留为具名方法 `_setTotalNotesCount(int)`。`app_provider_sync.part.dart` 里 12 处引用同步替换

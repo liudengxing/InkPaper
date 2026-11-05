@@ -45,15 +45,19 @@
 - **仍欠**：根目录 4 个内部文档（`ARCHITECTURE.md` 停在 1.0.15 / `AUDIT.md` / `BASELINE.md` / `LOCAL_DEV_SETUP.md`）未进 `docs/`
 - **不建议**：feature-first 重排 166 个文件。路径全变会让文档里几十处「文件:行号」作废，git blame 断代，一次几百文件的 diff 无法 review。
 
-## AI-INSIGHT-001 · AI 洞察页没有入口（待决策，2026-11-05 · 1.1.59）
+## AI-INSIGHT-001 · AI 洞察页没有入口（已解决：整体删除，2026-11-05 · 1.1.61 `cabb86f`）
 
-- **现象**：`lib/screens/ai_insight_screen.dart`（L1 从 `home_screen.dart` 抽出的 977 行完整页面）在真机上点不到。唯一调用它的 `home_screen.dart:1921 _showAiInsightDialog()` 带着 `// ignore: unused_element`，自 `c059bf8`「排序改为标题下方下拉菜单，移除顶栏 AI 入口」之后就没有任何调用方了。
-- **影响**：这不影响编译和测试，但 `docs/HANDOFF.md` 把它当作可用功能列在代码地图里，属于文档与代码不一致；后续如果有人「修」这个页面，会白费力气。
-- **选项**：
-  1. 在侧边栏「回顾」附近加一个入口，让它真正可用（需确认产品上是否还要这个功能——它的能力与「回顾」「问笔记」有重叠）
-  2. 连同 `_showAiInsightDialog` 一起删除，`ai_insight_screen.dart` 一并移除
-  3. 保持现状，只在文档里标注「当前无入口」
-- **建议**：先定产品取舍（1 或 2），别长期挂着一个点不到的页面。
+- **原现象**：`lib/screens/ai_insight_screen.dart`（L1 从 `home_screen.dart` 抽出的 989 行完整页面）在真机上点不到。唯一调用它的 `_showAiInsightDialog()` 带着 `// ignore: unused_element`，自 `c059bf8`「排序改为标题下方下拉菜单，移除顶栏 AI 入口」之后就没有任何调用方。
+- **决策依据**：它的能力已被两个活着的功能覆盖——「回顾」（`PeriodicReviewScreen`，近 7/30 天 + 标签统计 + 环比 + 结果缓存 + 提示词可配）和「问笔记」（`NoteChatScreen`，全库 RAG 多轮对话）。独有卖点只剩「任意时间窗 + 标签筛选组合」，而没有入口的这段时间里无人反馈缺失。
+- **处理**：删除页面 989 行 + `_showAiInsightDialog()` + 设置页「洞察提示词」「标签洞察提示词」两块**改了不生效**的输入框 + `customInsightPrompt` / `customTagInsightPrompt` 字段及 l10n 四键。保留 `useCustomPrompt` 开关与点评/续写/回顾三块提示词（均有真实消费者）。
+- **教训**：`STATE-CORE-005` 式「只搬字段不搬行为」之外，还有一种更隐蔽的死代码——**配置 UI 还在、读取方已经没了**。用户改了不生效，比功能不存在更容易让人困惑。以后新增设置项时应同时确认有读者。
+
+## TAG-REC-001 · 「标签推荐提示词」是死配置（待决策，2026-11-05 · 1.1.61）
+
+- **现状**：`AppConfig.customTagRecommendationPrompt` 全库**零消费者**，但设置页仍在渲染「标签推荐提示词」输入框（`ai_settings_screen.dart` 的 `// 标签推荐Prompt` 块），用户改动后保存成功、毫无效果。
+- **与 AI-INSIGHT-001 同源**：AI-INSIGHT-001 清理时按「洞察」范围只删了洞察相关两块，这一块虽同样没有读者，但属于标签推荐功能，未擅自扩大范围。
+- **两个方向**：① 接上读者（若标签智能推荐确实规划要做）；② 比照本次做法删掉 UI + 字段 + l10n 的 `tagRecommendationPrompt` / `tagRecommendationPromptHint`。
+
 
 ## ORIENT-001 · App 未做方向锁，行为完全跟随系统（待决策，2026-11-05）
 

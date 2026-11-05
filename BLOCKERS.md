@@ -2,6 +2,37 @@
 
 > 记录被阻塞的条目、已尝试方案与具体报错；`ARCH-LAYER-002 / A-09` 要求的许可结论也记在此处。
 
+## VOICE-001 · 本机系统语音识别疑似不可用（未解，2026-11-05）
+
+- **现象**：点首页麦克风进编辑器后立刻显示「正在聆听…」，长时间无任何识别文字，点麦克风 / 点「点击停止」都没反应（修复前）。
+- **取证**：
+  - `adb shell dumpsys audio` 的 Recording Activity 列表为空 → **麦克风根本没被占用**，不是"在录但识别不出来"
+  - 状态栏无麦克风使用指示；等待 30s 也无任何 `onResult`
+  - `speech_to_text` 侧 `isListening == true`、`listen()` 正常返回，说明平台"假装"启动成功
+- **已修（`290f9d6`，1.1.56）**：平台调用全加超时、防抖标志改时间窗、停止先复位 UI、12s 哑火看门狗、`onError` 全量上报。**「停不掉」已闭环，但"识别起不来"的根因未定位。**
+- **待确认**：
+  1. 该 HyperOS 设备是否存在可用的 Android `RecognitionService`（`adb shell cmd package query-services -a android.speech.RecognitionService` 或装 debug 包看 `SpeechRecognizer.isRecognitionAvailable`）
+  2. 设置里切「讯飞」模式能否正常出字（能出 → 只是本地引擎缺失，考虑首次使用引导）
+- **临时结论**：界面不再卡死；引擎不可用时会自己收尾并提示「没有检测到麦克风输入，语音识别可能不可用」。
+
+## ORIENT-001 · App 未做方向锁，行为完全跟随系统（待决策，2026-11-05）
+
+- **现状**：`lib/` 全库无 `SystemChrome.setPreferredOrientations`；`android/app/src/main/AndroidManifest.xml` 无 `android:screenOrientation`；实测设备 `accelerometer_rotation=0`（锁定竖屏）、`user_rotation=0`。
+- **含义**：App 会不会旋转只取决于系统「方向锁定」开关，与安装包无关；远程调试期间也可能因系统开关变化而出现"突然能转"的观感。
+- **待决策**：是否在 `main()` 里锁 `portraitUp`，仅在图片查看器（`image_viewer_screen.dart`）临时放开横屏。属产品取舍，未动代码。
+
+## PERF-IMG-001 · 多图笔记详情页 / 大图查看器是否仍卡（待复测，2026-11-05）
+
+- **已做**：`fc1b832` 统一解码像素档位（`image_decode_width.dart`）+ 九宫格/大图查看器延后解码；`b567c0f` 修掉首页缩略图同帧解码风暴。
+- **未做**：真机前后对比。需要一条 9 图笔记的完整回归：进详情页首屏、连续左右翻大图、Live 图播放，看 `FrameTiming` 或肉眼是否仍有掉帧。
+- **风险**：`fc1b832` 的延后解码在低端机上可能表现为"图片出得慢"，需要在真机确认不是以「长时间灰底」换取流畅。
+
+## DOC-001 · 工具链与发布文档的噪音（未解，2026-11-05）
+
+- `_backup/analyze_backup.dart:61` 触发 `require_trailing_commas`（info），导致 `dart tool/inkpaper.dart analyze` / `verify` 退出码为 1，容易被误判为"分析失败"。
+- `CHANGELOG.md` 最新条目仍是 `1.1.13`（2026-06-22），落后约 40 个版本；期间变更只记在 `PROGRESS.md`。
+- 建议：删掉或纳入 `.gitignore` 的 `_backup/`；CHANGELOG 要么按大版本补齐，要么在文件头声明「内部变更以 PROGRESS.md 为准」。
+
 ## ARCH-LAYER-002 · A-09 · 字体许可结论（2026-10-21）
 
 - **对象**：`assets/fonts/` 下 5 个字体文件（`SF-Mono-Regular.ttf`、`SF-Pro-Display-{Regular,Medium,Bold,Light}.ttf`），合计 3.94 MB。

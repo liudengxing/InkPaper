@@ -1,3 +1,18 @@
+## 2026-11-05 · 语音不卡死 + 首页滚动/时间口径 + AI 图标定稿 · done
+
+- **语音（`290f9d6`）**：真机复现「正在聆听停不掉」，`dumpsys audio` 确认其实没在录音
+  - 三个叠加原因：`bool _isProcessing` + `try/finally` 复位，任一平台调用不返回就永久锁死按钮；`speech_to_text` 的 `locales()` 是「发广播等回包」，等不到就永不完成，而它在 `initialize()` 主路径上；`listen()` 被系统静默拒绝时不抛异常，代码却无条件当成功
+  - 处理：`initialize/listen` 8s、`locales/hasPermission/stop/cancel` 3s 超时；防抖标志改 3 秒时间窗；停止改为先复位 UI 再释放麦克风；新增 12s「哑火」看门狗（无声无字自动收尾并提示）；`onError` 全量上报
+  - 实测：点「点击停止」立即生效；再点麦克风也能停；识别引擎不工作 12s 内自动收回录音条
+- **首页含图笔记下滑卡顿（`b567c0f`）**：九图卡片会在同一帧发起 9 次 480px 解码 → 纹理上传击穿单帧预算
+  - `note_card.dart` 新增 `_DeferredThumbnail`，按 `90ms + index×30ms` 错峰挂载；补 `gaplessPlayback` / `filterQuality.low`
+  - `MemosContentHelper.cachedExpansionText` 缓存「展开」判定全文（原来每次重建都重跑 `MemosMarkdownConverter` + `Document.parse`）
+  - 实测：连滑三屏后停在 9 图笔记，图片逐张补上，无卡死灰块、无错图
+- **卡片时间口径（`6d0e4ad`）**：`NoteCard.timestamp` 由 `updatedAt` 改为 `createdAt`，与详情页、与 `getNotesPaged` 的 `createdAt DESC` 排序统一；同一笔记首页 `10-25 00:40` ↔ 详情 `2026-10-25 00:40:52` 已对齐
+- **AI 图标（`8cedbe7`/`67d7339`/`bf209ca`）**：用户提供 27×20 位图 → 按轮廓拟合矢量路径（IoU 0.87）+ `PathFillType.evenOdd` 挖空嘴/眼 → 最终定为透明底蓝色，去掉深蓝色块底；首页深色模式用 `brandBlueLight`，聊天头像尺寸 21 → 26 抵掉底色带来的视觉重量损失
+- 版本：`1.1.48+10144` → `1.1.56+10152`
+- 遗留：本机系统语音识别疑似不可用（根因未定位，见 `BLOCKERS.md` `VOICE-001`）；`flutter test` 全量 524 项通过
+
 ## 2026-10-23 · 体积优化：时区数据 + 本地化双轨合并 · done
 
 - `timezone`：`notification_service` 由 `timezone/data/latest_all.dart` 换成 `latest_10y.dart`

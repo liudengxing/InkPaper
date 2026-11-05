@@ -1,7 +1,7 @@
 # 业务框架与流程 / 参数手册
 
 > 配套 `docs/HANDOFF.md`：**HANDOFF 讲「怎么开工」，本文讲「这个 App 是怎么运转的」**。
-> 最后更新：2026-11-05 · 版本 `1.1.56+10152`
+> 最后更新：2026-11-05 · 版本 `1.1.57+10153`
 > 所有结论都带文件行号依据，行号为主分支 `main` 当时快照，重构后可能漂移，按方法名检索即可。
 
 ---
@@ -26,14 +26,14 @@ lib/
   routes/app_router.dart go_router 路由表（唯一的页面入口清单）
   models/                数据模型（note / app_config / annotation / resource / draft …）
   providers/             AppProvider（全局状态 + 业务编排）、app_provider_sync.part.dart（同步）、settings
-  services/              48 个服务：数据库、Memos API、AI、语音、通知、小组件、导入导出…
-  screens/               35 个页面
-  widgets/               25 个可复用组件（note_card / note_image_grid / image_viewer / note_editor…）
-  utils/                 纯函数工具（标签、Markdown、解码宽度、草稿、分享载荷…）
+  services/              39 个服务：数据库、Memos API、AI、语音、通知、小组件、导入导出…
+  screens/               37 个页面
+  widgets/               23 个可复用组件（note_card / note_image_grid / note_editor…）
+  utils/                 32 个纯函数工具（标签、排序、分页、同步合并、Markdown、解码宽度、草稿…）
   themes/ l10n/          主题与中英文案（自建 AppLocalizationsSimple，不走 gen-l10n）
 ```
 
-依赖方向：`screens/widgets → providers → services → models/utils`，**services 之间不做互相调用**（除 `sync_merge_helper` 这种纯函数工具）。
+依赖方向：`screens/widgets → providers → services → models/utils`，**services 之间不做互相调用**。纯函数工具（`note_sorting_helper` / `sync_merge_helper` / `weread_parser` / `notes_context_builder` 等）已在 1.1.57 从 `services/` 归位到 `utils/`——它们没有 IO 和生命周期，放 services 容易误导。
 
 ### 页面清单（按用途分组）
 
@@ -172,11 +172,14 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
 - **上下文预算**（`notes_context_builder.dart:56-63`）：总字符 **28000**、最多 **200** 条笔记、其中相关命中最多 **80** 条、单条截断 **400** 字符
 - 全局兜底：`AppConfig.aiRequestTimeoutSeconds = 30`，`aiMaxTokens = 2000`
 
-### 4.12 语音输入
+### 4.12 语音输入（1.1.57 起：默认关闭，仅讯飞）
 
-- 三种模式（`app_config_model.dart:222`）：`system`（默认，`speech_to_text` 走系统 `RecognitionService`）/ `iflytek`（`iflytek_speech_service`）/ 百度（`baidu_speech_service`、`baidu_realtime_speech_service`，需 dart-define 注入 key）
-- 编辑器状态机（`note_editor.dart`）：防抖窗口 3s、平台调用超时（`initialize/listen` 8s，其余 3s）、**12s 无声音无结果自动收尾**（看门狗）
-- 停止语义：先复位 UI，再释放麦克风（平台卡住也不会挂着"正在聆听"）
+- **只有一条链路**：设置为「语音输入」开关打开 + 讯飞 APPID/APIKey/APISecret 填全 → `AppConfig.speechInputEnabled == true`。系统识别（`speech_to_text`）与百度识别已整体移除（见 `BLOCKERS.md` `VOICE-001`）
+- **入口显隐跟着开关走**：首页底部输入条右侧麦克风、编辑器右上角麦克风都只在 `speechInputEnabled` 为真时渲染；默认配置下应用内没有任何语音入口
+- 识别实现：`speech_service.dart`（门面 + 权限）→ `iflytek_speech_service.dart`（`wss://iat-api.xfyun.cn/v2/iat`，`record` 采 PCM16/16kHz，VAD `vad_eos=3000`）
+- 收尾语义：讯飞判停（status=2）或连接关闭时回调一次 `onDone` → 编辑器落字并复位「正在聆听」；用户主动停止则先复位 UI 再释放麦克风
+- 编辑器兜底（`note_editor.dart`）：3s 防抖窗口、**12s 无声音无结果自动收尾**（看门狗）、错误走 SnackBar
+- 设置入口：AI 设置 → 语音输入（开关 + 三件套 + 连接测试 + 对接教程）
 
 ### 4.13 图片管线
 
@@ -266,7 +269,7 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
 ## 7. 已知边界（写代码前先确认不是"设计如此"）
 
 1. 标签重命名 / 删除、归档 / 取消归档：**没有 UI**，只有文案与数据字段。
-2. `AppConfig.isFeatureEnabled('speech_to_text')` 默认 `false`（功能开关表），但语音入口未受影响——改开关前先确认它到底管哪一层。
+2. `AppConfig.isFeatureEnabled('speech_to_text')` 是历史功能开关表里的死键（`false`），**不参与任何逻辑**；语音真正的开关是 `AppConfig.iflytekSpeechEnabled`（配合三件套，见 §4.12）。
 3. `notification_service.dart` 里仍有 `_activeTimers` 残留字段与「使用 Timer」的旧注释，实际调度走系统闹钟。
 4. WebDAV / Notion 两条同步链路未纳入本文梳理，改它们前单独读 `webdav_sync_engine.dart`、`notion_sync_service.dart`。
 5. `_backup/` 目录里的旧脚本会污染 `flutter analyze`（见 `BLOCKERS.md` `DOC-001`）。

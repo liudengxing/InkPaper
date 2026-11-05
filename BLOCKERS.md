@@ -2,18 +2,27 @@
 
 > 记录被阻塞的条目、已尝试方案与具体报错；`ARCH-LAYER-002 / A-09` 要求的许可结论也记在此处。
 
-## VOICE-001 · 本机系统语音识别疑似不可用（未解，2026-11-05）
+## VOICE-001 · 语音改为「默认关闭 + 仅讯飞」，系统识别整体移除（已解决，2026-11-05 · 1.1.57 `d8f395c`）
 
-- **现象**：点首页麦克风进编辑器后立刻显示「正在聆听…」，长时间无任何识别文字，点麦克风 / 点「点击停止」都没反应（修复前）。
-- **取证**：
-  - `adb shell dumpsys audio` 的 Recording Activity 列表为空 → **麦克风根本没被占用**，不是"在录但识别不出来"
-  - 状态栏无麦克风使用指示；等待 30s 也无任何 `onResult`
-  - `speech_to_text` 侧 `isListening == true`、`listen()` 正常返回，说明平台"假装"启动成功
-- **已修（`290f9d6`，1.1.56）**：平台调用全加超时、防抖标志改时间窗、停止先复位 UI、12s 哑火看门狗、`onError` 全量上报。**「停不掉」已闭环，但"识别起不来"的根因未定位。**
-- **待确认**：
-  1. 该 HyperOS 设备是否存在可用的 Android `RecognitionService`（`adb shell cmd package query-services -a android.speech.RecognitionService` 或装 debug 包看 `SpeechRecognizer.isRecognitionAvailable`）
-  2. 设置里切「讯飞」模式能否正常出字（能出 → 只是本地引擎缺失，考虑首次使用引导）
-- **临时结论**：界面不再卡死；引擎不可用时会自己收尾并提示「没有检测到麦克风输入，语音识别可能不可用」。
+- **原现象**：点首页麦克风进编辑器后立刻显示「正在聆听…」，长时间无任何识别文字，点停止也没反应；`adb shell dumpsys audio` 的 Recording Activity 为空 → 麦克风根本没被占用，但 `speech_to_text` 侧 `isListening == true`（平台「假装」启动成功）。
+- **处理决定（不再追根因）**：这个根因（HyperOS 无可用 `RecognitionService`）在用户设备上不可控，留着就是长期隐患。改为：
+  1. 系统识别链路（`speech_to_text` 插件 + 本地识别代码 + 失败弹窗）**整体删除**；依赖从 `pubspec.yaml` 移除
+  2. 百度语音链路（`baidu_speech_service` / `baidu_realtime_speech_service`）**无任何调用方**，属死代码，一并删除（含 `AppConfig.BAIDU_*` 常量与专用文案）
+  3. 新增 `AppConfig.speechInputEnabled` = `iflytekSpeechEnabled && 三件套齐全`；首页输入条与编辑器右上角麦克风**只在为真时渲染**
+  4. `IflytekSpeechService` 补 `onDone`：VAD 判停（status=2）或连接关闭时回调一次，编辑器自动落字并复位「正在聆听」
+- **验收**：`dart tool/inkpaper.dart analyze` 仅剩 `_backup` 历史 info；`test` 530 项全绿（新增 6 项覆盖 `speechInputEnabled` 组合）；`build android-release` 成功（50.1MB）。
+- **仍未验证**：**讯飞端到端真机**。本机 `adb connect 192.168.0.108:35819` 超时（设备离线），所以「填三件套 → 首页出现麦克风 → 说长句 → 判停自动落字」这条链只有编译与单测保证，没有真机证据。
+
+## STRUCT-001 · 结构与巨型文件（部分完成，2026-11-05 · 1.1.57 `eed02f3`）
+
+- **已做（P0，纯机械）**：`widgets→screens` 2 个页面（`image_viewer_screen`、`share_image_preview_screen`）；`services→utils` 7 个纯函数工具（`note_sorting_helper` / `note_tags_helper` / `notes_pagination_helper` / `sync_merge_helper` / `sync_status_helper` / `weread_parser` / `notes_context_builder`）。目录规模：screens 37 / widgets 23 / services 39 / utils 32。
+- **刻意没做（附理由）**：
+  - `utils/share_utils.dart`（2441 行）是 Canvas 绘制/截图逻辑，`utils/share_image_widget.dart` 被它依赖；把 widget 挪进 `widgets/` 会制造 `utils → widgets` 逆依赖，因此两者保持原位
+  - `services/note_actions_service.dart` 是唯一一处 `services → providers` 逆向依赖，需要改结构（动作函数下沉），不在机械改动范围
+- **仍欠**：
+  1. 5 个巨型文件：`app_provider.dart` 4966 / `note_editor.dart` 3844 / `home_screen.dart` 2920 / `local_backup_restore_screen.dart` 2768 / `preferences_screen.dart` 2764 行。建议沿 `app_provider_sync.part.dart` 的做法继续切 part（AI、导入导出），而不是搬文件夹
+  2. 根目录仍有 4 个内部文档（`ARCHITECTURE.md` 停在 1.0.15 / `AUDIT.md` / `BASELINE.md` / `LOCAL_DEV_SETUP.md`）未进 `docs/`，`docs/README.md` 没有索引它们
+  3. 不建议 feature-first 重排：路径全变会让 `HANDOFF` / `BUSINESS_OVERVIEW` 里几十处「文件:行号」作废，且一次几百文件的 diff 无法 review
 
 ## ORIENT-001 · App 未做方向锁，行为完全跟随系统（待决策，2026-11-05）
 

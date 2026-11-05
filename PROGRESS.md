@@ -1,3 +1,46 @@
+## 2026-11-05 · 结构归位：9 个错层文件各回各位 · done
+
+- 背景：`lib/` 164 个文件 / 10.3 万行，分层骨架没问题，但有文件放错层，看目录猜不到
+- 改动（`eed02f3`，纯机械，逻辑零改动）：
+  - `widgets → screens`：`image_viewer_screen.dart`、`share_image_preview_screen.dart`（都是页面，与 go_router 页面清单对不上）
+  - `services → utils`：`note_sorting_helper` / `note_tags_helper` / `notes_pagination_helper` / `sync_merge_helper` / `sync_status_helper` / `weread_parser` / `notes_context_builder`（7 个无状态纯函数，`BUSINESS_OVERVIEW` 自己都称它们「纯函数工具」）
+  - 18 个文件的 import 路径同步；`dart fix --code=directives_ordering` 修掉重排后的 import 顺序
+- 刻意没动：
+  - `utils/share_utils.dart` + `utils/share_image_widget.dart` 保持原位——前者是 Canvas 绘制/截图，后者被它依赖，挪 widget 进 `widgets/` 反而制造 `utils → widgets` 逆依赖
+  - `services/note_actions_service.dart` 的 `services → providers` 逆依赖，需要改结构，留待 P1
+- 目录规模：screens 37 / widgets 23 / services 39 / utils 32（文件总数 166 → 164，含删掉的百度语音）
+- 验证：
+```
+$ dart tool/inkpaper.dart analyze
+1 issue found.   # 仅 _backup/analyze_backup.dart 那条历史 info（DOC-001）
+$ dart tool/inkpaper.dart test
+02:15 +530: All tests passed!
+```
+- 备注：`flutter test` 在本机需绕开沙箱代理（`http_proxy` 会让 flutter_tester 的 websocket 连接报 `Invalid WebSocket upgrade request`），命令改成 `env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy dart tool/inkpaper.dart test`
+
+## 2026-11-05 · 语音改为默认关闭且仅讯飞，系统/百度识别删除 · done
+
+- 需求：首页默认不展示语音按钮；设置里开启语音并填讯飞 API 后首页才出现；系统语音相关功能删掉
+- 结论：`VOICE-001` 结项——不再追 HyperOS 有无 `RecognitionService` 的根因，直接不赌
+- 改动（`d8f395c`）：
+  - `lib/services/speech_service.dart`：892 → 135 行，只留讯飞；删掉 `speech_to_text` 的初始化/续听/语种解析/失败弹窗/超时兜底
+  - `lib/services/iflytek_speech_service.dart`：`isConfigured` 去掉 `speechRecognitionMode` 判断；补 `onDone`（VAD 判停 status=2 或连接关闭回调一次，`_doneEmitted` 防重）
+  - 删除 `baidu_speech_service.dart` / `baidu_realtime_speech_service.dart`（无调用方）+ `AppConfig.BAIDU_*` 常量 + 百度专用 l10n
+  - `lib/models/app_config_model.dart`：新增 `speechInputEnabled = iflytekSpeechEnabled && 三件套齐全`；`SPEECH_MODE_SYSTEM` 常量删除，默认模式改 `iflytek`（老配置里的 `'system'` 仍能读，但不参与判断）
+  - `lib/screens/home_screen.dart`：底部输入条右侧麦克风改条件渲染（`context.select` 读 `speechInputEnabled`）
+  - `lib/widgets/note_editor.dart`：编辑器麦克风按钮同样按开关显隐；`startWithSpeech` 加守卫
+  - `lib/screens/ai_settings_screen.dart`：「系统识别 / 讯飞」分段控件 → 「语音输入」开关 + 三件套；文案改为实际行为（原文说「长按首页 + 号」，代码里从来没有该手势）
+  - `pubspec.yaml`：移除 `speech_to_text` 依赖；`1.1.56+10152` → `1.1.57+10153`
+- 新增单测：`test/unit/app_config_speech_test.dart`（6 项：默认关 / 只有开关 / 三件套齐 / 空白密钥 / copyWith 关 / 旧配置 system 残留）
+- 验证：
+```
+$ dart tool/inkpaper.dart analyze   → 仅 _backup 那条 info
+$ dart tool/inkpaper.dart test      → 530 项全绿
+$ dart tool/inkpaper.dart build android-release
+√ Built build\app\outputs\flutter-apk\app-release.apk (50.1MB)
+```
+- 未验证：**讯飞端到端真机**（`adb connect 192.168.0.108:35819` 超时，设备离线）；iOS 的 `NSSpeechRecognitionUsageDescription` 保留未动（不再被请求，删它属不可验证的改动）
+
 ## 2026-11-05 · 语音不卡死 + 首页滚动/时间口径 + AI 图标定稿 · done
 
 - **语音（`290f9d6`）**：真机复现「正在聆听停不掉」，`dumpsys audio` 确认其实没在录音

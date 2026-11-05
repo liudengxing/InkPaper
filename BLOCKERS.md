@@ -43,6 +43,16 @@
   3. 根目录 4 个内部文档（`ARCHITECTURE.md` 停在 1.0.15 / `AUDIT.md` / `BASELINE.md` / `LOCAL_DEV_SETUP.md`）未进 `docs/`
 - **不建议**：feature-first 重排 166 个文件。路径全变会让文档里几十处「文件:行号」作废，git blame 断代，一次几百文件的 diff 无法 review。
 
+## AI-INSIGHT-001 · AI 洞察页没有入口（待决策，2026-11-05 · 1.1.59）
+
+- **现象**：`lib/screens/ai_insight_screen.dart`（L1 从 `home_screen.dart` 抽出的 977 行完整页面）在真机上点不到。唯一调用它的 `home_screen.dart:1921 _showAiInsightDialog()` 带着 `// ignore: unused_element`，自 `c059bf8`「排序改为标题下方下拉菜单，移除顶栏 AI 入口」之后就没有任何调用方了。
+- **影响**：这不影响编译和测试，但 `docs/HANDOFF.md` 把它当作可用功能列在代码地图里，属于文档与代码不一致；后续如果有人「修」这个页面，会白费力气。
+- **选项**：
+  1. 在侧边栏「回顾」附近加一个入口，让它真正可用（需确认产品上是否还要这个功能——它的能力与「回顾」「问笔记」有重叠）
+  2. 连同 `_showAiInsightDialog` 一起删除，`ai_insight_screen.dart` 一并移除
+  3. 保持现状，只在文档里标注「当前无入口」
+- **建议**：先定产品取舍（1 或 2），别长期挂着一个点不到的页面。
+
 ## ORIENT-001 · App 未做方向锁，行为完全跟随系统（待决策，2026-11-05）
 
 - **现状**：`lib/` 全库无 `SystemChrome.setPreferredOrientations`；`android/app/src/main/AndroidManifest.xml` 无 `android:screenOrientation`；实测设备 `accelerometer_rotation=0`（锁定竖屏）、`user_rotation=0`。

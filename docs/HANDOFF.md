@@ -34,14 +34,31 @@ dart tool/inkpaper.dart build android-release
 dart tool/inkpaper.dart release vX.Y.Z    # 打 tag 触发 CI
 ```
 
-真机（小米 HyperOS，USB 或 `adb connect 192.168.0.108:35819`）：
+真机（小米 14 / HyperOS，`23127PN0CC`，1200×2670，density 480）：
 
-```powershell
-adb -s 192.168.0.108:35819 install -r build/app/outputs/flutter-apk/app-release.apk
-adb -s 192.168.0.108:35819 shell am force-stop com.didichou.inkpaper
-adb -s 192.168.0.108:35819 shell am start -n com.didichou.inkpaper/.MainActivity
-adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out 直接重定向（会破坏二进制）
+```bash
+# 端口不固定：每次关开「无线调试」都会重新分配，配对端口和主端口也不同。
+# 手机 开发者选项 → 无线调试：顶部「IP 地址和端口」= 主端口；
+# 「使用配对码配对设备」弹窗里的 IP:端口 + 6 位码 = 配对用。
+adb pair 192.168.0.108:<配对端口> <6位配对码>
+adb connect 192.168.0.108:<主端口>
+
+export MSYS_NO_PATHCONV=1        # Git Bash 必需，否则 /sdcard/x.png 被改写成 Windows 路径
+D="-s 192.168.0.108:<主端口>"
+adb $D install -r build/app/outputs/flutter-apk/app-release.apk
+adb $D shell am force-stop com.didichou.inkpaper
+adb $D shell am start -n com.didichou.inkpaper/.MainActivity
+adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out 直接重定向（会破坏二进制）
 ```
+
+**环境坑（2026-11-05 实测）**：
+
+1. **adb server 在每条命令结束时会被回收**（本机沙箱行为），下一条命令重新拉起 daemon 就丢了连接——**每条 adb 命令前都要重新 `adb connect`**，或把 connect 和操作写进同一条命令。
+2. **Git Bash 会改写路径**：`/sdcard/x.png` 被换成 `F:/.../sdcard/x.png`，`screencap` 直接失败。必须 `export MSYS_NO_PATHCONV=1`。
+3. **默认输入法是微信输入法的插件服务**（`com.tencent.wetype/.plugin.hld.WxHldService`）时 `input text` 完全不生效（文字被吞成剪贴板建议）。临时切搜狗 `adb shell ime set com.sohu.inputmethod.sogou.xiaomi/.SogouIME`，验完切回。
+4. **截图写 `/sdcard/` 会进系统相册**（小米「安全访问」图片选择器里能看到全部截图），验完必须 `rm`。
+5. **HyperOS 息屏省电**时 ping 从 1ms 涨到 80~150ms 且抖动，属正常，别误判成「不在同一局域网」。
+6. **坐标别靠肉眼换算**：`uiautomator dump` 能取到 Flutter 工具栏按钮的精确 `bounds`。按「截图 480px 宽 → 实际 1200px，比例 2.5」手算会偏 10~170px，用 dump 出来的 center 最稳。
 
 实测耗时：release 全量 ~115s，debug 增量 ~40s。release 需要 `android/key.properties`，缺失时 Gradle 直接报错。
 
@@ -67,7 +84,7 @@ adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来�
 | `#` 标签补全（前缀识别、候选排序、插入） | `lib/utils/tag_input_helper.dart` |
 | 批注（侧边栏 + 三个对话框 + 写操作） | `lib/widgets/note_annotation_dialogs.dart` |
 | 「引用笔记」选择框 | `lib/widgets/note_reference_dialog.dart` |
-| AI 洞察页 | `lib/screens/ai_insight_screen.dart` |
+| AI 洞察页 | `lib/screens/ai_insight_screen.dart`（⚠️ **当前无 UI 入口**，见 `BLOCKERS.md` AI-INSIGHT-001） |
 | 语音服务（仅讯飞，默认关闭） | `lib/services/speech_service.dart`、`lib/services/iflytek_speech_service.dart` |
 | 周/月回顾 | `lib/services/periodic_review_service.dart`、`ai_review_service.dart`、`lib/screens/periodic_review_screen.dart` |
 | 「问笔记」上下文预算 | `lib/utils/notes_context_builder.dart` |
@@ -108,7 +125,7 @@ adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来�
 
 | ID | 问题 | 现状与证据 | 建议 |
 | --- | --- | --- | --- |
-| ~~VOICE-001~~ | **已解决（1.1.57 `d8f395c`）**：不再赌设备有没有系统识别引擎 | 根因不再追：系统识别在部分国产 ROM 上「静默假启动」，留着就是隐患。改为「默认关闭 + 仅讯飞」，两个麦克风入口都由 `speechInputEnabled` 控制显隐；百度死链路一并删除。结论与验证见 `BLOCKERS.md` | 待办只剩一次讯飞端到端真机验证（本机 adb 目前连不上） |
+| ~~VOICE-001~~ | **已解决（1.1.57 `d8f395c`）**：不再赌设备有没有系统识别引擎 | 根因不再追：系统识别在部分国产 ROM 上「静默假启动」，留着就是隐患。改为「默认关闭 + 仅讯飞」，两个麦克风入口都由 `speechInputEnabled` 控制显隐；百度死链路一并删除。结论与验证见 `BLOCKERS.md` | 语音入口显隐已在 1.1.59 真机确认（首页/编辑器均无麦克风）；**讯飞端到端仍未验**——设备没配密钥 |
 | ORIENT-001 | **App 没有方向锁** | `lib/` 内无 `SystemChrome.setPreferredOrientations`，`AndroidManifest.xml` 无 `android:screenOrientation`；设备当前 `accelerometer_rotation=0`（锁定竖屏）、`user_rotation=0`。即：转不转完全由系统开关决定 | 若希望 App 行为确定，可在 `main()` 锁竖屏，仅在图片查看器放开横屏；需产品确认 |
 | PERF-IMG-001 | **多图笔记详情页 / 大图查看器是否还卡** | `fc1b832` 已统一解码档位并延后解码，但**没有做过真机前后对比**，是否彻底解决未知 | 用 9 图笔记复测：进详情页、连续翻图、Live 图播放，看是否还有掉帧 |
 | DOC-001 | **工具链噪音（一半已解）** | ✅ `_backup/` 已进 `analysis_options.yaml` 的 exclude，`analyze` 退出码归 0；⏳ `CHANGELOG.md` 仍停在 `1.1.13`，落后约 45 个版本 | 只剩 CHANGELOG：要么按阶段补齐，要么声明「以 PROGRESS.md 为准」（倾向后者） |
@@ -119,7 +136,7 @@ adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来�
 
 **P0（接着做）**
 
-1. 讯飞语音端到端真机验证（1.1.57 已改为唯一链路）：填好三件套 → 首页出现麦克风 → 长句/断句/连续聆听 → 看 VAD 判停后是否自动落字。设备当前 `adb connect` 超时，**尚未真机验证**。
+1. 讯飞语音端到端真机验证（1.1.57 已改为唯一链路）：填好三件套 → 首页出现麦克风 → 长句/断句/连续聆听 → 看 VAD 判停后是否自动落字。**1.1.59 已真机确认「关闭时无麦克风」，开启态与识别链路仍未验（设备没配讯飞密钥）**。
 2. 图片性能复测：9 图笔记详情页滑动、大图查看器左右翻、Live 图播放，确认 `fc1b832` 的收益并决定是否继续压（例如更小的解码档位、只在静止时解码）。
 
 **P1（下一步功能）**
@@ -180,11 +197,12 @@ adb -s 192.168.0.108:35819 shell screencap -p /sdcard/s.png   # 再 pull 回来�
 - 不要删 .codebuddy/、_backup/、build/。
 
 【真机参数（Android）】
-- 设备：adb connect 192.168.0.108:35819（小米 HyperOS 23127PN0CC，1200×2670）；命令里显式 -s 192.168.0.108:35819。
+- 设备：小米 14 / HyperOS 23127PN0CC，1200×2670。**无线调试端口每次关开都会变**，先 `adb pair IP:配对端口 6位码` 再 `adb connect IP:主端口`；命令里显式 -s。
 - 装机：adb -s … install -r build/app/outputs/flutter-apk/app-release.apk（release 需要 android/key.properties）。
 - 启停：adb -s … shell am force-stop com.didichou.inkpaper / am start -n com.didichou.inkpaper/.MainActivity。
-- 操作：adb -s … shell input tap X Y / input swipe X1 Y1 X2 Y2 120（坐标=截图像素）。
-- 截图：adb -s … shell screencap -p /sdcard/x.png → adb -s … pull /sdcard/x.png 本地路径；不要用 exec-out 重定向（会破坏二进制）。
+- 操作：adb -s … shell input tap X Y / input swipe X1 Y1 X2 Y2 120（坐标=设备像素）；精确坐标用 `uiautomator dump` 取 bounds，别拿截图手算。
+- 截图：adb -s … shell screencap -p /sdcard/x.png → adb -s … pull /sdcard/x.png 本地路径；不要用 exec-out 重定向（会破坏二进制）。Git Bash 必须先 `export MSYS_NO_PATHCONV=1`；**截图存 /sdcard/ 会进相册，验完删掉**。
+- 每个 Bash 调用结束 adb server 会被回收，**每条命令都要重新 connect**；默认输入法是微信输入法插件服务时 `input text` 无效，需临时切搜狗。
 - 没有设备就明说「未真机验证」，不要假装验证过。
 
 【环境坑】

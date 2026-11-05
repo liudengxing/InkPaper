@@ -8,6 +8,7 @@ import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/note_actions_ui.dart';
+import 'package:inkpaper/widgets/note_annotation_dialogs.dart';
 import 'package:provider/provider.dart';
 
 /// 🎨 笔记更多选项菜单（flomo 式悬浮卡片）
@@ -137,7 +138,7 @@ class NoteMoreOptionsMenu {
           );
           break;
         case 'annotations':
-          await NoteActionsUi.showAnnotations(
+          await NoteAnnotationDialogs.showSidebar(
             context: context,
             note: currentNote,
             onUpdated: () {

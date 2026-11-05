@@ -9,7 +9,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
-import 'package:inkpaper/models/annotation_model.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/screens/image_viewer_screen.dart';
@@ -25,8 +24,8 @@ import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:inkpaper/utils/text_style_helper.dart';
 import 'package:inkpaper/utils/todo_parser.dart';
-import 'package:inkpaper/widgets/annotations_sidebar.dart';
 import 'package:inkpaper/widgets/note_actions_ui.dart';
+import 'package:inkpaper/widgets/note_annotation_dialogs.dart';
 import 'package:inkpaper/widgets/note_image_grid.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
 import 'package:inkpaper/widgets/note_preview_text.dart';
@@ -1206,357 +1205,25 @@ class _NoteCardState extends State<NoteCard>
   }
 
   // 显示批注侧边栏
+  //
+  // 批注的增删改与三个对话框统一由 NoteAnnotationDialogs 提供（此前本文件
+  // 与 note_actions_ui.dart 各有一份副本，已经在行为上漂移）。
+  // 首页卡片点某条批注要跳到详情页，所以覆盖 onAnnotationOpened。
   void _showAnnotationsSidebar(Note note) {
-    // 在主页直接显示批注侧边栏
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.9,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) => AnnotationsSidebar(
-          note: note,
-          onAnnotationTap: (annotation) {
-            // 关闭侧边栏并跳转到笔记详情
-            Navigator.pop(context);
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => NoteDetailScreen(noteId: note.id),
-              ),
-            );
-          },
-          onAddAnnotation: () {
-            Navigator.pop(context);
-            _showAddAnnotationDialog(note);
-          },
-          onEditAnnotation: (annotation) {
-            Navigator.pop(context);
-            _showEditAnnotationDialog(note, annotation);
-          },
-          onDeleteAnnotation: (annotationId) {
-            Navigator.pop(context);
-            _deleteAnnotation(note, annotationId);
-          },
-          onResolveAnnotation: (annotation) {
-            _resolveAnnotation(note, annotation);
-          },
-        ),
+    unawaited(
+      NoteAnnotationDialogs.showSidebar(
+        context: context,
+        note: note,
+        onUpdated: () {},
+        onAnnotationOpened: (annotation) {
+          Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (context) => NoteDetailScreen(noteId: note.id),
+            ),
+          );
+        },
       ),
-    );
-  }
-
-  // 添加批注对话框
-  void _showAddAnnotationDialog(Note note) {
-    final localizations = AppLocalizationsSimple.of(context);
-    final textController = TextEditingController();
-    var selectedType = AnnotationType.comment;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Row(
-            children: [
-              const Icon(Icons.add_comment, size: 20),
-              const SizedBox(width: 8),
-              Text(localizations?.addAnnotation ?? '添加批注'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  localizations?.annotationType ?? '批注类型',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: AnnotationType.values.map((type) {
-                    final annotation = Annotation(
-                      id: '',
-                      content: '',
-                      createdAt: DateTime.now(),
-                      type: type,
-                    );
-                    return ChoiceChip(
-                      label: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(annotation.typeIcon, size: 16),
-                          const SizedBox(width: 4),
-                          Text(annotation.getTypeText(context)),
-                        ],
-                      ),
-                      selected: selectedType == type,
-                      selectedColor:
-                          annotation.typeColor.withValues(alpha: 0.2),
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() => selectedType = type);
-                        }
-                      },
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: textController,
-                  maxLines: 5,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText:
-                        localizations?.annotationPlaceholder ?? '在这里写下你的批注...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(localizations?.cancel ?? '取消'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final content = textController.text.trim();
-                if (content.isNotEmpty) {
-                  _addAnnotation(note, content, selectedType);
-                  Navigator.pop(context);
-                }
-              },
-              child: Text(localizations?.addAnnotation ?? '添加'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // 添加批注
-  void _addAnnotation(Note note, String content, AnnotationType type) {
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-
-    final newAnnotation = Annotation(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      content: content,
-      createdAt: DateTime.now(),
-      type: type,
-    );
-
-    final updatedAnnotations = [...note.annotations, newAnnotation];
-    final updatedNote = note.copyWith(
-      annotations: updatedAnnotations,
-      updatedAt: DateTime.now(),
-    );
-
-    appProvider.updateNote(updatedNote, updatedNote.content);
-    final localizations = AppLocalizationsSimple.of(context);
-    SnackBarUtils.showSuccess(
-      context,
-      localizations?.annotationAdded ?? '批注已添加',
-    );
-  }
-
-  // 编辑批注对话框
-  void _showEditAnnotationDialog(Note note, Annotation annotation) {
-    final localizations = AppLocalizationsSimple.of(context);
-    final textController = TextEditingController(text: annotation.content);
-    var selectedType = annotation.type;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Row(
-            children: [
-              const Icon(Icons.edit_outlined, size: 20),
-              const SizedBox(width: 8),
-              Text(localizations?.editAnnotation ?? '编辑批注'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  localizations?.annotationType ?? '批注类型',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: AnnotationType.values.map((type) {
-                    final tempAnnotation = Annotation(
-                      id: '',
-                      content: '',
-                      createdAt: DateTime.now(),
-                      type: type,
-                    );
-                    return ChoiceChip(
-                      label: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(tempAnnotation.typeIcon, size: 16),
-                          const SizedBox(width: 4),
-                          Text(tempAnnotation.getTypeText(context)),
-                        ],
-                      ),
-                      selected: selectedType == type,
-                      selectedColor:
-                          tempAnnotation.typeColor.withValues(alpha: 0.2),
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() => selectedType = type);
-                        }
-                      },
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: textController,
-                  maxLines: 5,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText:
-                        localizations?.annotationEditPlaceholder ?? '修改批注内容...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(localizations?.cancel ?? '取消'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final content = textController.text.trim();
-                if (content.isNotEmpty) {
-                  _updateAnnotation(note, annotation.id, content, selectedType);
-                  Navigator.pop(context);
-                }
-              },
-              child: Text(localizations?.save ?? '保存'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // 更新批注
-  void _updateAnnotation(
-    Note note,
-    String annotationId,
-    String newContent,
-    AnnotationType newType,
-  ) {
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-
-    final updatedAnnotations = note.annotations.map((a) {
-      if (a.id == annotationId) {
-        return a.copyWith(
-          content: newContent,
-          type: newType,
-          updatedAt: DateTime.now(),
-        );
-      }
-      return a;
-    }).toList();
-
-    final updatedNote = note.copyWith(
-      annotations: updatedAnnotations,
-      updatedAt: DateTime.now(),
-    );
-
-    appProvider.updateNote(updatedNote, updatedNote.content);
-    final localizations = AppLocalizationsSimple.of(context);
-    SnackBarUtils.showSuccess(
-      context,
-      localizations?.annotationUpdated ?? '批注已更新',
-    );
-  }
-
-  // 删除批注
-  void _deleteAnnotation(Note note, String annotationId) {
-    final localizations = AppLocalizationsSimple.of(context);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(localizations?.deleteAnnotation ?? '删除批注'),
-        content: Text(localizations?.confirmDeleteAnnotation ?? '确定要删除这条批注吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(localizations?.cancel ?? '取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final appProvider =
-                  Provider.of<AppProvider>(context, listen: false);
-
-              final updatedAnnotations =
-                  note.annotations.where((a) => a.id != annotationId).toList();
-
-              final updatedNote = note.copyWith(
-                annotations: updatedAnnotations,
-                updatedAt: DateTime.now(),
-              );
-
-              appProvider.updateNote(updatedNote, updatedNote.content);
-              Navigator.pop(context);
-              SnackBarUtils.showSuccess(
-                context,
-                localizations?.annotationDeleted ?? '批注已删除',
-              );
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
-            child: Text(localizations?.delete ?? '删除'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 标记批注为已解决
-  void _resolveAnnotation(Note note, Annotation annotation) {
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-
-    final updatedAnnotations = note.annotations.map((a) {
-      if (a.id == annotation.id) {
-        return a.copyWith(isResolved: true);
-      }
-      return a;
-    }).toList();
-
-    final updatedNote = note.copyWith(
-      annotations: updatedAnnotations,
-      updatedAt: DateTime.now(),
-    );
-
-    appProvider.updateNote(updatedNote, updatedNote.content);
-    final localizations = AppLocalizationsSimple.of(context);
-    SnackBarUtils.showSuccess(
-      context,
-      localizations?.markedAsResolved ?? '已标记为已解决',
     );
   }
 

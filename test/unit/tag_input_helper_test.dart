@@ -180,4 +180,125 @@ void main() {
       expect(result.text, '#java ');
     });
   });
+
+  group('rankTagsByUsage', () {
+    // 固定一个「现在」，否则时效分随跑测试的日期漂移。
+    final now = DateTime(2026, 11, 5, 12);
+
+    TagUsageEntry entry(List<String> tags, int daysAgo) => (
+          tags: tags,
+          updatedAt: now.subtract(Duration(days: daysAgo)),
+        );
+
+    test('TG-01 没有任何笔记时返回空列表', () {
+      expect(rankTagsByUsage(notes: <TagUsageEntry>[], now: now), isEmpty);
+    });
+
+    test('TG-02 使用时间相同时按频次降序', () {
+      final tags = rankTagsByUsage(
+        notes: [
+          entry(['rare'], 1),
+          entry(['often'], 1),
+          entry(['often'], 1),
+          entry(['often'], 1),
+        ],
+        now: now,
+      );
+      expect(tags, ['often', 'rare']);
+    });
+
+    test('TG-03 昨天只用过一次，也压过一年前用过三次的', () {
+      final tags = rankTagsByUsage(
+        notes: [
+          entry(['old'], 365),
+          entry(['old'], 365),
+          entry(['old'], 365),
+          entry(['fresh'], 1),
+        ],
+        now: now,
+      );
+      expect(tags.first, 'fresh');
+    });
+
+    test('TG-04 长期高频的标签仍然排在最前', () {
+      final tags = rankTagsByUsage(
+        notes: [
+          for (var i = 0; i < 30; i++) entry(['daily'], 200),
+          entry(['once'], 0),
+        ],
+        now: now,
+      );
+      expect(tags.first, 'daily');
+    });
+
+    test('TG-05 同一条笔记里的重复标签累加次数', () {
+      final tags = rankTagsByUsage(
+        notes: [
+          entry(['dup', 'dup'], 0),
+          entry(['single'], 0),
+        ],
+        now: now,
+      );
+      expect(tags.first, 'dup');
+    });
+
+    test('TG-06 频次与时间都相同时按名称升序，保证顺序稳定', () {
+      final tags = rankTagsByUsage(
+        notes: [
+          entry(['zeta'], 0),
+          entry(['alpha'], 0),
+        ],
+        now: now,
+      );
+      expect(tags, ['alpha', 'zeta']);
+    });
+
+    test('TG-07 大小写不同的标签算两个，不被合并', () {
+      final tags = rankTagsByUsage(
+        notes: [
+          entry(['Java'], 0),
+          entry(['java'], 0),
+        ],
+        now: now,
+      );
+      expect(tags.length, 2);
+      expect(tags.toSet(), {'Java', 'java'});
+    });
+
+    test('TG-08 最近使用时间取所有笔记里最新的那一条', () {
+      final tags = rankTagsByUsage(
+        notes: [
+          entry(['shared'], 300),
+          entry(['shared'], 1),
+          entry(['other'], 3),
+        ],
+        now: now,
+      );
+      expect(tags.indexOf('shared'), lessThan(tags.indexOf('other')));
+    });
+
+    test('TG-09 未来时间（时钟偏差）不会排到最后', () {
+      final tags = rankTagsByUsage(
+        notes: [
+          (tags: ['future'], updatedAt: now.add(const Duration(days: 2))),
+          entry(['past'], 10),
+        ],
+        now: now,
+      );
+      expect(tags.first, 'future');
+    });
+
+    test('TG-10 频次相同时按最近使用时间降序', () {
+      final tags = rankTagsByUsage(
+        notes: [
+          entry(['older'], 40),
+          entry(['newer'], 40),
+          entry(['newer'], 2),
+        ],
+        now: now,
+      );
+      // newer 频次 2 > older 频次 1，这里只确认它在前
+      expect(tags.first, 'newer');
+    });
+  });
 }

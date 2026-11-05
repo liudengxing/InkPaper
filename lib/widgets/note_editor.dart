@@ -205,11 +205,13 @@ class _NoteEditorState extends State<NoteEditor>
     }
 
     final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final allTagsSet = <String>{};
-    for (final note in appProvider.notes) {
-      allTagsSet.addAll(note.tags);
-    }
-    final allTags = allTagsSet.toList()..sort();
+    // 候选按「最近 + 最常用」排，而不是字典序：
+    // 用户攒起来的常用标签要浮到前面，否则每次都得在字母表里翻。
+    final allTags = rankTagsByUsage(
+      notes: appProvider.notes.map(
+        (note) => (tags: note.tags, updatedAt: note.updatedAt),
+      ),
+    );
 
     final suggestions = rankTagSuggestions(
       allTags: allTags,
@@ -1188,8 +1190,10 @@ class _NoteEditorState extends State<NoteEditor>
     final hintTextColor = isDarkMode ? Colors.grey[600] : Colors.grey[400];
 
     // 确保即使只有图片也能保存
-    final canSave =
-        _textController.text.trim().isNotEmpty || _imageList.isNotEmpty;
+    // 注意：发送按钮的可用状态不能在这里算。本方法只在行数变化（或 setState）
+    // 时重建，而首行输入不改变行数，按钮会一直是灰的、点不动（要按一次回车
+    // 才「刷」过来）。所以把这部分交给按钮自己的 ValueListenableBuilder 监听
+    // 输入内容，见下方「发送按钮」。
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -1796,33 +1800,43 @@ class _NoteEditorState extends State<NoteEditor>
                               ),
 
                               // 发送按钮
-                              Container(
-                                padding: const EdgeInsets.only(right: 12),
-                                child: Container(
-                                  width: 70,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    color: canSave
-                                        ? (isDarkMode
-                                            ? AppTheme.primaryLightColor
-                                            : AppTheme.primaryColor)
-                                        : (isDarkMode
-                                            ? Colors.grey[700]
-                                            : Colors.grey[300]),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: IconButton(
-                                    icon: const Icon(
-                                      Icons.send,
-                                      color: Colors.white,
-                                      size: 18,
+                              // 直接监听输入内容，不再依赖外层 build 重建：
+                              // 首行打字不改变行数，原先按钮会一直保持灰色。
+                              ValueListenableBuilder<TextEditingValue>(
+                                valueListenable: _textController,
+                                builder: (context, textValue, _) {
+                                  final canSave =
+                                      textValue.text.trim().isNotEmpty ||
+                                          _imageList.isNotEmpty;
+                                  return Container(
+                                    padding: const EdgeInsets.only(right: 12),
+                                    child: Container(
+                                      width: 70,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: canSave
+                                            ? (isDarkMode
+                                                ? AppTheme.primaryLightColor
+                                                : AppTheme.primaryColor)
+                                            : (isDarkMode
+                                                ? Colors.grey[700]
+                                                : Colors.grey[300]),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: IconButton(
+                                        icon: const Icon(
+                                          Icons.send,
+                                          color: Colors.white,
+                                          size: 18,
+                                        ),
+                                        padding: EdgeInsets.zero,
+                                        onPressed: (canSave && !_isSaving)
+                                            ? _saveNote
+                                            : null,
+                                      ),
                                     ),
-                                    padding: EdgeInsets.zero,
-                                    onPressed: (canSave && !_isSaving)
-                                        ? _saveNote
-                                        : null,
-                                  ),
-                                ),
+                                  );
+                                },
                               ),
                             ],
                           ),

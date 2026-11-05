@@ -6,6 +6,99 @@
 /// 由 `test/unit/tag_input_helper_test.dart` 覆盖。
 library;
 
+import 'dart:math' as math;
+
+/// 一条笔记对标签使用情况的贡献：它带了哪些标签、最后被动过是什么时候。
+typedef TagUsageEntry = ({List<String> tags, DateTime updatedAt});
+
+/// 按「最近 + 最常用」给全部标签排序。
+///
+/// 原先候选列表是 `allTags..sort()`（纯字典序），用户好不容易攒起来的常用
+/// 标签会被埋在字母表中间，每次都得往后翻。这里换成频次与时效的加权分：
+///
+/// * 频次分 `4 * log2(1 + count)`：用过 1 次得 4 分、3 次 8 分、15 次 16 分，
+///   增长刻意放缓，避免老标签靠历史次数永久霸榜。
+/// * 时效分看最近一次使用距今多久：1 天内 +12、7 天内 +8、30 天内 +4、
+///   90 天内 +1，更早不加分。
+///
+/// 于是「昨天刚用过一次」(16) 能压过「半年前用过三次」(8)，而长期高频的
+/// 标签(20 分上下)依然稳在前排。同分时依次按最近使用时间、频次、名称兜底，
+/// 保证每次弹出的顺序稳定（否则列表会抖）。
+List<String> rankTagsByUsage({
+  required Iterable<TagUsageEntry> notes,
+  DateTime? now,
+}) {
+  final reference = now ?? DateTime.now();
+  final counts = <String, int>{};
+  final lastUsed = <String, DateTime>{};
+
+  for (final note in notes) {
+    for (final tag in note.tags) {
+      counts[tag] = (counts[tag] ?? 0) + 1;
+      final previous = lastUsed[tag];
+      if (previous == null || note.updatedAt.isAfter(previous)) {
+        lastUsed[tag] = note.updatedAt;
+      }
+    }
+  }
+
+  final ranked = counts.keys
+      .map(
+        (tag) => (
+          tag: tag,
+          count: counts[tag]!,
+          used: lastUsed[tag]!,
+          score: _tagUsageScore(
+            count: counts[tag]!,
+            used: lastUsed[tag]!,
+            now: reference,
+          ),
+        ),
+      )
+      .toList()
+    ..sort((a, b) {
+      final byScore = b.score.compareTo(a.score);
+      if (byScore != 0) {
+        return byScore;
+      }
+      final byRecent = b.used.compareTo(a.used);
+      if (byRecent != 0) {
+        return byRecent;
+      }
+      final byCount = b.count.compareTo(a.count);
+      if (byCount != 0) {
+        return byCount;
+      }
+      return a.tag.compareTo(b.tag);
+    });
+
+  return ranked.map((entry) => entry.tag).toList();
+}
+
+double _tagUsageScore({
+  required int count,
+  required DateTime used,
+  required DateTime now,
+}) {
+  final frequency = 4 * (math.log(1 + count) / math.ln2);
+  final age = now.difference(used);
+
+  double freshness;
+  if (age.inHours <= 24) {
+    freshness = 12;
+  } else if (age.inDays <= 7) {
+    freshness = 8;
+  } else if (age.inDays <= 30) {
+    freshness = 4;
+  } else if (age.inDays <= 90) {
+    freshness = 1;
+  } else {
+    freshness = 0;
+  }
+
+  return frequency + freshness;
+}
+
 /// 光标处正在输入的标签前缀。
 ///
 /// `start` 是 `#` 在文本里的下标，`prefix` 是 `#` 之后到光标之间的内容

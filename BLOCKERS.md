@@ -37,10 +37,12 @@
 - **刻意没做（附理由）**：
   - `utils/share_utils.dart` 是 Canvas 绘制/截图逻辑，`share_image_widget.dart` 被它依赖；把 widget 挪进 `widgets/` 会制造 `utils → widgets` 逆依赖
   - `services/note_actions_service.dart` 是唯一一处 `services → providers` 逆向依赖，需要改结构（动作函数下沉）
-- **仍欠（L3，等设备上线再做）**：
-  1. `app_provider.dart` 的真实构成不是「全能上帝类」：约 **1500 行（30%）是账号与云验证**，跟笔记无关；AI 与导入导出早就不在里面。拆法是把账号域（~900 行）+ 云验证（~600 行）搬去 `lib/core/auth/`，再抽一个 `_mutateNote()` 统一 9 件事的编排（现在 `createNote` / `updateNote` 各复制一遍）
-  2. **`core/state/` 的 37 条纯转发 getter/setter 要在 L3 一并删掉**，让方法直接写 `_notesStore.notes`。`STATE-CORE-005` 只搬了字段没搬行为，留着这层转发只会让人误判「拆分已完成」，而且行数不降反升
-  3. 根目录 4 个内部文档（`ARCHITECTURE.md` 停在 1.0.15 / `AUDIT.md` / `BASELINE.md` / `LOCAL_DEV_SETUP.md`）未进 `docs/`
+- **已做 L3（1.1.60）**：分两步落地，都用 analyze + 全量 579 项测试兜底。
+  - **删转发层**：36 条到各域 Store 的纯转发 getter/setter 全部删除，方法体直接写 `_notesStore.notes` / `_authStore.user` 等（`_totalNotesCount` 因为写入时要让统计快照失效，保留为 `_setTotalNotesCount(int)` 具名方法）。`app_provider_sync.part.dart` 里的 12 处引用同步替换。
+  - **抽 `_commitNoteChange()`**：`createNote` / `updateNote`（3 个分支）/ `updateNoteLocally` / `setNoteVisibility` / `updateNoteTags` 各自复制的「落库 → 写内存 → 重建引用 → 重排 → 通知 UI → 刷小组件」收敛成一个方法，参数 `persist` 控制是否落库、`rebuildReferences` 控制是否重建引用。顺手修掉一个隐藏缺陷：`updateNoteTags` 改了 `updatedAt` 却没重排，按时间排序时卡片位置不动。
+  - **账号域拆出**：386 行（用户信息 / 登录信息存取 / `setUser` / API 服务初始化 2 个入口 / Token 过期处理 / 头像预加载）搬到 `lib/providers/app_provider_account.part.dart`，与既有 `app_provider_sync.part.dart` 同款 `extension` 形式，**实现一行未改**。`app_provider.dart` 4966 → 4460 行。
+  - 未做：云验证域只有 ~50 行（`_loadCloudVerificationData` + `refreshCloudData`），单独拆一个文件反而是碎片化，暂留主文件；`setLocalMode` / `switchToLocalMode` 夹着大量笔记重载逻辑，不算纯账号域，也未动。
+- **仍欠**：根目录 4 个内部文档（`ARCHITECTURE.md` 停在 1.0.15 / `AUDIT.md` / `BASELINE.md` / `LOCAL_DEV_SETUP.md`）未进 `docs/`
 - **不建议**：feature-first 重排 166 个文件。路径全变会让文档里几十处「文件:行号」作废，git blame 断代，一次几百文件的 diff 无法 review。
 
 ## AI-INSIGHT-001 · AI 洞察页没有入口（待决策，2026-11-05 · 1.1.59）

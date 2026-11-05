@@ -1,3 +1,34 @@
+## 2026-11-05 · L3：删转发层 + 抽取笔记收尾流程 + 账号域独立成 part（1.1.60+10156）· done
+
+- 背景：`STATE-CORE-005` 把字段搬进 `core/state/` 的 7 个 Store，但 `AppProvider` 里留了 36 条 `get _x => _store.x` 的纯转发。转发层让「拆分完成」看起来没完成、行数不降反升，且每个方法里仍是旧名字，读代码无法判断数据到底归谁管
+- 改动一（`cdd5adb`）：36 条转发全部删除，方法体直接写 `_notesStore.notes` / `_authStore.user` / `_webDavStore.config`。`_totalNotesCount` 是例外——它的 setter 要顺带把统计快照置空，保留为具名方法 `_setTotalNotesCount(int)`。`app_provider_sync.part.dart` 里 12 处引用同步替换
+- 改动二（`cdd5adb`）：抽 `_commitNoteChange(note, {persist, rebuildReferences})`。原先 `createNote`、`updateNote` 的三个分支、`updateNoteLocally`、`setNoteVisibility`、`updateNoteTags` **各自复制一遍**「落库 → 写内存 → 重建引用 → 重排 → 通知 UI → 刷小组件」，漏任何一步都只表现为「界面没刷新」「引用没重建」这类只能靠肉眼发现的 bug。收敛后 `updateNote` 从 152 行降到 90 行
+  - 顺带修掉一个隐藏缺陷：`updateNoteTags` 改了 `updatedAt` 却没调 `_applyCurrentSort`，按时间排序时改完标签卡片位置不动
+  - `setNoteVisibility` 原先只在「内存里找得到」时才通知 UI，统一后总是通知（找不到时通知一次是安全的，反而避免漏刷新）
+- 改动三（`cdd5adb`）：账号域 386 行搬到 `lib/providers/app_provider_account.part.dart`，与既有 `app_provider_sync.part.dart` 同款 `extension AppProviderAccountPart on AppProvider` 形式，**实现一行未改**，靠同 library 的 extension 直接访问 `_authStore` / `_appConfig` 等私有字段
+  - 搬出内容：`updateUserInfo` / `updatePassword` / `saveLoginInfo` / `clearLoginInfo` / `getSaved*` 4 个 / `setUser` / `_initializeApiServiceInBackground` / `_ensureApiServiceInitialized` / `_handleTokenExpired` / `_preloadUserAvatarAsync`
+  - `app_provider.dart` 4966 → 4460 行
+- 刻意没搬：云验证域只剩 ~50 行（`_loadCloudVerificationData` + `refreshCloudData`），单独拆文件是碎片化；`setLocalMode` / `switchToLocalMode` 夹着大量笔记重载逻辑，不算纯账号域
+- 踩坑记录：第一版删除脚本用 `^\s*(?:get|set)\s+_\w+` 识别定义块，漏掉了 `List<Note> get _notes` 这种**带类型**的单行定义，把它们改成了 `List<Note> get _notesStore.notes => ...` 的语法错误；`_totalNotesCount` 的多行 setter 还被重复插入 5 次。教训是这类机械替换必须先把「定义块」和「使用点」分开处理，改完立刻 analyze，不能靠肉眼扫 diff
+- 验证：
+```
+$ dart tool/inkpaper.dart analyze
+No issues found! (ran in 14.7s)
+$ dart tool/inkpaper.dart test
+01:56 +579: All tests passed!
+```
+
+## 2026-11-05 · 编辑器两处：标签候选改按最近常用排、修复首行输入后发送按钮置灰（1.1.60+10156）· done
+
+- 缺陷 1（发送按钮置灰）：新建笔记输入第一行文字后，右下角发送按钮仍是灰的、点不动，必须按一次回车换行才「亮」起来
+  - 根因：`canSave` 在 `_buildEditor` 里从 `_textController.text` 算，而 `_buildEditor` 只由 `_lineCountNotifier`（换行数）和 `setState` 触发重建。首行打字不改变行数 → 不重建 → 按钮保持初始的灰色状态；回车让行数 1→2 才顺带刷新
+  - 改法：把发送按钮包进 `ValueListenableBuilder<TextEditingValue>` 监听 controller 本身，`canSave` 在 builder 内计算。行数那个 Notifier 仍只负责编辑器高度，不改动
+- 缺陷 2（标签候选排序）：输入 `#` 弹出的标签建议按字典序排，用户攒起来的常用标签被埋在字母表中间
+  - 改法：`utils/tag_input_helper.dart` 新增 `rankTagsByUsage`，频次分 `4*log2(1+次数)`（用 1 次 4 分、3 次 8 分、15 次 16 分）+ 时效分（1 天内 +12、7 天内 +8、30 天内 +4、90 天内 +1），同分按最近使用时间、频次、名称兜底。效果：昨天用过一次(16) 压过半年前用过三次(8)，长期高频(20 上下)仍稳在前排
+  - 补 `TG-01..10` 十项单测（含时钟偏差导致 `updatedAt` 在未来、大小写不同的标签不被合并、顺序稳定性）
+- 验证：analyze 无 issue，579 项测试全绿（569 + 10）
+- 未验证：**真机**。标签弹出顺序与按钮点亮属于视觉结果，需装机点一遍
+
 ## 2026-11-05 · 真机验证 L1/L2（1.1.59+10155）· done
 
 - 设备重新联网：无线调试端口 35819 → 42741，且必须在手机上「使用配对码配对设备」重新配对（`adb pair`）后才连得上；本机 adbkey 未变，是手机端配对关系失效

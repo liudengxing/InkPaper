@@ -17,15 +17,13 @@ fi
 
 {
   echo "== 已执行的子命令 =="
-  grep -E '^> ' "$log" | tail -n 4
-  echo "== Gradle / Dart 具体失败段 =="
-  sed -n '/What went wrong/,+10p' "$log" | head -n 11
-  echo "== 疑似错误行 =="
-  grep -E 'issues found|Some tests failed|Execution failed|error:|Error:|FAILURE' "$log" \
-    | tail -n 6
+  grep -E '^> ' "$log" | tail -n 3
+  echo "== 关键错误（按出现顺序取前 7 条）=="
+  grep -E 'What went wrong|Caused by|Could not|Could not resolve|UnknownHost|SSL|HTTP [0-9]|Execution failed|Exception|issues found|Some tests failed|error:|Error:' "$log" \
+    | head -n 7
   echo "== 日志尾部 =="
   tail -n 5 "$log"
 } 2>/dev/null \
   | awk '!seen[$0]++' \
-  | head -n 14 \
+  | head -n 16 \
   | sed 's/^/::error::/'

@@ -129,12 +129,14 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          # gradlew 第一次要从 GitHub Releases 下载 gradle-8.14.3-all.zip，偶发 504
+          # gradlew 第一次要从 GitHub Releases 下载 gradle 发行包，偶发 504
           # （Server returned HTTP response code: 504）。失败时 wrapper 会清掉半截
           # 文件，所以整体重试是安全的；三次都失败才真的红。
+          # 每次 attempt 写独立日志：共用一份会被后一次覆盖，而失败常常只在
+          # 第一次留下真实原因（后续 attempt 命中缓存，几秒就复现同一个红）。
           for attempt in 1 2 3; do
             echo "== build attempt $attempt =="
-            if dart tool/inkpaper.dart build android-debug 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+            if dart tool/inkpaper.dart build android-debug 2>&1 | tee "$RUNNER_TEMP/build-$attempt.log"; then
               exit 0
             fi
             echo "== attempt $attempt failed, retrying =="
@@ -144,7 +146,7 @@ jobs:
       - name: 失败日志（转 annotation）
         if: failure()
         shell: bash
-        run: bash scripts/ci_annotate.sh "$RUNNER_TEMP/build.log"
+        run: bash scripts/ci_annotate.sh "$RUNNER_TEMP"/build-*.log
       - name: Build release APK
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
         run: dart tool/inkpaper.dart build android-release

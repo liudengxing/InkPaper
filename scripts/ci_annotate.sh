@@ -9,33 +9,49 @@
 # 一条而不是多条：多行内容用 %0A 转义后合并，避免 GitHub 把每行拆成独立 annotation
 # 导致顺序错乱、真正的原因被淹没。
 #
-# 用法：bash scripts/ci_annotate.sh <日志文件>
+# 用法：bash scripts/ci_annotate.sh <日志文件> [更多日志...]
+# 多个文件时按顺序全部输出——构建重试场景下，第一次 attempt 的日志通常才有真实原因。
 set -uo pipefail
 
-log="${1:-}"
-if [ -z "$log" ] || [ ! -f "$log" ]; then
-  echo "ci_annotate: no log at '$log', nothing to annotate."
+if [ "$#" -eq 0 ]; then
+  echo "ci_annotate: no log given, nothing to annotate."
   exit 0
 fi
 
 body=$({
-  echo "== 已执行的子命令 =="
-  grep -E '^> ' "$log" | tail -n 3
-  echo
-  echo "== What went wrong 之后 =="
-  # Gradle 的真正原因几乎总在这行之后，旧版只按关键词抽行，把这段漏掉了
-  awk '/\* What went wrong:/{f=1; next} f && c<20 {print; c++}' "$log"
-  echo
-  echo "== 关键错误行 =="
-  grep -E 'What went wrong|Caused by|Could not|UnknownHost|SSL|HTTP [0-9]|e: file|issues found|Some tests failed|error:|Error:' "$log" \
-    | head -n 10
-  echo
-  echo "== 日志尾部 =="
-  tail -n 6 "$log"
+  for log in "$@"; do
+    if [ ! -f "$log" ]; then
+      continue
+    fi
+    echo "######## $(basename "$log") ########"
+    echo
+
+    echo "-- 子命令 --"
+    grep -E '^> ' "$log" | tail -n 3
+    echo
+
+    echo "-- What went wrong 之后 --"
+    # Gradle 的真正原因几乎总在这行之后，只按关键词抽行会把这段漏掉
+    awk '/\* What went wrong:/{f=1; next} f && c<20 {print; c++}' "$log"
+    echo
+
+    echo "-- Kotlin/Javac 报错行 --"
+    grep -E '^e: |^error: |^w: .*error' "$log" | head -n 12
+    echo
+
+    echo "-- 关键错误行 --"
+    grep -E 'What went wrong|Caused by|Could not|UnknownHost|SSL|HTTP [0-9]|issues found|Some tests failed|error:|Error:|OutOfMemory|Daemon' "$log" \
+      | head -n 10
+    echo
+
+    echo "-- 尾部 --"
+    tail -n 6 "$log"
+    echo
+  done
 } 2>/dev/null | awk '!seen[$0]++')
 
 if [ -z "$body" ]; then
-  echo "ci_annotate: nothing matched in '$log'."
+  echo "ci_annotate: nothing matched."
   exit 0
 fi
 

@@ -1154,21 +1154,21 @@ class _NoteEditorState extends State<NoteEditor>
     // 顶部指示器和内边距高度
     const topElementsHeight = 20.0;
 
-    // 图片预览区域高度（展开九宫格时更高）
-    final imagePreviewHeight = _imageList.isEmpty
+    // 图片预览区域的目标高度（展开九宫格时更高）
+    final imageTargetHeight = _imageList.isEmpty
         ? 0.0
-        : (_imageGridExpanded ? _imageGridHeight + 24 : _imageStripHeight);
+        : (_imageGridExpanded ? _imageGridHeight : _imageStripHeight);
 
     // 图片区是文字区的兄弟节点，卡片总高不变时它只能从 Expanded 的文字区里抢
     // 空间（选 1 张图就少 110），表现为「输入框变窄、多行文字被挡住」。所以有图
-    // 时让卡片整体长高 imagePreviewHeight，文字区维持原来的高度。
+    // 时让卡片整体长高 imageTargetHeight，文字区维持原来的高度。
     final desiredEditorHeight = math.max(
       // 无图时等于 baseEditorHeight，视觉与改前逐像素一致
-      baseEditorHeight + imagePreviewHeight,
+      baseEditorHeight + imageTargetHeight,
       contentHeight +
           toolbarHeight +
           topElementsHeight +
-          imagePreviewHeight +
+          imageTargetHeight +
           32,
     );
 
@@ -1176,6 +1176,16 @@ class _NoteEditorState extends State<NoteEditor>
     // 高度做上限的话键盘弹出时卡片会顶到屏幕外，底部工具栏被裁掉。
     final availableHeight = screenSize.height - keyboardInset;
     final editorHeight = math.min(desiredEditorHeight, availableHeight * 0.92);
+
+    // 卡片高度被上面一句钳住时（展开九宫格 + 键盘弹出几乎必然发生），图片区不能
+    // 还按 330 长：卡片已经不再变高，多出来的空间只能从文字区抢，展开动画就变成
+    // 「卡片不动、文字被挤扁再弹回」的抽搐。这里让图片区主动让步，文字区保持恒定。
+    final imageSectionHeight = _imageList.isEmpty
+        ? 0.0
+        : math.min(
+            imageTargetHeight,
+            math.max(_imageStripHeight, editorHeight - baseEditorHeight),
+          );
 
     // 获取当前主题模式
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -1222,6 +1232,9 @@ class _NoteEditorState extends State<NoteEditor>
                   duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOutCubic,
                   padding: EdgeInsets.only(bottom: keyboardInset),
+                  // 高度不做动画：卡片和图片区各有各的动画曲线就无法逐帧对齐，
+                  // 中间帧会先把多出来的空间灌进文字区再收回去（抽搐）。切换九宫格
+                  // 时高度瞬变、图片区内容交叉淡化，文字区位置全程不动。
                   child: Container(
                     height: editorHeight,
                     decoration: BoxDecoration(
@@ -1536,7 +1549,10 @@ class _NoteEditorState extends State<NoteEditor>
 
                               // 图片预览区域：默认单行横滑，可展开九宫格
                               if (_imageList.isNotEmpty)
-                                _buildImageSection(dividerColor),
+                                _buildImageSection(
+                                  dividerColor,
+                                  imageSectionHeight,
+                                ),
 
                               // 更多选项栏（条件显示）
                               if (_showingMoreOptions)
@@ -1917,18 +1933,51 @@ class _NoteEditorState extends State<NoteEditor>
   // 图片区高度：单行横滑条 / 展开后的九宫格
   static const double _imageStripHeight = 110;
   static const double _imageGridHeight = 330;
+  static const Duration _imageSwapDuration = Duration(milliseconds: 160);
 
   /// 图片区：默认单行横滑（长按拖动排序），上滑或点按钮展开九宫格。
-  Widget _buildImageSection(Color dividerColor) => AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        height: _imageGridExpanded ? _imageGridHeight : _imageStripHeight,
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: dividerColor, width: 0.5),
+  ///
+  /// 高度切换不做动画，只有内容交叉淡化。原因：卡片高度和图片区高度是两个独立的
+  /// 插值源（AnimatedContainer / AnimatedSize），曲线再一致也差一帧起步，中间帧里
+  /// 文字区会被顶起再拉回；而九宫格如果在小窗口里被逐帧拉高，图片又会被切成一条
+  /// 慢慢露出来——两条叠在一起就是「闪烁抽搐」。让高度瞬变、内容淡化，中间不会
+  /// 出现任何半成品布局。
+  Widget _buildImageSection(Color dividerColor, double height) => ClipRect(
+        child: Container(
+          key: const ValueKey('note-editor-image-section'),
+          // 宽度必须显式给满：Column 默认 center，容器宽度一旦退回「由内容决定」，
+          // 展开瞬间内容从横滑条换成九宫格会让宽度重算，视觉上像整块在抽。
+          width: double.infinity,
+          height: height,
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: dividerColor, width: 0.5),
+            ),
+          ),
+          child: AnimatedSwitcher(
+            duration: _imageSwapDuration,
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            // 默认的 layoutBuilder 会把新旧内容居中对齐，两者高度不同时会互相顶动；
+            // 统一顶部对齐 + 外层裁剪，展开读起来像抽屉拉开。
+            layoutBuilder: (currentChild, previousChildren) => Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                ...previousChildren,
+                if (currentChild != null) currentChild,
+              ],
+            ),
+            child: _imageGridExpanded
+                ? KeyedSubtree(
+                    key: const ValueKey('image-grid'),
+                    child: _buildImageGrid(),
+                  )
+                : KeyedSubtree(
+                    key: const ValueKey('image-strip'),
+                    child: _buildImageStrip(),
+                  ),
           ),
         ),
-        child: _imageGridExpanded ? _buildImageGrid() : _buildImageStrip(),
       );
 
   Widget _buildImageStrip() => GestureDetector(
@@ -2397,8 +2446,6 @@ class _NoteEditorState extends State<NoteEditor>
 
   // 构建图片Widget，处理认证问题
   Widget _buildImageWidget(String uriString) {
-    debugPrint('NoteEditor: 构建图片组件 - 路径: $uriString');
-
     // 数据维护里缓存过的服务端附件：直接读本地副本
     final cachedAttachment = AttachmentCache.instance.fileFor(uriString);
     if (cachedAttachment != null) {

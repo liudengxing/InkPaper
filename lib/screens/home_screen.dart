@@ -173,6 +173,8 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didUpdateWidget(covariant HomeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _handleSharedContentUpdate(oldWidget);
+
     if (!widget.openQuickNote) {
       _hasHandledWidgetQuickAction = false;
       return;
@@ -187,6 +189,23 @@ class _HomeScreenState extends State<HomeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _showAddNoteFormWithContent(_quickNoteInitialContent());
+      }
+    });
+  }
+
+  /// App 已经在前台时又收到分享：路由 go('/') 只是替换 page 的 child，
+  /// HomeScreen 不会重新 initState，光靠 initState 那段永远等不到第二次分享。
+  void _handleSharedContentUpdate(HomeScreen oldWidget) {
+    final incoming = widget.sharedContent;
+    if (incoming == null || incoming.trim().isEmpty) {
+      return;
+    }
+    if (oldWidget.sharedContent == incoming) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _showAddNoteFormWithContent(incoming);
       }
     });
   }

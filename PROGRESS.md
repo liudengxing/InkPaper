@@ -1,3 +1,16 @@
+## 2026-11-09 · 分享自动记录来源标签（1.1.68+10164）· done
+
+- 需求：从微信/微信读书分享进来的内容，自动打上来源标签
+- 现状：`ACTION_SEND` 文本/图片/文件接收早就注册了，但 `MainActivity.kt` 只取正文和附件，**不记录来源**；而微信读书的粘贴导入（`weread_import_screen.dart:85`）本来就默认 `['微信读书', 书名]`，这块不缺
+- 改法：
+  - 原生 `resolveShareSource()`：优先 `intent.referencingPackage`（API 22+），为空退到 `intent.referrer?.host`（覆盖系统 UI 发起的 `PROCESS_TEXT`），再把 `com.tencent.mm` → `wechat`、`com.tencent.weread*` → `weread`，其余原样传包名
+  - 载荷统一带 `source` 字段（6 处 `deliverSharedPayload` 调用点）
+  - Dart `sharedPayloadToContent()` 拆成「取原始内容 → 贴来源标签」两步；`_shareSourceTags` 只认白名单，查不到不打标签
+  - 去重：`RegExp('#$tag(?!\S)')`，`#微信` 不会误命中 `#微信读书`
+- 决策：**没加 `notes.source` 字段**。来源用正文标签表达，和 weread 导入的历史行为一致，不动 schema v12、不用改 Memos 同步
+- 测试：`test/unit/shared_payload_utils_test.dart` 新增 7 项（微信 / 微信读书 / 未知来源 / 去重 / `#微信读书` 不误判 / 图片 / sourceTag 映射）
+- 验证：analyze 0 issue；真机用 `am start --referrer android-app://com.tencent.mm` 模拟，确认带 `#微信`
+
 ## 2026-11-09 · 九宫格改动画成单一进度动画（1.1.67+10163）· done
 
 - 现象：1.1.66 之后点展开/收起「还是会变两次」——高度瞬变是一次、内容淡化是另一次

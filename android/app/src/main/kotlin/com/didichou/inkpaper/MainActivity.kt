@@ -230,11 +230,18 @@ class MainActivity: FlutterActivity() {
         try {
             val sharedText = extractSharedText(intent)
             val sharedUris = extractSharedUris(intent)
+            val shareSource = resolveShareSource(intent)
 
             if (sharedUris.isEmpty()) {
                 if (sharedText.isNotBlank()) {
-                    ReleaseLog.e("MainActivity", "📝 收到分享的文本: ${sharedText.take(50)}...")
-                    deliverSharedPayload(mapOf("type" to "text", "content" to sharedText))
+                    ReleaseLog.e("MainActivity", "📝 收到分享的文本: ${sharedText.take(50)}... 来源: $shareSource")
+                    deliverSharedPayload(
+                        mapOf(
+                            "type" to "text",
+                            "content" to sharedText,
+                            "source" to shareSource
+                        )
+                    )
                 } else {
                     ReleaseLog.e("MainActivity", "⚠️ 分享内容为空")
                 }
@@ -244,7 +251,13 @@ class MainActivity: FlutterActivity() {
             copySharedUrisAsync(sharedUris) { copiedFiles ->
                 if (copiedFiles.isEmpty()) {
                     if (sharedText.isNotBlank()) {
-                        deliverSharedPayload(mapOf("type" to "text", "content" to sharedText))
+                        deliverSharedPayload(
+                            mapOf(
+                                "type" to "text",
+                                "content" to sharedText,
+                                "source" to shareSource
+                            )
+                        )
                     } else {
                         ReleaseLog.e("MainActivity", "❌ 无法读取分享附件")
                     }
@@ -262,12 +275,52 @@ class MainActivity: FlutterActivity() {
                     "MainActivity",
                     "✅ 分享附件已读取: 图片 ${imagePaths.size}，文件 ${filePaths.size}"
                 )
-                deliverCombinedSharedPayload(sharedText, imagePaths, filePaths)
+                deliverCombinedSharedPayload(sharedText, imagePaths, filePaths, shareSource)
             }
         } catch (e: Exception) {
             ReleaseLog.e("MainActivity", "❌ 处理分享内容失败: ${e.message}")
             ReleaseLog.printStackTrace(e)
         }
+    }
+
+    /// 识别分享来源，供 Flutter 侧打「来源标签」用。
+    ///
+    /// 不能写 `intent.getReferrer()` / `intent.getReferencingPackage()`：这两个在
+    /// 公开 android.jar 里是 @hide（javap 验证过 android-36 的 Intent 只剩
+    /// EXTRA_REFERRER / EXTRA_REFERRER_NAME 两个常量），编译期直接 Unresolved。
+    /// 公开可用的入口是 Activity.getReferrer() 和 getCallingPackage()。
+    /// 都拿不到就返回 unknown，由 Dart 侧决定不认的来源一律不打标签。
+    private fun resolveShareSource(intent: Intent): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP_MR1) {
+            return "unknown"
+        }
+        val candidates = listOf(
+            referrer?.host,
+            intent.getStringExtra(Intent.EXTRA_REFERRER_NAME),
+            callingPackage
+        )
+        val normalized = candidates
+            .asSequence()
+            .mapNotNull(::normalizeSourcePackage)
+            .firstOrNull { it.isNotBlank() && it != packageName }
+            ?: return "unknown"
+
+        return when {
+            normalized == "com.tencent.mm" -> "wechat"
+            normalized.startsWith("com.tencent.weread") -> "weread"
+            else -> normalized
+        }
+    }
+
+    /// referrer 可能是 `android-app://com.tencent.mm` 或纯包名，统一剥成 host。
+    private fun normalizeSourcePackage(raw: String?): String? {
+        val value = raw?.trim().orEmpty()
+        if (value.isEmpty()) {
+            return null
+        }
+        val withoutScheme = value.substringAfter("://", value)
+        val host = withoutScheme.substringBefore('/').trim()
+        return host.ifBlank { null }?.lowercase()
     }
 
     private fun copySharedUrisAsync(
@@ -391,7 +444,8 @@ class MainActivity: FlutterActivity() {
     private fun deliverCombinedSharedPayload(
         sharedText: String,
         imagePaths: List<String>,
-        filePaths: List<String>
+        filePaths: List<String>,
+        shareSource: String
     ) {
         val cleanText = sharedText.trim()
         val hasText = cleanText.isNotEmpty()
@@ -407,18 +461,37 @@ class MainActivity: FlutterActivity() {
                             cleanText,
                             imagePaths,
                             filePaths
-                        )
+                        ),
+                        "source" to shareSource
                     )
                 )
             }
             imagePaths.size == 1 -> {
-                deliverSharedPayload(mapOf("type" to "image", "path" to imagePaths.first()))
+                deliverSharedPayload(
+                    mapOf(
+                        "type" to "image",
+                        "path" to imagePaths.first(),
+                        "source" to shareSource
+                    )
+                )
             }
             imagePaths.size > 1 -> {
-                deliverSharedPayload(mapOf("type" to "images", "paths" to imagePaths))
+                deliverSharedPayload(
+                    mapOf(
+                        "type" to "images",
+                        "paths" to imagePaths,
+                        "source" to shareSource
+                    )
+                )
             }
             filePaths.size == 1 -> {
-                deliverSharedPayload(mapOf("type" to "file", "path" to filePaths.first()))
+                deliverSharedPayload(
+                    mapOf(
+                        "type" to "file",
+                        "path" to filePaths.first(),
+                        "source" to shareSource
+                    )
+                )
             }
         }
     }

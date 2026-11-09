@@ -1,3 +1,18 @@
+## 2026-11-09 · 编辑器选图不再挤压文字区（1.1.65+10161）· done
+
+- 现象：首页点输入框 → 选 1~3 张图 → 上面的文字输入区变窄，多行文字被挡住
+- 根因：图片预览区（单行横滑 `_imageStripHeight=110`、展开九宫格 `_imageGridHeight+24=354`）与文字区是 `Column` 里的兄弟节点，只有文字区套了 `Expanded`。卡片总高不变时，图片区的高度只能从文字区里抢 → 文字区从 ≈241 掉到 ≈131
+- 改法（只动 `note_editor.dart` 的高度计算，`_buildEditor` 内约 20 行）：
+  - `desiredEditorHeight = max(baseEditorHeight + imagePreviewHeight, 内容高 + 工具栏 + 顶部元素 + 图片高 + 32)`：有图就整体长高，不再抢文字区
+  - 上限从 `screenSize.height * 0.92` 改为 `(screenHeight - keyboardInset) * 0.92`：原来卡片底部还垫了键盘高度，上限形同虚设
+  - 无图无键盘时 `max(base, …)` 仍取 `base`，数值与改前完全一致，动画/视觉零变化
+- 这台机器换算（1200×2670 / dpr 2.75 → 逻辑高 970.9）：无图 339.8（文字区 241）→ 1 张图 449.8（文字区仍 241）；展开九宫格 693.8，受键盘上方可用高度的 92% 约束
+- **CI 侧的关键发现（这轮才查出来）**：CI 自建仓起**从未绿过一次**，历史 30 个 run 全红，而且每次都死在格式门禁，`verify` 一步从来没真正执行过。本次把门禁修好后才第一次跑起 `analyze`，立刻暴露真问题——`flutter analyze` 报 9 个 `require_trailing_commas`，全在 `note_editor.dart`
+- **教训**：项目 lint 开启 `require_trailing_commas`，所以「尾随逗号」不是格式噪音而是**硬要求**；`dart format` 的 short style 不增删尾随逗号，只把它当换行提示，于是「format 通过」≠「analyze 通过」。1.1.64 里我为了拆分 commit 把该文件退回「去逗号」形态，正好踩中这条
+- 排障手段（已固化进 `ci.yml`，可复用）：GitHub 对失败步骤只给一行 `Process completed with exit code 1`，而 job logs 需要 token。新增的「失败日志（转 annotation）」步骤把 `verify` 输出 tee 到文件，失败时把「已执行的子命令 / 疑似错误行 / 日志尾部」转成 `::error::` 标注——公开仓库的 Checks annotation **匿名可读**，`GET /repos/{o}/{r}/commits/{sha}/check-runs` → `annotations_url` 直接拿到内容
+- 验证：`dart tool/inkpaper.dart verify` 全绿（229 文件格式 0 changed、analyze 0 issue、579 项测试通过）
+- 遗留：真机点验仍未做（无线调试离线，`adb mdns services` 空），仅静态验证
+
 ## 2026-11-09 · CI 格式门禁修复 + 行尾策略 + 版本固定（1.1.64+10160）· done
 
 - 现象：GitHub Actions 一直红。`gh` 的 token 已失效，但仓库公开，直接用 REST API 匿名查到真实记录——我上一轮推送的 `14f5f3b`（run `42556743535`）红在 `Analyze + Test` 的**格式门禁**，另有 5 个 dependabot 的 pub 依赖 PR（#10–#14）卡在同一处；`Secret scan` 全过，Android 因 `needs` 被 skip

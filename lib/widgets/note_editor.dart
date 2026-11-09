@@ -1159,21 +1159,23 @@ class _NoteEditorState extends State<NoteEditor>
         ? 0.0
         : (_imageGridExpanded ? _imageGridHeight + 24 : _imageStripHeight);
 
-    // 编辑器总高度 = 内容高度 + 工具栏高度 + 顶部元素高度 + 图片预览高度
-    final editorHeight = math
-        .min(
-          math.max(
-            contentHeight +
-                toolbarHeight +
-                topElementsHeight +
-                imagePreviewHeight +
-                32, // 添加额外padding空间
-            baseEditorHeight,
-          ),
-          // 展开九宫格或大字号时不要把编辑器顶出屏幕
-          screenSize.height * 0.92,
-        )
-        .toDouble();
+    // 图片区是文字区的兄弟节点，卡片总高不变时它只能从 Expanded 的文字区里抢
+    // 空间（选 1 张图就少 110），表现为「输入框变窄、多行文字被挡住」。所以有图
+    // 时让卡片整体长高 imagePreviewHeight，文字区维持原来的高度。
+    final desiredEditorHeight = math.max(
+      // 无图时等于 baseEditorHeight，视觉与改前逐像素一致
+      baseEditorHeight + imagePreviewHeight,
+      contentHeight +
+          toolbarHeight +
+          topElementsHeight +
+          imagePreviewHeight +
+          32,
+    );
+
+    // 上限要按「键盘上方的可用高度」算：卡片底部垫了 keyboardInset，用整屏
+    // 高度做上限的话键盘弹出时卡片会顶到屏幕外，底部工具栏被裁掉。
+    final availableHeight = screenSize.height - keyboardInset;
+    final editorHeight = math.min(desiredEditorHeight, availableHeight * 0.92);
 
     // 获取当前主题模式
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -1316,8 +1318,8 @@ class _NoteEditorState extends State<NoteEditor>
                                           autofocus: true,
                                           decoration: InputDecoration(
                                             hintText: AppLocalizationsSimple.of(
-                                                        context)
-                                                    ?.editorPlaceholder ??
+                                                  context,
+                                                )?.editorPlaceholder ??
                                                 '现在的想法是...',
                                             // 全局主题给输入框设了 filled:true，
                                             // 玻璃卡片上会糊出一块实心白，这里关掉
@@ -1370,7 +1372,8 @@ class _NoteEditorState extends State<NoteEditor>
                                               .opaque, // 确保整个区域可点击
                                           child: AnimatedContainer(
                                             duration: const Duration(
-                                                milliseconds: 200),
+                                              milliseconds: 200,
+                                            ),
                                             padding: const EdgeInsets.symmetric(
                                               horizontal: 16,
                                               vertical: 16,
@@ -1402,7 +1405,8 @@ class _NoteEditorState extends State<NoteEditor>
                                                   BorderRadius.circular(16),
                                               border: Border.all(
                                                 color: iconColor.withValues(
-                                                    alpha: 0.4),
+                                                  alpha: 0.4,
+                                                ),
                                                 width: 1.5,
                                               ),
                                               boxShadow: [
@@ -1443,9 +1447,10 @@ class _NoteEditorState extends State<NoteEditor>
                                                                     )
                                                                         ?.voiceListening ??
                                                                     '正在聆听...')
-                                                                : (AppLocalizationsSimple.of(
-                                                                            context)
-                                                                        ?.voiceRecognizing ??
+                                                                : (AppLocalizationsSimple
+                                                                        .of(
+                                                                      context,
+                                                                    )?.voiceRecognizing ??
                                                                     '识别中'),
                                                             style: TextStyle(
                                                               color: iconColor,
@@ -1458,7 +1463,8 @@ class _NoteEditorState extends State<NoteEditor>
                                                           if (_partialSpeechText
                                                               .isNotEmpty) ...[
                                                             const SizedBox(
-                                                                height: 8),
+                                                              height: 8,
+                                                            ),
                                                             // 识别文字 - 带打字机效果
                                                             AnimatedDefaultTextStyle(
                                                               duration:
@@ -1689,8 +1695,9 @@ class _NoteEditorState extends State<NoteEditor>
                                         _buildMoreOptionButton(
                                           icon: Icons.auto_fix_high,
                                           onPressed: () {
-                                            setState(() =>
-                                                _showingAIOptions = false);
+                                            setState(
+                                              () => _showingAIOptions = false,
+                                            );
                                             _aiContinueWriting();
                                           },
                                           secondaryTextColor:
@@ -1701,8 +1708,9 @@ class _NoteEditorState extends State<NoteEditor>
                                         _buildMoreOptionButton(
                                           icon: Icons.local_offer_outlined,
                                           onPressed: () {
-                                            setState(() =>
-                                                _showingAIOptions = false);
+                                            setState(
+                                              () => _showingAIOptions = false,
+                                            );
                                             _aiGenerateTags();
                                           },
                                           secondaryTextColor:
@@ -1722,7 +1730,9 @@ class _NoteEditorState extends State<NoteEditor>
                                   color: backgroundColor,
                                   border: Border(
                                     top: BorderSide(
-                                        color: dividerColor, width: 0.5),
+                                      color: dividerColor,
+                                      width: 0.5,
+                                    ),
                                   ),
                                 ),
                                 child: Row(
@@ -1809,7 +1819,8 @@ class _NoteEditorState extends State<NoteEditor>
                                               activeColor: iconColor,
                                               isActive:
                                                   _textController.isMarkActive(
-                                                      MemoTextMark.bold),
+                                                MemoTextMark.bold,
+                                              ),
                                             ),
 
                                             // 列表按钮

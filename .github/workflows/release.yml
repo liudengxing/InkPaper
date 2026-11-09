@@ -132,6 +132,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      # 发行包所有官方地址都会 307 到 GitHub Releases，runner 拉自家 release
+      # 资产时不时 504；缓存解压后的发行包，命中的 run 不再走网络。
+      - name: Cache Gradle distribution
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/wrapper/dists
+          key: gradle-dist-${{ runner.os }}-8.14.3-bin
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}

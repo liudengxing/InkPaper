@@ -1,1 +1,0 @@
-Gradle 构建临时目录（相对路径，见 android/gradle.properties 的 org.gradle.jvmargs）。保留本文件使目录随仓库存在。

@@ -129,6 +129,3 @@ LOCAL_DEV_SETUP.md
 
 # Local scratch dir (screenshots / throwaway scripts, NOT project source)
 _backup/
-# Gradle 构建临时目录（android/gradle.properties 的 java.io.tmpdir）
-android/gradle-tmp/*
-!android/gradle-tmp/.gitkeep

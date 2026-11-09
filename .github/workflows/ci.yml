@@ -118,7 +118,18 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          dart tool/inkpaper.dart build android-debug 2>&1 | tee "$RUNNER_TEMP/build.log"
+          # gradlew 第一次要从 GitHub Releases 下载 gradle-8.14.3-all.zip，偶发 504
+          # （Server returned HTTP response code: 504）。失败时 wrapper 会清掉半截
+          # 文件，所以整体重试是安全的；三次都失败才真的红。
+          for attempt in 1 2 3; do
+            echo "== build attempt $attempt =="
+            if dart tool/inkpaper.dart build android-debug 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+              exit 0
+            fi
+            echo "== attempt $attempt failed, retrying =="
+            sleep 20
+          done
+          exit 1
       - name: 失败日志（转 annotation）
         if: failure()
         shell: bash

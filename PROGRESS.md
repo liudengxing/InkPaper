@@ -14,6 +14,8 @@
 - 遗留：真机点验仍未做（无线调试离线，`adb mdns services` 空），仅静态验证
 - **Android job 首跑也失败**（同样是以前被 skip 的路径）：把诊断脚本挂到构建步骤后拿到原文——`The Java version used for the build is 25.0.5, which is incompatible with Gradle 8.14.3`。`ubuntu-latest` 默认 JDK 已升到 25，项目是 Gradle 8.14.3 / AGP 8.11.1 / `jvmTarget 11`。解法：两个 workflow 的 android 作业都加 `actions/setup-java@v4`（temurin 17，与本地开发环境一致），而不是去升 Gradle/AGP（那两条 dependabot PR 单独评估）
 - 诊断脚本抽成 `scripts/ci_annotate.sh`，quality 与 android 两个作业共用；输入是格日志路径，输出是 `::error::` 行。本地用伪造的 Gradle 失败日志验过（空日志走 no-op 分支）
+- **Android 第二个坑（JDK 修好之后）**：`java.io.IOException: Server returned HTTP response code: 504 for URL: https://github.com/gradle/gradle-distributions/releases/download/v8.14.3/gradle-8.14.3-all.zip`。`services.gradle.org` 会 302 到 GitHub Releases，该 CDN 对 200MB+ 的发行包偶发 504。处理：`Build debug APK` 步骤整体重试 3 次（wrapper 失败会清掉半截文件，重试安全）。**如果仍持续 504，则要换发行源**（`distributionUrl` 指镜像，或改用 `-bin.zip`），那会连带影响本地首次拉包，需另行确认
+- 诊断脚本第二版：上一版把「What went wrong 段」排最前又限 14 行，把首错 `Exception ... 504` 截掉了，只剩 stack frame。改成「子命令 3 行 + 关键错误按出现顺序前 7 条 + 尾部 5 行」
 
 ## 2026-11-09 · CI 格式门禁修复 + 行尾策略 + 版本固定（1.1.64+10160）· done
 

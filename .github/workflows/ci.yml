@@ -49,23 +49,12 @@ jobs:
         run: |
           set -o pipefail
           dart tool/inkpaper.dart verify --coverage 2>&1 | tee "$RUNNER_TEMP/verify.log"
-      # 步骤失败时 GitHub 只给「Process completed with exit code 1」，没有 token
-      # 的场合读不到日志。把日志里的阶段轨迹与疑似错误行转成 check annotation，
-      # 公开仓库匿名也能从 Checks API 读到，排查不必登录。
+      # 步骤失败时 GitHub 只给「Process completed with exit code 1」。把日志里
+      # 的关键行转成 check annotation —— 公开仓库匿名可读，排查不必登录。
       - name: 失败日志（转 annotation）
         if: failure()
         shell: bash
-        run: |
-          log="$RUNNER_TEMP/verify.log"
-          [ -f "$log" ] || exit 0
-          {
-            echo "— 已执行的子命令 —"
-            grep -E "^> " "$log" | tail -n 6
-            echo "— 疑似错误行 —"
-            grep -E "issues found|Some tests failed|Failed to|Error:|error •|Expected|Actual" "$log" | tail -n 6
-            echo "— 日志尾部 —"
-            tail -n 6 "$log"
-          } | awk '!seen[$0]++' | tail -n 14 | sed 's/^/::error::/'
+        run: bash scripts/ci_annotate.sh "$RUNNER_TEMP/verify.log"
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
@@ -119,7 +108,14 @@ jobs:
           chmod 600 android/inkpaper-new-release.keystore android/key.properties
       - name: Build debug APK
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.release_build }}
-        run: dart tool/inkpaper.dart build android-debug
+        shell: bash
+        run: |
+          set -o pipefail
+          dart tool/inkpaper.dart build android-debug 2>&1 | tee "$RUNNER_TEMP/build.log"
+      - name: 失败日志（转 annotation）
+        if: failure()
+        shell: bash
+        run: bash scripts/ci_annotate.sh "$RUNNER_TEMP/build.log"
       - name: Build release APK
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
         run: dart tool/inkpaper.dart build android-release

@@ -276,9 +276,8 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
       if (!mounted) {
         return;
       }
-      final nextIndex = index + 1 < widget.imagePaths.length
-          ? index + 1
-          : index - 1;
+      final nextIndex =
+          index + 1 < widget.imagePaths.length ? index + 1 : index - 1;
       if (nextIndex < 0 || nextIndex == index) {
         return;
       }
@@ -493,8 +492,9 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
         !controller.value.isInitialized) {
       return const SizedBox.shrink();
     }
-    final aspectRatio =
-        controller.value.aspectRatio <= 0 ? 3 / 4 : controller.value.aspectRatio;
+    final aspectRatio = controller.value.aspectRatio <= 0
+        ? 3 / 4
+        : controller.value.aspectRatio;
     return Positioned.fill(
       child: GestureDetector(
         onTap: () {
@@ -714,7 +714,8 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
     }
 
     // 原图还没解码完就先画缩略图，尺寸比例相同，替换时不会跳
-    final activeProvider = _imageSize != null ? _imageProvider : _previewProvider;
+    final activeProvider =
+        _imageSize != null ? _imageProvider : _previewProvider;
     final activeSize = _imageSize ?? _previewSize;
     if (activeProvider == null || activeSize == null) {
       return _buildImageLoading(context);

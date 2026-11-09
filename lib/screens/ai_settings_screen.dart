@@ -1684,7 +1684,6 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           if (appConfig.useCustomPrompt) ...[
             Divider(height: 1, thickness: 1, color: dividerColor),
             const SizedBox(height: 16),
-
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(

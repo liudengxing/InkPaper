@@ -637,9 +637,8 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
     final statusColor = !result.success
         ? Colors.red.shade600
         : (result.errors > 0 ? Colors.orange.shade700 : AppTheme.successColor);
-    final statusText = !result.success
-        ? '失败'
-        : (result.errors > 0 ? '部分完成' : '成功');
+    final statusText =
+        !result.success ? '失败' : (result.errors > 0 ? '部分完成' : '成功');
     final title = result.isBackup ? '上次备份' : '上次恢复';
 
     final detail = StringBuffer()

@@ -77,8 +77,9 @@ class AttachmentMaintenanceService {
   }
 
   String _fullUrl(String remotePath) {
-    final base =
-        baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final base = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
     if (remotePath.startsWith('attachments/')) {
       return '$base/file/$remotePath';
     }

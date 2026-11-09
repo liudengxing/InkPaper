@@ -132,13 +132,20 @@ List<({int start, int end})> splitRangeByImages({
 
   for (final image in innerImages) {
     if (segmentStart < image.offset) {
-      segments.add(_shiftSegment(start: segmentStart, end: image.offset, images: images));
+      segments.add(
+        _shiftSegment(
+          start: segmentStart,
+          end: image.offset,
+          images: images,
+        ),
+      );
     }
     segmentStart = image.offset;
   }
 
   if (segmentStart < rangeEnd) {
-    segments.add(_shiftSegment(start: segmentStart, end: rangeEnd, images: images));
+    segments
+        .add(_shiftSegment(start: segmentStart, end: rangeEnd, images: images));
   }
   return segments;
 }

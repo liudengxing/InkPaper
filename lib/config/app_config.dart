@@ -481,5 +481,4 @@ class AppConfig {
 
   /// 获取告警阈值
   static num? getAlertThreshold(String metric) => alertThresholds[metric];
-
 }

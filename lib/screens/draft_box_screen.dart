@@ -92,8 +92,9 @@ class _DraftBoxScreenState extends State<DraftBoxScreen> {
     final cardColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
     final textColor =
         isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
-    final secondaryTextColor =
-        isDarkMode ? AppTheme.darkTextSecondaryColor : AppTheme.textSecondaryColor;
+    final secondaryTextColor = isDarkMode
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -166,7 +167,9 @@ class _DraftBoxScreenState extends State<DraftBoxScreen> {
                 Row(
                   children: [
                     Icon(
-                      draft.isNewNote ? Icons.add_circle_outline : Icons.edit_note,
+                      draft.isNewNote
+                          ? Icons.add_circle_outline
+                          : Icons.edit_note,
                       size: 16,
                       color: AppTheme.primaryColor,
                     ),

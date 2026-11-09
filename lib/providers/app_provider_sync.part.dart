@@ -41,11 +41,12 @@ extension AppProviderSyncPart on AppProvider {
 
       // uid 归位成本地主键（remoteId 命中 / 旧数据 id==uid / 新 uuid），
       // 再批量提取标签：Note.fromJson 已包含 relationList，无需单独请求。
-      final serverNotes = sync_merge.bindServerNotesToLocalIds(
-        rawServerNotes,
-        localNotes,
-        allowContentClaim: isRemoteComplete,
-      )
+      final serverNotes = sync_merge
+          .bindServerNotesToLocalIds(
+            rawServerNotes,
+            localNotes,
+            allowContentClaim: isRemoteComplete,
+          )
           .map(
             (note) =>
                 note.copyWith(tags: Note.extractTagsFromContent(note.content)),
@@ -149,7 +150,9 @@ extension AppProviderSyncPart on AppProvider {
       ); // 加载全部数据
 
       // ✅ 保护内存中的批注数据（批注是本地增强功能，不同步到服务器）
-      final memoryNotesMap = {for (final note in _notesStore.notes) note.id: note};
+      final memoryNotesMap = {
+        for (final note in _notesStore.notes) note.id: note,
+      };
 
       _notesStore.notes = dbNotes.map((dbNote) {
         // 如果内存中有这个笔记且有批注，保留其批注
@@ -162,8 +165,8 @@ extension AppProviderSyncPart on AppProvider {
 
       // 重置分页状态
       _notesStore.pagingState = paging.NotesPaginationState(
-        currentPage:
-            (_notesStore.notes.length / AppProvider._pageSize).floor(), // 根据实际加载的数量计算页码
+        currentPage: (_notesStore.notes.length / AppProvider._pageSize)
+            .floor(), // 根据实际加载的数量计算页码
         hasMoreData: false, // 已经全部加载
         loadMoreState: LoadMoreState.idle,
       );
@@ -309,11 +312,13 @@ extension AppProviderSyncPart on AppProvider {
 
       // 不做这一步，服务端笔记会以 uid 当主键重新落库，本地那条（带真实
       // 创建时间 / 批注 / 置顶）会被剪掉，时间被服务端时间顶替。
-      final boundServerNotes = sync_merge.bindServerNotesToLocalIds(
+      final boundServerNotes = sync_merge
+          .bindServerNotesToLocalIds(
         serverNotes,
         localNotes,
         allowContentClaim: isRemoteComplete,
-      ).map((note) {
+      )
+          .map((note) {
         final tags = Note.extractTagsFromContent(note.content);
         return tags.isEmpty ? note : note.copyWith(tags: tags);
       }).toList();
@@ -368,7 +373,8 @@ extension AppProviderSyncPart on AppProvider {
       }
 
       // 5. 更新内存中的列表
-      _notesStore.notes = _excludePendingDeletedNotes(await _databaseService.getNotes());
+      _notesStore.notes =
+          _excludePendingDeletedNotes(await _databaseService.getNotes());
 
       // 冲突条数落盘，重启后仍能在服务器信息页看到上次同步的情况
       await _preferencesService.saveLastSyncConflicts(_lastSyncConflicts);

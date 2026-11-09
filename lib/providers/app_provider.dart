@@ -286,7 +286,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   final ReminderStore _reminderStore = ReminderStore();
 
   // 🔥 暴露notificationService供main.dart使用
-  NotificationService get notificationService => _reminderStore.appNotificationService;
+  NotificationService get notificationService =>
+      _reminderStore.appNotificationService;
   // 🔥 暴露reminderNotificationService供main.dart使用
   ReminderNotificationService get reminderNotificationService =>
       _reminderStore.reminderService;
@@ -301,7 +302,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       Duration(minutes: 5); // 🚀 缓存5分钟
 
   // 获取排序后的笔记
-  List<Note> _getSortedNotes() => sortedNotesCopy(_notesStore.notes, _notesStore.sortOrder);
+  List<Note> _getSortedNotes() =>
+      sortedNotesCopy(_notesStore.notes, _notesStore.sortOrder);
 
   void _clearNotesCache() {
     _notesStore.visibleNotesCache = null;
@@ -342,7 +344,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
 
     final visibleNotes = _getSortedNotes().where(_isVisibleNote).toList();
-    return _notesStore.visibleNotesCache = List<Note>.unmodifiable(visibleNotes);
+    return _notesStore.visibleNotesCache =
+        List<Note>.unmodifiable(visibleNotes);
   }
 
   // 🚀 大厂标准：细粒度状态访问
@@ -371,7 +374,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   bool get isLoading => _notesStore.isLoading;
   bool get isInitialized => _notesStore.isInitialized;
   bool get isLoggedIn =>
-      _authStore.user != null && _authStore.user!.token != null && _authStore.user!.token!.isNotEmpty;
+      _authStore.user != null &&
+      _authStore.user!.token != null &&
+      _authStore.user!.token!.isNotEmpty;
   bool get isLocalMode => _appConfig.isLocalMode;
   AppConfig get appConfig => _appConfig;
   MemosApiServiceFixed? get memosApiService => _authStore.apiService;
@@ -442,7 +447,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
   /// 更新内存中的笔记（用于本地引用服务通知）
   void updateNoteInMemory(Note updatedNote) {
-    final index = _notesStore.notes.indexWhere((note) => note.id == updatedNote.id);
+    final index =
+        _notesStore.notes.indexWhere((note) => note.id == updatedNote.id);
     if (index != -1) {
       _notesStore.notes[index] = updatedNote;
       _clearNotesCache();
@@ -468,7 +474,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       await _reminderStore.appNotificationService.initialize();
 
       // 设置通知点击回调 - 跳转到笔记详情页并清除提醒
-      _reminderStore.appNotificationService.setNotificationTapCallback((noteIdInt) async {
+      _reminderStore.appNotificationService
+          .setNotificationTapCallback((noteIdInt) async {
         // 🔥 关键修复：使用noteIdMapping找到原始的noteId字符串
         final noteIdString = NotificationService.noteIdMapping[noteIdInt];
 
@@ -524,7 +531,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
           } else {
             // 更新已加载的笔记
             for (final note in updatedNotes) {
-              final index = _notesStore.notes.indexWhere((n) => n.id == note.id);
+              final index =
+                  _notesStore.notes.indexWhere((n) => n.id == note.id);
               if (index != -1) {
                 _notesStore.notes[index] = note;
               } else {
@@ -713,7 +721,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       // 异步初始化API服务
       if (_authStore.user != null &&
-          (_authStore.user!.serverUrl != null || _appConfig.memosApiUrl != null)) {
+          (_authStore.user!.serverUrl != null ||
+              _appConfig.memosApiUrl != null)) {
         // 后台初始化API服务
         await _initializeApiServiceInBackground();
       }
@@ -778,7 +787,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     String targetId,
     String action,
   ) async {
-    if (!isLoggedIn || _authStore.apiService == null || _authStore.user?.token == null) {
+    if (!isLoggedIn ||
+        _authStore.apiService == null ||
+        _authStore.user?.token == null) {
       if (kDebugMode) {
         // 跳过服务器引用同步（未登录或API服务未初始化）
       }
@@ -844,7 +855,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   ) async {
     try {
       // 查找并更新源笔记的关系状态
-      final sourceNoteIndex = _notesStore.notes.indexWhere((n) => n.id == sourceId);
+      final sourceNoteIndex =
+          _notesStore.notes.indexWhere((n) => n.id == sourceId);
       if (sourceNoteIndex != -1) {
         final sourceNote = _notesStore.notes[sourceNoteIndex];
         final updatedRelations = sourceNote.relations.map((rel) {
@@ -863,7 +875,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       }
 
       // 查找并更新目标笔记的关系状态
-      final targetNoteIndex = _notesStore.notes.indexWhere((n) => n.id == targetId);
+      final targetNoteIndex =
+          _notesStore.notes.indexWhere((n) => n.id == targetId);
       if (targetNoteIndex != -1) {
         final targetNote = _notesStore.notes[targetNoteIndex];
         final updatedRelations = targetNote.relations.map((rel) {
@@ -912,7 +925,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 🔥 修复：完整加载所有笔记（用于刷新场景，如导入后）
       // 这是刷新操作，需要显示最新的完整数据
       _notesStore.pagingState = paging.initialNotesPaginationState();
-      _notesStore.notes = _excludePendingDeletedNotes(await _databaseService.getNotes());
+      _notesStore.notes =
+          _excludePendingDeletedNotes(await _databaseService.getNotes());
 
       // 更新总数统计
       _setTotalNotesCount(_notesStore.notes.length);
@@ -931,8 +945,10 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         'load_notes_from_local',
         metrics: {'note_count': _notesStore.notes.length},
       );
-      Log.database
-          .info('Notes loaded successfully', data: {'count': _notesStore.notes.length});
+      Log.database.info(
+        'Notes loaded successfully',
+        data: {'count': _notesStore.notes.length},
+      );
     } on Object catch (e, stackTrace) {
       // 🚀 大厂标准：错误监控
       await PerformanceTracker()
@@ -994,7 +1010,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   /// 特性：并发控制 + 细粒度状态 + 性能监控
   Future<void> loadMoreNotes() async {
     // 1️⃣ 并发控制：如果正在加载，返回现有的 Future
-    if (_notesStore.loadMoreCompleter != null && !_notesStore.loadMoreCompleter!.isCompleted) {
+    if (_notesStore.loadMoreCompleter != null &&
+        !_notesStore.loadMoreCompleter!.isCompleted) {
       debugPrint('AppProvider: ⚠️ 检测到并发加载请求，返回现有Future');
       return _notesStore.loadMoreCompleter!.future;
     }
@@ -1066,7 +1083,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     } on Object catch (e, stackTrace) {
       // ❌ 错误处理
       _notesStore.loadStopwatch.stop();
-      _notesStore.pagingState = paging.applyLoadMoreFailure(_notesStore.pagingState);
+      _notesStore.pagingState =
+          paging.applyLoadMoreFailure(_notesStore.pagingState);
 
       debugPrint(
         'AppProvider: ❌ 加载第 ${_notesStore.pagingState.currentPage + 1} 页失败: $e',
@@ -1316,7 +1334,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     if (_notesStore.pendingDeleteIds.isEmpty) {
       return notes;
     }
-    return notes.where((note) => !_notesStore.pendingDeleteIds.contains(note.id)).toList();
+    return notes
+        .where((note) => !_notesStore.pendingDeleteIds.contains(note.id))
+        .toList();
   }
 
   bool _isVisibleNote(Note note) =>
@@ -1496,7 +1516,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     // 服务端 uid 快照：既要知道哪些副本能删，也要知道保留条绑的 uid 是否还活着。
     // 拿不到完整快照就不碰远端，避免把另一台设备还在用的记录删掉。
     Set<String>? liveRemoteIds;
-    if (!_appConfig.isLocalMode && isLoggedIn && _authStore.apiService != null) {
+    if (!_appConfig.isLocalMode &&
+        isLoggedIn &&
+        _authStore.apiService != null) {
       try {
         final response = await _authStore.apiService!.getMemos();
         if (response['isComplete'] as bool? ?? true) {
@@ -2291,7 +2313,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         return false;
       }
 
-      return await _authStore.apiService!.addMemoReference(noteId, relatedMemoId);
+      return await _authStore.apiService!
+          .addMemoReference(noteId, relatedMemoId);
     } on Object {
       return false;
     }
@@ -2413,7 +2436,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       notifyListeners();
 
       // 如果是在线模式且已登录，尝试同步到服务器
-      if (!_appConfig.isLocalMode && isLoggedIn && _authStore.apiService != null) {
+      if (!_appConfig.isLocalMode &&
+          isLoggedIn &&
+          _authStore.apiService != null) {
         try {
           // 🔥 使用专门的 memo_organizer API 来更新置顶状态
           final serverNote = await _authStore.apiService!.updateMemoOrganizer(
@@ -2429,7 +2454,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
           await _databaseService.updateNote(syncedNote);
 
           // 更新内存中的列表为服务器返回的数据
-          final serverIndex = _notesStore.notes.indexWhere((n) => n.id == note.id);
+          final serverIndex =
+              _notesStore.notes.indexWhere((n) => n.id == note.id);
           if (serverIndex != -1) {
             _notesStore.notes[serverIndex] = syncedNote;
           }
@@ -2652,7 +2678,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 🚀 自动同步到 Notion（异步执行，不阻塞UI）
       unawaited(_autoSyncToNotion());
 
-      if (!_appConfig.isLocalMode && isLoggedIn && _authStore.apiService != null) {
+      if (!_appConfig.isLocalMode &&
+          isLoggedIn &&
+          _authStore.apiService != null) {
         unawaited(
           Future.microtask(() async {
             try {
@@ -2746,7 +2774,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       }
 
       // 如果是在线模式且已登录，尝试同步到服务器
-      if (!_appConfig.isLocalMode && isLoggedIn && _authStore.apiService != null) {
+      if (!_appConfig.isLocalMode &&
+          isLoggedIn &&
+          _authStore.apiService != null) {
         try {
           debugPrint('AppProvider: 尝试同步到服务器，笔记ID: ${noteWithTags.id}');
           final uploadableNote = await _prepareNoteForMemosUpload(noteWithTags);
@@ -2776,7 +2806,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
           if (index != -1) {
             existingRelations = _notesStore.notes[index].relations;
-            existingAnnotations = _notesStore.notes[index].annotations; // ✅ 保护批注
+            existingAnnotations =
+                _notesStore.notes[index].annotations; // ✅ 保护批注
           }
 
           final mergedNote = _mergeServerNoteWithLocalState(
@@ -2863,7 +2894,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         rebuildReferences: false,
       );
 
-      if (_appConfig.isLocalMode || !isLoggedIn || _authStore.apiService == null) {
+      if (_appConfig.isLocalMode ||
+          !isLoggedIn ||
+          _authStore.apiService == null) {
         return optimisticNote;
       }
 
@@ -2925,7 +2958,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       );
 
       // 如果是在线模式且已登录，尝试同步到服务器
-      if (!_appConfig.isLocalMode && isLoggedIn && _authStore.apiService != null) {
+      if (!_appConfig.isLocalMode &&
+          isLoggedIn &&
+          _authStore.apiService != null) {
         try {
           await _syncUnsyncedNotesSnapshot([updatedNote]);
         } on Object catch (e) {
@@ -2944,7 +2979,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   // 删除笔记（本地和服务器） - 使用乐观更新策略
   Future<bool> deleteNote(String id, {bool showSnackBar = false}) async {
     try {
-      final deletedIndex = _notesStore.notes.indexWhere((note) => note.id == id);
+      final deletedIndex =
+          _notesStore.notes.indexWhere((note) => note.id == id);
       final deletedNote = deletedIndex == -1
           ? await _databaseService.getNoteById(id)
           : _notesStore.notes[deletedIndex];
@@ -2999,7 +3035,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   /// 失败不抛出：操作留在队列表里，下次同步或删除批处理时继续重试，
   /// 避免离线、Token 过期时把删除请求静默丢掉。
   Future<void> flushPendingNoteDeletes() async {
-    if (_appConfig.isLocalMode || !isLoggedIn || _authStore.apiService == null) {
+    if (_appConfig.isLocalMode ||
+        !isLoggedIn ||
+        _authStore.apiService == null) {
       return;
     }
 
@@ -3094,13 +3132,16 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
   // 🔙 撤销删除笔记
   Future<bool> restoreNote() async {
-    if (_notesStore.lastDeletedNote == null || _notesStore.lastDeletedIndex == null) {
+    if (_notesStore.lastDeletedNote == null ||
+        _notesStore.lastDeletedIndex == null) {
       debugPrint('AppProvider: 没有可撤销的删除操作');
       return false;
     }
 
     try {
-      debugPrint('AppProvider: 🔙 开始撤销删除笔记 ID: ${_notesStore.lastDeletedNote!.id}');
+      debugPrint(
+        'AppProvider: 🔙 开始撤销删除笔记 ID: ${_notesStore.lastDeletedNote!.id}',
+      );
       _notesStore.pendingDeleteCommitTimer?.cancel();
       _notesStore.pendingDeleteCommitTimer = null;
       _notesStore.deleteQueue.remove(_notesStore.lastDeletedNote!.id);
@@ -3108,7 +3149,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       // 1. 先解除软删标记并校准总数：软删行不计入 viewActiveNotes，
       //    恢复后总数要跟着回来，否则「共 N 条」会少一条。
-      await _databaseService.restoreDeletedNote(_notesStore.lastDeletedNote!.id);
+      await _databaseService
+          .restoreDeletedNote(_notesStore.lastDeletedNote!.id);
       _setTotalNotesCount(await _databaseService.getNotesCount());
 
       // 2. 恢复到内存列表。搜索结果删除的笔记可能不在当前分页内，默认恢复到顶部。
@@ -3551,7 +3593,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       // 🚀 缓存检查：如果5分钟内已加载过，直接跳过
       if (_cloudStore.lastVerificationTime != null) {
-        final duration = DateTime.now().difference(_cloudStore.lastVerificationTime!);
+        final duration =
+            DateTime.now().difference(_cloudStore.lastVerificationTime!);
         if (duration < _cloudVerificationCacheDuration) {
           return;
         }
@@ -3715,7 +3758,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   Future<bool> setNoteReminder(String noteId, DateTime reminderTime) async {
     try {
       // 查找笔记
-      final noteIndex = _notesStore.notes.indexWhere((note) => note.id == noteId);
+      final noteIndex =
+          _notesStore.notes.indexWhere((note) => note.id == noteId);
       if (noteIndex == -1) {
         throw Exception('笔记不存在');
       }
@@ -3723,7 +3767,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       final note = _notesStore.notes[noteIndex];
 
       // 设置通知（传递原始noteId字符串）
-      final success = await _reminderStore.appNotificationService.scheduleNoteReminder(
+      final success =
+          await _reminderStore.appNotificationService.scheduleNoteReminder(
         noteId: noteId.hashCode,
         noteIdString: noteId, // 🔥 传递原始字符串ID
         title: '📝 笔记提醒',
@@ -3810,7 +3855,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   Future<void> cancelNoteReminder(String noteId) async {
     try {
       // 查找笔记
-      final noteIndex = _notesStore.notes.indexWhere((note) => note.id == noteId);
+      final noteIndex =
+          _notesStore.notes.indexWhere((note) => note.id == noteId);
       if (noteIndex == -1) {
         throw Exception('笔记不存在');
       }
@@ -3825,7 +3871,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       await _databaseService.updateNote(updatedNote);
 
       // 取消通知（使用hashCode将String ID转为int）
-      await _reminderStore.appNotificationService.cancelNoteReminder(noteId.hashCode);
+      await _reminderStore.appNotificationService
+          .cancelNoteReminder(noteId.hashCode);
 
       notifyListeners();
     } on Object {

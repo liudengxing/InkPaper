@@ -90,7 +90,8 @@ class DraftService {
       final all = _decode(prefs.getString(prefsKey));
       final raw = all[draftId];
       if (raw is Map) {
-        final draft = NoteDraft.fromJson(Map<String, dynamic>.from(raw), draftId);
+        final draft =
+            NoteDraft.fromJson(Map<String, dynamic>.from(raw), draftId);
         if (_isExpired(draft)) {
           await clear(draftId);
           return null;
@@ -150,7 +151,8 @@ class DraftService {
         if (raw is! Map) {
           return;
         }
-        final draft = NoteDraft.fromJson(Map<String, dynamic>.from(raw), draftId);
+        final draft =
+            NoteDraft.fromJson(Map<String, dynamic>.from(raw), draftId);
         if (_isExpired(draft) || draft.content.trim().isEmpty) {
           expired.add(draftId);
         } else {

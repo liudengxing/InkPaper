@@ -717,8 +717,8 @@ class NoteActionsUi {
     );
 
     try {
-      final result = await IntelligentRelatedNotesService()
-          .findIntelligentRelatedNotes(
+      final result =
+          await IntelligentRelatedNotesService().findIntelligentRelatedNotes(
         currentNote: note,
         allNotes: appProvider.notes,
         apiKey: appProvider.appConfig.aiApiKey,
@@ -1289,7 +1289,6 @@ class NoteActionsUi {
       ],
     );
   }
-
 }
 
 /// 分享选项底部面板

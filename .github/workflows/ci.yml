@@ -20,7 +20,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLUTTER_CHANNEL: stable
+  # 固定到本地验证过的版本。此前用 `channel: stable` 是浮动版本，格式门禁的
+  # 结果绑死在 dart_style 上：stable 一升级、格式化规则一变，CI 就会因为与代码
+  # 无关的原因变红。升级时改这里一处即可（两个 workflow 各有一份）。
+  FLUTTER_VERSION: 3.47.7
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   UMENG_ANDROID_APPKEY: ${{ secrets.UMENG_ANDROID_APPKEY }}
   UMENG_CHANNEL: ${{ secrets.UMENG_CHANNEL }}
@@ -34,11 +37,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: dart tool/inkpaper.dart store-check
-      - name: 格式门禁（dart format）
-        run: dart format --output=none --set-exit-if-changed lib test tool
+      # 本地和 CI 走同一条命令：deps → 格式门禁 → analyze → test。
+      # 顺序不能调：没有 .dart_tool/package_config.json 时 dart format 读不到项目的
+      # 语言版本（pubspec >=3.0.0 → 3.0），会退回 SDK 最新版的 tall style，与实际
+      # 使用的 short style 产生上百个假差异，格式门禁必然红。
       - run: dart tool/inkpaper.dart verify --coverage
       - name: Upload coverage
         uses: actions/upload-artifact@v4
@@ -66,7 +71,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: dart tool/inkpaper.dart deps
       - name: Restore Android signing files

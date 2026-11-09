@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **版本记录说明**：`1.1.14`–`1.1.56` 的逐版本记录没有随 2026-10-14 的代码基线重导入（`ca0ed14`）一起迁移过来，无法可靠复原，因此不做臆造补记。`1.1.57` 起的变更以 `PROGRESS.md` 为准（按日期归档，含验证输出与决策依据），本文件只汇总用户可感知的对外变更。
 
+## [1.1.64] - 2026-11-09
+
+### 修复（内部，无行为变化）
+- GitHub Actions 的格式门禁长期误报。没有 `.dart_tool/package_config.json` 时 `dart format` 读不到 pubspec 里声明的语言版本（`>=3.0.0`），会退回当前 SDK 的 tall style，把早已排好的代码全判成「需要重排」，一次红灯 185 个文件。现在门禁前先 `pub get`
+
+### 优化（内部，无行为变化）
+- 新增 `.gitattributes` 统一行尾：`* text=auto eol=lf`，`.bat` / `.cmd` / `.ps1` 保持 CRLF，图片与安装包等二进制不做转换。此前索引存 LF、Windows 工作区是 CRLF 且没有规范化规则，任何一次 `dart format` 都会让 diff 变成整文件重写，无法 review
+- 按项目实际的 short style 重排 36 个文件，语义零改动（逐文件比对去空白后的字符流，差异只有格式化器补的尾随逗号）
+- `tool/inkpaper.dart` 新增 `format` 子命令（`--fix` 就地重排），并纳入 `verify`：本地和 CI 现在都是 `deps → format → analyze → test` 同一条命令。此前格式门禁只写在 workflow 里，本地永远复现不出来，才会攒到 36 个文件才发现
+- 两个 workflow 的 Flutter 版本从浮动的 `channel: stable` 固定为 `3.47.7`（本地验证版本）。格式门禁的结果绑死在 dart_style 上，stable 一升级就可能因为与代码无关的原因变红
+
 ## [1.1.63] - 2026-11-09
 
 ### 移除

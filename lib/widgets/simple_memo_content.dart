@@ -76,8 +76,7 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
   String _convertedValue = '';
 
   String _convertCached(String source) {
-    if (_convertedSource == source &&
-        _convertedServerUrl == widget.serverUrl) {
+    if (_convertedSource == source && _convertedServerUrl == widget.serverUrl) {
       return _convertedValue;
     }
     final converted = MemosMarkdownConverter(
@@ -642,8 +641,7 @@ class _SimpleMemoContentState extends State<SimpleMemoContent> {
     // 一张就占几十 MB，多图笔记同时进来直接把主线程顶住。
     final size = MediaQuery.maybeSizeOf(context);
     final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
-    final decodeWidth =
-        ((size?.width ?? 400) * dpr).clamp(320, 1440).round();
+    final decodeWidth = ((size?.width ?? 400) * dpr).clamp(320, 1440).round();
 
     final appProvider = Provider.of<AppProvider>(context, listen: false);
 

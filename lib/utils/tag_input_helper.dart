@@ -133,7 +133,10 @@ TagInputContext? detectTagPrefix({
     return null;
   }
 
-  return (start: hashIndex, prefix: text.substring(hashIndex + 1, cursorPosition));
+  return (
+    start: hashIndex,
+    prefix: text.substring(hashIndex + 1, cursorPosition)
+  );
 }
 
 /// 按「完全匹配 → 前缀匹配 → 包含匹配」的优先级排列候选标签。

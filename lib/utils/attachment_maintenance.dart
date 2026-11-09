@@ -120,8 +120,8 @@ String localFileNameForAttachment(String remotePath) {
 /// canonicalAttachmentKey(p.split('/').last)`。
 String canonicalAttachmentKey(String fileName) {
   var name = fileName;
-  final match = RegExp(r'^memos_(.+)_([0-9a-f]{8})\.([A-Za-z0-9]+)$')
-      .firstMatch(name);
+  final match =
+      RegExp(r'^memos_(.+)_([0-9a-f]{8})\.([A-Za-z0-9]+)$').firstMatch(name);
   if (match != null) {
     name = '${match.group(1)}.${match.group(3)}';
   }
@@ -133,8 +133,9 @@ String canonicalAttachmentKey(String fileName) {
 (String, String) _attachmentNameParts(String name) {
   final dot = name.lastIndexOf('.');
   final rawBase = dot > 0 ? name.substring(0, dot) : name;
-  final ext =
-      dot > 0 && dot < name.length - 1 ? name.substring(dot + 1).toLowerCase() : 'jpg';
+  final ext = dot > 0 && dot < name.length - 1
+      ? name.substring(dot + 1).toLowerCase()
+      : 'jpg';
   var base = rawBase.replaceAll(RegExp('[^a-zA-Z0-9._-]'), '_');
   if (base.isEmpty) {
     base = 'image';
@@ -149,9 +150,7 @@ String canonicalAttachmentKey(String fileName) {
 /// 远端「同名即同内容」，`exists` 判断就等价于「这份内容已经备份过」。
 String contentAddressedAttachmentName(List<int> bytes, String extension) {
   final digest = sha1.convert(bytes).toString();
-  var ext = extension
-      .replaceAll(RegExp('[^a-zA-Z0-9]'), '')
-      .toLowerCase();
+  var ext = extension.replaceAll(RegExp('[^a-zA-Z0-9]'), '').toLowerCase();
   if (ext.isEmpty) {
     ext = 'bin';
   }

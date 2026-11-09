@@ -14,7 +14,9 @@ extension AppProviderAccountPart on AppProvider {
     String? avatarUrl,
     String? description,
   }) async {
-    if (!isLoggedIn || _authStore.apiService == null || _authStore.user == null) {
+    if (!isLoggedIn ||
+        _authStore.apiService == null ||
+        _authStore.user == null) {
       return false;
     }
 
@@ -47,7 +49,9 @@ extension AppProviderAccountPart on AppProvider {
     required String currentPassword,
     required String newPassword,
   }) async {
-    if (!isLoggedIn || _authStore.apiService == null || _authStore.user == null) {
+    if (!isLoggedIn ||
+        _authStore.apiService == null ||
+        _authStore.user == null) {
       return false;
     }
 
@@ -161,7 +165,8 @@ extension AppProviderAccountPart on AppProvider {
     }
 
     // 检查是否有保存的token和服务器信息
-    final savedServerUrl = _appConfig.lastServerUrl ?? _authStore.user?.serverUrl;
+    final savedServerUrl =
+        _appConfig.lastServerUrl ?? _authStore.user?.serverUrl;
     final savedToken = _appConfig.lastToken ?? _authStore.user?.token;
 
     if (savedServerUrl == null || savedToken == null) {
@@ -378,7 +383,8 @@ extension AppProviderAccountPart on AppProvider {
 
   // 🖼️ 异步预加载用户头像
   void _preloadUserAvatarAsync() {
-    if (_authStore.user?.avatarUrl == null || _authStore.user!.avatarUrl!.trim().isEmpty) {
+    if (_authStore.user?.avatarUrl == null ||
+        _authStore.user!.avatarUrl!.trim().isEmpty) {
       return; // 没有头像URL，无需预加载
     }
 

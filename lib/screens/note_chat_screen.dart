@@ -498,7 +498,9 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
         decoration: BoxDecoration(
-          color: isDarkMode ? AppTheme.darkBackgroundColor : AppTheme.backgroundColor,
+          color: isDarkMode
+              ? AppTheme.darkBackgroundColor
+              : AppTheme.backgroundColor,
           border: Border(
             top: BorderSide(
               color: isDarkMode
@@ -559,7 +561,9 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  _isSending ? Icons.hourglass_top_rounded : Icons.arrow_upward_rounded,
+                  _isSending
+                      ? Icons.hourglass_top_rounded
+                      : Icons.arrow_upward_rounded,
                   color: Colors.white,
                   size: 20,
                 ),

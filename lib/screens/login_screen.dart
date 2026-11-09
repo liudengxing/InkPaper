@@ -1444,7 +1444,6 @@ class _LoginScreenState extends State<LoginScreen>
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         child: Column(
           children: [
-
             // 版本兼容性详细说明
             Container(
               padding: const EdgeInsets.all(16),

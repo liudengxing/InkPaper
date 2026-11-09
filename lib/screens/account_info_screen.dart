@@ -1030,7 +1030,6 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                   ),
                 ),
               ),
-
             ],
           ),
         ),

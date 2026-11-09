@@ -118,8 +118,9 @@ class _NoteImageGridState extends State<NoteImageGrid> {
               context,
               imagePaths: imagePaths,
             ),
-            onLongPress:
-                onLongPress == null ? null : () => onLongPress!(imagePaths.first),
+            onLongPress: onLongPress == null
+                ? null
+                : () => onLongPress!(imagePaths.first),
             child: _buildImage(
               context,
               imagePaths.first,
@@ -456,9 +457,7 @@ class _NoteImageGridState extends State<NoteImageGrid> {
         CachedNetworkImageProvider(
           fullUrl,
           cacheManager: ImageCacheManager.authImageCache,
-          headers: token != null
-              ? {'Authorization': 'Bearer $token'}
-              : null,
+          headers: token != null ? {'Authorization': 'Bearer $token'} : null,
         ),
       );
     }

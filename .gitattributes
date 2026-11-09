@@ -1,0 +1,39 @@
+# 行尾统一：索引与检出都按 LF 规范化。
+# 背景（2026-11-09）：仓库此前没有任何 .gitattributes，core.autocrlf 也没设置，
+# 索引里存 LF、Windows 工作区是 CRLF。结果任何一次 dart format 都会让
+# git diff 变成「整文件重写」（实测 36 个文件 ≈1.8 万行，实际语义改动只有几十行），
+# 提交无法 review。这里把行尾策略写死，避免换机器/换 IDE 再次漂移。
+* text=auto eol=lf
+
+# 需要在 Windows 上保持 CRLF 的批处理脚本
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制：禁止做文本/行尾转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.bmp binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.mp3 binary
+*.mp4 binary
+*.mov binary
+*.wav binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+*.apk binary
+*.aab binary
+*.jar binary
+*.keystore binary
+*.jks binary
+*.der binary
+*.p12 binary

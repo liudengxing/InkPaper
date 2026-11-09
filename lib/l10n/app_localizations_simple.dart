@@ -683,7 +683,8 @@ class AppLocalizationsSimple {
   String get reviewGenerating => _t('reviewGenerating', fallback: '正在生成回顾…');
   String get reviewRegenerate => _t('reviewRegenerate', fallback: '重新生成');
   String get reviewCopy => _t('reviewCopy', fallback: '复制');
-  String get periodicReviewCopied => _t('periodicReviewCopied', fallback: '已复制');
+  String get periodicReviewCopied =>
+      _t('periodicReviewCopied', fallback: '已复制');
   String get reviewNoNotes => _t('reviewNoNotes', fallback: '这个周期还没有笔记');
   String get periodicReviewPrompt =>
       _t('periodicReviewPrompt', fallback: '回顾提示词');
@@ -1252,8 +1253,7 @@ class AppLocalizationsSimple {
 
   // ===== 设置页面 =====
   String get waitPatiently => _t('waitPatiently', fallback: '记录是为了');
-  String get poiseToResound =>
-      _t('poiseToResound', fallback: '成为更好的自己');
+  String get poiseToResound => _t('poiseToResound', fallback: '成为更好的自己');
 
   // ===== NoteEditor Widget =====
   String get thinkingNow => _t('thinkingNow', fallback: '现在的想法是...');
@@ -2679,7 +2679,8 @@ class AppLocalizationsSimple {
 
   // ===== 分享图 =====
   String get shareImageTitle => _t('shareImageTitle', fallback: '生成分享图');
-  String get shareImageGenerating => _t('shareImageGenerating', fallback: '生成中...');
+  String get shareImageGenerating =>
+      _t('shareImageGenerating', fallback: '生成中...');
   String get shareImageGeneratingPreview =>
       _t('shareImageGeneratingPreview', fallback: '正在生成预览（加载图片中...）');
   String get shareImageLoadingImages =>
@@ -2690,8 +2691,7 @@ class AppLocalizationsSimple {
       _t('shareImageChangeTemplate', fallback: '更换模板');
   String get shareImageSave => _t('shareImageSave', fallback: '保存图片');
   String get shareImageShare => _t('shareImageShare', fallback: '分享');
-  String get shareImageSaving =>
-      _t('shareImageSaving', fallback: '正在保存图片...');
+  String get shareImageSaving => _t('shareImageSaving', fallback: '正在保存图片...');
   String get shareImageSavingToAlbum =>
       _t('shareImageSavingToAlbum', fallback: '正在保存图片，请稍候');
   String get shareImageSaveSuccess =>
@@ -2712,8 +2712,7 @@ class AppLocalizationsSimple {
       _t('shareImageFontSizeDone', fallback: '完成');
   String get shareImageFontSettings =>
       _t('shareImageFontSettings', fallback: '字体设置');
-  String get shareTemplateSimple =>
-      _t('shareTemplateSimple', fallback: '简约风格');
+  String get shareTemplateSimple => _t('shareTemplateSimple', fallback: '简约风格');
   String get shareTemplateCard => _t('shareTemplateCard', fallback: '卡片风格');
   String get shareTemplateGradient =>
       _t('shareTemplateGradient', fallback: '渐变风格');

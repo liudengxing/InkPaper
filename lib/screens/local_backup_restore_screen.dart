@@ -141,7 +141,8 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         if (diff.inMinutes < 1) {
           lastBackupStr = l10n?.justNow ?? '刚刚';
         } else if (diff.inMinutes < 60) {
-          lastBackupStr = l10n?.minutesAgo(diff.inMinutes) ?? '${diff.inMinutes} 分钟前';
+          lastBackupStr =
+              l10n?.minutesAgo(diff.inMinutes) ?? '${diff.inMinutes} 分钟前';
         } else if (diff.inHours < 24) {
           lastBackupStr = l10n?.hoursAgo(diff.inHours) ?? '${diff.inHours} 小时前';
         } else if (diff.inDays < 30) {
@@ -477,9 +478,8 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       if (!mounted) {
         return;
       }
-      final remotePart = report.remoteDeleted > 0
-          ? '，服务端删除 ${report.remoteDeleted} 条'
-          : '';
+      final remotePart =
+          report.remoteDeleted > 0 ? '，服务端删除 ${report.remoteDeleted} 条' : '';
       if (report.hasRemoteFailure) {
         SnackBarUtils.showError(
           context,
@@ -669,11 +669,10 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: (_isScanningOrphans ||
-                            report == null ||
-                            report.isEmpty)
-                        ? null
-                        : _confirmDeleteOrphans,
+                    onPressed:
+                        (_isScanningOrphans || report == null || report.isEmpty)
+                            ? null
+                            : _confirmDeleteOrphans,
                     icon: const Icon(Icons.delete_outline, size: 18),
                     label: const Text('清理'),
                   ),
@@ -778,7 +777,10 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
                           (_isScanningDuplicates || _duplicateRemovable == 0)
                               ? null
                               : _confirmAndMergeDuplicates,
-                      icon: const Icon(Icons.cleaning_services_outlined, size: 18),
+                      icon: const Icon(
+                        Icons.cleaning_services_outlined,
+                        size: 18,
+                      ),
                       label: const Text('合并'),
                     ),
                   ),

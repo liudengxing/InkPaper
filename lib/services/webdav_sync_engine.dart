@@ -67,8 +67,7 @@ class SyncStats {
         uploaded: uploaded ?? this.uploaded,
         resourceUploaded: resourceUploaded ?? this.resourceUploaded,
         resourceSkipped: resourceSkipped ?? this.resourceSkipped,
-        resourcesUnavailable:
-            resourcesUnavailable ?? this.resourcesUnavailable,
+        resourcesUnavailable: resourcesUnavailable ?? this.resourcesUnavailable,
         downloaded: downloaded ?? this.downloaded,
         deleted: deleted ?? this.deleted,
         conflicts: conflicts ?? this.conflicts,
@@ -523,8 +522,7 @@ class WebDavSyncEngine {
     for (final note in notes) {
       for (final imagePath in _extractMarkdownImagePaths(note.content)) {
         try {
-          final canFetchFromServer =
-              imagePath.startsWith('http') ||
+          final canFetchFromServer = imagePath.startsWith('http') ||
               _memosResourceUrl(imagePath) != null;
           final bytes = await _readImageBytes(imagePath);
           if (bytes == null) {

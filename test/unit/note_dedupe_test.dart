@@ -44,10 +44,16 @@ void main() {
       // 双通道各上传一次时，同一张图会拿到两个附件目录 uid
       expect(
         noteContentHash(
-          _note('a', '正文\n![图片](/file/attachments/AAA111/image_1790848653578.jpg)'),
+          _note(
+            'a',
+            '正文\n![图片](/file/attachments/AAA111/image_1790848653578.jpg)',
+          ),
         ),
         noteContentHash(
-          _note('b', '正文\n![图片](/file/attachments/BBB222/image_1790848653578.jpg)'),
+          _note(
+            'b',
+            '正文\n![图片](/file/attachments/BBB222/image_1790848653578.jpg)',
+          ),
         ),
       );
     });
@@ -150,7 +156,8 @@ void main() {
       final pool = groupNotesByContentHash([timed('memos-uid', '同一段正文', t)]);
 
       final twin = findContentDuplicate(
-        candidate: timed('old-uuid', '同一段正文', t.add(const Duration(seconds: 30))),
+        candidate:
+            timed('old-uuid', '同一段正文', t.add(const Duration(seconds: 30))),
         poolByHash: pool,
       );
 
@@ -175,7 +182,10 @@ void main() {
       final pool = groupNotesByContentHash([timed('same', '正文', t)]);
 
       expect(
-        findContentDuplicate(candidate: timed('same', '正文', t), poolByHash: pool),
+        findContentDuplicate(
+          candidate: timed('same', '正文', t),
+          poolByHash: pool,
+        ),
         isNull,
       );
     });
@@ -185,7 +195,10 @@ void main() {
       final pool = groupNotesByContentHash([timed('a', '内容 A', t)]);
 
       expect(
-        findContentDuplicate(candidate: timed('b', '内容 B', t), poolByHash: pool),
+        findContentDuplicate(
+          candidate: timed('b', '内容 B', t),
+          poolByHash: pool,
+        ),
         isNull,
       );
     });

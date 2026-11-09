@@ -1,3 +1,32 @@
+## 2026-11-09 · CI 格式门禁修复 + 行尾策略 + 版本固定（1.1.64+10160）· done
+
+- 现象：GitHub Actions 一直红。`gh` 的 token 已失效，但仓库公开，直接用 REST API 匿名查到真实记录——我上一轮推送的 `14f5f3b`（run `42556743535`）红在 `Analyze + Test` 的**格式门禁**，另有 5 个 dependabot 的 pub 依赖 PR（#10–#14）卡在同一处；`Secret scan` 全过，Android 因 `needs` 被 skip
+- 根因：`dart format` 需要 `.dart_tool/package_config.json` 才能读到 pubspec 声明的语言版本（`>=3.0.0` → 3.0）。CI 的格式门禁跑在 `pub get` 之前，读不到就退回当前 SDK 的 **tall style**，把早已按 short style 排好的代码全判成「需要重排」
+- **不是靠推理，在干净克隆里复现了**：
+```
+① git clone → 不 pub get → dart format --output=none --set-exit-if-changed lib test tool
+   Formatted 229 files (185 changed)   exit=1     ← 正好对上 CI 的红
+② flutter pub get 之后再跑同一条命令
+   Formatted 229 files (0 changed)     exit=0     ← 修复生效
+```
+- 修复一：`ci.yml` 的格式门禁前先 `pub get`（当时是单独一步 `dart tool/inkpaper.dart deps`）
+- 修复二：新增 `.gitattributes`。此前仓库没有这个文件、`core.autocrlf=true`，索引存 LF、Windows 工作区是 CRLF，任何一次 `dart format` 都把 diff 变成整文件重写（实测 36 个文件 ≈1.8 万行，真实语义改动只有几十行），提交无法 review。现在 `* text=auto eol=lf`，`.bat/.cmd/.ps1` 保持 CRLF，图片/安装包等二进制显式标 `binary`
+- 重排 36 个文件的安全性核验：逐文件把全部空白字符去掉后做字符流比对（`difflib.SequenceMatcher`），差异**只有格式化器补的尾随逗号**（`,)` `,}`），无一处语义改动
+- 修复三（本轮补完）：`tool/inkpaper.dart` 新增 `format` 子命令（`--fix` 就地重排），`_verify()` 改为 `deps → format → analyze → test`。**根因只封一半是指门禁只活在 YAML 里**，本地 `verify` 不含格式检查，所以永远跑不出这个问题、才会攒到 36 个文件。现在本地和 CI 是同一条命令
+- 修复四（本轮补完）：两个 workflow 的 `channel: ${{ env.FLUTTER_CHANNEL }}`（ci 2 处 + release 6 处，共 8 处）换成 `flutter-version: ${{ env.FLUTTER_VERSION }}`，env 写死 `FLUTTER_VERSION: 3.47.7`（本地 `flutter --version` = Flutter 3.47.7 / Dart 3.13.5）。浮动 stable 会让格式门禁跟着 dart_style 升级而红，与代码无关
+- `ci.yml` 的 quality 作业顺手合并：`store-check` 之后只剩一条 `verify --coverage`（原来 deps 被 `verify` 内部的 `_deps()` 重复跑一次）
+- 验证：
+```
+$ dart format --output=none --set-exit-if-changed lib test tool
+Formatted 229 files (0 changed)
+$ dart tool/inkpaper.dart verify
+analyze: No issues found!
+test:    +579: All tests passed!
+```
+- 两个 workflow 用 pyyaml 解析校验通过（本机原本没装，`pip install pyyaml` 临时装上；已确认 `flutter-version` 在 8 处全部生效）
+- 踩坑：`gh auth` 过期后不要以为查不到 CI —— `api.github.com` 匿名可读 `actions/runs` 与 `jobs`，只是 job logs 需要认证
+- 遗留：编辑器「选图后文字区被挤压」的高度修复已完成但**未提交**（工作区里 `lib/widgets/note_editor.dart`，计划作为 `1.1.65` 单独提交，避免和本次整文件重排混在一个 commit 里）；5 个 dependabot PR 要等 main 更新后 `@dependabot rebase` 才会用新 ci.yml 重跑
+
 ## 2026-11-09 · 删除「标签推荐提示词」死配置 + 清掉过期 stash（1.1.63+10159）· done
 
 - 背景（`TAG-REC-001`）：`customTagRecommendationPrompt` 全库零消费者，设置页输入框填了不生效。前一轮只做了开关语义修复，去留留待决策

@@ -189,8 +189,7 @@ class Note {
       deletedAt: _parseTimestamp(json['deletedAt'] ?? json['deleted_at']),
       // 服务端 uid 与本地 uuid 分开存：从备份 JSON 读回来时用这里的 remoteId，
       // 直接解析 Memos 响应时 `id` 就是 uid，由同步逻辑负责降级（见 AppProvider）
-      remoteId:
-          json['remoteId']?.toString() ?? json['remote_id']?.toString(),
+      remoteId: json['remoteId']?.toString() ?? json['remote_id']?.toString(),
     );
   }
   final String id;

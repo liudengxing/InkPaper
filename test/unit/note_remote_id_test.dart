@@ -35,7 +35,8 @@ void main() {
       expect(note.toJson()['remoteId'], 'uid-abc');
 
       expect(
-        Note.fromJson({'id': 'a', 'content': 'x', 'remoteId': 'uid-1'}).remoteId,
+        Note.fromJson({'id': 'a', 'content': 'x', 'remoteId': 'uid-1'})
+            .remoteId,
         'uid-1',
       );
       expect(

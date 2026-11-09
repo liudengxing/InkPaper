@@ -163,8 +163,7 @@ void main() {
 
       // 关键断言：图片 markdown 占据的 [2, 9) 没有被任何段覆盖
       for (final segment in segments) {
-        final overlapsImage =
-            segment.start < 2 + _md.length && segment.end > 2;
+        final overlapsImage = segment.start < 2 + _md.length && segment.end > 2;
         expect(overlapsImage, isFalse, reason: '样式区间不能覆盖图片 markdown');
       }
     });

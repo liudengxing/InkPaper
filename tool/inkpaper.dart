@@ -38,6 +38,9 @@ class InkPaperCli {
         case 'verify':
           await _verify(coverage: args.contains('--coverage'));
           return 0;
+        case 'format':
+          await _format(fix: args.contains('--fix'));
+          return 0;
         case 'store-check':
           await _storeCheck();
           return 0;
@@ -70,11 +73,31 @@ class InkPaperCli {
 
   Future<void> _verify({required bool coverage}) async {
     await _deps();
+    // 格式门禁放进 verify，本地和 CI 才算跑同一条命令。此前它只写在
+    // ci.yml 里，本地永远复现不出来，于是攒到 36 个文件格式漂移才被 CI 抓到。
+    await _format(fix: false);
     await _analyze();
     await _test(coverage: coverage);
   }
 
   Future<void> _deps() => _run(['flutter', 'pub', 'get']);
+
+  /// 格式检查。没有 `.dart_tool/package_config.json` 时 dart format 读不到
+  /// pubspec 声明的语言版本（>=3.0.0），会退回当前 SDK 的 tall style，与项目
+  /// 实际使用的 short style 产生上百个假差异，所以调用前必须先跑 `deps`。
+  Future<void> _format({required bool fix}) {
+    const targets = ['lib', 'test', 'tool'];
+    if (fix) {
+      return _run(['dart', 'format', ...targets]);
+    }
+    return _run([
+      'dart',
+      'format',
+      '--output=none',
+      '--set-exit-if-changed',
+      ...targets,
+    ]);
+  }
 
   Future<void> _analyze() => _run(['flutter', 'analyze']);
 
@@ -608,7 +631,8 @@ Commands:
   deps                           Run flutter pub get
   analyze                        Run flutter analyze
   test [--coverage]              Run Flutter tests
-  verify [--coverage]            Run deps + analyze + tests
+  format [--fix]                 Check formatting (--fix rewrites in place)
+  verify [--coverage]            Run deps + format + analyze + tests
   store-check                    Validate store-submission critical metadata
   ci [target] [--coverage]       Run verify, then build target
   build [target]                 Build one target or all host-supported targets

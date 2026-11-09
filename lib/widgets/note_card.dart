@@ -78,6 +78,7 @@ class NoteCard extends StatefulWidget {
 
   // 🚀 便捷访问属性
   String get content => note.content;
+
   /// 卡片右上角展示的时间：统一用创建时间，与详情页一致。
   ///
   /// 之前取的是 updatedAt，而详情页展示 createdAt、首页默认又按 createdAt 排序，
@@ -412,8 +413,7 @@ class _NoteCardState extends State<NoteCard>
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: _DeferredThumbnail(
-              delay:
-                  _thumbDecodeDelay + _thumbDecodeStep * index.clamp(0, 8),
+              delay: _thumbDecodeDelay + _thumbDecodeStep * index.clamp(0, 8),
               placeholder: _buildThumbPlaceholder(),
               builder: () => _buildImageWidget(
                 imagePath,

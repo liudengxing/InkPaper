@@ -1224,7 +1224,8 @@ class Translations {
     'periodicReviewPrompt': {'zh': '回顾提示词', 'en': 'Review prompt'},
     'periodicReviewPromptHint': {
       'zh': '用于侧边栏「回顾」里的周回顾 / 月回顾，留空使用默认提示词',
-      'en': 'Used by the weekly/monthly review in the sidebar. Leave empty for default.',
+      'en':
+          'Used by the weekly/monthly review in the sidebar. Leave empty for default.',
     },
     'relatedNotes': {'zh': '相关笔记', 'en': 'Related'},
     'findingRelatedNotes': {'zh': '正在查找相关笔记…', 'en': 'Finding related notes…'},

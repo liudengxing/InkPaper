@@ -146,7 +146,8 @@ class PeriodicReviewService {
     }
 
     // 提示词变了也要让旧结果失效，否则用户改完 Prompt 仍看到老总结
-    final cacheKey = _cacheKeyFor(period, range, _promptSignature(period, config));
+    final cacheKey =
+        _cacheKeyFor(period, range, _promptSignature(period, config));
 
     if (!forceRefresh) {
       final cached = await _readCache(cacheKey, stats.noteCount);
@@ -201,8 +202,7 @@ class PeriodicReviewService {
           stats: stats,
           content: fallback,
           usedRemote: false,
-          remoteError: error ??
-              '模型没有返回正文（可能是 max_tokens 被思维链占满），可换模型或减少笔记再试',
+          remoteError: error ?? '模型没有返回正文（可能是 max_tokens 被思维链占满），可换模型或减少笔记再试',
         );
       }
 
@@ -233,7 +233,8 @@ class PeriodicReviewService {
     final prefs = await SharedPreferences.getInstance();
     final prefix = '$_cachePrefix${period.name}_';
     final stamp = _stampOf(ReviewRange.of(period, now: now).start);
-    final keys = prefs.getKeys().where((key) => key.startsWith('$prefix$stamp'));
+    final keys =
+        prefs.getKeys().where((key) => key.startsWith('$prefix$stamp'));
     for (final key in keys.toList()) {
       await prefs.remove(key);
     }
@@ -360,7 +361,9 @@ class PeriodicReviewService {
   ) {
     final unit = period == ReviewPeriod.week ? '最近 7 天' : '最近 30 天';
     final buffer = StringBuffer()
-      ..writeln('周期：${range.start.year}年${range.shortLabel}（$unit，共 ${range.days} 天）')
+      ..writeln(
+        '周期：${range.start.year}年${range.shortLabel}（$unit，共 ${range.days} 天）',
+      )
       ..writeln('笔记 ${stats.noteCount} 条，活跃 ${stats.activeDays} 天，'
           '约 ${stats.charCount} 字。')
       ..writeln('环比：上一周期 ${stats.previousNoteCount} 条 / '
@@ -393,7 +396,8 @@ class PeriodicReviewService {
   /// 模型偶尔还是会带 Markdown 标记，这里做一次轻量清理。
   String _cleanMarkdown(String text) {
     var result = text.trim();
-    result = result.replaceAll(RegExp(r'^```[a-zA-Z]*\n?', multiLine: true), '');
+    result =
+        result.replaceAll(RegExp(r'^```[a-zA-Z]*\n?', multiLine: true), '');
     result = result.replaceAll(RegExp(r'\n?```$'), '');
     result = result.replaceAll(RegExp(r'^#{1,6}\s*', multiLine: true), '');
     result = result.replaceAll(RegExp(r'\*\*(.+?)\*\*'), r'$1');

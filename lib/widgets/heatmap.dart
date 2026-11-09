@@ -434,8 +434,9 @@ class _HeatmapState extends State<Heatmap> {
                                   style: AppTextStyles.custom(
                                     context,
                                     8,
-                                    color: secondaryTextColor
-                                        .withValues(alpha: 0.7),
+                                    color: secondaryTextColor.withValues(
+                                      alpha: 0.7,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -456,7 +457,15 @@ class _HeatmapState extends State<Heatmap> {
                         height: cell + _cellGap,
                         child: weekday.isEven
                             ? Text(
-                                const ['一', '二', '三', '四', '五', '六', '日'][weekday],
+                                const [
+                                  '一',
+                                  '二',
+                                  '三',
+                                  '四',
+                                  '五',
+                                  '六',
+                                  '日',
+                                ][weekday],
                                 style: AppTextStyles.custom(
                                   context,
                                   8,
@@ -481,8 +490,7 @@ class _HeatmapState extends State<Heatmap> {
                               dailyCounts: dailyCounts,
                               maxCount: maxCount,
                               isDarkMode: isDarkMode,
-                              inRange:
-                                  !dateAt(week, weekday).isAfter(end),
+                              inRange: !dateAt(week, weekday).isAfter(end),
                             ),
                           ),
                         ),

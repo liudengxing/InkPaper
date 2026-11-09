@@ -8,7 +8,8 @@ import 'package:inkpaper/models/note_model.dart';
 /// 同一条带图笔记被两个同步通道各上传一次时，图片会被传成两份、
 /// 拿到两个不同的附件目录 uid，但文件名（`image_<时间戳>.jpg`）一致。
 /// 直接比正文会把这些当成两条不同笔记。
-final _attachmentPathPattern = RegExp(r'(/(?:file|api/v1)/attachments/)[^/\s)]+/');
+final _attachmentPathPattern =
+    RegExp(r'(/(?:file|api/v1)/attachments/)[^/\s)]+/');
 
 /// 归一化正文：抹掉附件路径里的资源 uid，只保留文件名。
 String normalizeNoteContentForDedupe(String content) =>

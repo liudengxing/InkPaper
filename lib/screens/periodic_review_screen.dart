@@ -539,9 +539,7 @@ class _PeriodicReviewScreenState extends State<PeriodicReviewScreen> {
           Row(
             children: [
               TextButton.icon(
-                onPressed: _isLoading
-                    ? null
-                    : () => _generate(force: true),
+                onPressed: _isLoading ? null : () => _generate(force: true),
                 icon: Icon(
                   Icons.refresh_rounded,
                   size: 16,
@@ -582,8 +580,7 @@ class _PeriodicReviewScreenState extends State<PeriodicReviewScreen> {
           Icon(Icons.auto_stories_outlined, size: 64, color: secondaryColor),
           const SizedBox(height: 16),
           Text(
-            AppLocalizationsSimple.of(context)?.reviewNoNotes ??
-                '这个周期还没有笔记',
+            AppLocalizationsSimple.of(context)?.reviewNoNotes ?? '这个周期还没有笔记',
             style: TextStyle(fontSize: 14, color: secondaryColor),
           ),
           const SizedBox(height: 6),

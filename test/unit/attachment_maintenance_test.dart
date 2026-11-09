@@ -49,7 +49,10 @@ void main() {
       const b = '/file/attachments/BBB222/image_1.jpg';
 
       expect(localFileNameForAttachment(a), localFileNameForAttachment(a));
-      expect(localFileNameForAttachment(a), isNot(localFileNameForAttachment(b)));
+      expect(
+        localFileNameForAttachment(a),
+        isNot(localFileNameForAttachment(b)),
+      );
       expect(localFileNameForAttachment(a).endsWith('.jpg'), isTrue);
       expect(localFileNameForAttachment(a).startsWith('memos_'), isTrue);
     });

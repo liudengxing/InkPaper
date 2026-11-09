@@ -1,7 +1,7 @@
 # 交接文档（HANDOFF）
 
 > 面向「接着改代码的人 / 新开的 AI 窗口」。目标：读完这一篇就能开工，不用翻聊天记录。
-> 最后更新：2026-11-09 · 版本 `1.1.63+10159`
+> 最后更新：2026-11-09 · 版本 `1.1.64+10160`
 >
 > 配套文档：
 > - **`docs/BUSINESS_OVERVIEW.md`** — 业务框架、13 条业务流程、参数速查、真机调试参数（改具体功能前必读）
@@ -164,8 +164,9 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 3. **提交粒度**：一个连贯改动一个 commit；不相关模块（CI / 业务代码 / 文档）拆开提交；只 `git add` 本次涉及的文件（仓库长期有大量未提交改动）；信息用 Conventional Commits + 中文，如 `fix(voice): ...`。
 4. **不动 git config**，不用 `--amend` / `--force`，除非用户明确要求。
 5. **不要删 `.codebuddy/`**；不要提交 `_backup/`、`build/`、临时截图。
-6. 交付前至少跑：`dart tool/inkpaper.dart analyze`（**必须 0 issue、退出码 0**，`_backup/` 已 exclude）+ 相关单测；改动涉及 UI / 原生能力时，装到真机点一遍再汇报。
+6. 交付前至少跑 `dart tool/inkpaper.dart verify`（= `deps` → 格式门禁 → `analyze` → `test`，与 CI 完全同一条命令；**analyze 必须 0 issue、退出码 0**，`_backup/` 已 exclude）。改动涉及 UI / 原生能力时，装到真机点一遍再汇报。
 7. 回答用中文，先给结论再给证据；性能和视觉类改动要说明「怎么验证的」。
+8. **行尾与格式**：仓库有 `.gitattributes`（`* text=auto eol=lf`），索引与检出都按 LF，Windows 上不要手动转 CRLF、也不要把编辑器改成 CRLF 保存，否则 diff 会变成整文件重写。格式问题用 `dart tool/inkpaper.dart format` 检查、`format --fix` 就地重排；**必须先 `deps` 再检查**，否则 `dart format` 读不到 pubspec 的语言版本、会退回 tall style 造成满屏假差异。CI 的 Flutter 版本已固定为 `3.47.7`（两个 workflow 的 `FLUTTER_VERSION`），升级时两处一起改。
 
 ---
 
@@ -175,7 +176,7 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 
 ```text
 你在 InkPaper 仓库继续开发：F:\VibeCoding Project\InkPaper
-（Flutter 笔记应用，包名 com.didichou.inkpaper，深链 inkpaper://，当前版本见 pubspec.yaml，写作时 1.1.62+10158）
+（Flutter 笔记应用，包名 com.didichou.inkpaper，深链 inkpaper://，当前版本见 pubspec.yaml，写作时 1.1.64+10160）
 
 【这是个什么项目】
 本地优先的笔记应用：纯文本/Markdown + 本地图片，数据全在本机 notes.db（schema v12，查询一律走 active_notes 视图）；

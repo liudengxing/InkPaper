@@ -89,28 +89,50 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.grid_view_rounded));
     await tester.pump();
-    expect(
-      tester.getRect(imageSection).height,
-      greaterThan(baseImage.height),
-      reason: '展开后图片区必须长高',
-    );
 
-    for (var i = 0; i < 4; i++) {
-      await tester.pump(const Duration(milliseconds: 40));
+    // 220ms 的展开动画：全程逐帧采样，高度必须单调长高（不能先跳到位再变一次），
+    // 同时正文的高度与间距每一帧都不能动
+    final expandHeights = <double>[];
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 30));
       // 交叉淡化期间两张图同时在，任何一帧都不能出现空的图片区
       expect(find.byType(Image), findsWidgets);
       assertStable('展开第 $i 帧');
+      final h = tester.getRect(imageSection).height;
+      if (expandHeights.isNotEmpty) {
+        expect(
+          h,
+          greaterThanOrEqualTo(expandHeights.last - 0.01),
+          reason: '展开第 $i 帧：图片区高度回退了（说明有两段动画）',
+        );
+      }
+      expandHeights.add(h);
     }
     await tester.pumpAndSettle();
     assertStable('展开完成');
+    expect(
+      expandHeights.last,
+      greaterThan(baseImage.height + 100),
+      reason: '展开后图片区必须长高到接近九宫格',
+    );
 
     // 收起同样不该抖
     await tester.tap(find.byIcon(Icons.expand_more_rounded));
     await tester.pump();
-    for (var i = 0; i < 4; i++) {
-      await tester.pump(const Duration(milliseconds: 40));
+    final collapseHeights = <double>[];
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 30));
       expect(find.byType(Image), findsWidgets);
       assertStable('收起第 $i 帧');
+      final h = tester.getRect(imageSection).height;
+      if (collapseHeights.isNotEmpty) {
+        expect(
+          h,
+          lessThanOrEqualTo(collapseHeights.last + 0.01),
+          reason: '收起第 $i 帧：图片区高度反弹了（说明有两段动画）',
+        );
+      }
+      collapseHeights.add(h);
     }
     await tester.pumpAndSettle();
     assertStable('收起完成');

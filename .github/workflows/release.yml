@@ -114,6 +114,13 @@ jobs:
     needs: [quality, secret-scan, release-secrets]
     steps:
       - uses: actions/checkout@v4
+      # ubuntu-latest 自带 JDK 已到 25，而项目的 Gradle 8.14.3 支持不到那一档，
+      # 构建会直接报 "The Java version used for the build is 25.0.5, which is
+      # incompatible with Gradle 8.14.3"。钉到本地验证过的 Temurin 17。
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}

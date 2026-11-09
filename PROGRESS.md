@@ -12,6 +12,8 @@
 - 排障手段（已固化进 `ci.yml`，可复用）：GitHub 对失败步骤只给一行 `Process completed with exit code 1`，而 job logs 需要 token。新增的「失败日志（转 annotation）」步骤把 `verify` 输出 tee 到文件，失败时把「已执行的子命令 / 疑似错误行 / 日志尾部」转成 `::error::` 标注——公开仓库的 Checks annotation **匿名可读**，`GET /repos/{o}/{r}/commits/{sha}/check-runs` → `annotations_url` 直接拿到内容
 - 验证：`dart tool/inkpaper.dart verify` 全绿（229 文件格式 0 changed、analyze 0 issue、579 项测试通过）
 - 遗留：真机点验仍未做（无线调试离线，`adb mdns services` 空），仅静态验证
+- **Android job 首跑也失败**（同样是以前被 skip 的路径）：把诊断脚本挂到构建步骤后拿到原文——`The Java version used for the build is 25.0.5, which is incompatible with Gradle 8.14.3`。`ubuntu-latest` 默认 JDK 已升到 25，项目是 Gradle 8.14.3 / AGP 8.11.1 / `jvmTarget 11`。解法：两个 workflow 的 android 作业都加 `actions/setup-java@v4`（temurin 17，与本地开发环境一致），而不是去升 Gradle/AGP（那两条 dependabot PR 单独评估）
+- 诊断脚本抽成 `scripts/ci_annotate.sh`，quality 与 android 两个作业共用；输入是格日志路径，输出是 `::error::` 行。本地用伪造的 Gradle 失败日志验过（空日志走 no-op 分支）
 
 ## 2026-11-09 · CI 格式门禁修复 + 行尾策略 + 版本固定（1.1.64+10160）· done
 

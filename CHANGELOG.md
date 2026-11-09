@@ -20,9 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 优化（内部，无行为变化）
 - Android 构建作业补 `actions/setup-java@v4`（Temurin 17）。此前跑在 runner 默认的 JDK 25 上，Gradle 8.14.3 直接拒绝构建
-- `android/gradle.properties` 的 `java.io.tmpdir` 从写死的 `F:\gradle-tmp` 改为相对路径 `gradle-tmp`，并随仓库提供占位文件，避免 CI 上该目录不存在导致构建失败
-- Gradle 发行包与 gitleaks 的下载各加 3 次重试，兜住 GitHub CDN 的偶发 504
-- Gradle 发行包改用 `-bin.zip`（约 131MB，原 `-all.zip` 约 230MB）。构建用不到里面的源码与文档，体积减半能明显降低下载超时概率
+- `android/gradle.properties` 不再写 `java.io.tmpdir`：相对路径会被 Kotlin 编译守护进程按自己的 cwd 解析，和 Gradle 主进程对不上；写死盘符则让 Linux CI 直接报目录不存在。本机「临时文件放 SSD」这个偏好挪到了 `$GRADLE_USER_HOME/gradle.properties`
+- 统一把 Kotlin 语言版本抬到 1.8。`sentry_flutter` 8.14.2 仍把 `languageVersion` 钉在 1.6，而 Kotlin 2.2 已彻底移除该档位，Android 构建报 `Language version 1.6 is no longer supported`。这个错只会在 CI 出现——本机 pub cache 曾被手工改成 1.8，而 pub cache 不进版本控制
+- Gradle 发行包与 gitleaks 的下载各加 3 次重试，兜住 CDN 的偶发 504；构建重试的每次 attempt 改存独立日志，否则首次失败的真实原因会被后续 attempt 覆盖
+- Gradle 发行包改用 `-bin.zip`（约 131MB，原 `-all.zip` 约 230MB），并把 `distributionUrl` 指向国内镜像——Gradle 官方所有下载地址都会 307 到 GitHub Releases，runner 拉自家 release 资产反复 504。同时用 `actions/cache` 缓存 `~/.gradle/wrapper/dists`，命中缓存的 run 完全不碰网络
 
 ## [1.1.64] - 2026-11-09
 

@@ -28,6 +28,29 @@ subprojects {
     project.evaluationDependsOn(':app')
 }
 
+// Kotlin 2.2 已彻底移除对 languageVersion 1.6 的支持，而部分 Flutter 插件仍把它
+// 钉在 1.6（sentry_flutter 8.14.2 的 android/build.gradle 里就是 1.6），构建直接报
+//   e: Language version 1.6 is no longer supported; please, use version 1.8 or greater.
+// 注意这个错**只在 CI 出现**：本机 pub cache 曾被手工改成 1.8，而 pub cache 不在
+// 版本控制里，CI 每次都是全新下载的原始包。所以修在项目侧，统一抬到 Kotlin 2.x
+// 仍支持的最低档 1.8，而不是去改缓存。
+//
+// 时机用 projectsEvaluated 而不是 afterEvaluate：上面那句 evaluationDependsOn(':app')
+// 会让子项目在配置期就被求值，之后再注册 afterEvaluate 会直接报
+// "Cannot run Project.afterEvaluate(Closure) when the project is already evaluated"。
+// 匹配用类名 contains 而不是全等：Gradle 会给 task 类型生成
+// "org.jetbrains.kotlin.gradle.tasks.KotlinCompile_Decorated"，全等永远匹配不到。
+gradle.projectsEvaluated {
+    rootProject.allprojects { p ->
+        p.tasks.each { t ->
+            if (t.class.name.toLowerCase().contains('kotlincompile')) {
+                t.kotlinOptions.languageVersion = '1.8'
+                t.kotlinOptions.apiVersion = '1.8'
+            }
+        }
+    }
+}
+
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 } 

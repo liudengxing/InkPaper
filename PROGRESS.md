@@ -1,3 +1,15 @@
+## 2026-11-09 · 收尾整理：114 个提交推到远端 + 文档口径对齐 · done
+
+- **推送**：本地 `main` 落后远端 0、超前 **114**，全部是 1.1.0+10096（`6cca4e0`）以来的工作，工作区本身干净、没有待提交改动。首次 `git push` 失败于 `schannel: server closed abruptly (missing close_notify)`，换 `git -c http.sslBackend=openssl -c http.postBuffer=524288000 -c http.version=HTTP/1.1 push` 一次成功，远端推进到 `488e55a`
+- **文档对齐**（本次只改文档、不动代码，版本保持 `1.1.62+10158`）：
+  - `CHANGELOG.md`：结掉 `DOC-001` 的遗留半截。文件头加「版本记录说明」，声明 `1.1.14`–`1.1.56` 的逐版本记录没随 `ca0ed14` 的代码基线重导入迁过来、不做臆造补记；补齐 `1.1.57`–`1.1.62` 六个版本
+  - `docs/BUSINESS_OVERVIEW.md`：版本推到 `1.1.62+10158`；页面数 38 → 37（`ai_insight_screen` 已删）；`providers/` 补 `app_provider_account.part.dart`；§4.11 补「自定义提示词三块 + 开关语义」
+  - `BLOCKERS.md`：`STRUCT-001` 头部从「L3 待做」改为「L1/L2/L3 全部完成」；`DOC-001` 结项；新增 `SHARE-001`
+  - `docs/HANDOFF.md`：隐患表补 `SHARE-001`、`TAG-REC-001` 两行，`DOC-001` 标记已解决，P0 待办加「分享导入复验」
+- **新增 `SHARE-001` 的来由**：2026-11-06 排查「微信 → 笔记」时，用 adb 合成 `ACTION_SEND text/plain` 打进 1.1.62 release 包，冷启动与后台两种情形都没弹出预填编辑器。原生载荷键名与 Dart 解析对得上，release 包 `ReleaseLog` 在非 DEBUG 下静默，logcat 拿不到线索，真伪待真机手动确认
+- **微信接入的结论（避免重复调研）**：个人微信**没有官方 API**，第三方 hook/协议方案有封号风险，不做；WorkBuddy 侧也没有「微信」connector，市场里只有**企业微信**（属另一套体系）。InkPaper 早已自带 `ACTION_SEND` / `PROCESS_TEXT` / iOS Share Extension，手动通路就是「微信长按 → 转发 → InkPaper」；App 里另有「微信读书笔记导入」（`utils/weread_parser.dart`，粘贴文本解析）
+- 另记：`l10n` 的 `wechatAssistant` / `wechatAssistantDesc`（「微信小助手」）全库零引用，是没落地的规划残留
+
 ## 2026-11-05 · 自定义提示词开关不再悄悄弹回（1.1.62+10158）· done
 
 - 现象（1.1.61 真机验证时发现，旧版本就有）：打开「启用自定义提示词」、四个输入框都不填、点保存，开关会自己弹回关闭，像没保存成功

@@ -129,7 +129,9 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 | ~~VOICE-001~~ | **已解决（1.1.57 `d8f395c`）**：不再赌设备有没有系统识别引擎 | 根因不再追：系统识别在部分国产 ROM 上「静默假启动」，留着就是隐患。改为「默认关闭 + 仅讯飞」，两个麦克风入口都由 `speechInputEnabled` 控制显隐；百度死链路一并删除。结论与验证见 `BLOCKERS.md` | 语音入口显隐已在 1.1.59 真机确认（首页/编辑器均无麦克风）；**讯飞端到端仍未验**——设备没配密钥 |
 | ORIENT-001 | **App 没有方向锁** | `lib/` 内无 `SystemChrome.setPreferredOrientations`，`AndroidManifest.xml` 无 `android:screenOrientation`；设备当前 `accelerometer_rotation=0`（锁定竖屏）、`user_rotation=0`。即：转不转完全由系统开关决定 | 若希望 App 行为确定，可在 `main()` 锁竖屏，仅在图片查看器放开横屏；需产品确认 |
 | PERF-IMG-001 | **多图笔记详情页 / 大图查看器是否还卡** | `fc1b832` 已统一解码档位并延后解码，但**没有做过真机前后对比**，是否彻底解决未知 | 用 9 图笔记复测：进详情页、连续翻图、Live 图播放，看是否还有掉帧 |
-| DOC-001 | **工具链噪音（一半已解）** | ✅ `_backup/` 已进 `analysis_options.yaml` 的 exclude，`analyze` 退出码归 0；⏳ `CHANGELOG.md` 仍停在 `1.1.13`，落后约 45 个版本 | 只剩 CHANGELOG：要么按阶段补齐，要么声明「以 PROGRESS.md 为准」（倾向后者） |
+| ~~DOC-001~~ | **已解决（1.1.58 `1ee212e` + 2026-11-09 文档整理）**：工具链噪音清理完毕 | `_backup/` 进 `analysis_options.yaml` 的 exclude，`analyze` 退出码归 0；`CHANGELOG.md` 按「以 PROGRESS.md 为准」结项，文件头声明历史断档原因，并补齐 `1.1.57`–`1.1.62` | 无需后续动作 |
+| SHARE-001 | **系统分享进来没弹预填编辑器**（2026-11-06 新发现） | 用 adb 合成 `ACTION_SEND text/plain` 打进 1.1.62 release 包，冷启动与后台两种情形都停在首页。原生载荷键名与 Dart 解析对得上，release 包 `ReleaseLog` 静默，logcat 无线索 | 先在微信里长按转发一次确认真伪；真坏了换 debug 包抓 `已通知Flutter处理分享内容` 定位。「微信 → 笔记」目前只靠这条手动通道 |
+| TAG-REC-001 | **「标签推荐提示词」是死配置** | `customTagRecommendationPrompt` 全库零消费者，设置页仍在渲染输入框，改了不生效（与已删的洞察提示词同源） | 要么接上读者，要么比照 1.1.61 的做法删掉 UI + 字段 + l10n 两键 |
 
 ---
 
@@ -139,6 +141,7 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 
 1. 讯飞语音端到端真机验证（1.1.57 已改为唯一链路）：填好三件套 → 首页出现麦克风 → 长句/断句/连续聆听 → 看 VAD 判停后是否自动落字。**1.1.59 已真机确认「关闭时无麦克风」，开启态与识别链路仍未验（设备没配讯飞密钥）**。
 2. 图片性能复测：9 图笔记详情页滑动、大图查看器左右翻、Live 图播放，确认 `fc1b832` 的收益并决定是否继续压（例如更小的解码档位、只在静止时解码）。
+3. 分享导入复验（SHARE-001）：微信长按消息 → 转发到 InkPaper，确认分享面板里有入口且编辑器预填；同时复验浏览器与阅读器的分享。
 
 **P1（下一步功能）**
 

@@ -13,7 +13,7 @@
 - **验收**：`dart tool/inkpaper.dart analyze` 仅剩 `_backup` 历史 info；`test` 530 项全绿（新增 6 项覆盖 `speechInputEnabled` 组合）；`build android-release` 成功（50.1MB）。
 - **仍未验证**：**讯飞端到端真机**。本机 `adb connect 192.168.0.108:35819` 超时（设备离线），所以「填三件套 → 首页出现麦克风 → 说长句 → 判停自动落字」这条链只有编译与单测保证，没有真机证据。
 
-## STRUCT-001 · 结构与巨型文件（L1/L2 完成，L3 待做 · 1.1.59）
+## STRUCT-001 · 结构与巨型文件（L1/L2/L3 全部完成 · 1.1.60）
 
 **结论先行**：拆分的价值不在「行数」，在**改动的隔离面**与**逻辑能否被测**。按最近 300 次提交的 churn 排序，只有 5 个文件值得动：
 
@@ -59,6 +59,14 @@
 - **两个方向**：① 接上读者（若标签智能推荐确实规划要做）；② 比照本次做法删掉 UI + 字段 + l10n 的 `tagRecommendationPrompt` / `tagRecommendationPromptHint`。
 
 
+## SHARE-001 · 系统分享到 InkPaper 未弹出预填编辑器（待确认，2026-11-06 · 1.1.62）
+
+- **现象**：用 adb 合成 `ACTION_SEND text/plain` 打进 release 包（`am start -a android.intent.action.SEND -t text/plain -n com.didichou.inkpaper/.MainActivity --es android.intent.extra.TEXT …`），冷启动与「应用在后台」两种情形都停在首页，没有按 `docs/BUSINESS_OVERVIEW.md` §4.5 描述的那样弹出预填编辑器。
+- **已排除**：原生载荷键名（`MainActivity.kt:237/404` 的 `type` / `content`）与 Dart 解析（`shared_payload_utils.dart:9-12`）对得上；`main.dart:363` 的 `getInitialSharedPayload` 和 `getInitialPayload` 不会互相吃掉载荷（后者只返回 `pendingNoteId`）；`home_screen.dart:151` 的 `sharedContent` 分支与 `openQuickNote`、自动弹编辑器同在一个 if-else 链里。
+- **没能排查**：release 包的 `ReleaseLog` 在 `BuildConfig.DEBUG == false` 时全部静默（`ReleaseLog.kt`），logcat 拿不到任何线索。
+- **下一步**：真机上从微信长按一条消息 → 转发/分享，确认 ① 分享面板里有没有 InkPaper；② 进入后编辑器是否预填。若 ② 为空就是真 bug，换 debug 包抓 `📦 Flutter未就绪，分享内容已缓存` / `✅ 已通知Flutter处理分享内容` 两条日志定位。
+- **影响面**：这是「微信 → 笔记」唯一不需要服务端的手动通道。如果确实坏了，微信、浏览器、阅读器的分享导入等于全部失效，只是没人报过。
+
 ## ORIENT-001 · App 未做方向锁，行为完全跟随系统（待决策，2026-11-05）
 
 - **现状**：`lib/` 全库无 `SystemChrome.setPreferredOrientations`；`android/app/src/main/AndroidManifest.xml` 无 `android:screenOrientation`；实测设备 `accelerometer_rotation=0`（锁定竖屏）、`user_rotation=0`。
@@ -71,10 +79,10 @@
 - **未做**：真机前后对比。需要一条 9 图笔记的完整回归：进详情页首屏、连续左右翻大图、Live 图播放，看 `FrameTiming` 或肉眼是否仍有掉帧。
 - **风险**：`fc1b832` 的延后解码在低端机上可能表现为"图片出得慢"，需要在真机确认不是以「长时间灰底」换取流畅。
 
-## DOC-001 · 工具链与发布文档的噪音（部分解决，2026-11-05 · 1.1.58 `1ee212e`）
+## DOC-001 · 工具链与发布文档的噪音（已解决：1.1.58 `1ee212e` + 2026-11-09 文档整理）
 
 - ✅ `analyze` 退出码已归零：`analysis_options.yaml` 的 `exclude` 增加 `_backup/**`。该目录既不参与编译也不该参与分析，此前它让退出码长期为 1，把真正的告警淹没了。现在 `dart tool/inkpaper.dart analyze` → `No issues found!`，退出码 0（首次全绿）。
-- ⏳ `CHANGELOG.md` 仍停在 `1.1.13`（2026-06-22），落后约 45 个版本；期间变更只记在 `PROGRESS.md`。**待决策**：按大版本补齐，还是在文件头声明「内部变更以 PROGRESS.md 为准」——后者成本低得多，倾向后者。
+- ✅ `CHANGELOG.md` 已按第二种口径结项（2026-11-09）：文件头加「版本记录说明」声明 `1.1.14`–`1.1.56` 的逐版本记录未随 `ca0ed14` 的代码基线重导入迁移过来、不做臆造补记，并补齐 `1.1.57`–`1.1.62` 六个版本的对外变更。此后 `PROGRESS.md` 记过程与验证，`CHANGELOG.md` 只记用户可感知的变化。
 
 ## ARCH-LAYER-002 · A-09 · 字体许可结论（2026-10-21）
 

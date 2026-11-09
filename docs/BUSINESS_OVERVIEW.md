@@ -1,7 +1,7 @@
 # 业务框架与流程 / 参数手册
 
 > 配套 `docs/HANDOFF.md`：**HANDOFF 讲「怎么开工」，本文讲「这个 App 是怎么运转的」**。
-> 最后更新：2026-11-05 · 版本 `1.1.59+10155`
+> 最后更新：2026-11-09 · 版本 `1.1.62+10158`
 > 所有结论都带文件行号依据，行号为主分支 `main` 当时快照，重构后可能漂移，按方法名检索即可。
 
 ---
@@ -25,9 +25,9 @@ lib/
   core/state/            跨页面共享状态（7 个文件，含编辑器/选择态等）
   routes/app_router.dart go_router 路由表（唯一的页面入口清单）
   models/                数据模型（note / app_config / annotation / resource / draft …）
-  providers/             AppProvider（全局状态 + 业务编排）、app_provider_sync.part.dart（同步）、settings
+  providers/             AppProvider（全局状态 + 业务编排）、app_provider_sync.part.dart（同步）、app_provider_account.part.dart（账号/云验证）、settings
   services/              39 个服务：数据库、Memos API、AI、语音、通知、小组件、导入导出…
-  screens/               38 个页面
+  screens/               37 个页面
   widgets/               25 个可复用组件（note_card / note_image_grid / note_editor / 批注对话框…）
   utils/                 34 个纯函数工具（标签、排序、分页、同步合并、图片锚点、Markdown、解码宽度、草稿…）
   themes/ l10n/          主题与中英文案（自建 AppLocalizationsSimple，不走 gen-l10n）
@@ -173,6 +173,10 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
 - **周/月回顾**（`periodic_review_service` + `ai_review_service`）：按 `displayTime` 窗口取近 7/30 天 → 生成提示词（可在 AI 设置里改）→ `temperature 0.45 / max_tokens 520`；提示词改动会让旧总结失效
 - **上下文预算**（`notes_context_builder.dart:56-63`）：总字符 **28000**、最多 **200** 条笔记、其中相关命中最多 **80** 条、单条截断 **400** 字符
 - 全局兜底：`AppConfig.aiRequestTimeoutSeconds = 30`，`aiMaxTokens = 2000`
+
+- **自定义提示词**（1.1.61 / 1.1.62 整理后共三块）：点评 `customReviewPrompt`（`ai_review_service:79`）、续写 `customContinuationPrompt`、回顾 `customPeriodicReviewPrompt`（`periodic_review_service:406`）。三者由同一个开关 `useCustomPrompt` 统一放行
+- 开关语义（1.1.62 起）：**开着但某块留空 = 该功能用默认提示词**，不是「没启用」。两个消费者本来就是按字段判空再回退，保存时不再把开关改回 `false`（旧逻辑会让开关静默弹回，用户以为没保存成功）
+- 1.1.61 已删除没有入口的「AI 洞察」页与它的两块提示词（洞察 / 标签洞察）；`customTagRecommendationPrompt`（标签推荐）仍是零消费者的死配置，见 `BLOCKERS.md` TAG-REC-001
 
 ### 4.12 语音输入（1.1.57 起：默认关闭，仅讯飞）
 

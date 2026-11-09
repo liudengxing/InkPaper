@@ -62,13 +62,15 @@
 - **注意别混淆**：编辑器里打 `#` 弹出的标签补全浮层（`note_editor.dart` 的 `_tagSuggestionOverlay`）是**纯本地匹配历史标签**，不走 AI，与本字段无关。
 
 
-## SHARE-001 · 系统分享到 InkPaper 未弹出预填编辑器（待确认，2026-11-06 · 1.1.62）
+## SHARE-001 · 系统分享到 InkPaper 未弹出预填编辑器（已解决，2026-11-09 · 1.1.68 `aaa28da`）
 
-- **现象**：用 adb 合成 `ACTION_SEND text/plain` 打进 release 包（`am start -a android.intent.action.SEND -t text/plain -n com.didichou.inkpaper/.MainActivity --es android.intent.extra.TEXT …`），冷启动与「应用在后台」两种情形都停在首页，没有按 `docs/BUSINESS_OVERVIEW.md` §4.5 描述的那样弹出预填编辑器。
-- **已排除**：原生载荷键名（`MainActivity.kt:237/404` 的 `type` / `content`）与 Dart 解析（`shared_payload_utils.dart:9-12`）对得上；`main.dart:363` 的 `getInitialSharedPayload` 和 `getInitialPayload` 不会互相吃掉载荷（后者只返回 `pendingNoteId`）；`home_screen.dart:151` 的 `sharedContent` 分支与 `openQuickNote`、自动弹编辑器同在一个 if-else 链里。
-- **没能排查**：release 包的 `ReleaseLog` 在 `BuildConfig.DEBUG == false` 时全部静默（`ReleaseLog.kt`），logcat 拿不到任何线索。
-- **下一步**：真机上从微信长按一条消息 → 转发/分享，确认 ① 分享面板里有没有 InkPaper；② 进入后编辑器是否预填。若 ② 为空就是真 bug，换 debug 包抓 `📦 Flutter未就绪，分享内容已缓存` / `✅ 已通知Flutter处理分享内容` 两条日志定位。
-- **影响面**：这是「微信 → 笔记」唯一不需要服务端的手动通道。如果确实坏了，微信、浏览器、阅读器的分享导入等于全部失效，只是没人报过。
+- **原现象**：用 adb 合成 `ACTION_SEND text/plain` 打进 release 包，冷启动与「应用在后台」两种情形都停在首页，没有弹出预填编辑器。
+- **根因**（`didUpdateWidget` 缺位 + 载荷丢来源，两条独立问题）：
+  1. `main.dart` 收到分享后调 `router.go('/', extra: ...)`。App 已在前台时 `/` 就在栈顶，go_router 复用同一个 `pageKey`，`HomeScreen` 不会重新 `initState`——而分享处理只写在 `initState` 里，所以第二次及以后的分享全部失效。补 `didUpdateWidget` 检测 `sharedContent` 变化。
+  2. 原生只取正文和附件，不带来源。现在补 `resolveShareSource()`，把包名归一成 `wechat` / `weread`。
+- **踩坑**：`Intent.getReferrer()` / `getReferencingPackage()` 在公开 `android.jar` 里是 `@hide`（`javap` 验证 android-36 的 `Intent` 只剩 `EXTRA_REFERRER` / `EXTRA_REFERRER_NAME` 常量），编译期直接 Unresolved。改用公开的 `Activity.getReferrer()` / `getCallingPackage()` / `EXTRA_REFERRER_NAME` 三路兜底。
+- **验收**：真机（小米 14，release 覆盖安装）用 `am start ... --es android.intent.extra.REFERRER_NAME <pkg>` 分三种来源实测——`com.tencent.mm` → `#微信`、`com.tencent.weread` → `#微信读书`、无 referrer → 不加标签；588 项测试全绿。
+- **仍未验证**：真机上从微信 App 内部点「转发 → InkPaper」的完整路径（需要人工点分享面板，adb 合成只能覆盖到 intent 层）。
 
 ## ORIENT-001 · App 未做方向锁，行为完全跟随系统（待决策，2026-11-05）
 

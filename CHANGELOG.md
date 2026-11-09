@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 变更
 - 无图、无键盘时高度数值与改前完全一致（`max(base, …)` 仍取 `base`），弹出动画与视觉表现逐像素不变
 
+### 优化（内部，无行为变化）
+- Android 构建作业补 `actions/setup-java@v4`（Temurin 17）。此前跑在 runner 默认的 JDK 25 上，Gradle 8.14.3 直接拒绝构建
+- `android/gradle.properties` 的 `java.io.tmpdir` 从写死的 `F:\gradle-tmp` 改为相对路径 `gradle-tmp`，并随仓库提供占位文件，避免 CI 上该目录不存在导致构建失败
+- Gradle 发行包与 gitleaks 的下载各加 3 次重试，兜住 GitHub CDN 的偶发 504
+- Gradle 发行包改用 `-bin.zip`（约 131MB，原 `-all.zip` 约 230MB）。构建用不到里面的源码与文档，体积减半能明显降低下载超时概率
+
 ## [1.1.64] - 2026-11-09
 
 ### 修复（内部，无行为变化）

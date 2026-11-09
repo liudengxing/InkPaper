@@ -23,7 +23,6 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   final _modelController = TextEditingController();
   final _customReviewPromptController = TextEditingController();
   final _customContinuationPromptController = TextEditingController();
-  final _customTagRecommendationPromptController = TextEditingController();
   final _customPeriodicReviewPromptController = TextEditingController();
   final _iflytekAppIdController = TextEditingController();
   final _iflytekApiKeyController = TextEditingController();
@@ -49,8 +48,6 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _customReviewPromptController.text = appConfig.customReviewPrompt ?? '';
     _customContinuationPromptController.text =
         appConfig.customContinuationPrompt ?? '';
-    _customTagRecommendationPromptController.text =
-        appConfig.customTagRecommendationPrompt ?? '';
     _customPeriodicReviewPromptController.text =
         appConfig.customPeriodicReviewPrompt ?? '';
     _iflytekAppIdController.text = appConfig.iflytekAppId ?? '';
@@ -68,7 +65,6 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _modelController.dispose();
     _customReviewPromptController.dispose();
     _customContinuationPromptController.dispose();
-    _customTagRecommendationPromptController.dispose();
     _customPeriodicReviewPromptController.dispose();
     _iflytekAppIdController.dispose();
     _iflytekApiKeyController.dispose();
@@ -1861,91 +1857,6 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // 标签推荐Prompt
-                  Text(
-                    AppLocalizationsSimple.of(context)
-                            ?.tagRecommendationPrompt ??
-                        '标签推荐提示词',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // 🎯 大厂标准：明确说明作用范围
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.15),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.info_outline,
-                          size: 14,
-                          color: AppTheme.primaryColor,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            localizations?.tagRecommendationPromptHint ??
-                                '自定义标签推荐的提示词，留空使用默认提示词',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: textColor.withValues(alpha: 0.7),
-                              height: 1.3,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _customTagRecommendationPromptController,
-                    maxLines: 5,
-                    style: TextStyle(fontSize: 14, color: textColor),
-                    decoration: InputDecoration(
-                      hintText: localizations?.tagRecommendationPromptHint ??
-                          '自定义标签推荐的提示词，留空使用默认提示词',
-                      hintStyle: TextStyle(color: secondaryColor),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(
-                          color: isDarkMode
-                              ? Colors.grey[700]!
-                              : Colors.grey[300]!,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(
-                          color: isDarkMode
-                              ? Colors.grey[700]!
-                              : Colors.grey[300]!,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(
-                          color: AppTheme.primaryColor,
-                          width: 2,
-                        ),
-                      ),
-                      filled: true,
-                      fillColor:
-                          isDarkMode ? Colors.grey[900] : Colors.grey[50],
-                      contentPadding: const EdgeInsets.all(12),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
                   // 周回顾 / 月回顾 Prompt
                   Text(
                     localizations?.periodicReviewPrompt ?? '回顾提示词',
@@ -2094,11 +2005,9 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     final customReviewPrompt = _customReviewPromptController.text.trim();
     final customContinuationPrompt =
         _customContinuationPromptController.text.trim();
-    final customTagRecommendationPrompt =
-        _customTagRecommendationPromptController.text.trim();
     final customPeriodicReviewPrompt =
         _customPeriodicReviewPromptController.text.trim();
-    // 开关在切换时就已经即时写进配置了，这里原样保存。四块输入框全空时不能
+    // 开关在切换时就已经即时写进配置了，这里原样保存。三块输入框全空时不能
     // 把开关改回关闭：各 AI 服务本来就按字段判空、留空即回退默认提示词
     // （ai_review_service:79、periodic_review_service:406），所以「开着但全空」
     // 在功能上等价于关闭。旧逻辑却把它当成「没启用」写回去，用户点保存只会
@@ -2141,15 +2050,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           customReviewPrompt.isEmpty ? null : customReviewPrompt,
       customContinuationPrompt:
           customContinuationPrompt.isEmpty ? null : customContinuationPrompt,
-      customTagRecommendationPrompt: customTagRecommendationPrompt.isEmpty
-          ? null
-          : customTagRecommendationPrompt,
       customPeriodicReviewPrompt: customPeriodicReviewPrompt.isEmpty
           ? null
           : customPeriodicReviewPrompt,
       updateCustomReviewPrompt: true,
       updateCustomContinuationPrompt: true,
-      updateCustomTagRecommendationPrompt: true,
       updateCustomPeriodicReviewPrompt: true,
     );
 

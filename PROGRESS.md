@@ -1,4 +1,29 @@
-## 2026-11-09 · 收尾整理：114 个提交推到远端 + 文档口径对齐 · done
+## 2026-11-09 · 删除「标签推荐提示词」死配置 + 清掉过期 stash（1.1.63+10159）· done
+
+- 背景（`TAG-REC-001`）：`customTagRecommendationPrompt` 全库零消费者，设置页输入框填了不生效。前一轮只做了开关语义修复，去留留待决策
+- **二次溯源确认（这次才查清它原本是什么）**：它是原「相关标签推荐」的提示词——给一个标签，本地 **TF-IDF** 算相关度，开启 AI 再让 **LLM** 做语义分析，两者合并成「相关标签 + 一句 AI 洞察」。唯一读者是 `lib/services/tag_ai_service.dart`（706 行）的 `getEnhancedTagRecommendations()` → `_buildTagRecommendationPrompt()`
+- **为什么早就是死的**：`git grep TagAIService` 在 v1.0.0 基线 `ca0ed14` 上只命中定义自身——配套 UI（`related_notes_bottom_sheet.dart` 的「相关标签推荐/暂无相关标签」）在源码交到手上之前就已被摘掉。`33c9647` 删整个服务后，字段连理论读者都没了
+- 决策：删，不接读者。接上等于从零做一个「标签详情页 → 相关标签」的新功能，而现有标签浏览链路没有这个入口坑位
+- 删除范围（净减 96 行在设置页 + 10 行 model，另清 8 个文案键）：
+  - `ai_settings_screen.dart`：controller 声明/初始化/dispose、`// 标签推荐Prompt` 整块 UI（85 行）、save 里的变量、copyWith 实参与 `updateCustomTagRecommendationPrompt`；注释「四块输入框」改「三块」
+  - `app_config_model.dart`：构造形参、字段、`fromJson`、`toJson`、copyWith 形参与实现
+  - 孤儿文案：`tagRecommendationPrompt` / `tagRecommendationPromptHint` / `relatedTags` / `relatedTagsRecommendation` / `noRelatedTags` / `addMoreNotesForAI` / `tagGeneration` / `tagGenerationDesc`（含 `translations.dart` 两键）
+  - `help_screen.dart`：「AI 辅助」能力说明改为「点评、续写和周期回顾」（中英双语），原句还写着已删的「洞察」和「标签推荐」
+- 验证：
+```
+$ flutter analyze
+No issues found! (ran in 20.7s)
+$ flutter test
+02:07 +579: All tests passed!
+```
+- **踩坑记录一（CRLF）**：本仓库工作区是 CRLF，Python `open(p, encoding='utf-8')` 读进来是 `\r\n`，用 `\n` 拼的 old_string 永远匹配不到，`assert` 连挂两次。要 `newline=''` 读、按实际 `\r\n` 比较或按行处理
+- **踩坑记录二（多行块被跨段替换）**：`copyWith` 里 `customTagRecommendationPrompt` 与 `updateCustomTagRecommendationPrompt` 之间隔着 `customPeriodicReviewPrompt` 的三行，我却把它俩当成相邻两条写了 old_string，结果「not found」；改成按行扫描、锚定 `? null` / `: xxx` 三行结构才删对
+- **踩坑记录三（Edit 反向操作）**：想删 `tagRecommendationPromptHint` 时把注释行一起写进了 new_string，实际把分区注释删了、getter 留下了，随后又补了两轮才对。教训：删块时 old/new 只差在「保留哪一行」，动手前先想清楚保留项
+- **踩坑记录四（flutter test 全挂）**：沙箱注入了 `HTTP_PROXY/HTTPS_PROXY=127.0.0.1:9248`，`flutter_tester` 的本地 WebSocket 握手被代理拦截，报 `Invalid WebSocket upgrade request`、58 个测试文件全部 loading 失败。加 `NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost` 后恢复正常。**以后跑 `flutter test` 一律带这两个变量**
+- **stash@{0} 处理**：内容是 2026-10-21 的 `pre-clean WIP`（欢迎笔记 i18n 两键、`NoteCard.isExample`、`NoteMoreOptionsMenu.onDeleteOverride`、pubspec 1.0.11→1.0.12）。逐 hunk 核对，当前 1.1.62 已全部落地且是超集（多出 `_precacheDetailImages` 的 `isExample` 早退），确认过期后 `git stash drop`
+- 遗留（本次不动）：`l10n` 里还留着已删「AI 洞察」页的一批孤儿键（`aiInsight` / `startInsightWithCount` / `inputKeywords` / `insightResults` 等），以及 `relatedNotesRecommend` / `relatedNotesDesc` 这类随服务一起死的文案，可择机统一清理
+
+
 
 - **推送**：本地 `main` 落后远端 0、超前 **114**，全部是 1.1.0+10096（`6cca4e0`）以来的工作，工作区本身干净、没有待提交改动。首次 `git push` 失败于 `schannel: server closed abruptly (missing close_notify)`，换 `git -c http.sslBackend=openssl -c http.postBuffer=524288000 -c http.version=HTTP/1.1 push` 一次成功，远端推进到 `488e55a`
 - **文档对齐**（本次只改文档、不动代码，版本保持 `1.1.62+10158`）：

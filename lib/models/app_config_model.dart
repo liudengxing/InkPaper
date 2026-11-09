@@ -34,7 +34,6 @@ class AppConfig {
     this.useCustomPrompt = false, // 默认不使用自定义Prompt
     this.customReviewPrompt, // 自定义点评Prompt
     this.customContinuationPrompt, // 自定义续写Prompt
-    this.customTagRecommendationPrompt, // 自定义标签推荐Prompt
     this.customPeriodicReviewPrompt, // 自定义周/月回顾Prompt
     SidebarConfig? sidebarConfig,
   }) : sidebarConfig = sidebarConfig ?? SidebarConfig();
@@ -74,7 +73,6 @@ class AppConfig {
         useCustomPrompt: json['useCustomPrompt'] ?? false,
         customReviewPrompt: json['customReviewPrompt'],
         customContinuationPrompt: json['customContinuationPrompt'],
-        customTagRecommendationPrompt: json['customTagRecommendationPrompt'],
         customPeriodicReviewPrompt: json['customPeriodicReviewPrompt'],
         sidebarConfig: json['sidebarConfig'] != null
             ? SidebarConfig.fromJson(json['sidebarConfig'])
@@ -168,7 +166,6 @@ class AppConfig {
   final bool useCustomPrompt; // 是否使用自定义Prompt
   final String? customReviewPrompt; // 自定义点评Prompt（用于：笔记详情页AI智能点评）
   final String? customContinuationPrompt; // 自定义续写Prompt（用于：笔记编辑器AI续写）
-  final String? customTagRecommendationPrompt; // 自定义标签推荐Prompt（用于：标签智能推荐）
   final String? customPeriodicReviewPrompt; // 自定义回顾Prompt（用于：周回顾/月回顾）
 
   // 侧边栏配置
@@ -297,11 +294,9 @@ class AppConfig {
     bool? useCustomPrompt,
     String? customReviewPrompt,
     String? customContinuationPrompt,
-    String? customTagRecommendationPrompt,
     String? customPeriodicReviewPrompt,
     bool updateCustomReviewPrompt = false,
     bool updateCustomContinuationPrompt = false,
-    bool updateCustomTagRecommendationPrompt = false,
     bool updateCustomPeriodicReviewPrompt = false,
     SidebarConfig? sidebarConfig,
   }) =>
@@ -356,10 +351,6 @@ class AppConfig {
         customContinuationPrompt: updateCustomContinuationPrompt
             ? customContinuationPrompt
             : (customContinuationPrompt ?? this.customContinuationPrompt),
-        customTagRecommendationPrompt: updateCustomTagRecommendationPrompt
-            ? customTagRecommendationPrompt
-            : (customTagRecommendationPrompt ??
-                this.customTagRecommendationPrompt),
         customPeriodicReviewPrompt: updateCustomPeriodicReviewPrompt
             ? customPeriodicReviewPrompt
             : (customPeriodicReviewPrompt ?? this.customPeriodicReviewPrompt),
@@ -399,7 +390,6 @@ class AppConfig {
         'useCustomPrompt': useCustomPrompt,
         'customReviewPrompt': customReviewPrompt,
         'customContinuationPrompt': customContinuationPrompt,
-        'customTagRecommendationPrompt': customTagRecommendationPrompt,
         'customPeriodicReviewPrompt': customPeriodicReviewPrompt,
         'sidebarConfig': sidebarConfig.toJson(),
       };

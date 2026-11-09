@@ -478,7 +478,7 @@ InkPaper-墨鸣笔记是一款面向 Memos 用户的跨平台笔记应用。它�
 - **图片体验**：支持多图浏览、原图查看、保存图片和单击退出预览
 - **标签整理**：支持普通标签和多级标签，侧边栏和标签页可快速筛选
 - **数据备份**：支持本地备份与 WebDAV 备份/恢复，可选备份图片附件
-- **AI 辅助**：可配置兼容 OpenAI 格式的服务，用于点评、续写、洞察和标签推荐
+- **AI 辅助**：可配置兼容 OpenAI 格式的服务，用于点评、续写和周期回顾
         ''',
         en: '''
 InkPaper is a cross-platform note app for Memos users. It keeps the open Memos data model while improving mobile capture, offline posting, image viewing, tag organization, WebDAV backup, and AI-assisted workflows.
@@ -491,7 +491,7 @@ InkPaper is a cross-platform note app for Memos users. It keeps the open Memos d
 - **Image experience**: browse multiple images, view originals, save images, and tap once to exit preview
 - **Tag organization**: supports normal and nested tags for fast filtering
 - **Data backup**: supports local backup and WebDAV backup/restore, including optional image attachments
-- **AI assistance**: supports OpenAI-compatible services for review, continuation, insights, and tag suggestions
+- **AI assistance**: supports OpenAI-compatible services for review, continuation, and periodic review
         ''',
       );
 

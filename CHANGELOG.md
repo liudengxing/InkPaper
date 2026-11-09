@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **版本记录说明**：`1.1.14`–`1.1.56` 的逐版本记录没有随 2026-10-14 的代码基线重导入（`ca0ed14`）一起迁移过来，无法可靠复原，因此不做臆造补记。`1.1.57` 起的变更以 `PROGRESS.md` 为准（按日期归档，含验证输出与决策依据），本文件只汇总用户可感知的对外变更。
 
+## [1.1.63] - 2026-11-09
+
+### 移除
+- AI 设置里删掉「标签推荐提示词」输入框。它是原「相关标签推荐」（TF-IDF + LLM 语义合并）的提示词，但该功能的唯一读者 `tag_ai_service.dart` 在 v1.0.0 基线导入时就已无调用方，`33c9647` 清理死代码时整文件删除，这个输入框从此填了也不生效
+- 随之删除 `AppConfig.customTagRecommendationPrompt` 字段及其序列化，并清理同源的孤儿文案键：`relatedTags` / `relatedTagsRecommendation` / `noRelatedTags` / `addMoreNotesForAI` / `tagGeneration` / `tagGenerationDesc`
+
+### 变更
+- 帮助页「AI 辅助」的能力说明从「点评、续写、洞察和标签推荐」更正为「点评、续写和周期回顾」，与现存三块提示词完全对齐
+
 ## [1.1.62] - 2026-11-09
 
 ### 修复

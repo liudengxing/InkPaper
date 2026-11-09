@@ -1,7 +1,7 @@
 # 业务框架与流程 / 参数手册
 
 > 配套 `docs/HANDOFF.md`：**HANDOFF 讲「怎么开工」，本文讲「这个 App 是怎么运转的」**。
-> 最后更新：2026-11-09 · 版本 `1.1.62+10158`
+> 最后更新：2026-11-09 · 版本 `1.1.63+10159`
 > 所有结论都带文件行号依据，行号为主分支 `main` 当时快照，重构后可能漂移，按方法名检索即可。
 
 ---
@@ -176,7 +176,7 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
 
 - **自定义提示词**（1.1.61 / 1.1.62 整理后共三块）：点评 `customReviewPrompt`（`ai_review_service:79`）、续写 `customContinuationPrompt`、回顾 `customPeriodicReviewPrompt`（`periodic_review_service:406`）。三者由同一个开关 `useCustomPrompt` 统一放行
 - 开关语义（1.1.62 起）：**开着但某块留空 = 该功能用默认提示词**，不是「没启用」。两个消费者本来就是按字段判空再回退，保存时不再把开关改回 `false`（旧逻辑会让开关静默弹回，用户以为没保存成功）
-- 1.1.61 已删除没有入口的「AI 洞察」页与它的两块提示词（洞察 / 标签洞察）；`customTagRecommendationPrompt`（标签推荐）仍是零消费者的死配置，见 `BLOCKERS.md` TAG-REC-001
+- 1.1.61 已删除没有入口的「AI 洞察」页与它的两块提示词（洞察 / 标签洞察）；1.1.63 又删掉同为零消费者的「标签推荐提示词」（`customTagRecommendationPrompt`）与配套孤儿文案，详见 `BLOCKERS.md` TAG-REC-001
 
 ### 4.12 语音输入（1.1.57 起：默认关闭，仅讯飞）
 

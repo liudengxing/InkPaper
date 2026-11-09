@@ -1194,9 +1194,6 @@ class AppLocalizationsSimple {
       _t('smartContinueWriting', fallback: '✍️ 智能续写');
   String get smartContinueWritingDesc =>
       _t('smartContinueWritingDesc', fallback: '根据上下文智能续写笔记内容');
-  String get tagGeneration => _t('tagGeneration', fallback: '🏷️ 标签生成');
-  String get tagGenerationDesc =>
-      _t('tagGenerationDesc', fallback: '自动分析笔记内容生成相关标签');
   String get contentSummary => _t('contentSummary', fallback: '📝 内容摘要');
   String get contentSummaryDesc =>
       _t('contentSummaryDesc', fallback: '快速生成笔记内容摘要');
@@ -2091,14 +2088,8 @@ class AppLocalizationsSimple {
       locale.languageCode == 'zh' ? '打开链接失败' : 'Failed to open link';
 
   // 标签相关
-  String get relatedTags => _t('relatedTags', fallback: '相关标签');
   String get statistics => _t('statistics', fallback: '统计图表');
   String get rename => _t('rename', fallback: '重命名');
-  String get relatedTagsRecommendation =>
-      _t('relatedTagsRecommendation', fallback: '相关标签推荐');
-  String get noRelatedTags => _t('noRelatedTags', fallback: '暂无相关标签');
-  String get addMoreNotesForAI =>
-      _t('addMoreNotesForAI', fallback: '添加更多包含该标签的笔记，\nAI将为您推荐相关标签');
   String get tagStatistics => _t('tagStatistics', fallback: '标签统计');
   String get noteCount => _t('noteCount', fallback: '笔记数');
   String get creationMonths => _t('creationMonths', fallback: '创建月数');
@@ -2374,18 +2365,12 @@ class AppLocalizationsSimple {
       locale.languageCode == 'zh' ? '点评提示词' : 'Review Prompt';
   String get continuationPrompt =>
       locale.languageCode == 'zh' ? '续写提示词' : 'Continuation Prompt';
-  String get tagRecommendationPrompt =>
-      locale.languageCode == 'zh' ? '标签推荐提示词' : 'Tag Recommendation Prompt';
   String get reviewPromptHint => locale.languageCode == 'zh'
       ? '自定义AI点评的提示词，留空使用默认提示词'
       : 'Customize AI review prompt, leave empty to use default';
   String get continuationPromptHint => locale.languageCode == 'zh'
       ? '自定义AI续写的提示词，留空使用默认提示词'
       : 'Customize AI continuation prompt, leave empty to use default';
-  String get tagRecommendationPromptHint => locale.languageCode == 'zh'
-      ? '自定义标签推荐的提示词，留空使用默认提示词'
-      : 'Customize tag recommendation prompt, leave empty to use default';
-
   // 引用关系侧边栏
   String get referencesCount =>
       locale.languageCode == 'zh' ? '个引用' : 'references';

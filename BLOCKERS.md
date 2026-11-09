@@ -52,11 +52,14 @@
 - **处理**：删除页面 989 行 + `_showAiInsightDialog()` + 设置页「洞察提示词」「标签洞察提示词」两块**改了不生效**的输入框 + `customInsightPrompt` / `customTagInsightPrompt` 字段及 l10n 四键。保留 `useCustomPrompt` 开关与点评/续写/回顾三块提示词（均有真实消费者）。
 - **教训**：`STATE-CORE-005` 式「只搬字段不搬行为」之外，还有一种更隐蔽的死代码——**配置 UI 还在、读取方已经没了**。用户改了不生效，比功能不存在更容易让人困惑。以后新增设置项时应同时确认有读者。
 
-## TAG-REC-001 · 「标签推荐提示词」是死配置（待决策，2026-11-05 · 1.1.61）
+## TAG-REC-001 · 「标签推荐提示词」是死配置（已解决：整体删除，2026-11-09 · 1.1.63）
 
-- **现状**：`AppConfig.customTagRecommendationPrompt` 全库**零消费者**，但设置页仍在渲染「标签推荐提示词」输入框（`ai_settings_screen.dart` 的 `// 标签推荐Prompt` 块），用户改动后保存成功、毫无效果。
-- **与 AI-INSIGHT-001 同源**：AI-INSIGHT-001 清理时按「洞察」范围只删了洞察相关两块，这一块虽同样没有读者，但属于标签推荐功能，未擅自扩大范围。
-- **两个方向**：① 接上读者（若标签智能推荐确实规划要做）；② 比照本次做法删掉 UI + 字段 + l10n 的 `tagRecommendationPrompt` / `tagRecommendationPromptHint`。
+- **原现象**：`AppConfig.customTagRecommendationPrompt` 全库**零消费者**，但设置页仍在渲染「标签推荐提示词」输入框，用户改动后保存成功、毫无效果。
+- **溯源（2026-11-09 二次确认）**：它是原「相关标签推荐」功能的提示词——给一个标签，先用本地 **TF-IDF** 算标签相关度（`calculateTagRelevance`），开启 AI 后再让 **LLM** 做语义分析，两者合并成「相关标签 + 一句 AI 洞察」。唯一读者是 `lib/services/tag_ai_service.dart`（706 行）的 `getEnhancedTagRecommendations()` → `_buildTagRecommendationPrompt()`。
+- **为什么早就是死的**：`git grep TagAIService` 在 v1.0.0 基线 `ca0ed14` 上只命中定义自身，说明配套 UI（`related_notes_bottom_sheet.dart` 里「相关标签推荐 / 暂无相关标签」那套）在源码交到手上之前就被摘掉了。`33c9647` 删除零引用死代码时把整个服务删掉，这个字段连「理论上的读者」也没了。
+- **决策**：删除。接上读者等于从零做一个「标签详情页 → 相关标签」的新功能，而现有标签浏览链路里并没有这个入口的坑位。
+- **删除范围**：设置页输入框（controller 声明/初始化/dispose/UI 块/save 变量/copyWith 实参）、`AppConfig.customTagRecommendationPrompt`（构造、字段、fromJson、toJson、copyWith 形参与 `updateCustomTagRecommendationPrompt` 标志）、孤儿文案键 `tagRecommendationPrompt` / `tagRecommendationPromptHint` / `relatedTags` / `relatedTagsRecommendation` / `noRelatedTags` / `addMoreNotesForAI` / `tagGeneration` / `tagGenerationDesc`（含 `translations.dart` 条目）、`help_screen.dart` 的「AI 辅助」能力说明改为「点评、续写和周期回顾」。
+- **注意别混淆**：编辑器里打 `#` 弹出的标签补全浮层（`note_editor.dart` 的 `_tagSuggestionOverlay`）是**纯本地匹配历史标签**，不走 AI，与本字段无关。
 
 
 ## SHARE-001 · 系统分享到 InkPaper 未弹出预填编辑器（待确认，2026-11-06 · 1.1.62）

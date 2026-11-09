@@ -1363,11 +1363,6 @@ class Translations {
       'zh': '根据上下文智能续写笔记内容',
       'en': 'Continue writing based on context',
     },
-    'tagGeneration': {'zh': '🏷️ 标签生成', 'en': '🏷️ Tag Generation'},
-    'tagGenerationDesc': {
-      'zh': '自动分析笔记内容生成相关标签',
-      'en': 'Auto generate tags from content',
-    },
     'contentSummary': {'zh': '📝 内容摘要', 'en': '📝 Content Summary'},
     'contentSummaryDesc': {
       'zh': '快速生成笔记内容摘要',

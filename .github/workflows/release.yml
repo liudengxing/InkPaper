@@ -104,12 +104,21 @@ jobs:
             ANDROID_KEY_ALIAS
             ANDROID_KEY_PASSWORD
           )
+          # 逐项 exit 会让「补一个 secret 就跑一轮完整流水线」，所以一次报全。
+          missing=()
           for name in "${required[@]}"; do
-            if [ -z "${!name}" ]; then
-              echo "Missing required release secret: $name" >&2
-              exit 1
+            if [ -n "${!name}" ]; then
+              echo "ok   $name"
+            else
+              echo "MISS $name" >&2
+              missing+=("$name")
             fi
           done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing release secret(s): ${missing[*]}. 去 Settings -> Secrets and variables -> Actions 添加（要选 Repository secrets，Environment secrets 读不到）"
+            exit 1
+          fi
+          echo "All 4 release secrets present."
 
   secret-scan:
     name: Secret scan

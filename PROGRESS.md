@@ -1,3 +1,15 @@
+## 2026-11-10 · Release 流水线改成 Android 单平台 + dry-run 入口 · done
+
+- 需求：`publish` 只保留 Android；并且要能在打 tag 前先验证一遍流水线
+- 改法（`.github/workflows/release.yml`）：
+  - 删掉 ios / macos / windows / linux 四个作业；`publish` 的 needs 变成 `[prepare, android]`，只下 `android-release` 与 `release-notes` 两个 artifact，`files` 只留 `*.apk` / `*.aab`
+  - 新增 `workflow_dispatch` + `dry_run`（默认 true）：手动触发时跳过 tag 匹配校验（拿 pubspec 版本当 tag），`publish` 用 `if: inputs.dry_run != true` 整体跳过
+  - 产物命名改用 `needs.prepare.outputs.tag`，dry run 下不会再变成 `InkPaper-main-android.apk`；为此把 `prepare` 加进 android 作业的 needs（原来只靠 quality 间接等待）
+  - Release notes 改用 `steps.version.outputs.version` 取版本，dry run 下也能从 CHANGELOG 抽到段落
+- 保留：证书指纹校验、APK 内嵌 DER 证书比对、AAB `keytool` 校验、四个 secret 非空检查 —— `store-check` 会断言这些字符串存在，少一处就红
+- 验证：PyYAML 解析通过（6 个作业、needs 全部可解析）、`store-check` 通过
+- 文档：`docs/BUILD_AND_DEVICE_TESTING.md` §5 发布章节重写，补 dry-run 用法与「只发 Android」的说明
+
 ## 2026-11-10 · 更新检查改读 GitHub Release（1.1.69+10165）· done
 
 - 需求：更新检查改成从 GitHub 取最新版本号，判断有没有新版本；顺带讲清 Release 里的 APK 是怎么上传的

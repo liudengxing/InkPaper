@@ -130,14 +130,30 @@ macOS 打包脚本：`scripts/create_dmg.sh`、`scripts/create_release_dmg.sh`�
 
 ## 5. 发布
 
+当前 `release.yml` **只发布 Android（APK + AAB）**。iOS / macOS / Windows / Linux 的发布作业已在 2026-11-10 移除，
+以后要恢复，从 git 历史里把对应作业搬回来，并把作业名加回 `publish` 的 `needs` 与 `files`。
+
+先手动验证一遍流水线（不打 tag、不创建 Release）：
+
+```text
+GitHub → Actions → Release → Run workflow → dry_run 保持勾选
+```
+
+验证跑会执行门禁（verify / gitleaks / keystore 检查）和 APK、AAB 构建，产物在 run 页面的 Artifacts 里，
+可以下载试装。`dry_run` 关掉则等同于正式发布，会直接创建 Release。
+
+确认无误后正式发版：
+
 ```bash
 # 1. 改 pubspec.yaml 版本号，例如 1.0.1+10001
-# 2. 提交所有改动（release 命令要求工作区干净）
+# 2. 同步 CHANGELOG.md 对应版本段落（Release 说明从它生成）
+# 3. 提交所有改动（release 命令要求工作区干净）
 dart tool/inkpaper.dart store-check
 dart tool/inkpaper.dart release v1.0.1
 ```
 
-`release` 会校验 tag 与 `pubspec.yaml` 一致、本地与远端无同名 tag，然后打 tag 推送。GitHub Actions 收到 tag 后构建并发布 Android APK/AAB、iOS IPA、macOS、Windows、Linux 产物。
+`release` 会校验 tag 与 `pubspec.yaml` 一致、本地与远端无同名 tag，然后打 tag 推送。GitHub Actions 收到 tag
+后构建 Android，并把 `InkPaper-vX.Y.Z-android.apk` / `.aab` 挂到 Release；应用内「检查更新」读的就是这个 Release。
 
 ## 6. 真机测试注意事项
 

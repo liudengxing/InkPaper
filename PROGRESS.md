@@ -1,3 +1,15 @@
+## 2026-11-10 · 更新改成应用内下载 + 调系统安装器（1.1.70+10166）· done
+
+- 需求：原来点「下载安装包」是 `launchUrl` 把 Release 资产地址丢给浏览器，进度、失败提示都不在自己手里；改成应用内下载、下完直接装
+- Dart 侧新增 `lib/services/update_download_service.dart`：`http.Client.send` 流式下载，回调 `UpdateDownloadProgress`（received/total/fraction），支持 `cancel()`（同时关连接，避免卡在等下一块数据上）；先写 `.part` 再改名，字节数与 Release 声明的 `size` 不符就报错并清理，不留半截包
+- Dart 侧新增 `lib/services/apk_install_service.dart`：走现有原生通道 `channelNativeAlarm`，两个方法 `getApkUpdatesDir` / `installApk`，返回 `ApkInstallStatus` 枚举（started / permissionRequired / missingFile / unsupported / failed）
+- 原生侧：MainActivity 新增 `apkUpdatesDir()`（`cacheDir/updates`）与 `installApk()`；API 26+ 先查 `canRequestPackageInstalls()`，没授权就跳 `ACTION_MANAGE_UNKNOWN_APP_SOURCES` 并返回 permission_required（否则 `startActivity` 会静默失败）；manifest 加 `REQUEST_INSTALL_PACKAGES` 与 `FileProvider`（authority `${applicationId}.fileprovider`，只授权 `cache-path updates/`，见 `res/xml/inkpaper_apk_paths.xml`）
+- UI：`_UpdateCheckFooter` 内联进度条 + 百分比 + 「取消下载」；下载完成的文件缓存在 `_cachedApk`，同版本再点直接安装，省一次重下
+- 平台差异：非 Android 无系统安装器接管 APK，保持跳浏览器
+- 依赖：**没有新增**（`androidx.core` 的 FileProvider 本来就在 classpath 上，`AlarmReceiver.kt` 早已用 `androidx.core.app.NotificationCompat`）
+- 待办：Google Play 对该权限有政策限制，若将来上架 Play，可能需要按渠道拆分 manifest；本轮先只服务侧载（GitHub Release）场景
+- 未真机验证：改动期间无线调试掉线，Kotlin/manifest 只做了构建验证
+
 ## 2026-11-10 · README 版本号纳入 store-check + CI action 升到 Node 24 · done
 
 - 问题：`README.md` / `README.en.md` 的「当前版本 / Current Version」还停在 `1.0.0`，比真实版本落后十几个；同时 Release 跑的时候 `actions/checkout@v4`、`upload-artifact@v4` 刷 Node 20 弃用警告

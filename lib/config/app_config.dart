@@ -386,6 +386,12 @@ class AppConfig {
   /// 更新检查请求超时
   static const Duration updateCheckTimeout = Duration(seconds: 10);
 
+  /// APK 下载的连接超时
+  ///
+  /// 只约束「多久没响应就放弃」，不约束总时长：50MB 装在慢网下可能要几分钟，
+  /// 用总时长做超时会误杀正常下载。
+  static const Duration updateDownloadTimeout = Duration(seconds: 20);
+
   // ==================== 法律文档 ====================
 
   /// 账号与数据删除说明/申请地址

@@ -11,6 +11,8 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
+import android.provider.Settings
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -95,6 +97,15 @@ class MainActivity: FlutterActivity() {
                     val permissions = checkAllPermissions()
                     result.success(permissions)
                 }
+                "getApkUpdatesDir" -> {
+                    // 下载目录由原生给：FileProvider 的 cache-path 授权的是
+                    // 这个路径，Dart 侧自己拼的路径可能落在授权范围之外。
+                    result.success(apkUpdatesDir().absolutePath)
+                }
+                "installApk" -> {
+                    val apkPath = call.argument<String>("path") ?: ""
+                    result.success(installApk(apkPath))
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -113,6 +124,60 @@ class MainActivity: FlutterActivity() {
         handleIntent(intent)
     }
     
+    /** 应用内更新的下载目录：私有 cache 下，系统清理缓存时会一起回收。 */
+    private fun apkUpdatesDir(): File {
+        val dir = File(cacheDir, "updates")
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        return dir
+    }
+
+    /**
+     * 拉起系统安装器。
+     *
+     * 返回值给 Dart 侧决定提示文案：started / permission_required /
+     * missing_file / failed。API 26 起「安装未知应用」是按应用授权的，
+     * 没开时 startActivity 会静默失败（只打一行日志），所以先查再跳设置页。
+     */
+    private fun installApk(path: String): String {
+        if (path.isEmpty()) {
+            return "missing_file"
+        }
+        val file = File(path)
+        if (!file.exists() || file.length() <= 0L) {
+            return "missing_file"
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !packageManager.canRequestPackageInstalls()
+        ) {
+            try {
+                startActivity(
+                    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                        .setData(Uri.parse("package:$packageName"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } catch (e: Exception) {
+                ReleaseLog.e("MainActivity", "打开未知来源设置失败: ${e.message}")
+            }
+            return "permission_required"
+        }
+        return try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+            startActivity(
+                Intent(Intent.ACTION_VIEW)
+                    .setDataAndType(uri, "application/vnd.android.package-archive")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            ReleaseLog.e("MainActivity", "已拉起系统安装器: ${file.name}")
+            "started"
+        } catch (e: Exception) {
+            ReleaseLog.e("MainActivity", "拉起安装器失败: ${e.message}")
+            "failed"
+        }
+    }
+
     private fun handleIntent(intent: Intent?) {
         intent?.let {
             // 🔥 处理保存提醒通知（优先处理，避免被openNote覆盖）

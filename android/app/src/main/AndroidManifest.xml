@@ -25,12 +25,28 @@
     
     <!-- Android 13+推送通知权限 (备用) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- 应用内更新：下载完 APK 后要拉起系统安装器，缺这条会被系统静默拒绝。
+         上架 Google Play 时建议只在侧载渠道声明（Play 该权限受政策限制）。 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     
 
     <application
         android:label="InkPaper"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+
+        <!-- 应用内更新下载的 APK 落在私有 cache 里，安装器读不到 file://，
+             必须经 FileProvider 换成带临时授权的 content:// 才能安装。 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/inkpaper_apk_paths" />
+        </provider>
 
         <!-- 启用 Flutter GPU：liquid_glass_renderer 的倒角折射需要它，
              设备不支持时该库会自动退回 FakeGlass（仅模糊，无折射）。 -->

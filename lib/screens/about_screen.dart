@@ -1,11 +1,13 @@
-import 'dart:io' show Platform;
+import 'dart:io' show Directory, File, Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/services/apk_install_service.dart';
 import 'package:inkpaper/services/update_check_service.dart';
+import 'package:inkpaper/services/update_download_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutScreen extends StatelessWidget {
@@ -539,9 +541,15 @@ class _UpdateCheckFooter extends StatefulWidget {
 class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
   final UpdateCheckService _service = UpdateCheckService();
   bool _checking = false;
+  bool _downloading = false;
+  UpdateDownloadProgress? _progress;
+  UpdateDownloadService? _activeDownload;
+  File? _cachedApk;
+  String? _cachedApkVersion;
 
   @override
   void dispose() {
+    _activeDownload?.cancel();
     _service.dispose();
     super.dispose();
   }
@@ -646,11 +654,118 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
   }
 
   Future<void> _openDownload(UpdateCheckResult result) async {
-    final uri = result.downloadUrl;
-    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!launched && mounted) {
-      _showMessage('无法打开链接，请手动访问 $uri');
+    final apkUrl = result.apkDownloadUrl;
+    // APK 只有 Android 认得；其它平台没有系统安装器，仍旧交给浏览器。
+    if (!Platform.isAndroid || apkUrl == null) {
+      final uri = result.downloadUrl;
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        _showMessage('无法打开链接，请手动访问 $uri');
+      }
+      return;
     }
+    await _downloadAndInstall(result, apkUrl);
+  }
+
+  Future<void> _downloadAndInstall(UpdateCheckResult result, Uri apkUrl) async {
+    if (_downloading) {
+      return;
+    }
+
+    // 上次已经下好、只是卡在「安装未知应用」授权上时，别再让用户等一遍。
+    final cached = _cachedApk;
+    if (cached != null &&
+        _cachedApkVersion == result.latestVersion &&
+        await cached.exists()) {
+      await _install(cached);
+      return;
+    }
+
+    setState(() {
+      _downloading = true;
+      _progress = UpdateDownloadProgress(
+        received: 0,
+        total: result.apkSizeBytes,
+      );
+    });
+
+    // 目录优先用原生给的 cache/updates：FileProvider 只授权了那一个目录。
+    final service = UpdateDownloadService(
+      directoryProvider: () async {
+        final native = await ApkInstallService.updatesDirectory();
+        return native ??
+            Directory('${Directory.systemTemp.path}/inkpaper-updates');
+      },
+    );
+    _activeDownload = service;
+    try {
+      final file = await service.download(
+        apkUrl,
+        fileName: 'InkPaper-${result.latestVersion}.apk',
+        expectedBytes: result.apkSizeBytes,
+        onProgress: (progress) {
+          if (mounted) {
+            setState(() => _progress = progress);
+          }
+        },
+      );
+      _cachedApk = file;
+      _cachedApkVersion = result.latestVersion;
+      if (!mounted) {
+        return;
+      }
+      await _install(file);
+    } on UpdateDownloadException catch (e) {
+      if (mounted) {
+        _showMessage(e.message);
+      }
+    } finally {
+      _activeDownload = null;
+      service.dispose();
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _progress = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _install(File file) async {
+    final status = await ApkInstallService.install(file.path);
+    if (!mounted) {
+      return;
+    }
+    final message = switch (status) {
+      ApkInstallStatus.started => '已打开系统安装界面，按提示完成安装',
+      ApkInstallStatus.permissionRequired => '已打开设置页，请允许「安装未知应用」后再点一次',
+      ApkInstallStatus.missingFile => '安装包已被系统清理，请重新下载',
+      ApkInstallStatus.unsupported => '当前平台不支持应用内安装',
+      ApkInstallStatus.failed => '无法启动系统安装器，请手动安装',
+    };
+    _showMessage(message);
+  }
+
+  void _cancelDownload() {
+    _activeDownload?.cancel();
+    _showMessage('已取消下载');
+  }
+
+  String _progressLabel() {
+    final progress = _progress;
+    if (progress == null) {
+      return '正在准备下载…';
+    }
+    final received = (progress.received / (1024 * 1024)).toStringAsFixed(1);
+    final fraction = progress.fraction;
+    if (fraction == null) {
+      return '已下载 $received MB';
+    }
+    final total = ((progress.total ?? 0) / (1024 * 1024)).toStringAsFixed(1);
+    return '正在下载 $received / $total MB（${(fraction * 100).round()}%）';
   }
 
   static String? _formatSize(int? bytes) {
@@ -680,7 +795,7 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
             style: const TextStyle(fontSize: 13, color: Color(0xFF999999)),
           ),
           TextButton.icon(
-            onPressed: _checking ? null : _checkForUpdates,
+            onPressed: _checking || _downloading ? null : _checkForUpdates,
             icon: _checking
                 ? SizedBox(
                     width: 14,
@@ -696,6 +811,29 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
               style: const TextStyle(fontSize: 13),
             ),
           ),
+          if (_downloading) ...[
+            const SizedBox(height: 4),
+            SizedBox(
+              width: 176,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: _progress?.fraction,
+                  minHeight: 3,
+                  backgroundColor: const Color(0xFFE0E0E0),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _progressLabel(),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF999999)),
+            ),
+            TextButton(
+              onPressed: _cancelDownload,
+              child: const Text('取消下载', style: TextStyle(fontSize: 12)),
+            ),
+          ],
         ],
       ),
     );

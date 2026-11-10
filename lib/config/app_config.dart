@@ -377,6 +377,15 @@ class AppConfig {
   /// GitHub仓库地址
   static const String githubRepo = 'https://github.com/liudengxing/InkPaper';
 
+  /// GitHub 最新 Release 接口（更新检查的唯一数据源）
+  ///
+  /// 只取 `latest`：CI 发布时不带 draft / prerelease，所以这里天然就是正式版。
+  static const String githubLatestReleaseApi =
+      'https://api.github.com/repos/liudengxing/InkPaper/releases/latest';
+
+  /// 更新检查请求超时
+  static const Duration updateCheckTimeout = Duration(seconds: 10);
+
   // ==================== 法律文档 ====================
 
   /// 账号与数据删除说明/申请地址

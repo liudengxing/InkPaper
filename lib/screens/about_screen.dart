@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/services/update_check_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutScreen extends StatelessWidget {
@@ -432,17 +433,8 @@ class AboutScreen extends StatelessWidget {
               ),
             ),
 
-            // 底部只保留版本号（版权行与应用全名已按需求移除）
-            Container(
-              margin: const EdgeInsets.only(bottom: 32),
-              child: Text(
-                '版本 ${AppConfig.getFullVersionInfo()}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF999999),
-                ),
-              ),
-            ),
+            // 底部：版本号 + 检查更新（数据源是 GitHub Release）
+            const _UpdateCheckFooter(),
           ],
         ),
       ),
@@ -531,4 +523,181 @@ class AboutScreen extends StatelessWidget {
           ],
         ),
       );
+}
+
+/// 关于页底部：本地版本号 + 「检查更新」。
+///
+/// 检查走 GitHub Release 的 `releases/latest`，拿到 tag 与本机版本比大小；
+/// 有新版本时弹出说明，并直接指向 Release 里的 APK。
+class _UpdateCheckFooter extends StatefulWidget {
+  const _UpdateCheckFooter();
+
+  @override
+  State<_UpdateCheckFooter> createState() => _UpdateCheckFooterState();
+}
+
+class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
+  final UpdateCheckService _service = UpdateCheckService();
+  bool _checking = false;
+
+  @override
+  void dispose() {
+    _service.dispose();
+    super.dispose();
+  }
+
+  void _showMessage(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _checkForUpdates() async {
+    if (_checking) {
+      return;
+    }
+    setState(() => _checking = true);
+    try {
+      final result = await _service.check();
+      if (!mounted) {
+        return;
+      }
+      if (result.hasUpdate) {
+        await _showUpdateDialog(result);
+      } else {
+        _showMessage('已是最新版本 v${result.currentVersion}');
+      }
+    } on UpdateCheckException catch (e) {
+      if (!mounted) {
+        return;
+      }
+      _showMessage('检查更新失败：${e.message}');
+    } finally {
+      if (mounted) {
+        setState(() => _checking = false);
+      }
+    }
+  }
+
+  Future<void> _showUpdateDialog(UpdateCheckResult result) {
+    final notes = result.releaseNotes;
+    final size = _formatSize(result.apkSizeBytes);
+    final published = result.publishedAt;
+
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('发现新版本 ${result.latestVersion}'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '当前版本 ${result.currentVersion}'
+                '${size == null ? '' : ' · 安装包 $size'}',
+                style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
+              ),
+              if (published != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '发布于 ${_formatDate(published)}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF888888),
+                  ),
+                ),
+              ],
+              if (notes.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  '更新内容',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 240),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      notes,
+                      style: const TextStyle(fontSize: 13, height: 1.5),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('稍后'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _openDownload(result);
+            },
+            child: Text(result.apkDownloadUrl == null ? '前往发布页' : '下载安装包'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openDownload(UpdateCheckResult result) async {
+    final uri = result.downloadUrl;
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      _showMessage('无法打开链接，请手动访问 $uri');
+    }
+  }
+
+  static String? _formatSize(int? bytes) {
+    if (bytes == null || bytes <= 0) {
+      return null;
+    }
+    final mb = bytes / (1024 * 1024);
+    return '${mb.toStringAsFixed(1)} MB';
+  }
+
+  static String _formatDate(DateTime time) {
+    final local = time.toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '版本 ${AppConfig.getFullVersionInfo()}',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF999999)),
+          ),
+          TextButton.icon(
+            onPressed: _checking ? null : _checkForUpdates,
+            icon: _checking
+                ? SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: primaryColor,
+                    ),
+                  )
+                : const Icon(Icons.system_update_alt, size: 16),
+            label: Text(
+              _checking ? '检查中…' : '检查更新',
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

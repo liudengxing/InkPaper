@@ -1,3 +1,17 @@
+## 2026-11-10 · 更新检查改读 GitHub Release（1.1.69+10165）· done
+
+- 需求：更新检查改成从 GitHub 取最新版本号，判断有没有新版本；顺带讲清 Release 里的 APK 是怎么上传的
+- 现状：仓库**一个 tag 都没有**（`git tag -l` 与 `git ls-remote --tags origin` 均空），所以 GitHub Release 页面是空的；手机上装的 release 包是本地 `build android-release` 后用 adb 装的，没走过发布链路
+- 改法：
+  - 新增 `lib/services/update_check_service.dart`：GET `AppConfig.githubLatestReleaseApi`（`releases/latest`），10s 超时，`Accept: application/vnd.github+json` + `User-Agent`（GitHub 无 UA 会 403）
+  - `compareVersions()` 逐段数字比较，忽略 `v` 前缀 / `+build` / `-rc` 后缀，段数不齐按 0 补齐
+  - `parseLatestRelease()` 抽成顶层纯函数：取 `tag_name` 去 `v`、`body` 当更新说明、`assets` 里第一个 `.apk` 当下载直链（顺便带 size 给 UI 显示 MB），没有 APK 资产就回落到 Release 页面
+  - 错误分型给用户话术：超时 / 网络失败 / 403+429 限流 / 404 未发版 / 其他 HTTP 码 / JSON 异常，全部抛 `UpdateCheckException(message)`
+  - 关于页底部版本号下方加「检查更新」按钮（`_UpdateCheckFooter`，自带 loading 与防重入）；有新版本弹 AlertDialog（版本对比 + 发布时间 + 安装包大小 + 可滚动的更新说明），按钮直接打开 APK
+- 决策：**没有**把更新检查塞进启动流程或后台轮询。GitHub 未认证 API 按 IP 限流 60 次/小时，只在用户点按钮时请求才不会撞限流
+- 测试：新增 `test/unit/update_check_service_test.dart` 12 项（版本比较 4 项、JSON 解析 4 项、MockClient 服务层 4 项含 UA/限流/网络异常）
+- 验证：analyze 0 issue；`verify` 600 项全绿
+
 ## 2026-11-09 · 分享自动记录来源标签（1.1.68+10164）· done
 
 - 需求：从微信/微信读书分享进来的内容，自动打上来源标签

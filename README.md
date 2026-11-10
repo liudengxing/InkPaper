@@ -6,9 +6,9 @@
 
 ## 当前版本
 
-`1.0.0`
+`1.1.69`
 
-正式版本构建
+正式版本构建（Android APK / AAB）
 
 ## 功能
 
@@ -30,9 +30,7 @@
 发布包在 [GitHub Releases](https://github.com/liudengxing/InkPaper/releases) 页面提供。
 
 GitHub Releases 的 Android APK 用于手动安装和测试分发；Google Play 上架使用发布流程生成的签名 AAB。
-Windows 用户下载压缩包后运行应用。
-Linux 用户下载压缩包后解压运行。
-iOS 和 macOS 包当前用于测试分发。
+发布流水线目前只构建 Android；iOS、macOS、Windows、Linux 需要按下方命令在本机构建。
 
 ## 开发
 
@@ -73,19 +71,21 @@ sdkmanager --licenses
 
 ## 发布
 
-版本号统一维护在 `pubspec.yaml`：
+版本号统一维护在 `pubspec.yaml`，`x.y.z` 是语义版本，`+N` 是构建号：
 
 ```yaml
-version: 1.0.0+10000
+version: 1.1.69+10165
 ```
+
+每次改动都要把 `x.y.z` 的 patch 与 `+N` 同时加 1，并同步本文件顶部「当前版本」的那个 `x.y.z`——`dart tool/inkpaper.dart store-check` 会断言两处一致，对不上直接失败。
 
 发布入口：
 
 ```bash
-dart tool/inkpaper.dart release v1.0.0
+dart tool/inkpaper.dart release v1.1.69
 ```
 
-这个命令会创建并推送版本 tag。GitHub Actions 收到 tag 后自动执行检查、构建并发布 Android APK/AAB、iOS、macOS、Windows 和 Linux 产物。
+这个命令先校验 tag 与 `pubspec.yaml` 一致，然后创建并推送 tag。GitHub Actions 收到 tag 后执行检查、构建并发布 Android APK/AAB。
 
 ## 文档
 

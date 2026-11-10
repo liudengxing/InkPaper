@@ -1,3 +1,11 @@
+## 2026-11-10 · README 版本号纳入 store-check + CI action 升到 Node 24 · done
+
+- 问题：`README.md` / `README.en.md` 的「当前版本 / Current Version」还停在 `1.0.0`，比真实版本落后十几个；同时 Release 跑的时候 `actions/checkout@v4`、`upload-artifact@v4` 刷 Node 20 弃用警告
+- README 同步机制：`store-check` 新增 `_assertReadmeVersion`，从两份 README 的版本段里取第一个反引号内容，与 `pubspec.yaml` 的 `x.y.z` 严格比对，不一致就以 exit 2 报出双方的值。中英两份都要过，避免只改一份
+- 已实测正反两向：把中文 README 改成 `1.1.68` 立刻失败并打出「README.md 当前版本为 1.1.68，与 pubspec.yaml 的 1.1.69 不一致」，改回即通过
+- 文档：两份 README 的版本段、下载段、发布段一起更新（版本号写实、发布只描述 Android、补上「patch 与构建号同时 +1 且同步 README」的规则）
+- action 升级：`checkout@v4→v6`、`upload-artifact@v4→v6`、`download-artifact@v4→v7`，都是 Node 24 运行时版本，消掉弃用警告；`subosito/flutter-action@v2`、`setup-java@v4`、`softprops/action-gh-release@v2` 本轮没被警告，保持不动
+
 ## 2026-11-10 · 换成自持的正式签名密钥 · done
 
 - 背景：本地构建一直用 `android/inkpaper-local-test.jks`（指纹 `ED:22`），CI 基线却是另一把（`7A:00`）⇒ 从 Release 下的包装不进手机（签名冲突）。而 `7A:00` 那把的 keystore 文件并不在本地，GitHub secret 又不可回读，等于签名能力只剩 CI 一份，换机器/换仓库就失联

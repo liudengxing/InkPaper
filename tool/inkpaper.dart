@@ -224,6 +224,8 @@ class InkPaperCli {
       'Cloud verification AppKey must keep the official default in source.',
     );
 
+    await _assertReadmeVersion(version.split('+').first);
+
     stdout.writeln('Store checks passed for $version.');
   }
 
@@ -587,6 +589,49 @@ class InkPaperCli {
     await stderr.addStream(process.stderr);
     final code = await process.exitCode;
     return code == 0;
+  }
+
+  /// README 顶部的「当前版本 / Current Version」是给人看的版本入口，必须跟
+  /// pubspec 同步。靠文字约定记不住（它曾经停在 1.0.0 十几个版本没动），
+  /// 只好让校验兜住；中英两份都要求对齐，避免只改一份。
+  Future<void> _assertReadmeVersion(String semanticVersion) async {
+    const sections = <String, String>{
+      'README.md': '## 当前版本',
+      'README.en.md': '## Current Version',
+    };
+    for (final entry in sections.entries) {
+      final file = File(entry.key);
+      if (!await file.exists()) {
+        throw ToolExit(2, 'Missing required file: ${entry.key}');
+      }
+      final lines = (await file.readAsString()).split('\n');
+      final start = lines.indexWhere((line) => line.trim() == entry.value);
+      if (start < 0) {
+        throw ToolExit(
+          2,
+          '${entry.key} must keep the "${entry.value}" section.',
+        );
+      }
+      var declared = '';
+      for (var i = start + 1; i < lines.length; i++) {
+        final line = lines[i].trim();
+        if (line.startsWith('## ')) {
+          break;
+        }
+        final match = RegExp('`([^`]+)`').firstMatch(line);
+        if (match != null) {
+          declared = match.group(1)!.trim();
+          break;
+        }
+      }
+      if (declared != semanticVersion) {
+        throw ToolExit(
+          2,
+          '${entry.key} 当前版本为 ${declared.isEmpty ? "(缺失)" : declared}，'
+          '与 pubspec.yaml 的 $semanticVersion 不一致；升版本时请同步。',
+        );
+      }
+    }
   }
 
   Future<void> _assertFileContains(

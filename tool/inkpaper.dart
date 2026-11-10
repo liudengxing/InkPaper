@@ -200,7 +200,7 @@ class InkPaperCli {
     );
     await _assertFileContains(
       '.github/workflows/release.yml',
-      r'Missing required release secret: $name',
+      r'::error::Missing release secret(s): ${missing[*]}',
       'Release workflow must fail when required release secrets are missing.',
     );
     await _assertFileContains(

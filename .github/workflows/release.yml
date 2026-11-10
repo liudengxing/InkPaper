@@ -66,7 +66,7 @@ jobs:
             cat release_notes.md
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: release-notes
           path: release_notes.md
@@ -240,7 +240,7 @@ jobs:
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-release.apk "dist/InkPaper-${{ needs.prepare.outputs.tag }}-android.apk"
           cp build/app/outputs/bundle/release/app-release.aab "dist/InkPaper-${{ needs.prepare.outputs.tag }}-android.aab"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: android-release
           path: |

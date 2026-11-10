@@ -608,7 +608,7 @@ class AppLocalizationsSimple {
   String get exportFormatLabel => _t('exportFormatLabel', fallback: '导出格式');
   String get includeImagesLabel => _t('includeImagesLabel', fallback: '包含图片');
   String get includeImagesDescription =>
-      _t('includeImagesDescription', fallback: '将笔记中的图片一同导出');
+      _t('includeImagesDescription', fallback: '所有格式都会打包为 ZIP，图片文件一并放进去');
   String get includeTagsLabel => _t('includeTagsLabel', fallback: '包含标签');
   String get includeTagsDescription =>
       _t('includeTagsDescription', fallback: '保留笔记的标签信息');
@@ -1409,6 +1409,10 @@ class AppLocalizationsSimple {
       _t('markdownBatchImport', fallback: '支持批量导入Markdown文件');
   String get txtImportDescription =>
       _t('txtImportDescription', fallback: '纯文本文件将作为单独笔记导入');
+  String get jsonBackupDescription =>
+      _t('jsonBackupDescription', fallback: '标准备份格式，笔记 ID 与时间一并保留');
+  String get zipBackupDescription =>
+      _t('zipBackupDescription', fallback: '四种格式的导出都是 ZIP 包，正文和图片在一起');
   String get htmlImportDescription =>
       _t('htmlImportDescription', fallback: '支持从其他笔记软件导出的HTML');
   String get importWarning =>

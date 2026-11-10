@@ -2,16 +2,15 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
-import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/attachment_maintenance_service.dart';
+import 'package:inkpaper/services/backup_archive_service.dart';
 import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
@@ -72,6 +71,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
   final TextEditingController _confirmPasswordController =
       TextEditingController();
   final DatabaseService _databaseService = DatabaseService();
+  final BackupArchiveService _backupArchiveService = BackupArchiveService();
   final PreferencesService _preferencesService = PreferencesService();
   List<Map<String, dynamic>> _importHistory = [];
 
@@ -1123,7 +1123,16 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              _buildSupportedFormatItem('JSON', 'InkPaper-墨鸣笔记标准备份格式'),
+              _buildSupportedFormatItem(
+                'JSON',
+                AppLocalizationsSimple.of(context)?.jsonBackupDescription ??
+                    '标准备份格式，原始 ID 一并保留',
+              ),
+              _buildSupportedFormatItem(
+                'ZIP',
+                AppLocalizationsSimple.of(context)?.zipBackupDescription ??
+                    '四种格式的导出都是 ZIP 包，正文和图片在一起',
+              ),
               _buildSupportedFormatItem(
                 'Markdown',
                 AppLocalizationsSimple.of(context)?.markdownBatchImport ??
@@ -1483,191 +1492,42 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       // 生成备份文件名
       final now = DateTime.now();
       final formatter = DateFormat('yyyyMMdd_HHmmss');
-      var fileName =
-          'momingbiji_backup_${formatter.format(now)}.$_selectedExportFormat'
-              .toLowerCase();
+      var fileName = 'momingbiji_backup_${formatter.format(now)}.zip';
 
       final sourceNotes = await _databaseService.getNotes();
       final exportNotes = _includeTags
           ? sourceNotes
           : sourceNotes.map((note) => note.copyWith(tags: const [])).toList();
 
-      // 根据选择的格式导出数据
-      String fileContent;
+      // 所有格式统一打包成 ZIP：图片随包一起走，换设备或服务器失效也不丢
       Uint8List fileBytes;
       final notesCount = exportNotes.length;
+      var missingImages = 0;
+      final exportFormat =
+          BackupContentFormat.fromLabel(_selectedExportFormat) ??
+              BackupContentFormat.json;
 
       try {
-        switch (_selectedExportFormat) {
-          case 'JSON':
-            fileContent = _exportNotesToJson(exportNotes);
-            if (_encryptBackup) {
-              fileContent = await _encryptContent(
-                fileContent,
-                _passwordController.text,
-                originalFormat: 'JSON',
-              );
-              fileName = '$fileName.enc';
-            }
-            fileBytes = Uint8List.fromList(utf8.encode(fileContent));
-            break;
-
-          case 'Markdown':
-            // 创建ZIP文件
-            final archive = Archive();
-            final resourceManifest = <Map<String, String>>[];
-
-            // 每个笔记保存为单独的md文件
-            for (var i = 0; i < exportNotes.length; i++) {
-              final note = exportNotes[i];
-              final noteFileName = 'note_${i + 1}.md';
-              final noteContent = _databaseService.exportNoteToMarkdown(note);
-              final bytes = utf8.encode(noteContent);
-
-              final archiveFile =
-                  ArchiveFile(noteFileName, bytes.length, bytes);
-              archive.addFile(archiveFile);
-
-              if (_includeImages) {
-                await _addNoteImagesToArchive(
-                  archive: archive,
-                  note: note,
-                  noteIndex: i,
-                  manifest: resourceManifest,
-                );
-              }
-            }
-
-            if (resourceManifest.isNotEmpty) {
-              final manifestBytes = utf8.encode(
-                jsonEncode({
-                  'version': '1.0',
-                  'resources': resourceManifest,
-                }),
-              );
-              archive.addFile(
-                ArchiveFile(
-                  'resource_manifest.json',
-                  manifestBytes.length,
-                  manifestBytes,
-                ),
-              );
-            }
-
-            final zipBytes = ZipEncoder().encode(archive);
-            fileBytes = Uint8List.fromList(zipBytes ?? []);
-            fileName = fileName.replaceAll('.markdown', '.zip');
-            if (_encryptBackup) {
-              fileContent = await _encryptBytes(
-                fileBytes,
-                _passwordController.text,
-                originalFormat: 'ZIP',
-              );
-              fileBytes = Uint8List.fromList(utf8.encode(fileContent));
-              fileName = '$fileName.enc';
-            }
-            break;
-
-          case 'TXT':
-            final buffer = StringBuffer();
-
-            for (final note in exportNotes) {
-              buffer.writeln('--- 笔记 ${note.id} ---');
-              buffer.writeln(
-                '创建时间: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(note.createdAt)}',
-              );
-              buffer.writeln(
-                '更新时间: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(note.updatedAt)}',
-              );
-              buffer.writeln('标签: ${note.tags.join(', ')}');
-              buffer.writeln('内容:');
-              buffer.writeln(note.content);
-              buffer.writeln('\n--------------------\n');
-            }
-
-            fileContent = buffer.toString();
-            if (_encryptBackup) {
-              fileContent = await _encryptContent(
-                fileContent,
-                _passwordController.text,
-                originalFormat: 'TXT',
-              );
-              fileName = '$fileName.enc';
-            }
-            fileBytes = Uint8List.fromList(utf8.encode(fileContent));
-            break;
-
-          case 'HTML':
-            final buffer = StringBuffer();
-            buffer.writeln('<!DOCTYPE html>');
-            buffer.writeln('<html><head>');
-            buffer.writeln('<meta charset="UTF-8">');
-            buffer.writeln('<title>InkPaper-墨鸣笔记备份</title>');
-            buffer.writeln('<style>');
-            buffer.writeln(
-              'body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }',
-            );
-            buffer.writeln(
-              '.note { border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 5px; }',
-            );
-            buffer.writeln(
-              '.note-meta { color: #666; font-size: 0.9em; margin-bottom: 10px; }',
-            );
-            buffer.writeln('.note-content { white-space: pre-wrap; }');
-            buffer.writeln('.tags { color: #007bff; }');
-            buffer.writeln('</style>');
-            buffer.writeln('</head><body>');
-            buffer.writeln('<h1>InkPaper-墨鸣笔记备份</h1>');
-            buffer.writeln(
-              '<p>导出时间: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(now)}</p>',
-            );
-            buffer.writeln('<p>笔记总数: $notesCount</p>');
-
-            for (final note in exportNotes) {
-              buffer.writeln('<div class="note">');
-              buffer.writeln('<div class="note-meta">');
-              buffer.writeln(
-                '创建时间: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(note.createdAt)}<br>',
-              );
-              buffer.writeln(
-                '更新时间: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(note.updatedAt)}<br>',
-              );
-              if (note.tags.isNotEmpty) {
-                buffer.writeln(
-                  '标签: <span class="tags">${note.tags.map((t) => '#$t').join(' ')}</span>',
-                );
-              }
-              buffer.writeln('</div>');
-              buffer.writeln('<div class="note-content">');
-              buffer.writeln(
-                note.content.replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
-              );
-              buffer.writeln('</div>');
-              buffer.writeln('</div>');
-            }
-
-            buffer.writeln('</body></html>');
-
-            fileContent = buffer.toString();
-            if (_encryptBackup) {
-              fileContent = await _encryptContent(
-                fileContent,
-                _passwordController.text,
-                originalFormat: 'HTML',
-              );
-              fileName = '$fileName.enc';
-            }
-            fileBytes = Uint8List.fromList(utf8.encode(fileContent));
-            break;
-
-          default:
-            throw Exception(
-              AppLocalizationsSimple.of(context)?.unsupportedExportFormat ??
-                  '不支持的导出格式',
-            );
-        }
+        final built = await _backupArchiveService.buildArchive(
+          notes: exportNotes,
+          format: exportFormat,
+          includeImages: _includeImages,
+          markdownExporter: _databaseService.exportNoteToMarkdown,
+        );
+        fileBytes = built.bytes;
+        missingImages = built.missingImageCount;
       } on Object catch (e) {
-        throw Exception('生成文件内容失败: $e');
+        throw Exception('生成备份文件失败: $e');
+      }
+
+      if (_encryptBackup) {
+        final encrypted = await _encryptBytes(
+          fileBytes,
+          _passwordController.text,
+          originalFormat: 'ZIP',
+        );
+        fileBytes = Uint8List.fromList(utf8.encode(encrypted));
+        fileName = '$fileName.enc';
       }
 
       // 显示导出选项对话框
@@ -1696,6 +1556,15 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
 
       // 重新加载备份信息
       await _loadBackupInfo();
+
+      if (mounted && missingImages > 0) {
+        SnackBarUtils.showWarning(
+          context,
+          '有 $missingImages 张图片本地已找不到，已跳过；'
+          '重新登录服务器同步后会自动补回',
+          duration: const Duration(seconds: 4),
+        );
+      }
     } on Object catch (e) {
       _showErrorDialog('导出失败: $e');
     } finally {
@@ -1707,103 +1576,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
     }
   }
 
-  String _exportNotesToJson(List<Note> notes) => jsonEncode({
-        'version': '1.0',
-        'exportTime': DateTime.now().toIso8601String(),
-        'notes': notes.map((note) => note.toJson()).toList(),
-      });
-
-  Future<void> _addNoteImagesToArchive({
-    required Archive archive,
-    required Note note,
-    required int noteIndex,
-    required List<Map<String, String>> manifest,
-  }) async {
-    final imagePaths = _extractBackupImagePaths(note);
-    for (var i = 0; i < imagePaths.length; i++) {
-      final imagePath = imagePaths[i];
-      final localPath = _localImagePath(imagePath);
-      if (localPath == null) {
-        continue;
-      }
-
-      final file = File(localPath);
-      if (!await file.exists()) {
-        continue;
-      }
-
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) {
-        continue;
-      }
-
-      final ext = _extensionFromPath(localPath);
-      final archivePath = 'resources/note_${noteIndex + 1}_${i + 1}.$ext';
-      archive.addFile(ArchiveFile(archivePath, bytes.length, bytes));
-      manifest.add({
-        'noteId': note.id,
-        'originalPath': imagePath,
-        'archivePath': archivePath,
-      });
-    }
-  }
-
-  List<String> _extractBackupImagePaths(Note note) {
-    final paths = <String>[];
-
-    void addPath(String? path) {
-      final value = path?.trim();
-      if (value == null || value.isEmpty || paths.contains(value)) {
-        return;
-      }
-      paths.add(value);
-    }
-
-    final imageRegex = RegExp(r'!\[[^\]]*\]\(([^)]+)\)');
-    for (final match in imageRegex.allMatches(note.content)) {
-      addPath(match.group(1));
-    }
-
-    for (final resource in note.resourceList) {
-      addPath(resource['localPath']?.toString());
-      addPath(resource['path']?.toString());
-      addPath(resource['filename']?.toString());
-    }
-
-    return paths;
-  }
-
-  String? _localImagePath(String path) {
-    if (path.startsWith('file://')) {
-      return Uri.tryParse(path)?.toFilePath();
-    }
-    if (path.startsWith('/')) {
-      return path;
-    }
-    return null;
-  }
-
-  String _extensionFromPath(String path) {
-    final filename = path.split(Platform.pathSeparator).last.split('/').last;
-    final dot = filename.lastIndexOf('.');
-    if (dot == -1 || dot == filename.length - 1) {
-      return 'bin';
-    }
-    return filename.substring(dot + 1).toLowerCase();
-  }
-
   static const int _backupKdfIterations = 100000;
-
-  Future<String> _encryptContent(
-    String content,
-    String password, {
-    required String originalFormat,
-  }) =>
-      _encryptBytes(
-        Uint8List.fromList(utf8.encode(content)),
-        password,
-        originalFormat: originalFormat,
-      );
 
   Future<String> _encryptBytes(
     Uint8List bytes,
@@ -2173,8 +1946,11 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       var format = 'JSON';
 
       if (originalFormat == 'ZIP' || fileName.endsWith('.zip')) {
-        format = 'ZIP';
-        importedCount = await _importZipBackup(decodedContent.bytes);
+        final decodedArchive = await _backupArchiveService.decodeArchive(
+          decodedContent.bytes,
+        );
+        format = decodedArchive.format.label;
+        importedCount = await _importDecodedArchive(decodedArchive);
       } else if (originalFormat == 'JSON' ||
           (originalFormat == null && fileName.endsWith('.json'))) {
         // 导入JSON格式
@@ -2241,131 +2017,31 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
     }
   }
 
-  Future<int> _importZipBackup(Uint8List bytes) async {
-    final archive = ZipDecoder().decodeBytes(bytes);
-    final markdownFileNames = <String>[];
-    final markdownContents = <String>[];
-    final textFileNames = <String>[];
-    final textContents = <String>[];
-    var restoredImagePathMap = <String, String>{};
-
-    for (final archiveFile in archive) {
-      if (!archiveFile.isFile) {
-        continue;
-      }
-      if (archiveFile.name.toLowerCase() == 'resource_manifest.json') {
-        restoredImagePathMap = await _restoreZipImages(archive, archiveFile);
-        break;
-      }
-    }
-
-    for (final archiveFile in archive) {
-      if (!archiveFile.isFile) {
-        continue;
-      }
-      final nestedFileName = archiveFile.name.toLowerCase();
-      if (nestedFileName == 'resource_manifest.json') {
-        continue;
-      }
-      if (nestedFileName.endsWith('.md') ||
-          nestedFileName.endsWith('.markdown')) {
-        final content = _rewriteBackupImagePaths(
-          utf8.decode(archiveFile.content as List<int>),
-          restoredImagePathMap,
+  Future<int> _importDecodedArchive(DecodedBackupArchive decoded) async {
+    switch (decoded.format) {
+      case BackupContentFormat.json:
+        return _databaseService.importNotesFromJson(
+          decoded.entries.first.content,
+          overwriteExisting: _overwriteExisting,
+          asNewNotes: _importAsNew,
         );
-        markdownFileNames.add(archiveFile.name);
-        markdownContents.add(content);
-      } else if (nestedFileName.endsWith('.txt')) {
-        final content = utf8.decode(archiveFile.content as List<int>);
-        textFileNames.add(archiveFile.name);
-        textContents.add(content);
-      }
+      case BackupContentFormat.markdown:
+        return _databaseService.importNotesFromMarkdown(
+          decoded.entries.map((entry) => entry.name).toList(),
+          decoded.entries.map((entry) => entry.content).toList(),
+          overwriteExisting: _overwriteExisting,
+          asNewNotes: _importAsNew,
+        );
+      case BackupContentFormat.txt:
+        return _databaseService.importNotesFromText(
+          decoded.entries.map((entry) => entry.name).toList(),
+          decoded.entries.map((entry) => entry.content).toList(),
+          overwriteExisting: _overwriteExisting,
+          asNewNotes: _importAsNew,
+        );
+      case BackupContentFormat.html:
+        throw Exception('HTML 备份仅用于阅读，不能恢复为笔记');
     }
-
-    if (markdownFileNames.isEmpty && textFileNames.isEmpty) {
-      throw Exception('ZIP文件中没有找到支持的文件格式');
-    }
-
-    final importedMarkdownCount = markdownFileNames.isEmpty
-        ? 0
-        : await _databaseService.importNotesFromMarkdown(
-            markdownFileNames,
-            markdownContents,
-            overwriteExisting: _overwriteExisting,
-            asNewNotes: _importAsNew,
-          );
-    final importedTextCount = textFileNames.isEmpty
-        ? 0
-        : await _databaseService.importNotesFromText(
-            textFileNames,
-            textContents,
-            overwriteExisting: _overwriteExisting,
-            asNewNotes: _importAsNew,
-          );
-    return importedMarkdownCount + importedTextCount;
-  }
-
-  Future<Map<String, String>> _restoreZipImages(
-    Archive archive,
-    ArchiveFile manifestFile,
-  ) async {
-    final restoredPathMap = <String, String>{};
-    final decoded = jsonDecode(utf8.decode(manifestFile.content as List<int>));
-    if (decoded is! Map<String, dynamic> || decoded['resources'] is! List) {
-      return restoredPathMap;
-    }
-
-    final appDir = await getApplicationDocumentsDirectory();
-    final imagesDir = Directory('${appDir.path}/backup_images');
-    if (!await imagesDir.exists()) {
-      await imagesDir.create(recursive: true);
-    }
-
-    final filesByName = {
-      for (final file in archive.files.where((file) => file.isFile))
-        file.name: file,
-    };
-    for (final item in decoded['resources'] as List<dynamic>) {
-      if (item is! Map) {
-        continue;
-      }
-      final originalPath = item['originalPath']?.toString();
-      final archivePath = item['archivePath']?.toString();
-      if (originalPath == null ||
-          originalPath.isEmpty ||
-          archivePath == null ||
-          archivePath.isEmpty) {
-        continue;
-      }
-
-      final archiveFile = filesByName[archivePath];
-      if (archiveFile == null) {
-        continue;
-      }
-
-      final ext = _extensionFromPath(archivePath);
-      final safeName =
-          'backup_${DateTime.now().millisecondsSinceEpoch}_${restoredPathMap.length}.$ext';
-      final localFile = File('${imagesDir.path}/$safeName');
-      await localFile.writeAsBytes(
-        archiveFile.content as List<int>,
-        flush: true,
-      );
-      restoredPathMap[originalPath] = 'file://${localFile.path}';
-    }
-
-    return restoredPathMap;
-  }
-
-  String _rewriteBackupImagePaths(
-    String content,
-    Map<String, String> restoredPathMap,
-  ) {
-    var nextContent = content;
-    for (final entry in restoredPathMap.entries) {
-      nextContent = nextContent.replaceAll(entry.key, entry.value);
-    }
-    return nextContent;
   }
 
   // 从云端同步

@@ -513,8 +513,8 @@ class Translations {
     'exportFormatLabel': {'zh': '导出格式', 'en': 'Export Format'},
     'includeImagesLabel': {'zh': '包含图片', 'en': 'Include Images'},
     'includeImagesDescription': {
-      'zh': '将笔记中的图片一同导出',
-      'en': 'Export images in notes',
+      'zh': '所有格式都会打包为 ZIP，图片文件一并放进去',
+      'en': 'All formats are packed as ZIP with images included',
     },
     'includeTagsLabel': {'zh': '包含标签', 'en': 'Include Tags'},
     'includeTagsDescription': {'zh': '保留笔记的标签信息', 'en': 'Keep tag information'},
@@ -923,6 +923,14 @@ class Translations {
     'htmlImportDescription': {
       'zh': '支持从其他笔记软件导出的HTML',
       'en': 'HTML exported from other note apps supported',
+    },
+    'jsonBackupDescription': {
+      'zh': '标准备份格式，笔记 ID 与时间一并保留',
+      'en': 'Standard backup, keeps note IDs and timestamps',
+    },
+    'zipBackupDescription': {
+      'zh': '四种格式的导出都是 ZIP 包，正文和图片在一起',
+      'en': 'All four formats export a ZIP with notes and images',
     },
     'importWarning': {
       'zh': '导入操作可能会影响现有数据，建议先备份当前数据',

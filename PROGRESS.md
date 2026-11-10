@@ -1,3 +1,14 @@
+## 2026-11-10 · 导出备份四种格式统一打包图片（1.1.71+10167）· done
+
+- 起因：手机上 635 条笔记里 25 条含图（66 个引用：64 个 `/file/attachments/...` 服务端路径、2 个 `file://` 本地缓存）。导出的 JSON 备份里图片只剩字符串引用，确认「包含图片」开关对 JSON / TXT / HTML 完全无效，只有 Markdown 分支调了 `_addNoteImagesToArchive`
+- 新增 `lib/services/backup_archive_service.dart`（`BackupArchiveService` + `BackupContentFormat` 枚举）：把「打包正文 + 收图 + 写清单」和「解包 + 还原图片 + 重写路径」从 2770 行的页面文件里抽出来，便于单测；图片目录通过 `imagesDirectoryProvider` 注入，测试用临时目录
+- 包结构（v2）：`backup_manifest.json`（version/format/noteCount/imageCount/missingImageCount）+ 正文（`notes.json` / `note_N.md` / `notes.txt` / `notes.html`）+ `resource_manifest.json` + `resources/note_N_M.ext`
+- 图片定位：`file://` → 绝对路径 → 相对文件名（先查 `<docs>/images/`，再查 `<docs>/`），`content://`/`http(s)://` 直接跳过；同一张图被多条笔记引用只打一份
+- 路径重写：导入时按「原始路径 → `file://` + 本地还原路径」替换正文，长路径优先避免前缀误匹配；JSON 正文里的路径是转义过的（Windows 反斜杠变 `\\`），加 `jsonEncoded` 开关连同转义一起替换，否则 Windows 上还原不出图
+- HTML 导出：先整体 HTML 转义再把 `![alt](path)` 换成 `<img src="resources/...">`，本地没有的降级为占位文字；HTML 仍是只读格式，导入时明确报错「仅用于阅读」
+- 兼容：没有 `backup_manifest.json` 的老 ZIP 按扩展名推断格式；老的独立 `.json` / `.md` / `.txt` 单文件导入路径完全没动
+- UI：导出文件名固定 `momingbiji_backup_<ts>.zip`（加密再加 `.enc`），导入页补一行 ZIP 说明，「包含图片」副标题改成「所有格式都会打包为 ZIP，图片文件一并放进去」，中英都改
+- 测试：`test/unit/backup_archive_service_test.dart` 9 项（JSON/MD/TXT/HTML 打包与解包、缺失图片计数、关掉开关、resourceList 相对名、老包兼容、空包报错），`flutter test` 全绿
 ## 2026-11-10 · 更新改成应用内下载 + 调系统安装器（1.1.70+10166）· done
 
 - 需求：原来点「下载安装包」是 `launchUrl` 把 Release 资产地址丢给浏览器，进度、失败提示都不在自己手里；改成应用内下载、下完直接装

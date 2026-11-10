@@ -157,6 +157,27 @@ void main() {
       expect(built.bytes, isNotEmpty);
     });
 
+    test('只统计正文引用的缺失图片，resourceList 找不到不算缺', () async {
+      final built = await service.buildArchive(
+        notes: [
+          _note(
+            id: 'm2',
+            content: '正文引用 ![失效](/file/attachments/missing.png)',
+            resourceList: const [
+              {
+                'filename': 'not-here.png',
+                'path': '/file/attachments/other.png',
+              },
+            ],
+          ),
+        ],
+        format: BackupContentFormat.json,
+        includeImages: true,
+      );
+
+      expect(built.missingImageCount, 1);
+    });
+
     test('关掉「包含图片」就不打包任何图片', () async {
       final image = await writeImage('d.png');
       final built = await service.buildArchive(

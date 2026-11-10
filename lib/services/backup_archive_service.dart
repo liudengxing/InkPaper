@@ -133,24 +133,36 @@ class BackupArchiveService {
     final archive = Archive();
     final resources = <Map<String, String>>[];
     final archivedByOriginal = <String, String>{};
-    var missingImageCount = 0;
+    // 只统计正文里真正引用到的图片，resourceList 里只是附件元数据，
+    // 找不到也不影响阅读，不拿它去打扰用户
+    final missingPaths = <String>{};
 
     if (includeImages) {
       for (var i = 0; i < notes.length; i++) {
         final note = notes[i];
-        for (final originalPath in extractImagePaths(note)) {
+        final referenced = contentImagePaths(note);
+        final candidates = <String>[
+          ...referenced,
+          ...extractImagePaths(note)
+              .where((path) => !referenced.contains(path)),
+        ];
+        for (final originalPath in candidates) {
           // 同一张图被多条笔记引用时只打一份
           if (archivedByOriginal.containsKey(originalPath)) {
             continue;
           }
           final file = await _resolveImageFile(originalPath);
           if (file == null) {
-            missingImageCount++;
+            if (referenced.contains(originalPath)) {
+              missingPaths.add(originalPath);
+            }
             continue;
           }
           final bytes = await file.readAsBytes();
           if (bytes.isEmpty) {
-            missingImageCount++;
+            if (referenced.contains(originalPath)) {
+              missingPaths.add(originalPath);
+            }
             continue;
           }
           final ext = extensionOf(file.path);
@@ -212,7 +224,7 @@ class BackupArchiveService {
         'noteCount': notes.length,
         'includeImages': includeImages,
         'imageCount': resources.length,
-        'missingImageCount': missingImageCount,
+        'missingImageCount': missingPaths.length,
         'generator': 'InkPaper',
       }),
     );
@@ -227,7 +239,7 @@ class BackupArchiveService {
       format: format,
       noteCount: notes.length,
       imageCount: resources.length,
-      missingImageCount: missingImageCount,
+      missingImageCount: missingPaths.length,
     );
   }
 
@@ -557,9 +569,22 @@ class BackupArchiveService {
   // 图片解析
   // ---------------------------------------------------------------------------
 
+  /// 正文 Markdown 语法里直接引用到的图片路径。
+  List<String> contentImagePaths(Note note) {
+    final paths = <String>[];
+    final imageRegex = RegExp(r'!\[[^\]]*\]\(([^)\s]+)');
+    for (final match in imageRegex.allMatches(note.content)) {
+      final value = match.group(1)?.trim();
+      if (value != null && value.isNotEmpty && !paths.contains(value)) {
+        paths.add(value);
+      }
+    }
+    return paths;
+  }
+
   /// 从正文的 Markdown 图片语法和 resourceList 里收集所有图片引用。
   List<String> extractImagePaths(Note note) {
-    final paths = <String>[];
+    final paths = <String>[...contentImagePaths(note)];
 
     void add(String? path) {
       final value = path?.trim();
@@ -567,11 +592,6 @@ class BackupArchiveService {
         return;
       }
       paths.add(value);
-    }
-
-    final imageRegex = RegExp(r'!\[[^\]]*\]\(([^)\s]+)');
-    for (final match in imageRegex.allMatches(note.content)) {
-      add(match.group(1));
     }
 
     for (final resource in note.resourceList) {

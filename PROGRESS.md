@@ -8,7 +8,8 @@
 - HTML 导出：先整体 HTML 转义再把 `![alt](path)` 换成 `<img src="resources/...">`，本地没有的降级为占位文字；HTML 仍是只读格式，导入时明确报错「仅用于阅读」
 - 兼容：没有 `backup_manifest.json` 的老 ZIP 按扩展名推断格式；老的独立 `.json` / `.md` / `.txt` 单文件导入路径完全没动
 - UI：导出文件名固定 `momingbiji_backup_<ts>.zip`（加密再加 `.enc`），导入页补一行 ZIP 说明，「包含图片」副标题改成「所有格式都会打包为 ZIP，图片文件一并放进去」，中英都改
-- 测试：`test/unit/backup_archive_service_test.dart` 9 项（JSON/MD/TXT/HTML 打包与解包、缺失图片计数、关掉开关、resourceList 相对名、老包兼容、空包报错），`flutter test` 全绿
+- 缺失图片计数只算正文里 `![](...)` 真的引用到的（首版把 resourceList 里的附件元数据也算进去，635 条笔记导出时报「112 张缺失」，实际正文只有 66 个引用，改成按去重路径+仅正文引用统计）
+- 测试：`test/unit/backup_archive_service_test.dart` 10 项（JSON/MD/TXT/HTML 打包与解包、缺失图片计数、resourceList 不算缺、关掉开关、resourceList 相对名、老包兼容、空包报错），`flutter test` 全绿
 ## 2026-11-10 · 更新改成应用内下载 + 调系统安装器（1.1.70+10166）· done
 
 - 需求：原来点「下载安装包」是 `launchUrl` 把 Release 资产地址丢给浏览器，进度、失败提示都不在自己手里；改成应用内下载、下完直接装

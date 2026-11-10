@@ -1,3 +1,12 @@
+## 2026-11-10 · 换成自持的正式签名密钥 · done
+
+- 背景：本地构建一直用 `android/inkpaper-local-test.jks`（指纹 `ED:22`），CI 基线却是另一把（`7A:00`）⇒ 从 Release 下的包装不进手机（签名冲突）。而 `7A:00` 那把的 keystore 文件并不在本地，GitHub secret 又不可回读，等于签名能力只剩 CI 一份，换机器/换仓库就失联
+- 决策：趁 Release 还是 0 个、只有一台设备装了包，直接换一把自持的正式密钥，一次到位
+- 新密钥 `android/inkpaper-release.jks`：`CN=InkPaper, OU=Mobile, O=InkPaper, L=Xiamen, ST=Fujian, C=CN`；RSA 2048 / SHA256withRSA / 有效期至 2054-03-28；别名 `inkpaper`；SHA-256 `D0:99:DD:07:…:AF:56:C1`
+- 同步三处：`android/key.properties`（storeFile 指向新 jks）、`tool/inkpaper.dart` 的 `_androidReleaseCertSha256`、`release.yml` 的 `ANDROID_RELEASE_CERT_SHA256`（后两者不一致时 store-check 直接红）
+- 旧 `inkpaper-local-test.jks` 保留不删，只是不再使用
+- 待办（用户侧）：GitHub 四个 secret 换成新密钥的值；手机上 1.1.68 必须先导出备份再卸载重装，签名换了无法覆盖升级
+
 ## 2026-11-10 · Release 流水线改成 Android 单平台 + dry-run 入口 · done
 
 - 需求：`publish` 只保留 Android；并且要能在打 tag 前先验证一遍流水线

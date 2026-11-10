@@ -10,7 +10,7 @@ class InkPaperCli {
   static const String _cloudVerifyAppId = '10002';
   static const String _cloudVerifyAppKey = 'RLu4EGglybXSgRzK';
   static const String _androidReleaseCertSha256 =
-      '7A:00:C9:A1:AC:E1:AC:15:0E:79:0C:9D:7A:5B:FC:37:A3:F1:A1:2F:0D:F5:9D:ED:86:27:17:93:C8:40:99:8D';
+      'D0:99:DD:07:FE:66:B0:A2:DD:6E:7E:CC:16:62:D9:1F:96:DF:9E:03:67:4E:55:6A:9E:60:FB:6C:67:AF:56:C1';
 
   Future<int> run(List<String> args) async {
     if (args.isEmpty || args.first == 'help' || args.first == '--help') {

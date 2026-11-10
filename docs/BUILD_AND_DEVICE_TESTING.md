@@ -81,13 +81,15 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 发布构建需要 `android/key.properties` 指向密钥库，缺少时 Gradle 会直接报错而不是静默降级：
 
 ```properties
-storeFile=../inkpaper-new-release.keystore
+storeFile=../inkpaper-release.jks
 storePassword=***
-keyAlias=***
+keyAlias=inkpaper
 keyPassword=***
 ```
 
 CI 侧对应 4 个 Secret：`ANDROID_KEYSTORE_BASE64`、`ANDROID_STORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`；工作流会校验 APK/AAB 的签名证书 SHA-256 是否与 `tool/inkpaper.dart` 中记录的指纹一致。
+
+当前正式密钥是 `android/inkpaper-release.jks`（`CN=InkPaper, OU=Mobile, O=InkPaper, C=CN`，RSA 2048 / SHA256withRSA，有效期到 2054-03-28），SHA-256 为 `D0:99:DD:07:…:AF:56:C1`。这个指纹在 `tool/inkpaper.dart` 与 `release.yml` 各存一份，`store-check` 会断言两边一致。密钥库与 `key.properties` 都在 gitignore 里，务必备份到代码仓库之外——丢了就再也无法给已发布版本发升级包。
 
 应用 ID 为 `com.didichou.inkpaper`，深链 scheme 为 `inkpaper://`（快速记录、随机回顾、分享都走它）。改名前的旧包与本包会被系统视为两个独立应用。
 

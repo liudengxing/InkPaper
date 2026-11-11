@@ -102,7 +102,7 @@ jobs:
       # release 资产时不时 504，重试三次也不一定过得去。把解压后的发行包缓存住，
       # 命中缓存的 run 完全不碰网络；key 固定到版本，不随代码变化失效。
       - name: Cache Gradle distribution
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.gradle/wrapper/dists
           key: gradle-dist-${{ runner.os }}-8.14.3-bin

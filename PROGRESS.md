@@ -1,3 +1,11 @@
+## 2026-11-11 · 回顾页同样去掉魔法棒 FAB（并入 1.1.73+10169）· done
+
+- 用户确认随机回顾页的同一个 FAB 一并移除，让两处体验一致；1.1.72 未发版，改动合并进 1.1.73
+- 删除 `lib/screens/random_review_screen.dart` 的 `floatingActionButton` 挂载点、`_buildAIRelatedNotesFAB()`、`_findRelatedNotes()`、`_isLoadingRelatedNotes` / `_intelligentRelatedNotesService` 字段与两个 import
+- 连带清理：`_currentIndex` 字段（唯一读取点在 `_findRelatedNotes` 里）及其 3 处赋值，`_onPageChanged()` 与 `PageView.onPageChanged` 随之成空壳，一并删除
+- CHANGELOG 的 1.1.72 条目改名 1.1.73 并合并两个页面的描述（1.1.72 从未对外发布，不留断档）
+- 验证：`dart analyze lib/screens/random_review_screen.dart` 无问题；`dart tool/inkpaper.dart verify` 全绿
+
 ## 2026-11-11 · 详情页移除右下角魔法棒 FAB（1.1.72+10168）· done
 
 - 起因：详情页右下角 `floatingActionButton`（AI 相关笔记魔法棒，带 1.0→1.1 脉冲动画）长期遮挡正文尾部与底部字数栏，且与卡片菜单里的「相关笔记」入口重复

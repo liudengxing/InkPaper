@@ -7,13 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
-import 'package:inkpaper/services/intelligent_related_notes_service.dart';
 import 'package:inkpaper/services/random_review_selector_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:inkpaper/utils/todo_parser.dart';
-import 'package:inkpaper/widgets/intelligent_related_notes_sheet.dart';
 import 'package:inkpaper/widgets/memos_markdown_renderer.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
@@ -36,7 +34,6 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
   final Random _random = Random();
 
   List<Note> _reviewNotes = [];
-  int _currentIndex = 0;
 
   /// 被置顶到第一条的「那年今日」笔记 id（用于在时间后加标签）。
   String? _onThisDayNoteId;
@@ -45,11 +42,6 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
   int _reviewDays = 999999; // 默认回顾全部笔记
   int _reviewCount = 1; // 默认回顾1条笔记
   Set<String> _selectedTags = {}; // 选中的标签集合
-
-  // 🧠 智能相关笔记
-  bool _isLoadingRelatedNotes = false;
-  final IntelligentRelatedNotesService _intelligentRelatedNotesService =
-      IntelligentRelatedNotesService();
 
   @override
   void initState() {
@@ -87,7 +79,6 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
       setState(() {
         _reviewNotes = [];
         _onThisDayNoteId = null;
-        _currentIndex = 0;
       });
       return;
     }
@@ -109,7 +100,6 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
     setState(() {
       _reviewNotes = merged;
       _onThisDayNoteId = pinned?.id;
-      _currentIndex = 0;
     });
 
     // 重置翻页位置（防止上一次停留页影响“新的一批”体验）
@@ -765,13 +755,6 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
     );
   }
 
-  // 处理页面变化
-  void _onPageChanged(int index) {
-    setState(() {
-      _currentIndex = index;
-    });
-  }
-
   // 打开侧边栏
   void _openDrawer() {
     _scaffoldKey.currentState?.openDrawer();
@@ -992,7 +975,6 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
           return PageView.builder(
             controller: _pageController,
             itemCount: _reviewNotes.length,
-            onPageChanged: _onPageChanged,
             physics: const BouncingScrollPhysics(),
             itemBuilder: (context, index) {
               final note = _reviewNotes[index];
@@ -1108,130 +1090,6 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
           );
         },
       ),
-      // 🧠 智能相关笔记按钮（与详情页样式一致）
-      floatingActionButton:
-          _reviewNotes.isNotEmpty ? _buildAIRelatedNotesFAB(isDarkMode) : null,
     );
-  }
-
-  /// 🧠 构建智能相关笔记FAB（与详情页样式一致 - 炫酷脉冲动画）
-  Widget _buildAIRelatedNotesFAB(bool isDark) => TweenAnimationBuilder<double>(
-        tween: Tween(begin: 1, end: 1.1),
-        duration: const Duration(milliseconds: 800),
-        curve: Curves.easeInOut,
-        builder: (context, scale, child) => Transform.scale(
-          scale: scale,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: isDark
-                    ? [AppTheme.primaryLightColor, AppTheme.accentColor]
-                    : [
-                        AppTheme.primaryColor,
-                        AppTheme.accentColor,
-                        AppTheme.primaryLightColor,
-                      ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: (isDark
-                          ? AppTheme.primaryLightColor
-                          : AppTheme.primaryColor)
-                      .withValues(alpha: 0.3),
-                  blurRadius: 12,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: FloatingActionButton(
-              onPressed: _isLoadingRelatedNotes ? null : _findRelatedNotes,
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              child: _isLoadingRelatedNotes
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Icon(
-                      Icons.auto_awesome,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-            ),
-          ),
-        ),
-        onEnd: () {
-          // 反向动画
-          if (mounted) {
-            setState(() {});
-          }
-        },
-      );
-
-  /// 🧠 查找并显示当前笔记的智能相关笔记
-  Future<void> _findRelatedNotes() async {
-    if (_reviewNotes.isEmpty || _currentIndex >= _reviewNotes.length) {
-      return;
-    }
-
-    final currentNote = _reviewNotes[_currentIndex];
-
-    setState(() {
-      _isLoadingRelatedNotes = true;
-    });
-
-    try {
-      final appProvider = Provider.of<AppProvider>(context, listen: false);
-
-      // 🧠 使用智能相关笔记服务进行分析
-      final result =
-          await _intelligentRelatedNotesService.findIntelligentRelatedNotes(
-        currentNote: currentNote,
-        allNotes: appProvider.notes,
-        apiKey: appProvider.appConfig.aiApiKey,
-        apiUrl: appProvider.appConfig.aiApiUrl,
-        model: appProvider.appConfig.aiModel,
-      );
-
-      setState(() {
-        _isLoadingRelatedNotes = false;
-      });
-
-      // 显示智能相关笔记结果
-      if (!mounted) {
-        return;
-      }
-
-      if (result.isEmpty) {
-        SnackBarUtils.showInfo(
-          context,
-          AppLocalizationsSimple.of(context)?.aiRelatedNotesEmpty ?? '未找到相关笔记',
-        );
-      } else {
-        // 🎨 显示现代化的智能相关笔记抽屉
-        await IntelligentRelatedNotesSheet.show(context, result);
-      }
-    } on Object catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ 查找相关笔记失败: $e');
-      }
-      setState(() {
-        _isLoadingRelatedNotes = false;
-      });
-      if (mounted) {
-        SnackBarUtils.showError(
-          context,
-          '查找相关笔记失败：$e',
-        );
-      }
-    }
   }
 }

@@ -11,7 +11,6 @@ import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/ai_enhanced_service.dart';
 import 'package:inkpaper/services/ai_review_service.dart';
-import 'package:inkpaper/services/intelligent_related_notes_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/logger.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
@@ -20,7 +19,6 @@ import 'package:inkpaper/utils/tag_path_utils.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:inkpaper/utils/todo_parser.dart';
 import 'package:inkpaper/widgets/annotations_sidebar.dart';
-import 'package:inkpaper/widgets/intelligent_related_notes_sheet.dart';
 import 'package:inkpaper/widgets/memos_markdown_renderer.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
@@ -38,11 +36,6 @@ class NoteDetailScreen extends StatefulWidget {
 
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
   Note? _note;
-
-  // 🧠 智能相关笔记
-  bool _isLoadingRelatedNotes = false;
-  final IntelligentRelatedNotesService _intelligentRelatedNotesService =
-      IntelligentRelatedNotesService();
 
   // AI 摘要
   final AIEnhancedService _aiEnhancedService = AIEnhancedService();
@@ -977,121 +970,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           ),
         ),
       ),
-      // 🚀 添加魔法棒 FAB
-      floatingActionButton: _buildAIRelatedNotesFAB(isDarkMode),
     );
   }
-
-  /// 🧠 查找并显示智能相关笔记（使用最新的智能推荐系统）
-  Future<void> _findRelatedNotes() async {
-    if (_note == null) {
-      return;
-    }
-
-    setState(() {
-      _isLoadingRelatedNotes = true;
-    });
-
-    try {
-      final appProvider = Provider.of<AppProvider>(context, listen: false);
-
-      // 🧠 使用智能相关笔记服务进行分析
-      final result =
-          await _intelligentRelatedNotesService.findIntelligentRelatedNotes(
-        currentNote: _note!,
-        allNotes: appProvider.notes,
-        apiKey: appProvider.appConfig.aiApiKey,
-        apiUrl: appProvider.appConfig.aiApiUrl,
-        model: appProvider.appConfig.aiModel,
-      );
-
-      setState(() {
-        _isLoadingRelatedNotes = false;
-      });
-
-      // 显示智能相关笔记结果
-      if (!mounted) {
-        return;
-      }
-
-      if (result.isEmpty) {
-        SnackBarUtils.showInfo(
-          context,
-          AppLocalizationsSimple.of(context)?.aiRelatedNotesEmpty ?? '未找到相关笔记',
-        );
-      } else {
-        // 🎨 显示现代化的智能相关笔记抽屉
-        await IntelligentRelatedNotesSheet.show(context, result);
-      }
-    } on Object catch (e) {
-      debugPrint('❌ 查找相关笔记失败: $e');
-      setState(() {
-        _isLoadingRelatedNotes = false;
-      });
-      if (mounted) {
-        SnackBarUtils.showError(
-          context,
-          '查找相关笔记失败：$e',
-        );
-      }
-    }
-  }
-
-  /// 构建 AI 相关笔记 FAB（带脉冲动画）
-  Widget _buildAIRelatedNotesFAB(bool isDark) => TweenAnimationBuilder<double>(
-        tween: Tween(begin: 1, end: 1.1),
-        duration: const Duration(milliseconds: 800),
-        curve: Curves.easeInOut,
-        builder: (context, scale, child) => Transform.scale(
-          scale: scale,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: isDark
-                    ? [AppTheme.primaryLightColor, AppTheme.accentColor]
-                    : [
-                        AppTheme.primaryColor,
-                        AppTheme.accentColor,
-                        AppTheme.primaryLightColor,
-                      ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: (isDark
-                          ? AppTheme.primaryLightColor
-                          : AppTheme.primaryColor)
-                      .withValues(alpha: 0.3),
-                  blurRadius: 12,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: FloatingActionButton(
-              onPressed: _isLoadingRelatedNotes ? null : _findRelatedNotes,
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              child: _isLoadingRelatedNotes
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Icon(
-                      Icons.auto_awesome,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-            ),
-          ),
-        ),
-      );
 
   /// 生成 AI 摘要
   Future<void> _generateAISummary() async {

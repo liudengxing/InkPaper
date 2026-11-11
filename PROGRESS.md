@@ -1,3 +1,11 @@
+## 2026-11-11 · 详情页移除右下角魔法棒 FAB（1.1.72+10168）· done
+
+- 起因：详情页右下角 `floatingActionButton`（AI 相关笔记魔法棒，带 1.0→1.1 脉冲动画）长期遮挡正文尾部与底部字数栏，且与卡片菜单里的「相关笔记」入口重复
+- 删除 `lib/screens/note_detail_screen.dart` 的 `floatingActionButton` 挂载点、`_buildAIRelatedNotesFAB()`、`_findRelatedNotes()`、`_isLoadingRelatedNotes` / `_intelligentRelatedNotesService` 字段，以及随之失效的两个 import，净删 120 行
+- 功能未移除：`NoteActionsUi.showRelatedNotes`（`lib/widgets/note_actions_ui.dart`）保留，入口在笔记卡片菜单（`lib/widgets/note_card.dart:901`）
+- 随机回顾页有同一个 FAB（`lib/screens/random_review_screen.dart:1113`），本轮未动
+- 验证：`dart analyze lib/screens/note_detail_screen.dart` 无问题；`dart tool/inkpaper.dart verify` 全绿
+
 ## 2026-11-10 · 导出备份四种格式统一打包图片（1.1.71+10167）· done
 
 - 起因：手机上 635 条笔记里 25 条含图（66 个引用：64 个 `/file/attachments/...` 服务端路径、2 个 `file://` 本地缓存）。导出的 JSON 备份里图片只剩字符串引用，确认「包含图片」开关对 JSON / TXT / HTML 完全无效，只有 Markdown 分支调了 `_addNoteImagesToArchive`

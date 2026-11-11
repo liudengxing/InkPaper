@@ -14,7 +14,6 @@ import 'package:inkpaper/screens/data_cleanup_screen.dart';
 import 'package:inkpaper/screens/draft_box_screen.dart';
 import 'package:inkpaper/screens/feedback_screen.dart';
 import 'package:inkpaper/screens/flomo_import_screen.dart';
-import 'package:inkpaper/screens/forgot_password_screen.dart';
 import 'package:inkpaper/screens/help_screen.dart';
 import 'package:inkpaper/screens/home_screen.dart';
 import 'package:inkpaper/screens/import_export_main_screen.dart';
@@ -471,16 +470,6 @@ class AppRouter {
               context: context,
               state: state,
               child: const RegisterScreen(),
-            ),
-          ),
-
-          GoRoute(
-            path: 'forgot-password',
-            name: 'forgotPassword',
-            pageBuilder: (context, state) => buildSlideTransition(
-              context: context,
-              state: state,
-              child: const ForgotPasswordScreen(),
             ),
           ),
 

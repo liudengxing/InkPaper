@@ -838,28 +838,6 @@ class Translations {
     'dataExport': {'zh': '数据导出', 'en': 'Data Export'},
     'imageManagement': {'zh': '图片管理', 'en': 'Image Management'},
     'privateDeployment': {'zh': '私有化部署', 'en': 'Private Deployment'},
-    // ===== 忘记密码页面 =====
-    'forgotPassword': {'zh': '找回密码', 'en': 'Forgot Password'},
-    'functionDescription': {'zh': '功能说明', 'en': 'Function Description'},
-    'forgotPasswordHelp': {
-      'zh':
-          'Memos服务器暂不支持在线密码重置功能。\n\n如果忘记密码，请：\n\n1. 联系服务器管理员重置密码\n2. 或通过服务器后台管理界面重置\n3. 如果是自建服务器，可通过数据库直接修改',
-      'en':
-          'Memos server does not currently support online password reset.\n\nIf you forgot your password, please:\n\n1. Contact the server administrator to reset your password\n2. Or reset through the server backend management interface\n3. If it is a self-hosted server, you can modify it directly through the database',
-    },
-    'backToLogin': {'zh': '返回登录', 'en': 'Back to Login'},
-    'learnMore': {'zh': '了解详情', 'en': 'Learn More'},
-    'memosNoPasswordResetHint': {
-      'zh': 'Memos暂不支持在线密码重置\n点击下方按钮查看解决方案',
-      'en':
-          'Memos does not support online password reset\nTap the button below for solutions',
-    },
-    'memosNoPasswordResetDetail': {
-      'zh': 'Memos服务器目前不支持自动密码重置功能。如果您忘记了密码，建议联系服务器管理员或通过后台管理界面进行重置。',
-      'en':
-          'Memos servers do not currently support automatic password reset. If you forgot your password, contact the server administrator or reset it through the backend management interface.',
-    },
-    'rememberedPassword': {'zh': '想起密码了？', 'en': 'Remembered it?'},
 
     // ===== P3 清理批次：补全直写中文的 UI 文案 =====
     'addTag': {'zh': '添加标签', 'en': 'Add tag'},

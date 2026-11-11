@@ -133,82 +133,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     context.go('/');
   }
 
-  void _showResetPasswordDialog() {
-    _showDevelopmentDialog(
-      AppLocalizationsSimple.of(context)?.forgotPassword ?? '找回密码',
-    );
-  }
-
-  void _showDevelopmentDialog(String featureName) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDarkMode ? AppTheme.darkCardColor : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        contentPadding: ResponsiveUtils.responsivePadding(context, all: 24),
-        title: Row(
-          children: [
-            Container(
-              padding: ResponsiveUtils.responsivePadding(context, all: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.construction_rounded,
-                color: AppTheme.primaryColor,
-                size: ResponsiveUtils.responsiveIconSize(context, 20),
-              ),
-            ),
-            SizedBox(width: ResponsiveUtils.responsiveSpacing(context, 12)),
-            Expanded(
-              child: Text(
-                featureName,
-                style: TextStyle(
-                  color: isDarkMode ? Colors.white : AppTheme.textPrimaryColor,
-                  fontSize: ResponsiveUtils.responsiveFontSize(context, 18),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          AppLocalizationsSimple.of(context)?.featureInDevelopment ??
-              '该功能正在开发中，敬请期待！\n我们会尽快为您带来更多精彩功能。',
-          style: TextStyle(
-            color: isDarkMode
-                ? AppTheme.darkTextSecondaryColor
-                : AppTheme.textSecondaryColor,
-            fontSize: ResponsiveUtils.responsiveFontSize(context, 14),
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            style: TextButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              foregroundColor: Colors.white,
-              padding: ResponsiveUtils.responsivePadding(
-                context,
-                horizontal: 24,
-                vertical: 12,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Text(AppLocalizationsSimple.of(context)?.ok ?? '好的'),
-          ),
-        ],
-        actionsAlignment: MainAxisAlignment.center,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -545,36 +469,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 ),
               ),
             ],
-          ),
-        ],
-
-        // 仅在最后一页显示找回密码按钮
-        if (isLastPage) ...[
-          SizedBox(height: ResponsiveUtils.responsiveSpacing(context, 8)),
-
-          // 找回密码按钮
-          TextButton(
-            onPressed: _showResetPasswordDialog,
-            style: TextButton.styleFrom(
-              foregroundColor: isDarkMode ? Colors.white60 : Colors.black45,
-              padding: ResponsiveUtils.responsivePadding(context, vertical: 8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.lock_reset_rounded,
-                  size: ResponsiveUtils.responsiveIconSize(context, 16),
-                ),
-                SizedBox(width: ResponsiveUtils.responsiveSpacing(context, 4)),
-                Text(
-                  AppLocalizationsSimple.of(context)?.forgotPassword ?? '找回密码',
-                  style: TextStyle(
-                    fontSize: ResponsiveUtils.responsiveFontSize(context, 14),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ],

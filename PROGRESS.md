@@ -1,3 +1,11 @@
+## 2026-11-11 · 引导页去掉「找回密码」入口（1.1.75+10171）· done
+
+- `lib/screens/onboarding_screen.dart`：删掉最后一页的「找回密码」`TextButton`（`Icons.lock_reset_rounded`），连带 `_showResetPasswordDialog()` 与它唯一调用的占位弹窗 `_showDevelopmentDialog()`（净删 75 行）
+- 连带清理死代码：`ForgotPasswordScreen` 页面（317 行）从未被任何 UI 跳转过，路由 `forgot-password` / 名称 `forgotPassword` 也无人引用 → 删文件 + 删 `lib/routes/app_router.dart` 的 `GoRoute` 与 import
+- l10n 清掉只被该页面使用的 8 个键：`forgotPassword`、`forgotPasswordHelp`、`functionDescription`、`backToLogin`、`learnMore`、`memosNoPasswordResetHint`、`memosNoPasswordResetDetail`、`rememberedPassword`（`app_localizations_simple.dart` getter + `translations.dart` 中英条目）
+- **保留**：登录页 `login_screen.dart:1659` 与注册页 `register_screen.dart:1543` 的 FAQ「忘记密码怎么找回 / 忘记密码怎么办」——那是文字解答，不是可点入口；`whatIfForgotPassword*` 两个键仍被注册页 FAQ 使用
+- 验证：`dart analyze` 全仓 0 issue；`dart tool/inkpaper.dart verify` 全绿
+
 ## 2026-11-11 · 批注功能整体下线（1.1.74+10170）· done
 
 - 删除文件：`lib/models/annotation_model.dart`（321 行）、`lib/widgets/annotations_sidebar.dart`（600 行）、`lib/widgets/note_annotation_dialogs.dart`（406 行）

@@ -32,7 +32,6 @@ class AppLocalizationsSimple {
   String get privacy => _t('privacy', fallback: '隐私');
   String get help => _t('help', fallback: '帮助');
   String get about => _t('about', fallback: '关于');
-  String get forgotPassword => _t('forgotPassword', fallback: '忘记密码');
   String get serverUrl => _t('serverUrl', fallback: '服务器地址');
   String get login => _t('login', fallback: '登录');
   String get username => _t('username', fallback: '用户名');
@@ -897,25 +896,6 @@ class AppLocalizationsSimple {
   String get dataExport => _t('dataExport', fallback: '数据导出');
   String get imageManagement => _t('imageManagement', fallback: '图片管理');
   String get privateDeployment => _t('privateDeployment', fallback: '私有化部署');
-
-  // ===== 忘记密码页面 =====
-  String get functionDescription => _t('functionDescription', fallback: '功能说明');
-  String get forgotPasswordHelp => _t(
-        'forgotPasswordHelp',
-        fallback:
-            'Memos服务器暂不支持在线密码重置功能。\n\n如果忘记密码，请：\n\n1. 联系服务器管理员重置密码\n2. 或通过服务器后台管理界面重置\n3. 如果是自建服务器，可通过数据库直接修改',
-      );
-  String get backToLogin => _t('backToLogin', fallback: '返回登录');
-  String get learnMore => _t('learnMore', fallback: '了解详情');
-  String get memosNoPasswordResetHint => _t(
-        'memosNoPasswordResetHint',
-        fallback: 'Memos暂不支持在线密码重置\n点击下方按钮查看解决方案',
-      );
-  String get memosNoPasswordResetDetail => _t(
-        'memosNoPasswordResetDetail',
-        fallback: 'Memos服务器目前不支持自动密码重置功能。如果您忘记了密码，建议联系服务器管理员或通过后台管理界面进行重置。',
-      );
-  String get rememberedPassword => _t('rememberedPassword', fallback: '想起密码了？');
 
   // ===== P3 清理批次：补全直写中文的 UI 文案 =====
   String get addTag => _t('addTag', fallback: '添加标签');

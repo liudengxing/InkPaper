@@ -119,7 +119,6 @@ class DatabaseService {
         rowStatus TEXT DEFAULT 'NORMAL',
         resourceList TEXT DEFAULT '[]',
         relations TEXT DEFAULT '[]',
-        annotations TEXT DEFAULT '[]',
         reminder_time TEXT,
         last_sync_time TEXT,
         deleted_at TEXT,
@@ -251,12 +250,6 @@ class DatabaseService {
     if (oldVersion < 7) {
       // v7: WebDAV last sync time
       await db.execute('ALTER TABLE notes ADD COLUMN last_sync_time TEXT');
-    }
-    if (oldVersion < 8) {
-      // v8: annotations
-      await db.execute(
-        'ALTER TABLE notes ADD COLUMN annotations TEXT DEFAULT "[]"',
-      );
     }
     if (oldVersion < 9) {
       // v9: notes 查询索引
@@ -738,7 +731,7 @@ class DatabaseService {
   /// 回填本地笔记对应的服务端 uid。
   ///
   /// 只写 `remote_id`，主键永远是本地 uuid —— 旧实现会把主键改成服务端 uid，
-  /// 导致 WebDAV 快照、引用关系、批注绑定全部跟着漂移。
+  /// 导致 WebDAV 快照、引用关系全部跟着漂移。
   Future<void> setRemoteId(String localId, String remoteUid) async {
     final db = await database;
     await db.update(
@@ -869,7 +862,7 @@ class DatabaseService {
   /// 将单条笔记导出为带元数据的 Markdown。
   ///
   /// 正文仍是用户可读的 Markdown；顶部 front matter 让本应用重新导入时能恢复
-  /// 创建时间、更新时间、标签、提醒、批注等本地字段。
+  /// 创建时间、更新时间、标签、提醒等本地字段。
   String exportNoteToMarkdown(Note note) {
     final metadata = <String, dynamic>{
       'InkPaperNote': true,
@@ -885,8 +878,6 @@ class DatabaseService {
       'rowStatus': note.rowStatus,
       'resourceList': note.resourceList,
       'relations': note.relations,
-      'annotations':
-          note.annotations.map((annotation) => annotation.toJson()).toList(),
       'reminderTime': note.reminderTime?.toIso8601String(),
       'lastSyncTime': note.lastSyncTime?.toIso8601String(),
     };

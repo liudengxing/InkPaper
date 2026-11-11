@@ -41,7 +41,8 @@ void main() {
     await db.close();
   });
 
-  test('DB-MIG-02 upgradeSchema (<8) adds annotations column', () async {
+  test('DB-MIG-02 upgradeSchema (<8) adds rowStatus / last_sync_time columns',
+      () async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
 
@@ -66,7 +67,6 @@ void main() {
 
     await DatabaseService.upgradeSchema(db, oldVersion: 1, newVersion: 8);
     final cols = await _columns(db, 'notes');
-    expect(cols, contains('annotations'));
     expect(cols, contains('rowStatus'));
     expect(cols, contains('last_sync_time'));
     await db.close();
@@ -153,7 +153,7 @@ void main() {
     final cols = await _columns(db, 'notes');
     expect(
       cols,
-      containsAll(<String>['annotations', 'rowStatus', 'last_sync_time']),
+      containsAll(<String>['rowStatus', 'last_sync_time']),
     );
     final indexes = await _indexes(db, 'notes');
     expect(indexes, contains('idx_notes_created_at'));

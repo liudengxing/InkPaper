@@ -375,7 +375,6 @@ class WebDavSyncEngine {
           id: localTwin.id,
           remoteId: remoteId ?? localTwin.remoteId,
           isPinned: localTwin.isPinned,
-          annotations: localTwin.annotations,
           reminderTime: localTwin.reminderTime,
           relations: localTwin.relations.isNotEmpty
               ? localTwin.relations

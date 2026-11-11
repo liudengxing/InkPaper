@@ -441,7 +441,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         title: const Text('合并重复笔记'),
         content: Text(
           '将删除 $_duplicateRemovable 条重复副本，每组保留创建时间最早的那条，'
-          '标签 / 置顶 / 批注 / 引用取并集，时间沿用保留条。\n\n'
+          '标签 / 置顶 / 引用取并集，时间沿用保留条。\n\n'
           '已登录时会同时删除服务端的副本，否则下次同步会把它们还回来。\n\n'
           '这个操作不可撤销，建议先导出一份备份。',
         ),
@@ -704,7 +704,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
               Text(
                 '同时开启多个同步通道时，同一条笔记可能被存成两份。'
                 '判定规则：正文完全一致、创建时间相差 5 分钟以内视为同一条，'
-                '保留最早的那条，标签 / 置顶 / 批注 / 引用取并集。',
+                '保留最早的那条，标签 / 置顶 / 引用取并集。',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey[600],

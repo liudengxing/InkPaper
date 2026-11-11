@@ -1,3 +1,14 @@
+## 2026-11-11 · 批注功能整体下线（1.1.74+10170）· done
+
+- 删除文件：`lib/models/annotation_model.dart`（321 行）、`lib/widgets/annotations_sidebar.dart`（600 行）、`lib/widgets/note_annotation_dialogs.dart`（406 行）
+- 数据层：`Note` 去掉 `annotations` 字段 / `_parseAnnotations` / `copyWith` 参数 / `toMap` 与 `toJson` 序列化；`database_service` 建表 SQL 去掉 `annotations TEXT DEFAULT '[]'`、删除 v8 `ALTER TABLE ADD COLUMN` 迁移块、Markdown front matter 导出不再写该字段
+- **不动已存在的列**：不执行 `DROP COLUMN`，旧库里的批注数据物理保留但代码不再读写；`schemaVersion` 也保持原值（升级路径上少了一个 v8 分支不影响后续迁移）
+- 同步链路：`app_provider` 上传后回写的批注保护变量删除；`app_provider_sync.part` 里"从 DB 重载时保留内存批注"的 map/映射改成 `_notesStore.notes = dbNotes`（行为等价，批注本来就不入库）；`webdav_sync_engine`、`note_dedupe`、`sync_merge_helper` 的批注合并分支全部删除
+- UI：详情页删 `_buildAnnotationBadge` / `_showAnnotationsSidebar` / 增删改与标记已解决共约 390 行，底部"字数统计 + 批注图标"的 Row 简化为单个 Text；`note_card` 删徽章与侧边栏入口（连带未使用的 `NoteDetailScreen` import）；`note_more_options_menu` 删「查看批注」项与 `case 'annotations'` 分支
+- l10n：`app_localizations_simple.dart` 删 37 个批注键（含 `annotations` / `viewAnnotations` / `annotationType*` / `showResolved` / `markAsResolved` / `replies` / `filterByType` 等），`translations.dart` 删对应 22 条中英翻译；`testing` / `iKnow` 两个挨在一起的无关键手动保留
+- 测试：`database_migration_test` 的 DB-MIG-02 改为断言 `rowStatus` / `last_sync_time`；`note_model_test` 删批注往返用例与 `baseMap` 里的 `annotations`；`sync_merge_helper_test` 删 `annotations` 参数
+- 验证：`dart analyze` 全仓 0 issue；`dart tool/inkpaper.dart verify` 615 项全绿；`grep -r "annotation|批注" lib test integration_test tool` 已无命中
+
 ## 2026-11-11 · 回顾页同样去掉魔法棒 FAB（并入 1.1.73+10169）· done
 
 - 用户确认随机回顾页的同一个 FAB 一并移除，让两处体验一致；1.1.72 未发版，改动合并进 1.1.73

@@ -5,7 +5,7 @@ import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:provider/provider.dart';
 
-/// 引用关系侧边栏 - 对标批注侧边栏的设计
+/// 引用关系侧边栏
 ///
 /// 支持响应式布局：手机、平板、桌面端
 class ReferencesSidebar extends StatefulWidget {

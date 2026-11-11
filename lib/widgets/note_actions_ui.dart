@@ -1051,7 +1051,7 @@ class NoteActionsUi {
         ),
       );
 
-  /// 显示引用详情（侧边栏版本 - 对标批注侧边栏）
+  /// 显示引用详情（侧边栏版本）
   static Future<void> showReferences({
     required BuildContext context,
     required Note note,

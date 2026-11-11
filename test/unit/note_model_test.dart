@@ -6,7 +6,6 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkpaper/models/annotation_model.dart';
 import 'package:inkpaper/models/note_model.dart';
 
 void main() {
@@ -205,13 +204,6 @@ void main() {
         isPinned: true,
         visibility: 'PUBLIC',
         rowStatus: 'ARCHIVED',
-        annotations: [
-          Annotation(
-            id: 'anno-1',
-            content: '批注',
-            createdAt: DateTime(2022, 2, 5),
-          ),
-        ],
         reminderTime: DateTime(2022, 3),
         lastSyncTime: DateTime(2022, 4),
       );
@@ -225,7 +217,6 @@ void main() {
       expect(restored.isPinned, isTrue);
       expect(restored.visibility, 'PUBLIC');
       expect(restored.rowStatus, 'ARCHIVED');
-      expect(restored.annotations.single.content, '批注');
       expect(restored.reminderTime, source.reminderTime);
       expect(restored.lastSyncTime, source.lastSyncTime);
     });
@@ -336,7 +327,6 @@ void main() {
           'rowStatus': 'NORMAL',
           'resourceList': '[]',
           'relations': '[]',
-          'annotations': '[]',
           'reminder_time': null,
           'last_sync_time': null,
         };

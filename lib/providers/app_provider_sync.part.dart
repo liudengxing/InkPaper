@@ -106,7 +106,7 @@ extension AppProviderSyncPart on AppProvider {
         } else if (!hasIdConflict) {
           // 同内容、不同 id：多半是「远端被删后重建」在本机留下的旧副本。
           // 剪枝会跳过未同步行，如果只是跳过，库里会同时存在两条一样的笔记。
-          // 把本地增强数据（置顶、批注、引用）并到服务端那条上，再删掉旧副本。
+          // 把本地增强数据（置顶、引用）并到服务端那条上，再删掉旧副本。
           final index = mergedNotes
               .indexWhere((merged) => merged.id == duplicateTarget.id);
           if (index != -1) {
@@ -149,19 +149,7 @@ extension AppProviderSyncPart on AppProvider {
         await _databaseService.getNotes(),
       ); // 加载全部数据
 
-      // ✅ 保护内存中的批注数据（批注是本地增强功能，不同步到服务器）
-      final memoryNotesMap = {
-        for (final note in _notesStore.notes) note.id: note,
-      };
-
-      _notesStore.notes = dbNotes.map((dbNote) {
-        // 如果内存中有这个笔记且有批注，保留其批注
-        final memoryNote = memoryNotesMap[dbNote.id];
-        if (memoryNote != null && memoryNote.annotations.isNotEmpty) {
-          return dbNote.copyWith(annotations: memoryNote.annotations);
-        }
-        return dbNote;
-      }).toList();
+      _notesStore.notes = dbNotes;
 
       // 重置分页状态
       _notesStore.pagingState = paging.NotesPaginationState(
@@ -311,7 +299,7 @@ extension AppProviderSyncPart on AppProvider {
       _setSyncMessage('处理笔记数据...');
 
       // 不做这一步，服务端笔记会以 uid 当主键重新落库，本地那条（带真实
-      // 创建时间 / 批注 / 置顶）会被剪掉，时间被服务端时间顶替。
+      // 创建时间 / 置顶）会被剪掉，时间被服务端时间顶替。
       final boundServerNotes = sync_merge
           .bindServerNotesToLocalIds(
         serverNotes,

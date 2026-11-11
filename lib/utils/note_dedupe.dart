@@ -153,9 +153,6 @@ DedupeResult dedupeDuplicateNotes(
 
       final merged = mergedInto.copyWith(
         isPinned: mergedInto.isPinned || note.isPinned,
-        annotations: mergedInto.annotations.isNotEmpty
-            ? mergedInto.annotations
-            : note.annotations,
         reminderTime: mergedInto.reminderTime ?? note.reminderTime,
         relations: mergedInto.relations.isNotEmpty
             ? mergedInto.relations
@@ -188,7 +185,7 @@ DedupeResult dedupeDuplicateNotes(
 /// 内容相同的笔记。
 ///
 /// 只返回未同步的副本 —— 已同步的由 `deleteSyncedNotesNotIn` 按 id 剪掉。
-/// 调用方负责把本地增强数据（置顶、批注、引用）并到服务端那条上，再删副本。
+/// 调用方负责把本地增强数据（置顶、引用）并到服务端那条上，再删副本。
 ///
 /// 返回：本地副本 id -> 对应的服务端笔记。
 Map<String, Note> findDuplicateLocalCopies({

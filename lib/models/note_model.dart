@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:inkpaper/models/annotation_model.dart';
 
 class Note {
   // 提醒时间
@@ -19,7 +18,6 @@ class Note {
     this.rowStatus = 'NORMAL',
     List<Map<String, dynamic>>? resourceList,
     List<Map<String, dynamic>>? relations,
-    List<Annotation>? annotations,
     this.reminderTime,
     this.lastSyncTime,
     this.deletedAt,
@@ -29,8 +27,7 @@ class Note {
         tags = tags ?? [],
         creator = creator ?? 'local',
         resourceList = resourceList ?? [],
-        relations = relations ?? [],
-        annotations = annotations ?? [];
+        relations = relations ?? [];
 
   factory Note.fromMap(Map<String, dynamic> map) {
     // if (kDebugMode) debugPrint('Note.fromMap: 数据库数据: ${map.toString()}');
@@ -67,13 +64,6 @@ class Note {
       }
     }
 
-    // 处理annotations（批注）
-    var annotations = <Annotation>[];
-    final annotationsJson = map['annotations'] as String?;
-    if (annotationsJson != null && annotationsJson.isNotEmpty) {
-      annotations = AnnotationList.fromJsonString(annotationsJson);
-    }
-
     final note = Note(
       id: map['id'],
       content: map['content'],
@@ -92,7 +82,6 @@ class Note {
       rowStatus: map['rowStatus'] ?? 'NORMAL',
       resourceList: resourceList,
       relations: relations,
-      annotations: annotations,
       reminderTime: map['reminder_time'] != null
           ? DateTime.parse(map['reminder_time'])
           : null,
@@ -161,7 +150,6 @@ class Note {
     final creator =
         json['creatorId']?.toString() ?? json['creator']?.toString();
     final isSynced = _parseBool(json['isSynced'] ?? json['is_synced']) ?? true;
-    final annotations = _parseAnnotations(json['annotations']);
 
     return Note(
       id: id,
@@ -181,7 +169,6 @@ class Note {
       rowStatus: rowStatus,
       resourceList: resourceList,
       relations: relations,
-      annotations: annotations,
       reminderTime:
           _parseTimestamp(json['reminderTime'] ?? json['reminder_time']),
       lastSyncTime:
@@ -205,7 +192,6 @@ class Note {
   final String rowStatus; // 行状态：NORMAL, ARCHIVED
   final List<Map<String, dynamic>> resourceList; // 添加资源列表
   final List<Map<String, dynamic>> relations; // 添加关系列表
-  final List<Annotation> annotations; // 批注列表
   final DateTime? reminderTime;
   final DateTime? lastSyncTime; // WebDAV同步时间戳
   final DateTime? deletedAt; // 软删时间（仅「最近删除」使用）
@@ -363,28 +349,6 @@ class Note {
     return const [];
   }
 
-  static List<Annotation> _parseAnnotations(Object? rawAnnotations) {
-    if (rawAnnotations == null) {
-      return const [];
-    }
-    if (rawAnnotations is String) {
-      return AnnotationList.fromJsonString(rawAnnotations);
-    }
-    if (rawAnnotations is List) {
-      try {
-        return rawAnnotations
-            .whereType<Map>()
-            .map((item) => Annotation.fromMap(Map<String, dynamic>.from(item)))
-            .toList();
-      } on Object catch (e) {
-        if (kDebugMode) {
-          debugPrint('Note.fromJson: 解析annotations失败: $e');
-        }
-      }
-    }
-    return const [];
-  }
-
   Note copyWith({
     String? id,
     String? content,
@@ -399,7 +363,6 @@ class Note {
     String? rowStatus,
     List<Map<String, dynamic>>? resourceList,
     List<Map<String, dynamic>>? relations,
-    List<Annotation>? annotations,
     DateTime? reminderTime,
     bool clearReminderTime = false,
     DateTime? lastSyncTime,
@@ -421,7 +384,6 @@ class Note {
         rowStatus: rowStatus ?? this.rowStatus,
         resourceList: resourceList ?? this.resourceList,
         relations: relations ?? this.relations,
-        annotations: annotations ?? this.annotations,
         reminderTime:
             clearReminderTime ? null : (reminderTime ?? this.reminderTime),
         lastSyncTime:
@@ -443,8 +405,6 @@ class Note {
         'rowStatus': rowStatus,
         'resourceList': json.encode(resourceList), // 将resourceList序列化为JSON字符串
         'relations': json.encode(relations), // 将relations序列化为JSON字符串
-        'annotations':
-            AnnotationList.toJsonString(annotations), // 将批注序列化为JSON字符串
         'reminder_time': reminderTime?.toIso8601String(),
         'last_sync_time': lastSyncTime?.toIso8601String(),
         'remote_id': remoteId,
@@ -467,8 +427,6 @@ class Note {
         'rowStatus': rowStatus,
         'resourceList': resourceList, // ✅ 包含图片/资源
         'relationList': relations, // ✅ 包含关系
-        'annotations':
-            annotations.map((annotation) => annotation.toJson()).toList(),
         'reminderTime': reminderTime?.toIso8601String(), // ✅ 包含提醒时间
         'lastSyncTime': lastSyncTime?.toIso8601String(), // ✅ 包含同步时间
         // 软删时间。备份默认不含回收站（导出走 active_notes 视图），这里补上

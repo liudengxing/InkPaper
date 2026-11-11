@@ -1201,34 +1201,8 @@ class AppLocalizationsSimple {
   String get aiAssistantTip =>
       _t('aiAssistantTip', fallback: '💡 提示：在笔记详情页点击右下角魔法棒图标即可使用');
 
-  // 笔记批注
-  String get noteAnnotation => _t('noteAnnotation', fallback: '笔记批注');
-  String get noteAnnotationDesc =>
-      _t('noteAnnotationDesc', fallback: '为笔记添加评论、问题、想法等批注信息');
   String get testing => _t('testing', fallback: '测试中');
-  String get annotationIntro =>
-      _t('annotationIntro', fallback: '为笔记添加批注，记录你的想法、问题和评论：');
-  String get annotationComment => _t('annotationComment', fallback: '💬 评论');
-  String get annotationCommentDesc =>
-      _t('annotationCommentDesc', fallback: '添加对笔记内容的评论和反思');
-  String get annotationQuestion => _t('annotationQuestion', fallback: '❓ 问题');
-  String get annotationQuestionDesc =>
-      _t('annotationQuestionDesc', fallback: '记录阅读时产生的疑问');
-  String get annotationIdea => _t('annotationIdea', fallback: '💡 想法');
-  String get annotationIdeaDesc =>
-      _t('annotationIdeaDesc', fallback: '记录灵感和新想法');
-  String get annotationImportant =>
-      _t('annotationImportant', fallback: '⚠️ 重要');
-  String get annotationImportantDesc =>
-      _t('annotationImportantDesc', fallback: '标记重要信息和关键点');
-  String get annotationWarning => _t(
-        'annotationWarning',
-        fallback: '⚠️ 功能暂时不稳定，请自行斟酌使用。批注数据仅保存在本地，不会同步到服务器。',
-      );
-  String get annotationUsageTip => _t(
-        'annotationUsageTip',
-        fallback: '💡 使用方法：在笔记列表或详情页点击批注图标 🟠 即可查看和管理批注',
-      );
+
   String get iKnow => _t('iKnow', fallback: '我知道了');
 
   // ===== AI设置页面 =====
@@ -2291,51 +2265,6 @@ class AppLocalizationsSimple {
   String get sidebarConfigSaved =>
       _t('sidebarConfigSaved', fallback: '侧边栏配置已保存');
 
-  // ===== 批注功能 =====
-  String get annotations => locale.languageCode == 'zh' ? '批注' : 'Annotations';
-  String get viewAnnotations =>
-      locale.languageCode == 'zh' ? '查看批注' : 'View Annotations';
-  String get addAnnotation =>
-      locale.languageCode == 'zh' ? '添加批注' : 'Add Annotation';
-  String get editAnnotation =>
-      locale.languageCode == 'zh' ? '编辑批注' : 'Edit Annotation';
-  String get deleteAnnotation =>
-      locale.languageCode == 'zh' ? '删除批注' : 'Delete Annotation';
-  String get annotationType =>
-      locale.languageCode == 'zh' ? '批注类型' : 'Annotation Type';
-  String get annotationContent =>
-      locale.languageCode == 'zh' ? '批注内容' : 'Annotation Content';
-  String get annotationPlaceholder => locale.languageCode == 'zh'
-      ? '在这里写下你的批注...'
-      : 'Write your annotation here...';
-  String get annotationEditPlaceholder =>
-      locale.languageCode == 'zh' ? '修改批注内容...' : 'Edit annotation content...';
-  String get noAnnotations =>
-      locale.languageCode == 'zh' ? '还没有批注' : 'No annotations yet';
-  String get noAnnotationsHint => locale.languageCode == 'zh'
-      ? '点击上方按钮添加批注，记录你的思考'
-      : 'Click the button above to add annotations';
-  String get annotationAdded =>
-      locale.languageCode == 'zh' ? '批注已添加' : 'Annotation added';
-  String get annotationUpdated =>
-      locale.languageCode == 'zh' ? '批注已更新' : 'Annotation updated';
-  String get annotationDeleted =>
-      locale.languageCode == 'zh' ? '批注已删除' : 'Annotation deleted';
-  String get confirmDeleteAnnotation => locale.languageCode == 'zh'
-      ? '确定要删除这条批注吗？'
-      : 'Are you sure you want to delete this annotation?';
-  String get annotationCount =>
-      locale.languageCode == 'zh' ? '条批注' : 'annotations';
-  String get showResolved =>
-      locale.languageCode == 'zh' ? '显示已解决' : 'Show resolved';
-  String get markAsResolved =>
-      locale.languageCode == 'zh' ? '标记为已解决' : 'Mark as resolved';
-  String get resolved => locale.languageCode == 'zh' ? '已解决' : 'Resolved';
-  String get markedAsResolved =>
-      locale.languageCode == 'zh' ? '已标记为已解决' : 'Marked as resolved';
-  String get locatedToAnnotation =>
-      locale.languageCode == 'zh' ? '已定位到批注' : 'Located to annotation';
-  String get replies => locale.languageCode == 'zh' ? '条回复' : 'replies';
   String get justNow => locale.languageCode == 'zh' ? '刚刚' : 'Just now';
   String minutesAgo(int minutes) =>
       locale.languageCode == 'zh' ? '$minutes 分钟前' : '$minutes minutes ago';
@@ -2343,22 +2272,6 @@ class AppLocalizationsSimple {
       locale.languageCode == 'zh' ? '$hours 小时前' : '$hours hours ago';
   String daysAgo(int days) =>
       locale.languageCode == 'zh' ? '$days 天前' : '$days days ago';
-
-  // 批注类型
-  String get annotationTypeComment =>
-      locale.languageCode == 'zh' ? '评论' : 'Comment';
-  String get annotationTypeQuestion =>
-      locale.languageCode == 'zh' ? '问题' : 'Question';
-  String get annotationTypeIdea => locale.languageCode == 'zh' ? '想法' : 'Idea';
-  String get annotationTypeImportant =>
-      locale.languageCode == 'zh' ? '重要' : 'Important';
-  String get annotationTypeTodo => locale.languageCode == 'zh' ? '待办' : 'To-do';
-
-  // 筛选
-  String get filterByType =>
-      locale.languageCode == 'zh' ? '按类型筛选' : 'Filter by type';
-  String get noAnnotationsOfType =>
-      locale.languageCode == 'zh' ? '没有此类型的批注' : 'No annotations of this type';
 
   // AI设置 - 自定义提示词
   String get customPrompts =>
@@ -2972,8 +2885,6 @@ class AppLocalizationsSimple {
   String get localReviewUsed =>
       _t('localReviewUsed', fallback: 'AI暂不可用，已使用本地点评');
   String get localReview => _t('localReview', fallback: '本地点评');
-  String get annotationMarkedResolved =>
-      _t('annotationMarkedResolved', fallback: '已标记为已解决');
 
   // ===== 相对时间 =====
   /// 相对时间文案（如「3 天前」），按当前语言输出。

@@ -12,7 +12,6 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/screens/image_viewer_screen.dart';
-import 'package:inkpaper/screens/note_detail_screen.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
@@ -25,7 +24,6 @@ import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:inkpaper/utils/text_style_helper.dart';
 import 'package:inkpaper/utils/todo_parser.dart';
 import 'package:inkpaper/widgets/note_actions_ui.dart';
-import 'package:inkpaper/widgets/note_annotation_dialogs.dart';
 import 'package:inkpaper/widgets/note_image_grid.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
 import 'package:inkpaper/widgets/note_preview_text.dart';
@@ -83,7 +81,7 @@ class NoteCard extends StatefulWidget {
   ///
   /// 之前取的是 updatedAt，而详情页展示 createdAt、首页默认又按 createdAt 排序，
   /// 结果同一条笔记在列表里和详情里是两个时间，列表的日期顺序看起来也乱。
-  /// 编辑时间本身还会随批注、待办勾选、同步不断变化，不适合当"这条笔记是什么时候写的"。
+  /// 编辑时间本身还会随待办勾选、同步不断变化，不适合当"这条笔记是什么时候写的"。
   DateTime get timestamp => note.createdAt;
   List<String> get tags => note.tags;
   bool get isPinned => note.isPinned;
@@ -1029,7 +1027,6 @@ class _NoteCardState extends State<NoteCard>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Flexible(child: _buildReferences()),
-                    _buildAnnotationBadge(),
                   ],
                 ),
               ],
@@ -1151,78 +1148,6 @@ class _NoteCardState extends State<NoteCard>
               ),
             ),
         ],
-      ),
-    );
-  }
-
-  // 构建批注图标（右下角）
-  Widget _buildAnnotationBadge() {
-    final currentNote = widget.note;
-
-    // 获取批注数量
-    final annotationCount = currentNote.annotations.length;
-
-    // 如果没有批注，返回空Widget
-    if (annotationCount == 0) {
-      return const SizedBox.shrink();
-    }
-
-    // 返回批注图标（右下角）- 可点击
-    return InkWell(
-      onTap: () => _showAnnotationsSidebar(currentNote),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        margin: const EdgeInsets.only(top: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.orange.shade200,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.comment_outlined,
-              size: 14,
-              color: Colors.orange.shade700,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '$annotationCount',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Colors.orange.shade700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // 显示批注侧边栏
-  //
-  // 批注的增删改与三个对话框统一由 NoteAnnotationDialogs 提供（此前本文件
-  // 与 note_actions_ui.dart 各有一份副本，已经在行为上漂移）。
-  // 首页卡片点某条批注要跳到详情页，所以覆盖 onAnnotationOpened。
-  void _showAnnotationsSidebar(Note note) {
-    unawaited(
-      NoteAnnotationDialogs.showSidebar(
-        context: context,
-        note: note,
-        onUpdated: () {},
-        onAnnotationOpened: (annotation) {
-          Navigator.push(
-            context,
-            MaterialPageRoute<void>(
-              builder: (context) => NoteDetailScreen(noteId: note.id),
-            ),
-          );
-        },
       ),
     );
   }

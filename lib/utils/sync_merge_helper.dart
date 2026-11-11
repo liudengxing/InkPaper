@@ -13,7 +13,7 @@ import 'package:uuid/uuid.dart';
 ///
 /// 顺手把引用关系里的 uid 换成本地 id、补上 remoteId 并标记已同步。
 /// 拉取路径都必须走这里：否则服务端笔记会以 uid 当主键重新落库，本地那条
-/// （带真实创建时间 / 批注 / 置顶）会被剪掉，时间也被服务端时间顶替。
+/// （带真实创建时间 / 置顶）会被剪掉，时间也被服务端时间顶替。
 ///
 /// [allowContentClaim] 只在确认拿到了完整服务端列表时开启：列表不全时，
 /// 「远端 uid 不在列表里」不等于「远端已删」，认领会把两条独立笔记并成一条。
@@ -179,7 +179,6 @@ Note mergeServerNoteWithLocalState(
     relations: localNote.relations.isNotEmpty
         ? localNote.relations
         : serverNote.relations,
-    annotations: localNote.annotations,
     reminderTime: localNote.reminderTime,
     // 服务端响应里没有 remote_id（直接解析 Memos 时 id 才是 uid），
     // 这里保底沿用本地已记录的 uid，调用方仍可用 serverNote.id 覆盖修正。

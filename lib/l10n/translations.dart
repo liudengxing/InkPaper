@@ -1382,46 +1382,8 @@ class Translations {
       'en': '💡 Tip: Click the magic wand icon in note details',
     },
 
-    // 笔记批注
-    'noteAnnotation': {'zh': '笔记批注', 'en': 'Note Annotations'},
-    'noteAnnotationDesc': {
-      'zh': '为笔记添加评论、问题、想法等批注信息',
-      'en': 'Add comments, questions, ideas to notes',
-    },
     'testing': {'zh': '测试中', 'en': 'Testing'},
-    'annotationIntro': {
-      'zh': '为笔记添加批注，记录你的想法、问题和评论：',
-      'en': 'Add annotations to record your thoughts, questions and comments:',
-    },
-    'annotationComment': {'zh': '💬 评论', 'en': '💬 Comment'},
-    'annotationCommentDesc': {
-      'zh': '添加对笔记内容的评论和反思',
-      'en': 'Add comments and reflections',
-    },
-    'annotationQuestion': {'zh': '❓ 问题', 'en': '❓ Question'},
-    'annotationQuestionDesc': {
-      'zh': '记录阅读时产生的疑问',
-      'en': 'Record questions while reading',
-    },
-    'annotationIdea': {'zh': '💡 想法', 'en': '💡 Idea'},
-    'annotationIdeaDesc': {
-      'zh': '记录灵感和新想法',
-      'en': 'Record inspirations and new ideas',
-    },
-    'annotationImportant': {'zh': '⚠️ 重要', 'en': '⚠️ Important'},
-    'annotationImportantDesc': {
-      'zh': '标记重要信息和关键点',
-      'en': 'Mark important info and key points',
-    },
-    'annotationWarning': {
-      'zh': '⚠️ 功能暂时不稳定，请自行斟酌使用。批注数据仅保存在本地，不会同步到服务器。',
-      'en':
-          '⚠️ Feature is unstable. Annotations are local only, not synced to server.',
-    },
-    'annotationUsageTip': {
-      'zh': '💡 使用方法：在笔记列表或详情页点击批注图标 🟠 即可查看和管理批注',
-      'en': '💡 Usage: Click the annotation icon 🟠 in note list or details',
-    },
+
     'iKnow': {'zh': '我知道了', 'en': 'I Know'},
 
     // ===== AI设置页面 =====
@@ -2963,10 +2925,6 @@ class Translations {
       'en': 'AI is unavailable, showing the local review instead',
     },
     'localReview': {'zh': '本地点评', 'en': 'Local review'},
-    'annotationMarkedResolved': {
-      'zh': '已标记为已解决',
-      'en': 'Marked as resolved',
-    },
     // ===== 相对时间 =====
     'relativeJustNow': {'zh': '刚刚', 'en': 'just now'},
     'relativeMinutesAgo': {'zh': '{count} 分钟前', 'en': '{count} min ago'},

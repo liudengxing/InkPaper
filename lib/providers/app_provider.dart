@@ -13,7 +13,6 @@ import 'package:inkpaper/core/state/notion_store.dart';
 import 'package:inkpaper/core/state/reminder_store.dart';
 import 'package:inkpaper/core/state/webdav_store.dart';
 import 'package:inkpaper/core/state/widget_store.dart';
-import 'package:inkpaper/models/annotation_model.dart'; // ✅ 新增：批注模型
 import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/models/cloud_verification_models.dart';
 import 'package:inkpaper/models/load_more_state.dart';
@@ -2767,7 +2766,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 用户改了内容，之前的上传失败计数作废，让它重新进入重试队列。
       await _databaseService.clearPendingUpsert(note.id);
 
-      // ✅ 立即更新内存中的笔记（包含批注）
+      // ✅ 立即更新内存中的笔记
       final memIndex = _notesStore.notes.indexWhere((n) => n.id == note.id);
       if (memIndex != -1) {
         _notesStore.notes[memIndex] = noteWithTags;
@@ -2798,16 +2797,13 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
           debugPrint('AppProvider: 服务器同步成功，更新同步状态');
 
-          // 🔧 重要修复：保护本地引用关系和批注数据
-          // 获取当前内存中的笔记（包含本地引用关系和批注）
+          // 🔧 重要修复：保护本地引用关系
+          // 获取当前内存中的笔记（包含本地引用关系）
           final index = _notesStore.notes.indexWhere((n) => n.id == note.id);
           var existingRelations = <Map<String, dynamic>>[];
-          var existingAnnotations = <Annotation>[]; // ✅ 保护批注
 
           if (index != -1) {
             existingRelations = _notesStore.notes[index].relations;
-            existingAnnotations =
-                _notesStore.notes[index].annotations; // ✅ 保护批注
           }
 
           final mergedNote = _mergeServerNoteWithLocalState(
@@ -2815,7 +2811,6 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
             uploadableNote.copyWith(
               tags: tags,
               relations: existingRelations,
-              annotations: existingAnnotations,
             ),
           );
           // 保留本地 id，只回写服务端 uid
@@ -3308,7 +3303,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   ///
   /// 直接复用完整同步的「拉取 → 合并 → 剪枝 → 重载」链路。
   /// 原先走 `IncrementalSyncService`：所谓增量只是本地按 updatedAt 过滤，
-  /// 实际仍然全量 GET，却少了批注/置顶的合并保护、远端删除剪枝和统一错误处理，
+  /// 实际仍然全量 GET，却少了置顶的合并保护、远端删除剪枝和统一错误处理，
   /// 它自己维护的 lastSyncTime 还会与完整同步互相污染。收敛到一条链路后
   /// 两处行为一致，也不会再出现"下拉刷新后已删笔记回来"的情况。
   Future<void> refreshFromServerFast() async {

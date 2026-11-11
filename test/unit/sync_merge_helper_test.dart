@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inkpaper/models/annotation_model.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/utils/sync_merge_helper.dart';
 
@@ -8,7 +7,6 @@ Note _note({
   required String content,
   DateTime? createdAt,
   DateTime? updatedAt,
-  List<Annotation>? annotations,
   bool isSynced = true,
 }) =>
     Note(
@@ -16,7 +14,6 @@ Note _note({
       content: content,
       createdAt: createdAt ?? DateTime(2024),
       updatedAt: updatedAt ?? DateTime(2024),
-      annotations: annotations ?? const [],
       isSynced: isSynced,
     );
 

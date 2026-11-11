@@ -8,7 +8,6 @@ import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/note_actions_ui.dart';
-import 'package:inkpaper/widgets/note_annotation_dialogs.dart';
 import 'package:provider/provider.dart';
 
 /// 🎨 笔记更多选项菜单（flomo 式悬浮卡片）
@@ -129,16 +128,6 @@ class NoteMoreOptionsMenu {
           break;
         case 'edit':
           await NoteActionsUi.editNote(
-            context: context,
-            note: currentNote,
-            onUpdated: () {
-              reloadNote();
-              onNoteUpdated?.call();
-            },
-          );
-          break;
-        case 'annotations':
-          await NoteAnnotationDialogs.showSidebar(
             context: context,
             note: currentNote,
             onUpdated: () {
@@ -301,32 +290,6 @@ class NoteMoreOptionsMenu {
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Column(
                 children: [
-                  _buildSheetAction(
-                    icon: Icons.comment_outlined,
-                    label: localizations?.viewAnnotations ?? '查看批注',
-                    isDarkMode: isDarkMode,
-                    onTap: () => select('annotations'),
-                    trailing: note.annotations.isNotEmpty
-                        ? Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '${note.annotations.length}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.orange.shade700,
-                              ),
-                            ),
-                          )
-                        : null,
-                  ),
                   _buildSheetAction(
                     icon: note.isPinned
                         ? Icons.push_pin

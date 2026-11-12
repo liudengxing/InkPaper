@@ -1,3 +1,19 @@
+## 2026-11-12 · 开屏检查更新 + 下载进度搬进弹窗 + 修「下完不弹安装」（1.1.77+10173）· done
+
+- 起因：真机点「下载安装包」，进度走到 100% 后系统安装界面不弹；用户同时要求改成「开屏就检测更新、进度条直接在弹窗里」
+- 根因判断：`installApk` 只把 `content://` URI 放进 `Intent.data`，没放进 `clipData`。部分定制系统（小米 / OPPO 这一类）的安装器只从 clipData 里取 URI 去申请读取权限，读不到文件就静默什么都不做 —— `startActivity` 不抛异常，旧代码还会返回 `started`，于是「什么也没发生」
+  - 修法：`MainActivity.installApk` 补 `clipData = ClipData.newRawUri("inkpaper_update", uri)` + `FLAG_GRANT_READ_URI_PERMISSION`；`ActivityNotFoundException` 单独返回 `no_installer`，Dart 侧新增 `ApkInstallStatus.noInstaller` 并给出「浏览器下载」退路
+- 新增 `lib/services/update_installer.dart`：统一「下载 → 拉起系统安装器」链路，APK 按版本号缓存在静态字段里（关掉弹窗、去设置页授权回来都复用，不重下 50MB），装成后清理旧版本包
+- 新增 `lib/widgets/update_dialog.dart`：单弹窗覆盖 `prompt / downloading / installing / launched / blocked` 五态；窗内自带进度条 + 百分比 + 实时速度（500ms 采样、EMA 平滑）+ 取消；缺「安装未知应用」授权时跳设置页并注册 `WidgetsBindingObserver`，用户返回应用即自动续装；`PopScope` 在下载/安装中禁返回
+- 新增 `lib/services/startup_update_service.dart`：`main.dart` 在 `runApp` 之后 `unawaited(checkOnLaunch(...))`，首帧 +1.5s 才请求；6 小时节流（prefs `update_last_check_at`）、「稍后再说」版本记忆（`update_skipped_version`）、首启不打扰（`first_launch` 为 true 直接返回）、失败一律静默；仅 Android 生效（桌面端仍靠关于页手动查）
+- `about_screen.dart`：`_UpdateCheckFooter` 改为复用同一个弹窗，删掉页脚内联进度条与本地下载/安装代码（该文件 851 → 620 行）
+- **坑（值钱）**：`store-check` 会断言 README 顶部「当前版本」与 `pubspec.yaml` 一致，而 `verify` **不包含**这一步。只改 pubspec 时本地 `verify` 全绿，CI 的 `Analyze + Test` 却在 `store-check` 挂掉。升版本必须同时改 `pubspec.yaml`、`README.md`、`README.en.md` 三处
+- 验证：`dart tool/inkpaper.dart verify` 633 项全绿（新增 9 项节流/跳版本单测 + 6 项弹窗提示态组件测试）；`dart tool/inkpaper.dart store-check` 通过；`dart tool/inkpaper.dart build android-release` 本地 49.9MB 通过（新 Kotlin import 编译验证）
+- CI：`Release v1.1.77` 的 Analyze+Test / Android / GitHub Release 全绿；**`Mirror to Gitee` 步骤跑了 26 分钟附件仍未传完**（Azure runner 上传 Gitee 被限速，`curl -F` 无进度输出，只能看直链 404 判断）。手动 `cancel` 该 run 后改本地补传
+- 本地补传流程（可复用）：`ghfast.top` 拉回 APK 52,643,460 B / AAB 52,338,979 B（约 1 分钟，字节数与 GitHub API `size` 完全一致）→ `Z:/Temp/gitee_release.py` 复用已有 release id=1301691 → `attach_files` 两个附件均 201
+- Gitee 侧实测：匿名下载 50.2MB 用 25.7s，SHA-256 `aad35ea661821b35d23485f38d1cc7b95f282c6d1467839d4d88c575d000cde7` 与 GitHub 原件一致
+- 待真机确认：装好 1.1.77 后「关于 → 检查更新」应显示「已是最新版本 v1.1.77」；完整的「开屏弹窗 → 窗内进度 → 自动拉起安装器」要等下一个版本发出来才能走通
+
 ## 2026-11-12 · Gitee 仓库落地与 v1.1.75 镜像发布（并入 1.1.76+10172）· done
 
 - 用户建好公开仓库 `liudengxing233/ink-paper`（注意 path 是 **ink-paper**，全小写带连字符，与 GitHub 的 `InkPaper` 不同名）

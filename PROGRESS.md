@@ -1,3 +1,33 @@
+## 2026-11-13 · 图片查看器手势重写（1.1.82+10178）· done
+
+- 用户：「放大手势还是和左右滑有冲突」，要求先讲清现有逻辑再定方案 → 讲完后用户选「方案 A」
+- **根因**：原实现是 `PageView` 自带滚动 + 一个 `ScaleGestureRecognizer` 并行竞争。两者阈值都是 18dp（`kTouchSlop` / `kScaleSlop`），同一个方向上的手势谁先 accept 谁就独占整次手势，输掉的一方在本次手势内不能反悔 —— 所以表现是掷硬币：想捏合却翻页、放大后单指拖不动、先横拖再补第二指只翻页
+- 方案 A：**整屏只留一个识别器**，翻页不再交给 `PageView` 的 physics
+  - `PageView.builder` 的 physics 恒为 `NeverScrollableScrollPhysics`，翻页由 `_ViewerGestureRecognizer` 自己 `position.jumpTo`
+  - 自定义 `OneSequenceGestureRecognizer` + `_ViewerGestureMode`（page / zoom / none）三态分发
+  - `_handleScaleStart`：`pointerCount >= 2 || _currentScale > 1.01` → zoom，否则多图才进 page；双指落下立刻 accept，不等 18dp span 变化
+  - `_handleScaleUpdate`：先横拖后补第二指时 `_snapToCurrentPage()` 归位再转缩放；按 mode 分发 `_applyZoom` / `_applyPageDrag`
+  - **抬指重锚定**（关键修复）：`pointerCount` 变化时重新记录 `_gestureStartScale` / anchor，否则 `ScaleGestureRecognizer` 重算会让倍数弹回 1
+  - 翻页判定：位移 > 22% 屏宽 或 速度 > 520dp/s
+  - 图片改 `Center` 排布，identity 矩阵即初始态，去掉 `OverflowBox` + 居中平移矩阵 + post-frame 复位
+- 回归测试：`test/widget_tests/image_viewer_gesture_test.dart` 重写为 9 条（IVG-01…09），覆盖慢滑翻页、快滑翻页、超快滑、捏合放大不误翻页、放大后单指只平移、滚轮缩放、**先横拖再补第二指转缩放**、慢拖一点点弹回原页、**捏合后抬指继续拖倍数不弹回**；`_steppedDrag` 增加 `intervalMs` 以控制滑动速度
+- 验证：`dart analyze` 干净，9 条手势测试全绿
+- **未真机验证**：`adb connect 192.168.0.108:35819` 已拒绝连接（无线调试端口变了）
+
+## 2026-11-13 · Markdown 紧贴正文的减号串降级为分隔线（1.1.82+10178）· done
+
+- 用户提问：日记里 ❶❷ 两段渲染成加粗，后面 ❹❺❻ 不加粗，问为什么
+- **根因不是 bug**：Markdown 的 setext 规则 —— 某行文字下面紧跟一行**纯减号**（且中间无空行），那行文字被解析成 h2。实测：
+  `❶文字。\n-----------\n【我做的】` → `<h2>`；`❶文字。\n\n-----------\n\n` → `<p>` + `<hr/>`；`❶文字。-----------【我做的】`（同行）→ 普通段落
+  项目里 h2 是 18px + `FontWeight.bold`（`simple_memo_content.dart:465-471`），正文约 15px 常规字重 → 视觉上就是「整段被加粗」
+- 改法：`MemosMarkdownConverter.demoteSetextHeadingUnderlines()`（static，可复用），在 `convert()` 第 1.2 步调用
+  - 判定：`^-(?:[ \t]*-){2,}[ \t]*$`（≥3 个减号，含 `- - -`）且上一行非空 → 前面补一个空行，退化成 `<hr/>`
+  - 三种豁免：代码围栏内不动；文件开头的 frontmatter（`---` … `---`）原样保留；只两个减号 `--` 不动（避免碰到 `- -` 嵌套列表）
+  - 取舍：牺牲几乎没人用的 setext 标题，换「随手敲分隔线不会被吃」；写标题请用 `#`
+- `lib/utils/note_preview_builder.dart` 的 `buildNotePreview` 同步调用，避免详情页正常而卡片预览仍整段加粗
+- 回归测试：`test/unit/memos_markdown_converter_test.dart` 新增 7 条（补空行 / `- - -` / 已有空行 / 同行 / 两个减号 / 代码围栏 / frontmatter）
+- 验证：`dart analyze` No issues found；converter + preview 25 条全过；用用户真实段落跑解析，结果全部 `<p>` + `<hr/>`，`是否出现标题标签: false`
+
 ## 2026-11-13 · 编辑器空白区双击弹复制/粘贴工具栏（1.1.81+10177）· done
 
 - 用户：「编辑界面双击同一个地方增加一个弹出系统的那个操作栏，包含复制黏贴的那个，现在要框选一段文字才能出来」

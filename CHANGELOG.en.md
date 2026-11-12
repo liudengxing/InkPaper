@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.82] - 2026-11-13
+
+### Fixed
+- Pinch-to-zoom and swipe-to-paginate in the image viewer no longer fight each other.
+  They used to be two independent recognizers with the same 18dp threshold, so whichever
+  crossed it first owned the whole gesture and the loser could not take over - zooming
+  could turn the page, and a zoomed-in image could refuse to pan sideways. A single
+  recognizer now owns the screen: two fingers enter zoom immediately, one finger pans or
+  pages depending on the current scale, a horizontal drag that gains a second finger
+  switches to zoom, and lifting one finger no longer snaps the scale back to 1.
+
+- A line of dashes directly under a paragraph no longer turns that paragraph into a
+  heading. Markdown treats `text` followed by a line of dashes as a setext heading, so a
+  hand-typed divider silently promoted the whole paragraph to an H2 - bigger and bolder,
+  which reads as random bolding. Such dash lines are now demoted to a divider; dashes
+  inside code fences and front matter at the top of a note are left untouched.
+
 ## [1.1.81] - 2026-11-13
 
 ### Fixed

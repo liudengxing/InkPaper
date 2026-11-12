@@ -1,3 +1,17 @@
+## 2026-11-12 · Gitee 仓库落地与 v1.1.75 镜像发布（并入 1.1.76+10172）· done
+
+- 用户建好公开仓库 `liudengxing233/ink-paper`（注意 path 是 **ink-paper**，全小写带连字符，与 GitHub 的 `InkPaper` 不同名）
+- 代码同步：`giteeRepo` → `https://gitee.com/liudengxing233/ink-paper`，`giteeLatestReleaseApi` → `/api/v5/repos/liudengxing233/ink-paper/releases/latest`；README(中/英)、`update_check_service_test` 的 URL 断言、`scripts/publish_gitee.sh` 的 `GITEE_OWNER`/`GITEE_REPO` 默认值同步
+- 推送历史：`git push https://gitee.com/liudengxing233/ink-paper.git refs/heads/main +refs/tags/*` 成功（main + v1.1.69 + v1.1.75；token 用 `-c credential.helper` 内联，不写进 remote 也不进文件）
+- 产物搬运：GitHub 资产重定向到 `release-assets.githubusercontent.com`，直连可用但很慢（5 分钟只下 8 MB）；改用 `ghfast.top` 镜像并行下载，APK 52,774,308 B / AAB 52,404,961 B，字节数与 GitHub API 的 `size` 完全符合
+- 建 Release：`Z:/Temp/gitee_release.py`（标准库手写 multipart，本机无 requests）→ `POST /releases` 得 id=1301353，`POST /releases/{id}/attach_files` 上传两个附件，均 201
+- **实测结论（关键，之前只能靠查资料推断）**：
+  - 匿名下载直链可用：`/releases/download/{tag}/{file}` → 302 到 `/attach_files/{id}/download/{name}` → 302 到 `foruda.gitee.com` CDN → 200；从 Gitee 取回的 APK SHA-256 = `6951db3a9831258f1ed1831e7c9d84bdfe55a053fc31f250bf105083a57ad164`，与 GitHub 原件完全一致
+  - `GET /releases/latest` 匿名可读，返回 `tag_name` / `name` / `body` / `created_at` / `assets[].browser_download_url`，**但 `html_url` 为 null、`assets[].size` 为 null** —— 证实了代码里用模板兜底的必要性
+  - `assets` 里还会混入 Gitee 自动生成的 `v1.1.75.zip` / `v1.1.75.tar.gz` 源码包，解析时按 `.apk` 后缀过滤即可
+- `GITEE_TOKEN` 已写入 GitHub Repository secrets（`PUT /actions/secrets/GITEE_TOKEN`，libsodium sealed box，`pip install pynacl` 现装的），CI 下次发版即可自动同步
+- 坑：Gitee「仓库级私人令牌」不能 `POST /user/repos` 建仓（403「仓库级私人令牌无权执行此操作」），但对该仓库有 `push`/`admin` 权限，推代码与建 Release 都能用
+
 ## 2026-11-12 · Gitee 国内镜像 + 应用内更新走国内源（1.1.76+10172）· done
 
 - 起因：国内直连 GitHub 太慢（本机代理甚至只放行 `api.github.com`，`github.com:443` 恒定 502），发版后下载 APK 体验差

@@ -6,7 +6,7 @@
 #
 #   GITEE_TOKEN=xxx TAG=v1.1.76 bash scripts/publish_gitee.sh
 #
-# 可选环境变量：GITEE_OWNER（默认 liudengxing）、GITEE_REPO（默认 InkPaper）、
+# 可选环境变量：GITEE_OWNER（默认 liudengxing233）、GITEE_REPO（默认 ink-paper）、
 # DIST_DIR（默认 dist，放 *.apk / *.aab 与 release_notes.md）、
 # MIRROR_ONLY=1（只同步代码与标签，不碰 Release，CI 每次 push main 时用）。
 set -euo pipefail
@@ -17,8 +17,8 @@ if [ "$mirror_only" != "1" ]; then
   : "${TAG:?TAG is required}"
 fi
 
-owner="${GITEE_OWNER:-liudengxing}"
-repo="${GITEE_REPO:-InkPaper}"
+owner="${GITEE_OWNER:-liudengxing233}"
+repo="${GITEE_REPO:-ink-paper}"
 dist="${DIST_DIR:-dist}"
 tag="${TAG:-}"
 api="https://gitee.com/api/v5/repos/$owner/$repo"
@@ -27,8 +27,11 @@ api="https://gitee.com/api/v5/repos/$owner/$repo"
 echo "::add-mask::$GITEE_TOKEN" 2>/dev/null || true
 
 echo "== 1/3 同步代码与标签到 gitee.com/$owner/$repo"
+# 用户名必须是真实用户名，填 oauth2 之类的占位符 Gitee 会认证失败。
 git remote remove gitee >/dev/null 2>&1 || true
-git remote add gitee "https://oauth2:${GITEE_TOKEN}@gitee.com/${owner}/${repo}.git"
+git remote add gitee "https://${owner}:${GITEE_TOKEN}@gitee.com/${owner}/${repo}.git"
+# 退出时把带 token 的 remote 删掉，避免残留在 .git/config 里。
+trap 'git remote remove gitee >/dev/null 2>&1 || true' EXIT
 git push gitee --prune "+refs/heads/*:refs/heads/*"
 git push gitee "+refs/tags/*:refs/tags/*"
 
@@ -57,9 +60,19 @@ fi
 echo "release id: $release_id"
 
 echo "== 3/3 上传安装包"
+# 重跑同一次发布时不重复上传同名附件。
+existing="$(
+  curl -sS "$api/releases/$release_id?access_token=$GITEE_TOKEN" \
+    | python3 -c 'import json,sys; print("\n".join(a.get("name","") for a in json.load(sys.stdin).get("assets") or []))'
+)"
 for f in "$dist"/*.apk "$dist"/*.aab; do
   [ -f "$f" ] || continue
-  echo "  upload $(basename "$f")"
+  name="$(basename "$f")"
+  if printf '%s\n' "$existing" | grep -Fxq "$name"; then
+    echo "  已存在，跳过 $name"
+    continue
+  fi
+  echo "  upload $name"
   curl -sS -f -X POST \
     "$api/releases/$release_id/attach_files?access_token=$GITEE_TOKEN" \
     -F "file=@$f" >/dev/null

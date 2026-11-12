@@ -2,7 +2,7 @@
 
 小纸是一款面向个人知识记录的跨平台笔记应用。它推荐本地记录，也可以连接自托管 Memos 服务进行同步。应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、导入导出、系统分享、小组件和可选 AI 辅助等能力。
 
-[下载最新版本](https://gitee.com/liudengxing/InkPaper/releases/latest) · [GitHub 仓库](https://github.com/liudengxing/InkPaper) · [问题反馈](https://github.com/liudengxing/InkPaper/issues) · [English](README.en.md)
+[下载最新版本](https://gitee.com/liudengxing233/ink-paper/releases/latest) · [GitHub 仓库](https://github.com/liudengxing/InkPaper) · [问题反馈](https://github.com/liudengxing/InkPaper/issues) · [English](README.en.md)
 
 ## 当前版本
 
@@ -27,12 +27,12 @@
 
 ## 下载
 
-发布包在 [Gitee 发行版](https://gitee.com/liudengxing/InkPaper/releases)（国内推荐）与 [GitHub Releases](https://github.com/liudengxing/InkPaper/releases) 同步提供，两边内容一致。
+发布包在 [Gitee 发行版](https://gitee.com/liudengxing233/ink-paper/releases)（国内推荐）与 [GitHub Releases](https://github.com/liudengxing/InkPaper/releases) 同步提供，两边内容一致。
 
 国内网络直连 GitHub 较慢，代码与安装包会由 CI 自动同步到 Gitee 镜像仓；应用内「检查更新」也优先读 Gitee，失败再回落 GitHub。想在本地 clone 也用镜像的话：
 
 ```bash
-git clone https://gitee.com/liudengxing/InkPaper.git
+git clone https://gitee.com/liudengxing233/ink-paper.git
 ```
 
 GitHub Releases 的 Android APK 用于手动安装和测试分发；Google Play 上架使用发布流程生成的签名 AAB。

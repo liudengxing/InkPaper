@@ -203,7 +203,7 @@ void main() {
             {
               'name': 'v1.1.75.zip',
               'browser_download_url':
-                  'https://gitee.com/liudengxing/InkPaper/archive/refs/tags/'
+                  'https://gitee.com/liudengxing233/ink-paper/archive/refs/tags/'
                       'v1.1.75.zip',
             },
           ],
@@ -215,11 +215,11 @@ void main() {
       expect(result.sourceId, 'gitee');
       expect(
         result.releasePageUrl.toString(),
-        'https://gitee.com/liudengxing/InkPaper/releases/tag/v1.1.75',
+        'https://gitee.com/liudengxing233/ink-paper/releases/tag/v1.1.75',
       );
       expect(
         result.apkDownloadUrl.toString(),
-        'https://gitee.com/liudengxing/InkPaper/releases/download/'
+        'https://gitee.com/liudengxing233/ink-paper/releases/download/'
         'v1.1.75/InkPaper-v1.1.75-android.apk',
       );
       expect(result.apkSizeBytes, isNull);

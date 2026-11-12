@@ -380,7 +380,7 @@ class AppConfig {
   /// Gitee 镜像仓库（国内下载源）
   ///
   /// 代码和 Release 由 CI 自动同步过去，大陆网络下比 GitHub 快一个量级。
-  static const String giteeRepo = 'https://gitee.com/liudengxing/InkPaper';
+  static const String giteeRepo = 'https://gitee.com/liudengxing233/ink-paper';
 
   /// GitHub 最新 Release 接口（更新检查的兜底数据源）
   ///

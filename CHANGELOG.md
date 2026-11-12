@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 新增
 
-- **Gitee 国内镜像**：代码、tag 与安装包由 CI 自动同步到 gitee.com，大陆网络下 clone 和下载都
-  比直连 GitHub 快得多。README 的下载入口已切到 Gitee，GitHub 继续作为主仓与备份。
+- **Gitee 国内镜像**：代码、tag 与安装包由 CI 自动同步到 [gitee.com/liudengxing233/ink-paper]
+  (https://gitee.com/liudengxing233/ink-paper)，大陆网络下 clone 和下载都比直连 GitHub 快得多
+  （实测 50 MB 安装包 26 秒下完）。README 的下载入口已切到 Gitee，GitHub 继续作为主仓与备份。
 - **应用内更新优先走国内源**：检查更新先请求 Gitee 的 `releases/latest`，成功就直接用 Gitee 的
   APK 直链下载；Gitee 不可用（未发布 / 限流 / 断网）才回落 GitHub。更新弹窗会标出这次走的是
   哪个源，例如「下载源 Gitee 镜像（国内加速）」。

@@ -1,6 +1,3 @@
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -296,8 +293,6 @@ ${_feedbackController.text}
   }
 
   PreferredSizeWidget _buildAppBar(bool isDarkMode) {
-    final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-
     return AppBar(
       title: Text(
         AppLocalizationsSimple.of(context)?.feedbackTitle ?? '意见反馈',
@@ -310,16 +305,14 @@ ${_feedbackController.text}
       backgroundColor: isDarkMode ? AppTheme.darkBackgroundColor : Colors.white,
       elevation: 0,
       automaticallyImplyLeading: false,
-      leading: isDesktop
-          ? null
-          : IconButton(
-              icon: Icon(
-                Icons.arrow_back_ios_rounded,
-                color: isDarkMode ? Colors.white : AppTheme.textPrimaryColor,
-                size: ResponsiveUtils.responsiveIconSize(context, 20),
-              ),
-              onPressed: () => context.pop(),
-            ),
+      leading: IconButton(
+        icon: Icon(
+          Icons.arrow_back_ios_rounded,
+          color: isDarkMode ? Colors.white : AppTheme.textPrimaryColor,
+          size: ResponsiveUtils.responsiveIconSize(context, 20),
+        ),
+        onPressed: () => context.pop(),
+      ),
       actions: [
         TextButton(
           onPressed: _copyToClipboard,

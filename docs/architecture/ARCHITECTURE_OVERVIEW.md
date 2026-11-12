@@ -4,17 +4,19 @@
 > 分析方法：对仓库做**只读静态分析**（源码阅读 + 依赖关系提取 + 构建/清单核对），不修改任何业务代码
 > 分析时间：2026-10 · 分析范围：`lib/` 162 个 Dart 文件、`android/` 4 个 Kotlin 文件、平台工程、CI 工作流
 
+> ⚠️ **平台范围变更（2026-11-12）**：项目已收敛为**只保留 Android**，`ios/`、`macos/`、`windows/`、`linux/`、`web/` 五个平台工程与对应的构建目标、发布作业、辅助脚本全部删除，Dart 侧的平台分支判定也一并清空。下文凡涉及这些平台的历史分析、行数统计与结论，属于当时的快照，只作背景参考，不再代表当前仓库状态。
+
 ---
 
 ## 0. 结论速览（先看这一页）
 
 | 问题 | 结论 |
 |---|---|
-| 这是"安卓 app 源码"吗？ | **不完全是。** 这是一个 **Flutter 跨平台工程**：业务代码几乎全部在 `lib/*.dart`（102,042 行 / 162 文件），Android 只是 6 个平台外壳之一（`android/ ios/ macos/ windows/ linux/ web/`）。Android 侧只有 4 个 Kotlin 文件、1,353 行。 |
+| 这是"安卓 app 源码"吗？ | **是。** 这是一个只保留 Android 的 Flutter 工程：业务代码几乎全部在 `lib/*.dart`，原生外壳只有 `android/`（4 个 Kotlin 文件、1,353 行）。原先的 `ios/ macos/ windows/ linux/ web/` 五个外壳已于 2026-11-12 删除。 |
 | 架构风格 | **分层架构 + 单一状态中心**：表现层 → 状态层（1 个 `ChangeNotifier`）→ 服务层（54 个服务）→ 数据层（1 个 SQLite 库）→ 平台层/外部服务。 |
 | 数据策略 | **本地优先（local-first）**：所有写入先落 SQLite，云同步是可选的二级链路。 |
 | 同步后端 | 3 条并行链路：**Memos API**（官方 / 自托管，主力）、**WebDAV**（备份恢复）、**Notion**（双向同步）。 |
-| 规模 | `lib/` 102,042 行 / 162 文件；测试 6,277 行 / 39 文件（约为 lib 代码量的 6%）；Android 原生 1,353 行；平台外壳 6 套；CI 7 + 9 个 job。 |
+| 规模 | `lib/` 102,042 行 / 162 文件；测试 6,277 行 / 39 文件（约为 lib 代码量的 6%）；Android 原生 1,353 行；平台外壳 1 套（Android）；CI 7 + 9 个 job。 |
 | 最大结构性风险 | ① `AppProvider` 单类 **4,613 行 / 131 个方法**的上帝对象，且包住整个 `MaterialApp.router` 全量重建；② `notes.db` **明文无加密**；③ 同步**无删除墓碑、无冲突记录、无离线队列**；④ 约 **3,000+ 行死代码**（服务 10 个文件 + Widget 7 个文件）。 |
 | 构建状态（2026-10-16 实测） | ✅ `flutter build apk --debug` **成功**，产出 176 MB 的 `app-debug.apk`（详见 [§9.3](#93-android-构建兼容性与实测编译记录)）。曾导致硬失败的 Gradle 8.12 / AGP 8.9.1 / KGP 2.1.0 已在工作区升级为 **8.14.3 / 8.11.1 / 2.2.20（改动尚未提交）**，现仅剩 3 条"版本将不再支持"告警。 |
 
@@ -83,8 +85,6 @@ flowchart TB
     subgraph PL["⑤ 平台层 Platform Shells"]
         direction LR
         PL1["Android<br/>Kotlin 1,353 行"]
-        PL2["iOS<br/>Runner + 小组件 + 分享扩展"]
-        PL3["macOS / Windows / Linux<br/>桌面 Runner"]
     end
 
     subgraph E["⑥ 外部依赖 External"]
@@ -110,7 +110,7 @@ flowchart TB
 | ② 状态层 | `lib/providers` | 2 / 4,900 | 全局状态与业务编排 | `app_provider.dart`(4,613) |
 | ③ 服务层 | `lib/services` | 54 / 20,526 | 领域能力，隔离 IO 与第三方 | `database_service.dart`(781)、`memos_api_service_fixed.dart`(1,046) |
 | ④ 数据层 | `lib/models` + 平台存储 | 13 / 2,521 | 实体模型与持久化 | `note_model.dart`(503) |
-| ⑤ 平台层 | `android/ ios/ macos/ windows/ linux/ web/` | Android 4 / 1,353 | 原生能力与平台外壳 | `MainActivity.kt`(767) |
+| ⑤ 平台层 | `android/` | 4 / 1,353 | 原生能力与 Android 外壳 | `MainActivity.kt`(767) |
 | ⑥ 外部依赖 | 网络 / 第三方 SDK | — | 同步后端、AI、语音、监控 | — |
 | 工具层 | `lib/utils` | 19 / 6,522 | 无状态工具函数 | `share_utils.dart`(2,434) |
 
@@ -120,9 +120,6 @@ flowchart TB
 flowchart LR
     ROOT["InkPaper/"] --> LIB["lib/ — Dart 业务代码 102,042 行 / 162 文件"]
     ROOT --> AND["android/ — Kotlin + Gradle"]
-    ROOT --> IOS["ios/ — Runner + InkPaperWidgets + InkPaperShareExtension"]
-    ROOT --> DESK["macos/ windows/ linux/ — 桌面 Runner"]
-    ROOT --> WEB["web/ — 外壳（CI 不构建）"]
     ROOT --> TST["test/ — 30 单元 + 7 Widget"]
     ROOT --> TOOL["tool/inkpaper.dart — 608 行项目 CLI"]
     ROOT --> CI[".github/workflows — ci.yml + release.yml"]
@@ -633,9 +630,9 @@ flowchart LR
 
 ### 9.1 项目 CLI `tool/inkpaper.dart`（608 行）
 
-`doctor` · `deps` · `analyze` · `test [--coverage]` · `verify [--coverage]` · `store-check` · `build {android-debug|android-release|android-aab|ios-sim|ios-unsigned-ipa|macos-*|windows-*|linux-*}` · `run` · `release vX.Y.Z` · `clean` · `version`
+`doctor` · `deps` · `analyze` · `test [--coverage]` · `verify [--coverage]` · `store-check` · `build {android-debug|android-release|android-release-split|android-aab}` · `run` · `release vX.Y.Z` · `clean` · `version`
 
-其中 **`store-check`**（`:89-205`）是 Android/合规的"契约执行器"：校验 versionName/versionCode/applicationId/`android.app.Application`/`buildConfig`，**禁止**三个 manifest 项，校验 iOS 隐私清单、账号删除页、以及 release 工作流中的证书指纹与签名失败文案。
+其中 **`store-check`**（`:89-205`）是 Android/合规的"契约执行器"：校验 versionName/versionCode/applicationId/`android.app.Application`/`buildConfig`，**禁止**三个 manifest 项，校验账号删除页、以及 release 工作流中的证书指纹与签名失败文案。
 
 ### 9.2 CI/CD 流水线
 
@@ -646,12 +643,10 @@ flowchart TB
         C1["quality: store-check → verify --coverage → 上传 lcov"]
         C2["secret-scan: gitleaks 8.24.3 --no-git --exit-code=2"]
         C3["android: deps → Debug APK（或手动触发时 Release APK + AAB）"]
-        C4["ios: 模拟器包 + 断言 PrivacyInfo.xcprivacy 已打包"]
-        C5["macos / windows / linux: Debug 构建"]
+        C4["mirror: 同步 main 到 Gitee 镜像仓"]
         C1 --> C3
         C2 --> C3
         C1 --> C4
-        C1 --> C5
     end
 
     subgraph REL["release.yml — 推送 v*.*.* tag"]
@@ -659,19 +654,16 @@ flowchart TB
         R1["prepare: tag 必须等于 pubspec 版本 → 抽取 Release Notes"]
         R2["quality / release-secrets / secret-scan"]
         R3["android: 恢复签名 → openssl 校验证书指纹（硬编码 SHA256）<br/>→ Release APK + AAB → 验证证书已嵌入"]
-        R4["ios: unsigned IPA + 隐私清单断言"]
-        R5["macos zip / windows zip / linux tar.gz"]
-        R6["publish: GitHub Release 上传全部产物"]
+        R4["mirror: 同步代码与 tag 到 Gitee"]
+        R5["publish: GitHub Release 上传 APK/AAB，再补传 Gitee"]
         R1 --> R2 --> R3
         R2 --> R4
-        R2 --> R5
-        R3 --> R6
-        R4 --> R6
-        R5 --> R6
+        R3 --> R5
+        R4 --> R5
     end
 ```
 
-- 6 个平台产物：Android APK/AAB、iOS unsigned IPA、macOS zip、Windows zip、Linux tar.gz；**Web 不构建**。
+- 只有 Android 两个产物：APK 与 AAB，同时发布到 GitHub Release 与 Gitee Release。
 - Dependabot 覆盖 `pub`、`github-actions`、`gradle(/android)` 三条生态。
 - `analysis_options.yaml`：`flutter_lints` + 关闭隐式 cast/dynamic + 约 200 条规则，并对每条被禁用的规则写了理由。
 

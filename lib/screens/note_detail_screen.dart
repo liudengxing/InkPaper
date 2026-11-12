@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -620,7 +619,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         isDarkMode ? Colors.grey[400]! : const Color(0xFF666666);
     final iconColor =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
-    final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -694,14 +692,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       ),
       body: Center(
         child: Container(
-          constraints: BoxConstraints(
-            maxWidth: isDesktop ? 900 : double.infinity,
-          ),
-          padding: EdgeInsets.all(isDesktop ? 24 : 16),
+          padding: const EdgeInsets.all(16),
           child: Card(
-            elevation: isDesktop ? 2 : 1,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(isDesktop ? 16 : 12),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
             ),
             color: cardColor,
             child: Column(

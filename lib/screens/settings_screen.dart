@@ -1,39 +1,8 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
-import 'package:inkpaper/screens/about_screen.dart';
-import 'package:inkpaper/screens/account_deletion_screen.dart';
-import 'package:inkpaper/screens/account_info_screen.dart';
-import 'package:inkpaper/screens/ai_settings_screen.dart';
-import 'package:inkpaper/screens/data_cleanup_screen.dart';
-import 'package:inkpaper/screens/feedback_screen.dart';
-import 'package:inkpaper/screens/help_screen.dart';
-import 'package:inkpaper/screens/import_export_main_screen.dart';
-import 'package:inkpaper/screens/laboratory_screen.dart';
-import 'package:inkpaper/screens/preferences_screen.dart';
-import 'package:inkpaper/screens/server_info_screen.dart';
-import 'package:inkpaper/screens/webdav_settings_screen.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/responsive_utils.dart';
-
-enum SettingsPage {
-  none,
-  accountInfo,
-  accountDeletion,
-  serverInfo,
-  preferences,
-  aiSettings,
-  webdavSync,
-  importExport,
-  dataCleanup,
-  laboratory,
-  feedback,
-  help,
-  about,
-}
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -43,9 +12,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  SettingsPage _selectedPage = SettingsPage.none;
-  double _menuWidth = 240; // 左侧菜单宽度（可拖动调整）
-
   bool _isZh(BuildContext context) =>
       Localizations.localeOf(context).languageCode == 'zh';
 
@@ -57,199 +23,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final textColor =
         isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
     final l10n = AppLocalizationsSimple.of(context);
-
-    // 桌面端（macOS和Windows）使用Master-Detail布局
-    final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-
-    if (isDesktop) {
-      // macOS: Master-Detail布局
-      return Scaffold(
-        backgroundColor: backgroundColor,
-        body: Row(
-          children: [
-            // 左侧可调整宽度的菜单栏
-            Container(
-              width: _menuWidth,
-              decoration: BoxDecoration(
-                color: isDarkMode
-                    ? AppTheme.darkCardColor
-                    : const Color(0xFFF5F5F5),
-              ),
-              child: Column(
-                children: [
-                  // 标题栏
-                  Container(
-                    height: 52,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => context.go('/'),
-                          color: textColor,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          l10n?.settings ?? '设置',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  // 菜单列表
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      children: [
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.account_circle,
-                          title: l10n?.accountInfo ?? '账户信息',
-                          isSelected: _selectedPage == SettingsPage.accountInfo,
-                          onTap: () => setState(
-                            () => _selectedPage = SettingsPage.accountInfo,
-                          ),
-                        ),
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.delete_forever_outlined,
-                          title:
-                              _isZh(context) ? '账号与数据删除' : 'Account deletion',
-                          isSelected:
-                              _selectedPage == SettingsPage.accountDeletion,
-                          onTap: () => setState(
-                            () => _selectedPage = SettingsPage.accountDeletion,
-                          ),
-                        ),
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.cloud,
-                          title: l10n?.serverUrl ?? '服务器连接',
-                          isSelected: _selectedPage == SettingsPage.serverInfo,
-                          onTap: () => setState(
-                            () => _selectedPage = SettingsPage.serverInfo,
-                          ),
-                        ),
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.settings,
-                          title: l10n?.preferences ?? '偏好设置',
-                          isSelected: _selectedPage == SettingsPage.preferences,
-                          onTap: () => setState(
-                            () => _selectedPage = SettingsPage.preferences,
-                          ),
-                        ),
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.psychology,
-                          title: l10n?.aiSettings ?? 'AI 助手',
-                          isSelected: _selectedPage == SettingsPage.aiSettings,
-                          onTap: () => setState(
-                            () => _selectedPage = SettingsPage.aiSettings,
-                          ),
-                        ),
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.cloud_sync,
-                          title: l10n?.webdavSync ?? 'WebDAV 同步',
-                          isSelected: _selectedPage == SettingsPage.webdavSync,
-                          onTap: () => setState(
-                            () => _selectedPage = SettingsPage.webdavSync,
-                          ),
-                        ),
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.import_export,
-                          title: l10n?.importExport ?? '导入导出',
-                          isSelected:
-                              _selectedPage == SettingsPage.importExport,
-                          onTap: () => setState(
-                            () => _selectedPage = SettingsPage.importExport,
-                          ),
-                        ),
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.cleaning_services,
-                          title: l10n?.dataCleanup ?? '数据清理',
-                          isSelected: _selectedPage == SettingsPage.dataCleanup,
-                          onTap: () => setState(
-                            () => _selectedPage = SettingsPage.dataCleanup,
-                          ),
-                        ),
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.science,
-                          title: l10n?.laboratory ?? '实验室',
-                          isSelected: _selectedPage == SettingsPage.laboratory,
-                          onTap: () => setState(
-                            () => _selectedPage = SettingsPage.laboratory,
-                          ),
-                        ),
-                        const Divider(height: 16),
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.feedback_rounded,
-                          title: l10n?.feedback ?? '意见反馈',
-                          isSelected: _selectedPage == SettingsPage.feedback,
-                          onTap: () => setState(
-                            () => _selectedPage = SettingsPage.feedback,
-                          ),
-                        ),
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.help,
-                          title: l10n?.help ?? '帮助',
-                          isSelected: _selectedPage == SettingsPage.help,
-                          onTap: () =>
-                              setState(() => _selectedPage = SettingsPage.help),
-                        ),
-                        _buildMasterMenuItem(
-                          context,
-                          icon: Icons.info,
-                          title: l10n?.about ?? '关于',
-                          isSelected: _selectedPage == SettingsPage.about,
-                          onTap: () => setState(
-                            () => _selectedPage = SettingsPage.about,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // 可拖动的分隔条
-            MouseRegion(
-              cursor: SystemMouseCursors.resizeColumn,
-              child: GestureDetector(
-                onHorizontalDragUpdate: (details) {
-                  setState(() {
-                    _menuWidth =
-                        (_menuWidth + details.delta.dx).clamp(180.0, 320.0);
-                  });
-                },
-                child: Container(
-                  width: 1,
-                  color: isDarkMode
-                      ? AppTheme.darkDividerColor
-                      : const Color(0xFFE0E0E0),
-                ),
-              ),
-            ),
-            // 右侧内容区域
-            Expanded(
-              child: _buildDetailContent(context),
-            ),
-          ],
-        ),
-      );
-    }
 
     // 移动端: 原有的列表布局
     final maxWidth = ResponsiveUtils.getMaxContentWidth(context);
@@ -439,206 +212,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // 构建右侧详情内容
-  Widget _buildDetailContent(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    if (_selectedPage == SettingsPage.none) {
-      return Container(
-        padding: const EdgeInsets.all(40),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.settings_outlined,
-                size: 80,
-                color: isDarkMode ? Colors.grey[600] : Colors.grey[300],
-              ),
-              const SizedBox(height: 24),
-              Text(
-                '请从左侧选择设置项',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: isDarkMode ? Colors.grey[500] : Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // 根据选中的页面，直接显示对应的设置页面内容
-    // 使用Navigator包装，这样子页面可以有自己的导航
-    return Navigator(
-      onGenerateRoute: (settings) => MaterialPageRoute(
-        builder: (context) => _getPageContent(),
-      ),
-    );
-  }
-
-  // 获取对应页面的内容
-  Widget _getPageContent() {
-    // 直接返回对应的设置页面Widget
-    switch (_selectedPage) {
-      case SettingsPage.accountInfo:
-        return const AccountInfoScreen();
-      case SettingsPage.accountDeletion:
-        return const AccountDeletionScreen();
-      case SettingsPage.serverInfo:
-        return const ServerInfoScreen();
-      case SettingsPage.preferences:
-        return const PreferencesScreen();
-      case SettingsPage.aiSettings:
-        return const AiSettingsScreen();
-      case SettingsPage.webdavSync:
-        return const WebDavSettingsScreen();
-      case SettingsPage.importExport:
-        return const ImportExportMainScreen();
-      case SettingsPage.dataCleanup:
-        return const DataCleanupScreen();
-      case SettingsPage.laboratory:
-        return const LaboratoryScreen();
-      case SettingsPage.feedback:
-        return const FeedbackScreen();
-      case SettingsPage.help:
-        return const HelpScreen();
-      case SettingsPage.about:
-        return const AboutScreen();
-      default:
-        return _buildPlaceholderContent();
-    }
-  }
-
-  // 占位内容
-  Widget _buildPlaceholderContent() {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    var pageTitle = '';
-    var route = '';
-
-    switch (_selectedPage) {
-      case SettingsPage.importExport:
-        pageTitle = '导入导出';
-        route = '/settings/import-export';
-        break;
-      case SettingsPage.dataCleanup:
-        pageTitle = '数据清理';
-        route = '/data-cleanup';
-        break;
-      case SettingsPage.laboratory:
-        pageTitle = '实验室';
-        route = '/laboratory';
-        break;
-      case SettingsPage.feedback:
-        pageTitle = '意见反馈';
-        route = '/feedback';
-        break;
-      case SettingsPage.help:
-        pageTitle = '帮助';
-        route = '/settings/help';
-        break;
-      case SettingsPage.about:
-        pageTitle = '关于';
-        route = '/settings/about';
-        break;
-      default:
-        pageTitle = '未知页面';
-        break;
-    }
-
-    return Scaffold(
-      backgroundColor: isDarkMode ? AppTheme.darkBackgroundColor : Colors.white,
-      body: Container(
-        padding: const EdgeInsets.all(40),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.construction,
-                size: 60,
-                color: isDarkMode ? Colors.grey[600] : Colors.grey[400],
-              ),
-              const SizedBox(height: 20),
-              Text(
-                '$pageTitle - 页面开发中',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: isDarkMode
-                      ? AppTheme.darkTextPrimaryColor
-                      : AppTheme.textPrimaryColor,
-                ),
-              ),
-              if (route.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: () => context.push(route),
-                  icon: const Icon(Icons.open_in_new, size: 18),
-                  label: Text(
-                    AppLocalizationsSimple.of(context)?.openInNewWindow ??
-                        '在新窗口打开',
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // macOS Master菜单项
-  Widget _buildMasterMenuItem(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final textColor =
-        isDarkMode ? AppTheme.darkTextPrimaryColor : Colors.black87;
-    final selectedColor =
-        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
-
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? (isDarkMode
-                  ? selectedColor.withValues(alpha: 0.15)
-                  : selectedColor.withValues(alpha: 0.1))
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        margin: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color:
-                  isSelected ? selectedColor : textColor.withValues(alpha: 0.7),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                color: isSelected ? selectedColor : textColor,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildSectionHeader(
     BuildContext context,
     String title,
@@ -670,8 +243,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         isDarkMode ? AppTheme.darkTextPrimaryColor : Colors.black87;
     final textColor = isDarkMode ? AppTheme.darkTextPrimaryColor : null;
     final arrowColor = isDarkMode ? Colors.grey[400] : Colors.grey;
-    final isMacOS = !kIsWeb && Platform.isMacOS;
-
     final content = Row(
       children: [
         Icon(
@@ -712,43 +283,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
     );
 
-    if (isMacOS) {
-      // macOS: 使用卡片样式
-      return Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: isDarkMode ? AppTheme.darkCardColor : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDarkMode ? 0.2 : 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+    // 移动端: 使用列表样式
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: ResponsiveUtils.responsivePadding(
+          context,
+          horizontal: 16,
+          vertical: 16,
         ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: content,
-          ),
-        ),
-      );
-    } else {
-      // 移动端: 使用列表样式
-      return InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: ResponsiveUtils.responsivePadding(
-            context,
-            horizontal: 16,
-            vertical: 16,
-          ),
-          child: content,
-        ),
-      );
-    }
+        child: content,
+      ),
+    );
   }
 }

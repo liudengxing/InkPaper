@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **版本记录说明**：`1.1.14`–`1.1.56` 的逐版本记录没有随 2026-10-14 的代码基线重导入（`ca0ed14`）一起迁移过来，无法可靠复原，因此不做臆造补记。`1.1.57` 起的变更以 `PROGRESS.md` 为准（按日期归档，含验证输出与决策依据），本文件只汇总用户可感知的对外变更。
 
+## [1.1.80] - 2026-11-12
+
+### 变更
+
+- **只保留 Android**：仓库里的 `windows/`、`macos/`、`linux/`、`ios/`、`web/` 五个平台工程全部删除，
+  构建目标、发布作业、Apple 与桌面打包脚本一起清掉，项目从「五平台 Flutter 工程」收敛成纯粹的 Android 应用。
+- **代码去掉平台分支**：`kIsWeb`、`Platform.isWindows/isMacOS/isIOS/isLinux` 一类判定约 60 处、25 个文件清理完毕，
+  桌面专用布局（`DesktopLayout`、设置页 Master-Detail、桌面字号缩放）、iOS 通知分类与分享扩展、桌面数据库 FFI
+  初始化等死路径一并删除。清理后 `dart analyze` 与全量测试全绿。
+- **`all` 构建目标等价于 release APK**，不再按宿主追加各平台产物；`scripts/ci.sh` 的目标白名单同步收窄。
+- **文档与官网同步**：README 中英、构建指南、维护指南、商店合规、贡献指南、安全政策、用户指南、官网首页与下载页
+  里所有非 Android 的平台说明、下载入口和构建命令全部删除，只描述 Android 的 APK / AAB 链路。
+
+### 移除
+
+- iOS 未签名 IPA、macOS DMG、Windows 安装包、Linux tar.gz 等构建与分发能力。
+
 ## [1.1.79] - 2026-11-12
 
 ### 变更

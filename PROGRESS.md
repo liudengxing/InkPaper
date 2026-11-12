@@ -1,3 +1,16 @@
+## 2026-11-12 · 仓库收敛为纯 Android（1.1.80+10176）· done
+
+- 用户提问「现在桌面端也会有吗，先只保留安卓吧，然后文档里吧除了安卓以外的版本都删了」，经确认选「全部删掉 + 一并清理成纯 Android」
+- 删平台工程：`windows/` `macos/` `linux/` `ios/` `web/` 共 212 个文件；`git rm -r` 之后 `ios/Flutter/ephemeral/`、`macos/Flutter/ephemeral/` 是未跟踪的构建残留，还得 `rm -rf`
+- 删脚本：`build_unsigned_ipa.sh`、`clean_apple_xattrs.sh`、`create_dmg.sh`、`create_release_dmg.sh`、`generate_desktop_icons.py`、`generate_icns.sh`、`scripts/dmg/`、`scripts/windows/`、`IOS_UNSIGNED_BUILD.md`。剩下 `ci.sh`、`ci_annotate.sh`、`publish_gitee.sh`、`release_notes.py`
+- 构建工具：`tool/inkpaper.dart` 705 → 531 行，删 11 个非 Android `build` case、`_hostBuildTargets`、`_printSkippedTargets`、`_podInstall`、`_disableSwiftPackageManager`、`_clearAppleExtendedAttributes`、`_dartDefineEnvironment`、`_requireHost`，`all` 直接等价 `android-release`
+- Dart 清理（25 个文件、约 60 处）：`app_router.dart` 15 处 `DesktopLayout` 展开 + 7 处 `isDesktop` 路由分支、`settings_screen.dart` 整个 Master-Detail（约 90 行）、`main.dart` 的 `_DesktopVisualScale`（约 70 行）、`notification_service.dart` 的 iOS `zonedSchedule` 分支（约 100 行）、`database_service.dart` 的 sqfliteFfi 初始化、`image_utils`/`share_utils` 的 iOS 分支等；`desktop_layout.dart` 整文件删除
+- **坑**：删分支是链式告警 —— `unused_local_variable` → `unused_import` → `unused_shown_name` → `prefer_const_constructors` → `avoid_redundant_argument_values`，得一轮轮清；`require_trailing_commas` 依然会拦，`format 0 changed` 不代表 `analyze` 通过
+- 验证：`dart analyze` **No issues found**；`grep -rn "kIsWeb\|Platform\.is" lib` 零命中；`flutter test` 640 项全绿
+- 文档与官网：`README.md` / `README.en.md` / `docs/BUILD_AND_DEVICE_TESTING.md`（删整个 iOS/macOS 章节并重排 5→4、6→5、7→6 编号）/ `docs/MAINTENANCE.md` / `docs/STORE_COMPLIANCE.md`（删 iOS App Store 章节）/ `docs/PROJECT_STRUCTURE_AND_BUILD.md`（删 5 个平台小节、iOS 签名章节、约 116 处平台引用）/ `docs/BUSINESS_OVERVIEW.md` / `docs/HANDOFF.md` / `CONTRIBUTING.md` / `SECURITY.md` / `docs/user-guide/` / `docs/development/{debugging,troubleshooting}.md` / `docs/ARCHITECTURE_OVERVIEW.md`（加平台变更横幅 + 修正平台层与 CI 图）/ 官网 `index.html`、`pages/faq.html`、`pages/guide.html`、`pages/download/index.html`（删 iOS/macOS/Windows/Linux 下载卡片）
+- 配置收尾：`analysis_options.yaml` exclude 只剩 `android/**`；`scripts/ci.sh` 目标白名单收窄；`flutter_native_splash.yaml` 关掉 `ios`/`web` 并删 `ios_content_mode`
+- 说明：`CHANGELOG`、`PROGRESS`、官网 `pages/changelog.html` 里的历史记录保持原样，不追改历史
+
 ## 2026-11-12 · 更新检查默认只走国内源（1.1.79+10175）· done
 
 - 用户提问「首页打开检查的是 GitHub 的版本吗」，并要求「默认全部访问国内的源」

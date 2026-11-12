@@ -164,25 +164,6 @@ class InkPaperCli {
       'Do not use legacy external storage in store builds.',
     );
 
-    if (Platform.isMacOS) {
-      await _run([
-        'plutil',
-        '-lint',
-        'ios/Runner/Info.plist',
-        'ios/Runner/Runner.entitlements',
-        'ios/Runner/PrivacyInfo.xcprivacy',
-      ]);
-    }
-    await _assertFileContains(
-      'ios/Runner/Info.plist',
-      'CFBundleShortVersionString',
-      'iOS Info.plist must expose bundle version metadata.',
-    );
-    await _assertFileContains(
-      'ios/Runner.xcodeproj/project.pbxproj',
-      'PrivacyInfo.xcprivacy in Resources',
-      'PrivacyInfo.xcprivacy must be copied into Runner.app.',
-    );
     await _assertFileContains(
       'lib/config/app_config.dart',
       'accountDeletionUrl',
@@ -267,10 +248,8 @@ class InkPaperCli {
   Future<void> _build(String target) async {
     switch (target) {
       case 'all':
-        for (final buildTarget in _hostBuildTargets()) {
-          await _build(buildTarget);
-        }
-        _printSkippedTargets();
+        // 项目只发布 Android，all 等价于 release APK。
+        await _build('android-release');
         return;
       case 'android':
       case 'android-debug':
@@ -314,116 +293,8 @@ class InkPaperCli {
           ]),
         );
         return;
-      case 'ios':
-      case 'ios-sim':
-        _requireHost(target, Platform.isMacOS, 'macOS with Xcode');
-        await _clearAppleExtendedAttributes();
-        await _disableSwiftPackageManager();
-        await _podInstall('ios');
-        await _run(_flutterBuildCommand(['ios', '--simulator', '--debug']));
-        return;
-      case 'ios-unsigned-ipa':
-        _requireHost(target, Platform.isMacOS, 'macOS with Xcode');
-        await _clearAppleExtendedAttributes();
-        await _disableSwiftPackageManager();
-        await _run(
-          ['bash', 'scripts/build_unsigned_ipa.sh'],
-          environment: _dartDefineEnvironment(),
-        );
-        return;
-      case 'macos-debug':
-        _requireHost(target, Platform.isMacOS, 'macOS');
-        await _clearAppleExtendedAttributes();
-        await _run(['flutter', 'config', '--enable-macos-desktop']);
-        await _disableSwiftPackageManager();
-        await _run(_flutterBuildCommand(['macos', '--debug']));
-        return;
-      case 'macos':
-      case 'macos-release':
-        _requireHost(target, Platform.isMacOS, 'macOS');
-        await _clearAppleExtendedAttributes();
-        await _run(['flutter', 'config', '--enable-macos-desktop']);
-        await _disableSwiftPackageManager();
-        await _run(_flutterBuildCommand(['macos', '--release']));
-        return;
-      case 'windows-debug':
-        _requireHost(target, Platform.isWindows, 'Windows');
-        await _run(['flutter', 'config', '--enable-windows-desktop']);
-        await _run(_flutterBuildCommand(['windows', '--debug']));
-        return;
-      case 'windows':
-      case 'windows-release':
-        _requireHost(target, Platform.isWindows, 'Windows');
-        await _run(['flutter', 'config', '--enable-windows-desktop']);
-        await _run(_flutterBuildCommand(['windows', '--release']));
-        return;
-      case 'linux-debug':
-        _requireHost(target, Platform.isLinux, 'Linux');
-        await _run(['flutter', 'config', '--enable-linux-desktop']);
-        await _run(_flutterBuildCommand(['linux', '--debug']));
-        return;
-      case 'linux':
-      case 'linux-release':
-        _requireHost(target, Platform.isLinux, 'Linux');
-        await _run(['flutter', 'config', '--enable-linux-desktop']);
-        await _run(_flutterBuildCommand(['linux', '--release']));
-        return;
       default:
         throw ToolExit(2, 'Unknown build target: $target');
-    }
-  }
-
-  List<String> _hostBuildTargets() {
-    final targets = <String>['android-debug'];
-    if (Platform.isMacOS) {
-      targets.addAll(['ios-sim', 'macos-debug']);
-    } else if (Platform.isWindows) {
-      targets.add('windows-debug');
-    } else if (Platform.isLinux) {
-      targets.add('linux-debug');
-    }
-    return targets;
-  }
-
-  void _printSkippedTargets() {
-    final skipped = <String>[];
-    if (!Platform.isMacOS) {
-      skipped.addAll(['ios-sim', 'macos-debug']);
-    }
-    if (!Platform.isWindows) {
-      skipped.add('windows-debug');
-    }
-    if (!Platform.isLinux) {
-      skipped.add('linux-debug');
-    }
-    if (skipped.isNotEmpty) {
-      stdout.writeln('Skipped host-specific targets: ${skipped.join(', ')}');
-    }
-  }
-
-  Future<void> _podInstall(String directory) async {
-    await _run(
-      ['pod', 'install'],
-      workingDirectory: directory,
-      environment: {
-        'LANG': 'en_US.UTF-8',
-        'LC_ALL': 'en_US.UTF-8',
-      },
-    );
-  }
-
-  Future<void> _disableSwiftPackageManager() {
-    return _run(['flutter', 'config', '--no-enable-swift-package-manager']);
-  }
-
-  Future<void> _clearAppleExtendedAttributes() async {
-    if (!Platform.isMacOS) {
-      return;
-    }
-
-    final script = File('scripts/clean_apple_xattrs.sh');
-    if (await script.exists()) {
-      await _run(['bash', script.path]);
     }
   }
 
@@ -431,22 +302,6 @@ class InkPaperCli {
     switch (target) {
       case 'default':
         await _run(_flutterRunCommand(<String>[]));
-        return;
-      case 'ios':
-      case 'ios-sim':
-        _requireHost(target, Platform.isMacOS, 'macOS with Xcode');
-        await _clearAppleExtendedAttributes();
-        await _run(
-          _flutterRunCommand([
-            '-d',
-            _envValue('IOS_SIMULATOR_ID') ?? 'iPhone',
-          ]),
-        );
-        return;
-      case 'macos':
-        _requireHost(target, Platform.isMacOS, 'macOS');
-        await _clearAppleExtendedAttributes();
-        await _run(_flutterRunCommand(['-d', 'macos']));
         return;
       default:
         await _run(_flutterRunCommand(['-d', target]));
@@ -490,21 +345,6 @@ class InkPaperCli {
     return defines;
   }
 
-  Map<String, String>? _dartDefineEnvironment() {
-    final values = <String, String>{};
-    values['ENVIRONMENT'] = _envValue('ENVIRONMENT') ?? 'production';
-    for (final key in [
-      'CLOUD_VERIFY_APP_KEY',
-      ..._optionalBuildDefineKeys,
-    ]) {
-      final value = _envValue(key);
-      if (value != null) {
-        values[key] = value;
-      }
-    }
-    return values;
-  }
-
   static const List<String> _optionalBuildDefineKeys = [
     'SENTRY_DSN',
   ];
@@ -512,23 +352,13 @@ class InkPaperCli {
   bool _isReleaseBuildArgs(List<String> args) =>
       args.contains('--release') ||
       (args.isNotEmpty &&
-          (args.first == 'apk' ||
-              args.first == 'appbundle' ||
-              args.first == 'macos' ||
-              args.first == 'windows' ||
-              args.first == 'linux') &&
+          (args.first == 'apk' || args.first == 'appbundle') &&
           !args.contains('--debug') &&
           !args.contains('--profile'));
 
   String? _envValue(String key) {
     final value = Platform.environment[key]?.trim();
     return value == null || value.isEmpty ? null : value;
-  }
-
-  void _requireHost(String target, bool condition, String requirement) {
-    if (!condition) {
-      throw ToolExit(3, '$target requires $requirement.');
-    }
   }
 
   Future<void> _run(
@@ -680,19 +510,15 @@ Commands:
   verify [--coverage]            Run deps + format + analyze + tests
   store-check                    Validate store-submission critical metadata
   ci [target] [--coverage]       Run verify, then build target
-  build [target]                 Build one target or all host-supported targets
+  build [target]                 Build one Android target (default: release APK)
   run [target]                   Run app with shared dart-defines
   clean                          Run flutter clean
   version                        Print pubspec version
   release vX.Y.Z                 Push a release tag for GitHub Actions
 
 Build targets:
-  all                            Android + host-specific desktop/mobile
+  all                            Alias of android-release
   android-debug | android-release | android-release-split | android-aab
-  ios-sim | ios-unsigned-ipa     macOS only
-  macos-debug | macos-release    macOS only
-  windows-debug | windows-release Windows only
-  linux-debug | linux-release    Linux only
 ''');
   }
 }

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/screens/image_viewer_screen.dart';
@@ -346,8 +345,7 @@ class _NoteImageGridState extends State<NoteImageGrid> {
   /// 就会解出两份缓存，等于白解一次还更慢。
   static double _estimateDetailContentWidth(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-    final maxWidth = isDesktop && screenWidth > 900 ? 900.0 : screenWidth;
+    final maxWidth = screenWidth;
     final contentWidth = maxWidth - 72;
     return contentWidth < 160 ? 160 : contentWidth;
   }

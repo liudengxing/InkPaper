@@ -1,6 +1,3 @@
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/config/app_config.dart';
@@ -22,18 +19,14 @@ class AboutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leading: isDesktop
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => context.pop(),
-              ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
         title: Text(
           AppLocalizationsSimple.of(context)?.aboutUs ?? '关于 InkPaper',
           style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500),

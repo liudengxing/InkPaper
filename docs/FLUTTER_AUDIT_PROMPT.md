@@ -51,7 +51,7 @@
 ## Stage 1：基线测量
 能跑就跑，跑不了就明确标注"未测量"，禁止估算：
 - flutter analyze 结果（error/warning/info 各多少条）
-- 包体积：flutter build apk --analyze-size（或 ios --analyze-size）
+- 包体积：flutter build apk --analyze-size
 - 性能：profile 模式下的长帧位置、明显卡顿场景（若无法运行，标注需我提供 DevTools 截图）
 - 测试现状：test/ 目录存在与否、能覆盖多少
 产出 BASELINE.md。此后任何没有基线支撑的收益判断，一律标注"收益不确定"。

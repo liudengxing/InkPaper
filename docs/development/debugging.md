@@ -76,9 +76,6 @@ flutter logs | grep "InkPaper"
 
 # Android logcat
 adb logcat | grep flutter
-
-# iOS logs (requires device connection)
-idevicesyslog | grep InkPaper
 ```
 
 ### Custom Log Output
@@ -435,36 +432,6 @@ adb shell pm clear com.didichou.inkpaper
 
 # View app files
 adb shell run-as com.didichou.inkpaper ls /data/data/com.didichou.inkpaper
-```
-
-### iOS Debugging
-
-#### Xcode Console
-
-1. Open Xcode
-2. Window → Devices and Simulators
-3. Select device
-4. View device logs
-
-#### Instruments
-
-1. Open Xcode
-2. Product → Profile
-3. Select profiling template:
-   - Time Profiler (CPU)
-   - Allocations (Memory)
-   - Leaks (Memory Leaks)
-   - Network
-
-#### iOS Logs
-
-```bash
-# View device logs (requires libimobiledevice)
-brew install libimobiledevice
-idevicesyslog | grep InkPaper
-
-# Save to file
-idevicesyslog > ios_logs.txt
 ```
 
 ---

@@ -44,7 +44,7 @@ Bugs are tracked as [GitHub issues](https://github.com/liudengxing/InkPaper/issu
 - **Include screenshots** if possible
 - **Include your environment details**:
   - InkPaper version
-  - OS version (iOS/Android)
+  - Android 版本 / 设备系统版本
   - Device model
   - Whether you're using local mode or server sync
 
@@ -65,8 +65,8 @@ Bugs are tracked as [GitHub issues](https://github.com/liudengxing/InkPaper/issu
 
 **环境**:
 - InkPaper 版本: 1.1.0
-- 设备: iPhone 14 Pro
-- iOS 版本: 17.0
+- 设备: Pixel 7
+- Android 版本: 14.0
 - 模式: 本地模式
 
 **截图**: [附上截图]
@@ -120,7 +120,7 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/liuden
 
 1. **Update documentation** - Update the README.md and CHANGELOG.md with details of changes
 2. **Follow the style guide** - Ensure your code follows the project's style guide
-3. **Test your changes** - Test thoroughly on both iOS and Android if possible
+3. **Test your changes** - Test thoroughly on a real Android device
 4. **Update tests** - Add or update tests as needed
 5. **Run linter** - Run `flutter analyze` and fix any issues
 6. **Format code** - Run `flutter format lib/` before committing
@@ -150,7 +150,7 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/liuden
 - [ ] 我的更改没有产生新的警告
 - [ ] 我已经添加了测试来证明我的修复有效或功能正常
 - [ ] 新的和现有的单元测试在本地通过
-- [ ] 我已经在 iOS 和 Android 上测试过（如果适用）
+- [ ] 我已经在 Android 真机上测试过
 
 ## 📷 Screenshots (if applicable)
 <!-- 如果是 UI 变更，请添加截图 -->
@@ -169,8 +169,7 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/liuden
 
 - Flutter SDK 3.24.5+
 - Dart SDK 3.9.2+
-- iOS: Xcode 14.0+ (macOS only)
-- Android: Android Studio 2023.1.1+
+- Android: Android Studio 2023.1.1+ / Android SDK + JDK 17
 
 ### Setup Steps
 
@@ -199,11 +198,7 @@ For platform builds, prefer the unified maintenance CLI:
 
 ```bash
 dart tool/inkpaper.dart build android-debug
-dart tool/inkpaper.dart build ios-sim
-dart tool/inkpaper.dart build macos-debug
-dart tool/inkpaper.dart build windows-debug
-dart tool/inkpaper.dart build linux-debug
-dart tool/inkpaper.dart build web-release
+dart tool/inkpaper.dart build android-release
 ```
 
 See [docs/MAINTENANCE.md](docs/MAINTENANCE.md) for CI, Android signing, and release workflow.

@@ -10,7 +10,7 @@ This document describes the project workflow for versioning, checks, builds, and
 version: 1.1.13+10113
 ```
 
-Do not duplicate the app version in platform files or Dart code. Flutter passes the version into Android, iOS, macOS, Windows, and Linux build metadata.
+Do not duplicate the app version in platform files or Dart code. Flutter passes the version into the Android build metadata.
 
 ## CLI
 
@@ -22,20 +22,12 @@ dart tool/inkpaper.dart verify
 dart tool/inkpaper.dart verify --coverage
 dart tool/inkpaper.dart store-check
 dart tool/inkpaper.dart build android-debug
-dart tool/inkpaper.dart build ios-sim
-dart tool/inkpaper.dart build macos-debug
-dart tool/inkpaper.dart build windows-debug
-dart tool/inkpaper.dart build linux-debug
+dart tool/inkpaper.dart build android-release
 dart tool/inkpaper.dart release v1.1.13
 ```
 
-Host-specific builds require matching local tools:
-
-- Android requires an Android SDK.
-- iOS simulator requires macOS, Xcode, and CocoaPods.
-- macOS requires macOS and Xcode.
-- Windows requires Windows and Visual Studio C++ desktop components.
-- Linux requires GTK, CMake, Ninja, and system libraries used by the desktop plugins.
+The project ships Android only. Builds need an Android SDK and JDK 17; there
+are no iOS, macOS, Windows, Linux, or Web targets in the repository.
 
 The shell entrypoint remains available for compatibility:
 
@@ -52,17 +44,13 @@ Pull requests and pushes run:
 - Automated tests.
 - Secret scanning.
 - Android APK build, and signed AAB build when `release_build` is enabled.
-- iOS simulator build.
-- macOS build.
-- Windows build.
-- Linux build.
 
-The current CI and release workflows intentionally skip the Web platform.
+The release workflow publishes Android APK/AAB only.
 
 ## Store Compliance
 
-Before submitting a commercial release to App Store Connect or Google Play,
-check [`docs/STORE_COMPLIANCE.md`](STORE_COMPLIANCE.md).
+Before submitting a commercial release to Google Play, check
+[`docs/STORE_COMPLIANCE.md`](STORE_COMPLIANCE.md).
 
 Required public URLs:
 
@@ -100,9 +88,8 @@ local, CI, and cloud CLI builds all use the production backend by default.
 Android release builds must have signing credentials and also verify the signing
 certificate fingerprint and APK/AAB package certificates before publishing.
 
-GitHub Releases are for test and desktop distribution assets. Store submission
-packages are prepared separately: iOS through Xcode archive/App Store Connect,
-and Android through a signed AAB for Google Play.
+GitHub Releases host the test and manual-install APK. The Google Play
+submission package is the signed AAB produced by the release workflow.
 
 ## Security
 

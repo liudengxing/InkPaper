@@ -46,11 +46,6 @@ analyzer:
     # 真正的告警会被这条噪声淹没（DOC-001）。
     - "_backup/**"
     - android/**
-    - ios/**
-    - web/**
-    - windows/**
-    - macos/**
-    - linux/**
 
 # Dart Code Metrics 配置
 # 注意：dart_code_metrics 与项目的 uuid 版本冲突，暂时禁用

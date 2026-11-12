@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1088,15 +1087,6 @@ class NoteActionsUi {
     required Note note,
     required VoidCallback onUpdated,
   }) async {
-    if (Platform.isWindows || Platform.isLinux) {
-      SnackBarUtils.showWarning(
-        context,
-        AppLocalizationsSimple.of(context)?.desktopReminderUnsupported ??
-            '当前桌面系统暂不支持系统级定时提醒，请在手机或 macOS 上设置',
-      );
-      return false;
-    }
-
     final appProvider = Provider.of<AppProvider>(context, listen: false);
     final currentReminderTime = note.reminderTime;
 

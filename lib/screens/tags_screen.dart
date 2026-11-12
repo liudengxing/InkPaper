@@ -1,6 +1,4 @@
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
@@ -502,20 +500,16 @@ class _TagsScreenState extends State<TagsScreen>
   ) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: backgroundColor,
-      drawer: isDesktop ? null : const Sidebar(),
-      drawerEdgeDragWidth:
-          isDesktop ? null : MediaQuery.of(context).size.width * 0.2,
+      drawer: const Sidebar(),
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.2,
       appBar: _buildResponsiveAppBar(
         context,
         backgroundColor,
         textColor,
         iconColor,
-        showDrawerButton: !isDesktop,
       ),
       body: Column(
         children: [

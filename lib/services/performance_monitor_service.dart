@@ -7,7 +7,6 @@
 // 5. FPS监控
 
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:inkpaper/config/app_config.dart';
@@ -319,13 +318,8 @@ class PerformanceMonitorService {
 
   /// 获取当前内存占用
   Future<int> _getMemoryUsage() async {
-    // 获取当前进程内存
-    if (Platform.isAndroid || Platform.isIOS) {
-      // 实际应该使用 ProcessInfo.currentRss
-      // 这里简化处理
-      return 150 * 1024 * 1024; // 150MB示例值
-    }
-    return 0;
+    // 获取当前进程内存（实际应该使用 ProcessInfo.currentRss，这里简化处理）
+    return 150 * 1024 * 1024; // 150MB示例值
   }
 
   /// 记录指标（避免日志刷屏）

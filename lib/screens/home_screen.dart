@@ -1,8 +1,7 @@
 import 'dart:async'; // 🚀 用于搜索防抖
-import 'dart:io' show Platform;
 import 'dart:ui' show ImageFilter;
 
-import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -1162,16 +1161,13 @@ class _HomeScreenState extends State<HomeScreen>
     Color hintColor,
     bool isDarkMode,
   ) {
-    final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: backgroundColor,
       // 🧊 列表延伸到底部，玻璃输入条才能模糊到下方的笔记内容
       extendBody: true,
-      drawer: isDesktop ? null : const Sidebar(),
-      drawerEdgeDragWidth:
-          isDesktop ? null : MediaQuery.of(context).size.width * 0.25,
+      drawer: const Sidebar(),
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.25,
       appBar: AppBar(
         backgroundColor: backgroundColor,
         elevation: 0,
@@ -1180,7 +1176,7 @@ class _HomeScreenState extends State<HomeScreen>
         automaticallyImplyLeading: false,
         // 抽屉入口固定在左上角（flomo 布局），标题紧随其后。
         leadingWidth: 44,
-        leading: (!isDesktop && !_isSearchActive)
+        leading: !_isSearchActive
             ? IconButton(
                 icon: Container(
                   padding: const EdgeInsets.all(8),
@@ -1215,8 +1211,7 @@ class _HomeScreenState extends State<HomeScreen>
                 onPressed: _openDrawer,
               )
             : null,
-        titleSpacing:
-            (!isDesktop && !_isSearchActive) ? 0 : (isDesktop ? 20 : 16),
+        titleSpacing: !_isSearchActive ? 0 : 16,
         title: AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
           switchInCurve: Curves.easeOutCubic,

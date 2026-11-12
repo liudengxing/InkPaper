@@ -10,7 +10,7 @@
 
 **InkPaper（墨鸣笔记）**：本地优先的笔记应用。核心是「纯文本 + Markdown + 本地图片」的快速记录，可选连自己的 Memos 服务器做多端同步；AI 侧提供「问笔记」（拿全库笔记当资料对话）与「周/月回顾」（AI 总结近期笔记）。
 
-- 平台优先级：Android（主力，主要在真机迭代）> iOS > 桌面（macOS/Windows/Linux 可构建，未长期验证）
+- 平台范围：只做 Android（仓库已删除 iOS / macOS / Windows / Linux / Web 工程），全部迭代在真机
 - 数据主权：默认不登录也能用，全部数据在本机 `notes.db`；登录 Memos 后才双向同步
 - 无自建后端：新账号/同步都指向用户自己填的 Memos 服务器；只有公告/反馈走 `https://api.didichou.site`
 
@@ -126,7 +126,6 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
 
 - Android：`AndroidManifest.xml:72-111`（`SEND` text/image/\*、`SEND_MULTIPLE`、`PROCESS_TEXT`）→ `MainActivity.handleIntent` → MethodChannel `onSharedPayload` → `shared_payload_utils.dart` 归一化 → 路由 `extra: {'sharedContent': …}` → **打开编辑器预填**，用户点保存才 `createNote`
 - 类型分支：纯文本原文 / 单图 `![图片](file://…)` / 多图多行 / 文件 `📎 文件名 + 路径`
-- iOS：Share Extension 并发收集 → 纯文本优先（图片/文件以 Markdown 追加）→ 写 App Group `UserDefaults`（key `inkpaper_pending_share_payload`）→ `inkpaper://share` 拉主 App
 - 没有「链接/书签」专有处理，URL 当文本
 
 ### 4.6 导入 / 导出
@@ -156,13 +155,12 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
 - 菜单设提醒 → 先调度成功才写 `reminder_time`（避免"显示有提醒其实没排上"）
 - Android：MethodChannel `com.didichou.inkpaper/native_alarm` → `MainActivity` `setExactAndAllowWhileIdle(RTC_WAKEUP)`；**12+ 无精确闹钟权限时降级普通闹钟**
 - 触达：`AlarmReceiver` 建/修渠道 `note_reminders_v2`，发高优先级锁屏可见通知，点击带 `noteId` 回 `MainActivity`，并落 `reminder_notifications`
-- iOS/macOS：`flutter_local_notifications` 的 `zonedSchedule(exactAllowWhileIdle)`，调度成功即写库
 - 已知：Android 不强制精确闹钟权限，只上报状态
 
 ### 4.10 桌面小组件
 
 - Dart 侧：`widget_snapshot_service` 在增删改/加载完成/同步状态变化时触发，**350ms 防抖**，JSON 未变则跳过下发
-- 通道：`com.didichou.inkpaper/native_alarm`，原生写 `SharedPreferences("inkpaper_widget")`；iOS 写 App Group `group.com.didichou.inkpaper`
+- 通道：`com.didichou.inkpaper/native_alarm`，原生写 `SharedPreferences("inkpaper_widget")`
 - 快照字段：`schemaVersion / generatedAt / today{notes,words,tags,pendingTodos} / sync{mode,status,message,unsyncedCount} / quickTags(≤5) / reviewConfig{refreshIntervalMinutes,rangeDays} / reviewNotes(≤8)`
 - 只把 `rowStatus` 为 NORMAL/空 的笔记放进快照；**原生侧不展示日期**，不存在"首页改 createdAt 而小组件还是 updatedAt"的不一致
 
@@ -252,7 +250,7 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
 | 同步间隔 | 默认 300s，范围 60s ~ 3600s |
 | 鉴权存储 | `flutter_secure_storage`，key `auth_token` / `refresh_token` |
 | SharedPreferences | 主配置文件 `FlutterSharedPreferences`；小组件 `inkpaper_widget`；草稿 `note_editor_drafts_v2` |
-| 提醒调度 | Android `setExactAndAllowWhileIdle`（无权限降级），iOS `zonedSchedule` |
+| 提醒调度 | Android `setExactAndAllowWhileIdle`（无权限时降级普通闹钟） |
 
 ---
 

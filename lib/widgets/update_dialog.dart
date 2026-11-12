@@ -1,4 +1,4 @@
-import 'dart:io' show File, Platform;
+import 'dart:io' show File;
 
 import 'package:flutter/material.dart';
 import 'package:inkpaper/services/apk_install_service.dart';
@@ -105,8 +105,7 @@ class _UpdateDialogState extends State<_UpdateDialog>
     }
   }
 
-  bool get _canInstallInApp =>
-      Platform.isAndroid && widget.result.apkDownloadUrl != null;
+  bool get _canInstallInApp => widget.result.apkDownloadUrl != null;
 
   void _notifyPostpone() {
     if (_postponeNotified) {

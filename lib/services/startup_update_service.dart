@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:flutter/widgets.dart';
 import 'package:inkpaper/config/app_config.dart';
@@ -62,10 +61,6 @@ class StartupUpdateService {
   static Future<void> checkOnLaunch({
     required NavigatorState? Function() navigatorState,
   }) async {
-    // 只有 Android 需要装包；桌面端不主动打扰（用户想查可以自己去关于页）。
-    if (!Platform.isAndroid) {
-      return;
-    }
     final service = UpdateCheckService();
     try {
       final prefs = await SharedPreferences.getInstance();

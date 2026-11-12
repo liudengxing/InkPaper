@@ -1,6 +1,3 @@
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
@@ -21,22 +18,19 @@ class LaboratoryScreen extends StatelessWidget {
         ? AppTheme.darkTextSecondaryColor
         : AppTheme.textSecondaryColor;
     final cardColor = isDarkMode ? AppTheme.darkCardColor : Colors.grey[50]!;
-    final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
     final l10n = AppLocalizationsSimple.of(context);
 
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leading: isDesktop
-            ? null
-            : IconButton(
-                icon: Icon(
-                  Icons.arrow_back_ios_new,
-                  color: isDarkMode ? Colors.white : null,
-                ),
-                onPressed: () => context.pop(),
-              ),
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            color: isDarkMode ? Colors.white : null,
+          ),
+          onPressed: () => context.pop(),
+        ),
         title: Text(
           l10n?.laboratory ?? '实验室',
           style: AppTextStyles.custom(

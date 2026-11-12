@@ -1,7 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -156,28 +153,24 @@ class _PeriodicReviewScreenState extends State<PeriodicReviewScreen> {
         isDarkMode ? AppTheme.darkTextPrimaryColor : Colors.black87;
     final iconColor =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
-    final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
     final l10n = AppLocalizationsSimple.of(context);
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: backgroundColor,
-      drawer: isDesktop ? null : const Sidebar(),
-      drawerEdgeDragWidth:
-          isDesktop ? null : MediaQuery.of(context).size.width * 0.2,
+      drawer: const Sidebar(),
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.2,
       appBar: AppBar(
         backgroundColor: backgroundColor,
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         automaticallyImplyLeading: false,
-        leading: isDesktop
-            ? null
-            : IconButton(
-                tooltip: '菜单',
-                icon: Icon(Icons.menu_rounded, color: iconColor),
-                onPressed: _openDrawer,
-              ),
+        leading: IconButton(
+          tooltip: '菜单',
+          icon: Icon(Icons.menu_rounded, color: iconColor),
+          onPressed: _openDrawer,
+        ),
         centerTitle: true,
         title: Text(
           l10n?.periodicReview ?? '回顾',

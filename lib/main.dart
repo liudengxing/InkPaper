@@ -47,31 +47,26 @@ void main() async {
   // 单一真源：初始化版本信息（来自 pubspec.yaml）
   await AppInfoService.init();
 
-  // 🚀 大厂标准：Sentry错误监控（仅Android平台，iOS不使用以符合App Store审核）
-  if (Platform.isAndroid) {
-    await SentryFlutter.init(
-      (options) {
-        // ✅ 从配置中心读取Sentry配置
-        options.dsn = Config.AppConfig.sentryDsn;
-        options.tracesSampleRate = Config.AppConfig.sentrySampleRate;
-        options.environment = Config.AppConfig.environment;
-        options.release =
-            '${Config.AppConfig.appName}@${Config.AppConfig.appVersion}';
-        options.enableAutoSessionTracking = true;
-        options.attachStacktrace = true;
-        options.sendDefaultPii = false; // 不发送个人信息
+  // 🚀 大厂标准：Sentry 错误监控
+  await SentryFlutter.init(
+    (options) {
+      // ✅ 从配置中心读取Sentry配置
+      options.dsn = Config.AppConfig.sentryDsn;
+      options.tracesSampleRate = Config.AppConfig.sentrySampleRate;
+      options.environment = Config.AppConfig.environment;
+      options.release =
+          '${Config.AppConfig.appName}@${Config.AppConfig.appVersion}';
+      options.enableAutoSessionTracking = true;
+      options.attachStacktrace = true;
+      options.sendDefaultPii = false; // 不发送个人信息
 
-        // 🔥 关键修复：禁用 Firebase 集成（避免 Firebase 未初始化错误）
-        options.enableAutoPerformanceTracing = false; // 禁用自动性能追踪（需要 Firebase）
-      },
-      appRunner: () async {
-        await _runApp();
-      },
-    );
-  } else {
-    // iOS平台：不使用Sentry，直接运行应用
-    await _runApp();
-  }
+      // 🔥 关键修复：禁用 Firebase 集成（避免 Firebase 未初始化错误）
+      options.enableAutoPerformanceTracing = false; // 禁用自动性能追踪（需要 Firebase）
+    },
+    appRunner: () async {
+      await _runApp();
+    },
+  );
 }
 
 // 提取应用初始化逻辑到独立函数
@@ -112,13 +107,11 @@ Future<void> _runApp() async {
       },
     );
 
-    // 🚀 发送到Sentry（仅Android）
-    if (Platform.isAndroid) {
-      Sentry.captureException(
-        details.exception,
-        stackTrace: details.stack,
-      );
-    }
+    // 🚀 发送到 Sentry
+    Sentry.captureException(
+      details.exception,
+      stackTrace: details.stack,
+    );
   };
 
   await _initializeApp();
@@ -694,16 +687,6 @@ class _MyAppState extends State<MyApp> {
                   child: child ?? const SizedBox.shrink(),
                 );
 
-                if (_usesDesktopVisualScale) {
-                  return _DesktopVisualScale(
-                    scale: clampedFontScale,
-                    mediaQueryData: MediaQuery.of(context).copyWith(
-                      textScaler: TextScaler.noScaling,
-                    ),
-                    child: routeChild,
-                  );
-                }
-
                 return MediaQuery(
                   data: MediaQuery.of(context).copyWith(
                     textScaler: TextScaler.linear(clampedFontScale),
@@ -714,77 +697,5 @@ class _MyAppState extends State<MyApp> {
             );
           },
         ),
-      );
-}
-
-bool get _usesDesktopVisualScale =>
-    Platform.isWindows || Platform.isMacOS || Platform.isLinux;
-
-class _DesktopVisualScale extends StatelessWidget {
-  const _DesktopVisualScale({
-    required this.scale,
-    required this.mediaQueryData,
-    required this.child,
-  });
-
-  final double scale;
-  final MediaQueryData mediaQueryData;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (scale == 1) {
-      return MediaQuery(data: mediaQueryData, child: child);
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) {
-          return MediaQuery(data: mediaQueryData, child: child);
-        }
-
-        final logicalSize = Size(
-          constraints.maxWidth / scale,
-          constraints.maxHeight / scale,
-        );
-        final scaledMediaQuery = mediaQueryData.copyWith(
-          size: logicalSize,
-          padding: _scaleEdgeInsets(mediaQueryData.padding),
-          viewPadding: _scaleEdgeInsets(mediaQueryData.viewPadding),
-          viewInsets: _scaleEdgeInsets(mediaQueryData.viewInsets),
-          systemGestureInsets:
-              _scaleEdgeInsets(mediaQueryData.systemGestureInsets),
-        );
-
-        return ClipRect(
-          child: OverflowBox(
-            alignment: Alignment.topLeft,
-            minWidth: logicalSize.width,
-            maxWidth: logicalSize.width,
-            minHeight: logicalSize.height,
-            maxHeight: logicalSize.height,
-            child: Transform.scale(
-              scale: scale,
-              alignment: Alignment.topLeft,
-              child: MediaQuery(
-                data: scaledMediaQuery,
-                child: SizedBox(
-                  width: logicalSize.width,
-                  height: logicalSize.height,
-                  child: child,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  EdgeInsets _scaleEdgeInsets(EdgeInsets insets) => EdgeInsets.fromLTRB(
-        insets.left / scale,
-        insets.top / scale,
-        insets.right / scale,
-        insets.bottom / scale,
       );
 }

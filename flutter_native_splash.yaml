@@ -10,7 +10,6 @@ flutter_native_splash:
   
   # 图片填充模式（等比例填充，保持宽高比）
   android_gravity: fill_horizontal|fill_vertical|clip_vertical
-  ios_content_mode: scaleAspectFill
   
   # 🔥 关键：不使用 image 和 color（避免多层叠加导致出现2个启动页）
   # 设置为 false 防止插件生成 LaunchImage 层
@@ -25,15 +24,11 @@ flutter_native_splash:
   #   color: "#F5F4F7"
   #   color_dark: "#000000"
   
-  # iOS配置
-  ios: true
-  
-  # Android配置
+  # 仅 Android 平台
   android: true
-  
-  # Web配置（可选）
+  ios: false
   web: false
-  
+
   # 全屏启动页
   fullscreen: true
 

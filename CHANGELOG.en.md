@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.80] - 2026-11-12
+
+### Changed
+- The repository now ships Android only. The `windows/`, `macos/`, `linux/`, `ios/`, and `web/` platform
+  folders, their build targets, release jobs, and packaging scripts are removed.
+- All web/desktop/iOS branches in Dart code (`kIsWeb`, `Platform.is*`, desktop layout, iOS notification
+  categories and share extension, desktop database FFI) are gone, leaving a single-platform codebase.
+- The `all` build target now equals the release APK, and `scripts/ci.sh` only accepts Android targets.
+- Documentation and the public site describe the Android APK/AAB pipeline only.
+
+### Removed
+- iOS unsigned IPA, macOS DMG, Windows installer, and Linux tarball build and distribution paths.
+
 ## [1.1.13] - 2026-06-22
 
 ### Fixed

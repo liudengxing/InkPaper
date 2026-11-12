@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -54,10 +53,6 @@ abstract final class WidgetSnapshotService {
     int reviewRangeDays = 0,
     String? syncMessage,
   }) async {
-    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) {
-      return;
-    }
-
     try {
       final json = jsonEncode(
         _buildSnapshot(

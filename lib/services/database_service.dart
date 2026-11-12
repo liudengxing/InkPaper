@@ -1,13 +1,9 @@
 import 'dart:convert'; // Added for jsonEncode and jsonDecode
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:path/path.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// 解析备份 JSON 的 `notes` 数组（`ARCH-LAYER-002 / A-07`）。
 ///
@@ -39,7 +35,6 @@ class DatabaseService {
   DatabaseService._internal();
   static final DatabaseService _instance = DatabaseService._internal();
   static Database? _database;
-  static bool _ffiInitialized = false;
 
   Future<Database> get database async {
     if (_database != null) {
@@ -51,17 +46,7 @@ class DatabaseService {
 
   // 初始化数据库
   Future<Database> _initDatabase() async {
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) {
-      if (!_ffiInitialized) {
-        sqfliteFfiInit();
-        _ffiInitialized = true;
-      }
-      databaseFactory = databaseFactoryFfi;
-    }
-
-    final dbPath = !kIsWeb && (Platform.isWindows || Platform.isLinux)
-        ? await _desktopDatabaseDirectory()
-        : await getDatabasesPath();
+    final dbPath = await getDatabasesPath();
     final path = join(dbPath, AppConfig.databaseName);
 
     return openDatabase(
@@ -74,16 +59,6 @@ class DatabaseService {
       onUpgrade: (db, oldVersion, newVersion) =>
           upgradeSchema(db, oldVersion: oldVersion, newVersion: newVersion),
     );
-  }
-
-  Future<String> _desktopDatabaseDirectory() async {
-    final supportDirectory = await getApplicationSupportDirectory();
-    final databaseDirectory =
-        Directory(join(supportDirectory.path, 'databases'));
-    if (!await databaseDirectory.exists()) {
-      await databaseDirectory.create(recursive: true);
-    }
-    return databaseDirectory.path;
   }
 
   static const int schemaVersion = AppConfig.databaseVersion;

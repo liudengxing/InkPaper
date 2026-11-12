@@ -6,12 +6,6 @@ Welcome! This guide will help you get up and running with InkPaper in just a few
 
 ## 📥 Installation
 
-### iOS
-
-1. Download from [GitHub Releases](https://github.com/liudengxing/InkPaper/releases)
-2. Install via TestFlight or sideload IPA
-3. Launch InkPaper
-
 ### Android
 
 1. Download APK from [GitHub Releases](https://github.com/liudengxing/InkPaper/releases)

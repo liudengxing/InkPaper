@@ -2363,74 +2363,35 @@ class ShareUtils {
     try {
       final fileName = 'inkpaper_note_${DateTime.now().millisecondsSinceEpoch}';
 
-      // 🍎 iOS权限检查和保存
-      if (Platform.isIOS) {
-        if (kDebugMode) {
-          debugPrint('ShareUtils: iOS平台，开始保存图片到相册');
-        }
-
-        final result = await ImageGallerySaverPlus.saveImage(
-          imageBytes,
-          name: fileName,
-          quality: 100,
-        ) as Map<dynamic, dynamic>;
-
-        if (result['isSuccess'] == true) {
-          if (kDebugMode) {
-            debugPrint('ShareUtils: iOS图片保存成功');
-          }
-          return true;
-        } else {
-          final errorMsg = result['errorMessage']?.toString() ?? '未知错误';
-          if (kDebugMode) {
-            debugPrint('ShareUtils: iOS图片保存失败: $errorMsg');
-          }
-
-          // iOS特殊错误处理
-          if (errorMsg.contains('permission') || errorMsg.contains('denied')) {
-            throw Exception('需要相册写入权限，请在设置中允许InkPaper访问照片');
-          }
-          return false;
-        }
-      }
-
       // 🤖 Android权限检查和保存
-      if (Platform.isAndroid) {
-        if (kDebugMode) {
-          debugPrint('ShareUtils: Android平台，开始保存图片到相册');
-        }
-
-        final result = await ImageGallerySaverPlus.saveImage(
-          imageBytes,
-          name: fileName,
-          quality: 100,
-        ) as Map<dynamic, dynamic>;
-
-        if (result['isSuccess'] == true) {
-          if (kDebugMode) {
-            debugPrint('ShareUtils: Android图片保存成功');
-          }
-          return true;
-        } else {
-          final errorMsg = result['errorMessage']?.toString() ?? '未知错误';
-          if (kDebugMode) {
-            debugPrint('ShareUtils: Android图片保存失败: $errorMsg');
-          }
-
-          // Android特殊错误处理
-          if (errorMsg.contains('permission') ||
-              errorMsg.contains('PERMISSION')) {
-            throw Exception('需要存储权限，请在设置中允许InkPaper访问存储空间');
-          }
-          return false;
-        }
-      }
-
-      // 其他平台
       if (kDebugMode) {
-        debugPrint('ShareUtils: 不支持的平台');
+        debugPrint('ShareUtils: Android平台，开始保存图片到相册');
       }
-      return false;
+
+      final result = await ImageGallerySaverPlus.saveImage(
+        imageBytes,
+        name: fileName,
+        quality: 100,
+      ) as Map<dynamic, dynamic>;
+
+      if (result['isSuccess'] == true) {
+        if (kDebugMode) {
+          debugPrint('ShareUtils: Android图片保存成功');
+        }
+        return true;
+      } else {
+        final errorMsg = result['errorMessage']?.toString() ?? '未知错误';
+        if (kDebugMode) {
+          debugPrint('ShareUtils: Android图片保存失败: $errorMsg');
+        }
+
+        // Android特殊错误处理
+        if (errorMsg.contains('permission') ||
+            errorMsg.contains('PERMISSION')) {
+          throw Exception('需要存储权限，请在设置中允许InkPaper访问存储空间');
+        }
+        return false;
+      }
     } on Object catch (e) {
       if (kDebugMode) {
         debugPrint('ShareUtils: 保存图片异常: $e');

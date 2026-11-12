@@ -1,6 +1,3 @@
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
@@ -164,28 +161,24 @@ class _NoteChatScreenState extends State<NoteChatScreen> {
         isDarkMode ? AppTheme.darkTextPrimaryColor : Colors.black87;
     final iconColor =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
-    final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: backgroundColor,
       resizeToAvoidBottomInset: true,
-      drawer: isDesktop ? null : const Sidebar(),
-      drawerEdgeDragWidth:
-          isDesktop ? null : MediaQuery.of(context).size.width * 0.2,
+      drawer: const Sidebar(),
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.2,
       appBar: AppBar(
         backgroundColor: backgroundColor,
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         automaticallyImplyLeading: false,
-        leading: isDesktop
-            ? null
-            : IconButton(
-                tooltip: '菜单',
-                icon: Icon(Icons.menu_rounded, color: iconColor),
-                onPressed: _openDrawer,
-              ),
+        leading: IconButton(
+          tooltip: '菜单',
+          icon: Icon(Icons.menu_rounded, color: iconColor),
+          onPressed: _openDrawer,
+        ),
         centerTitle: true,
         title: Column(
           mainAxisSize: MainAxisSize.min,

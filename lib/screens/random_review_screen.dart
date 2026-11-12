@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -845,54 +844,50 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
 
     // 侧边栏由DesktopLayout处理
-    final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: backgroundColor,
-      drawer: isDesktop ? null : const Sidebar(),
-      drawerEdgeDragWidth:
-          isDesktop ? null : MediaQuery.of(context).size.width * 0.2,
+      drawer: const Sidebar(),
+      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.2,
       appBar: AppBar(
         backgroundColor: backgroundColor,
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         automaticallyImplyLeading: false,
-        leading: isDesktop
-            ? null
-            : IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
+        leading: IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 16,
+                  height: 2,
                   decoration: BoxDecoration(
-                    color: backgroundColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 16,
-                        height: 2,
-                        decoration: BoxDecoration(
-                          color: iconColor,
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        width: 10,
-                        height: 2,
-                        decoration: BoxDecoration(
-                          color: iconColor,
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      ),
-                    ],
+                    color: iconColor,
+                    borderRadius: BorderRadius.circular(1),
                   ),
                 ),
-                onPressed: _openDrawer,
-              ),
+                const SizedBox(height: 4),
+                Container(
+                  width: 10,
+                  height: 2,
+                  decoration: BoxDecoration(
+                    color: iconColor,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          onPressed: _openDrawer,
+        ),
         centerTitle: true,
         title: Text(
           AppLocalizationsSimple.of(context)?.randomReviewTitle ?? '随机回顾',

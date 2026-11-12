@@ -1,27 +1,8 @@
 # Store Compliance
 
-Last updated: 2026-06-15
+Last updated: 2026-11-12
 
-This document tracks the release checks required before submitting InkPaper to app stores. It is written for maintainers and store-review preparation.
-
-## iOS App Store
-
-Apple requires apps that support account creation to let users initiate account deletion in the app, and says the option should be easy to find in account settings. If a website is required to finish deletion, the app must link directly to that page. Source: [Apple Developer Support](https://developer.apple.com/support/offering-account-deletion-in-your-app/).
-
-Current app-side status:
-
-- In-app path exists at `Settings > Account and Data Deletion`.
-- Account page includes the same entry.
-- The legal documents hub includes the same entry.
-- Public deletion URL is `https://inkpaper.cn/account-deletion.html`.
-
-Before App Store submission:
-
-- Confirm `https://inkpaper.cn/account-deletion.html` returns HTTP 200.
-- Confirm App Store Connect privacy answers match `ios/Runner/PrivacyInfo.xcprivacy` and the public privacy policy.
-- Use App Store update delivery only on iOS. Do not show APK or self-update prompts on iOS.
-- Build and archive from a clean non-File-Provider directory or CI runner to avoid extended-attribute code signing failures.
-- Use a real Apple Developer Team, production bundle id `com.didichou.inkpaper`, release signing, and an App Store provisioning profile.
+This document tracks the release checks required before submitting InkPaper to app stores. It is written for maintainers and store-review preparation. The project ships Android only, so Google Play is the only store channel.
 
 ## Google Play
 
@@ -49,19 +30,11 @@ dart tool/inkpaper.dart store-check
 dart tool/inkpaper.dart verify
 dart tool/inkpaper.dart build android-release
 dart tool/inkpaper.dart build android-aab
-dart tool/inkpaper.dart build ios-sim
-dart tool/inkpaper.dart build macos-release
-dart tool/inkpaper.dart build windows-release
-dart tool/inkpaper.dart build linux-release
 ```
 
 Platform notes:
 
-- Android builds require Android SDK and release signing secrets. Google Play
-  submission should use the signed AAB from `dart tool/inkpaper.dart build android-aab`.
-- iOS simulator builds validate compile/runtime basics. App Store submission
-  requires an Xcode archive with Apple signing assets and App Store Connect
-  upload.
-- iOS/macOS builds require macOS, Xcode, CocoaPods, and Apple signing assets.
-- Windows builds require Windows and Visual Studio C++ desktop components.
-- Linux builds require GTK, CMake, Ninja, and system packaging dependencies.
+- Android builds require Android SDK, JDK 17, and release signing secrets. Google
+  Play submission should use the signed AAB from
+  `dart tool/inkpaper.dart build android-aab`.
+- The repository has no other platform targets.

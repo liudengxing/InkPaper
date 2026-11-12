@@ -1912,7 +1912,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json', 'md', 'txt', 'zip', 'markdown', 'enc'],
-        withData: !Platform.isMacOS && !Platform.isWindows && !Platform.isLinux,
+        withData: true,
       );
 
       if (result == null || result.files.isEmpty) {
@@ -2202,48 +2202,23 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
     final chooseSaveLocation = l10n?.chooseSaveLocation ?? '选择保存位置';
     final userCancelledSave = l10n?.userCancelledSave ?? '用户取消保存';
     try {
-      if (Platform.isAndroid) {
-        final result = await FilePicker.platform.saveFile(
-          dialogTitle: chooseSaveLocation,
-          fileName: fileName,
-          bytes: fileBytes,
-        );
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: chooseSaveLocation,
+        fileName: fileName,
+        bytes: fileBytes,
+      );
 
-        if (result != null) {
-          _showLocalSaveSuccessDialog(fileName, result);
-        } else {
-          throw Exception(userCancelledSave);
-        }
-      } else if (Platform.isIOS) {
-        await _shareToFilesApp(fileName, fileBytes);
-      } else {
-        final result = await FilePicker.platform.saveFile(
-          dialogTitle: chooseSaveLocation,
-          fileName: fileName,
-        );
-
-        if (result == null) {
-          throw Exception(userCancelledSave);
-        }
-
-        if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
-          final savedFile = File(result);
-          await savedFile.writeAsBytes(fileBytes, flush: true);
-          if (!savedFile.existsSync() || savedFile.lengthSync() == 0) {
-            throw Exception('保存文件失败');
-          }
-        }
-
+      if (result != null) {
         _showLocalSaveSuccessDialog(fileName, result);
+      } else {
+        throw Exception(userCancelledSave);
       }
     } on Object catch (_) {
-      if (Platform.isAndroid) {
-        try {
-          await _saveToAppPrivateDirectory(fileName, fileBytes);
-          return;
-        } on Object {
-          // Fall through to share fallback.
-        }
+      try {
+        await _saveToAppPrivateDirectory(fileName, fileBytes);
+        return;
+      } on Object {
+        // Fall through to share fallback.
       }
 
       final shouldShare = await _showSaveFailedDialog();

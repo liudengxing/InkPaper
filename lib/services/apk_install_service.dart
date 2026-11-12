@@ -42,9 +42,6 @@ class ApkInstallService {
   /// 必须由原生给：FileProvider 只允许授权自己声明的路径，Dart 侧自己拼
   /// `Directory.systemTemp` 有可能落在授权范围之外，安装器会读不到文件。
   static Future<Directory?> updatesDirectory() async {
-    if (!Platform.isAndroid) {
-      return null;
-    }
     try {
       final path = await _channel.invokeMethod<String>('getApkUpdatesDir');
       if (path == null || path.isEmpty) {
@@ -60,9 +57,6 @@ class ApkInstallService {
   }
 
   static Future<ApkInstallStatus> install(String path) async {
-    if (!Platform.isAndroid) {
-      return ApkInstallStatus.unsupported;
-    }
     try {
       final status = await _channel.invokeMethod<String>('installApk', {
         'path': path,

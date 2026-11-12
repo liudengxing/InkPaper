@@ -237,8 +237,7 @@ InkPaper is a powerful yet simple note-taking app that helps you:
 
 ## 📱 Supported Platforms
 
-- **iOS**: 13.0 and above
-- **Android**: 6.0 (API 23) and above
+- **Android**: 6.0 (API 23) and above（唯一支持平台）
 - **Languages**: Chinese, English
 
 ---

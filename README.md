@@ -1,12 +1,12 @@
 # 小纸 (InkPaper)
 
-小纸是一款面向个人知识记录的跨平台笔记应用。它推荐本地记录，也可以连接自托管 Memos 服务进行同步。应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、导入导出、系统分享、小组件和可选 AI 辅助等能力。
+小纸是一款面向个人知识记录的 Android 笔记应用。它推荐本地记录，也可以连接自托管 Memos 服务进行同步。应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、导入导出、系统分享、小组件和可选 AI 辅助等能力。
 
 [下载最新版本](https://gitee.com/liudengxing233/ink-paper/releases/latest) · [GitHub 仓库](https://github.com/liudengxing/InkPaper) · [问题反馈](https://github.com/liudengxing/InkPaper/issues) · [English](README.en.md)
 
 ## 当前版本
 
-`1.1.79`
+`1.1.80`
 
 正式版本构建（Android APK / AAB）
 
@@ -19,24 +19,23 @@
 - 图片上传、预览、保存和多图浏览。
 - WebDAV 备份和恢复，可选择是否备份图片附件。
 - Flomo、微信读书等数据导入。
-- Android 和 iOS 系统分享入口。
+- Android 系统分享入口。
 - 快速记录和随机回顾桌面小组件。
 - AI 辅助写作和自定义提示词。
 - 中文和英文界面。
-- Android、iOS、macOS、Windows 和 Linux 构建。
+- 仅维护 Android 单平台，发布 APK 与 AAB。
 
 ## 下载
 
 发布包在 [Gitee 发行版](https://gitee.com/liudengxing233/ink-paper/releases)（国内推荐）与 [GitHub Releases](https://github.com/liudengxing/InkPaper/releases) 同步提供，两边内容一致。
 
-国内网络直连 GitHub 较慢，代码与安装包会由 CI 自动同步到 Gitee 镜像仓；应用内「检查更新」也优先读 Gitee，失败再回落 GitHub。想在本地 clone 也用镜像的话：
+国内网络直连 GitHub 较慢，代码与安装包会由 CI 自动同步到 Gitee 镜像仓；应用内「检查更新」只读 Gitee。想在本地 clone 也用镜像的话：
 
 ```bash
 git clone https://gitee.com/liudengxing233/ink-paper.git
 ```
 
-GitHub Releases 的 Android APK 用于手动安装和测试分发；Google Play 上架使用发布流程生成的签名 AAB。
-发布流水线目前只构建 Android；iOS、macOS、Windows、Linux 需要按下方命令在本机构建。
+GitHub Releases 的 Android APK 用于手动安装和测试分发；Google Play 上架使用发布流程生成的签名 AAB。仓库只保留 Android 平台，没有其他平台的构建目标。
 
 ## 开发
 
@@ -55,13 +54,10 @@ dart tool/inkpaper.dart analyze
 dart tool/inkpaper.dart test
 dart tool/inkpaper.dart store-check
 dart tool/inkpaper.dart build android-debug
-dart tool/inkpaper.dart build ios-sim
-dart tool/inkpaper.dart build macos-debug
-dart tool/inkpaper.dart build windows-debug
-dart tool/inkpaper.dart build linux-debug
+dart tool/inkpaper.dart build android-release
 ```
 
-不同桌面或移动平台需要对应系统环境。例如 iOS 和 macOS 需要 macOS 与 Xcode，Windows 需要 Windows 与 Visual Studio C++ 桌面组件，Linux 需要 GTK、CMake 和 Ninja。Android 构建需要 Android SDK（见下方"Android 环境"）。
+构建需要 Android SDK（见下方"Android 环境"）与 JDK 17。
 
 ### Android 环境
 
@@ -80,7 +76,7 @@ sdkmanager --licenses
 版本号统一维护在 `pubspec.yaml`，`x.y.z` 是语义版本，`+N` 是构建号：
 
 ```yaml
-version: 1.1.79+10175
+version: 1.1.80+10176
 ```
 
 每次改动都要把 `x.y.z` 的 patch 与 `+N` 同时加 1，并同步本文件顶部「当前版本」的那个 `x.y.z`——`dart tool/inkpaper.dart store-check` 会断言两处一致，对不上直接失败。
@@ -88,7 +84,7 @@ version: 1.1.79+10175
 发布入口：
 
 ```bash
-dart tool/inkpaper.dart release v1.1.79
+dart tool/inkpaper.dart release v1.1.80
 ```
 
 这个命令先校验 tag 与 `pubspec.yaml` 一致，然后创建并推送 tag。GitHub Actions 收到 tag 后执行检查、构建并发布 Android APK/AAB。

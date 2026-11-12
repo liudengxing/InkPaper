@@ -182,8 +182,8 @@ class _FlomoImportScreenState extends State<FlomoImportScreen> {
               Text(
                 '${AppLocalizationsSimple.of(context)?.flomoImportStep1 ?? '1. 在 Flomo 应用中，进入"设置 > 账号详情 > 导出所有数据"'}\n'
                 '${AppLocalizationsSimple.of(context)?.flomoImportStep2 ?? '2. 导出后会得到一个包含 HTML 文件和 file 目录的文件夹'}\n'
-                '${Platform.isIOS ? '3. 📁 解压导出的ZIP文件到"文件"App中（必须包含完整的file目录）' : (AppLocalizationsSimple.of(context)?.flomoImportStep3 ?? '3. 📁 将整个导出文件夹保存到"文件"App中（iCloud Drive或本地）')}\n'
-                '${Platform.isIOS ? '4. 点击下方按钮，选择解压后的HTML文件（图片会自动从同目录的file文件夹读取）' : (AppLocalizationsSimple.of(context)?.flomoImportStep4 ?? '4. 点击下方"选择Flomo导出文件夹"按钮')}\n'
+                '${AppLocalizationsSimple.of(context)?.flomoImportStep3 ?? '3. 📁 将整个导出文件夹保存到手机存储中'}\n'
+                '${AppLocalizationsSimple.of(context)?.flomoImportStep4 ?? '4. 点击下方"选择Flomo导出文件夹"按钮'}\n'
                 '${AppLocalizationsSimple.of(context)?.flomoImportStep5 ?? '5. 标签会自动识别（以 # 开头的文本）'}',
                 style: TextStyle(
                   fontSize: 14,
@@ -192,63 +192,6 @@ class _FlomoImportScreenState extends State<FlomoImportScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              // iOS 特别提示
-              if (Platform.isIOS) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            color: Colors.red.shade700,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '📱 iOS重要提示',
-                            style: TextStyle(
-                              color: Colors.red.shade900,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '⚠️ iOS图片导入限制说明：\n\n'
-                        '🔒 iOS沙盒限制（系统安全机制）：\n'
-                        '当您选择HTML文件时，系统只授权访问该文件，\n'
-                        '无法访问同级的file文件夹（即使它们在同一目录）\n\n'
-                        '✅ 推荐方案：关闭"导入图片"开关\n'
-                        '• 笔记文本、标签、时间全部保留\n'
-                        '• 导入速度快、不会出错\n'
-                        '• 大厂App（印象笔记等）也是优先导入文本\n\n'
-                        '💡 如需图片：\n'
-                        '1. 在Flomo中重新导出（选择"包含图片URL"）\n'
-                        '2. 或导入后手动添加重要图片\n\n'
-                        '📱 技术原因：\n'
-                        'iOS的UIDocumentPicker只能访问用户明确选择的文件，\n'
-                        '这是苹果的安全设计，所有第三方App都有此限制',
-                        style: TextStyle(
-                          color: Colors.red.shade900,
-                          fontSize: 10.5,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -313,19 +256,11 @@ class _FlomoImportScreenState extends State<FlomoImportScreen> {
                 Center(
                   child: ElevatedButton.icon(
                     onPressed: _selectFolder,
-                    icon: Icon(
-                      Platform.isIOS
-                          ? Icons.insert_drive_file
-                          : Icons.folder_open,
-                    ),
+                    icon: const Icon(Icons.folder_open),
                     label: Text(
-                      Platform.isIOS
-                          ? (AppLocalizationsSimple.of(context)
-                                  ?.selectFlomoHtmlFile ??
-                              '选择 Flomo HTML 文件')
-                          : (AppLocalizationsSimple.of(context)
-                                  ?.selectFlomoExportFolder ??
-                              '选择 Flomo 导出文件夹'),
+                      AppLocalizationsSimple.of(context)
+                              ?.selectFlomoExportFolder ??
+                          '选择 Flomo 导出文件夹',
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: iconColor,
@@ -883,17 +818,6 @@ class _FlomoImportScreenState extends State<FlomoImportScreen> {
   Future<void> _selectFolder() async {
     try {
       debugPrint('📂 [FlomoImport] 开始选择文件夹');
-      debugPrint(
-        '📂 [FlomoImport] 平台: ${Platform.isIOS ? "iOS" : Platform.isAndroid ? "Android" : "其他"}',
-      );
-
-      // 🔥 iOS 不支持文件夹选择，使用文件选择
-      if (Platform.isIOS) {
-        debugPrint('📂 [FlomoImport] iOS平台，使用文件选择');
-        await _selectFile();
-        return;
-      }
-
       // Android/Desktop: 使用目录选择器
       debugPrint('📂 [FlomoImport] 调用文件夹选择器');
       final directoryPath = await FilePicker.platform.getDirectoryPath();
@@ -1129,14 +1053,8 @@ class _FlomoImportScreenState extends State<FlomoImportScreen> {
       var totalImages = 0;
       var existingImages = 0;
 
-      // 🚨 iOS临时目录检测
-      final isTempDir = Platform.isIOS && baseDir.contains('/tmp');
-
       if (kDebugMode) {
         debugPrint('📁 图片验证基础目录: $baseDir');
-        if (isTempDir) {
-          debugPrint('⚠️ 检测到iOS临时目录！图片可能无法访问');
-        }
       }
 
       for (final noteData in notes) {
@@ -1168,20 +1086,6 @@ class _FlomoImportScreenState extends State<FlomoImportScreen> {
 
       if (kDebugMode) {
         debugPrint('📊 图片验证结果: 总计 $totalImages 张，找到 $existingImages 张');
-      }
-
-      // 🚨 iOS临时目录警告
-      if (Platform.isIOS &&
-          isTempDir &&
-          totalImages > 0 &&
-          existingImages == 0 &&
-          mounted) {
-        SnackBarUtils.showError(
-          context,
-          '⚠️ 文件在临时目录，无法访问图片！\n'
-          '请先将整个Flomo导出文件夹移动到"文件"App中，\n'
-          '然后重新选择HTML文件',
-        );
       }
     } on Object catch (e) {
       if (kDebugMode) {

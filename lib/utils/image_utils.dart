@@ -2,8 +2,6 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart' as fcm;
@@ -88,9 +86,6 @@ class ImageUtils {
     await _cacheManager.downloadFile(url);
   }
 
-  static bool get _isDesktop =>
-      !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
-
   static String _defaultImageFileName([String? source]) {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final extension = _imageExtensionFromSource(source);
@@ -162,7 +157,6 @@ class ImageUtils {
         l10n?.storagePermissionRequiredForImage ?? '需要存储权限才能保存图片';
     final imageDataEmpty = l10n?.imageDataEmpty ?? '图片数据为空';
     final imageSavedToGallery = l10n?.imageSavedToGallery ?? '图片已保存到相册';
-    final imageSavedToDevice = l10n?.imageSavedToDevice ?? '图片已保存到设备';
     final savingFailed = l10n?.savingFailed ?? '保存失败';
     final saveImageFailed = l10n?.saveImageFailed ?? '保存图片失败';
 
@@ -171,47 +165,16 @@ class ImageUtils {
         throw Exception(imageDataEmpty);
       }
 
-      if (_isDesktop) {
-        final path = await FilePicker.platform.saveFile(
-          dialogTitle: l10n?.chooseSaveLocation ?? '选择保存位置',
-          fileName: fileName ?? _defaultImageFileName(),
-        );
-
-        if (path == null) {
-          return false;
-        }
-
-        final savedFile = File(path);
-        await savedFile.writeAsBytes(imageBytes, flush: true);
-        if (!await savedFile.exists() || await savedFile.length() == 0) {
-          throw Exception(saveImageFailed);
-        }
-
-        if (context.mounted) {
-          SnackBarUtils.showSuccess(context, imageSavedToDevice);
-        }
-        return true;
-      }
-
-      if (Platform.isAndroid) {
-        final androidInfo = await DeviceInfoPlugin().androidInfo;
-        if (androidInfo.version.sdkInt <= 28) {
-          final status = await Permission.storage.request();
-          if (!status.isGranted) {
-            if (context.mounted) {
-              SnackBarUtils.showError(
-                context,
-                storagePermissionRequiredForImage,
-              );
-            }
-            return false;
-          }
-        }
-      } else {
-        final status = await Permission.photosAddOnly.request();
-        if (!status.isGranted && !status.isLimited) {
+      // Android 10 以下需要申请存储权限；10 及以上走 MediaStore 无需额外授权。
+      final androidInfo = await DeviceInfoPlugin().androidInfo;
+      if (androidInfo.version.sdkInt <= 28) {
+        final status = await Permission.storage.request();
+        if (!status.isGranted) {
           if (context.mounted) {
-            SnackBarUtils.showError(context, storagePermissionRequiredForImage);
+            SnackBarUtils.showError(
+              context,
+              storagePermissionRequiredForImage,
+            );
           }
           return false;
         }
@@ -305,186 +268,129 @@ class ImageUtils {
     Map<String, String>? headers,
   }) {
     final l10n = AppLocalizationsSimple.of(context);
-    if (Platform.isIOS) {
-      // iOS 风格 - 使用 CupertinoActionSheet
-      showCupertinoModalPopup<void>(
-        context: context,
-        builder: (BuildContext context) => CupertinoActionSheet(
-          title: Text(
-            l10n?.imageActionsTitle ?? '图片操作',
-            style: const TextStyle(
-              fontSize: 13,
-              color: CupertinoColors.secondaryLabel,
-            ),
-          ),
-          actions: <CupertinoActionSheetAction>[
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.pop(context);
-                await saveImageToGallery(context, imageUrl, headers: headers);
-              },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(CupertinoIcons.arrow_down_circle, size: 22),
-                  const SizedBox(width: 8),
-                  Text(l10n?.saveImage ?? '保存图片'),
-                ],
-              ),
-            ),
-            CupertinoActionSheetAction(
-              onPressed: () async {
-                Navigator.pop(context);
-                await _shareImage(context, imageUrl, headers: headers);
-              },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(CupertinoIcons.share, size: 22),
-                  const SizedBox(width: 8),
-                  Text(
-                    l10n?.shareImage ?? '分享图片',
-                    style: const TextStyle(fontSize: 17),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          cancelButton: CupertinoActionSheetAction(
-            isDefaultAction: true,
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              l10n?.cancel ?? '取消',
-              style: const TextStyle(fontSize: 17),
-            ),
-          ),
-        ),
-      );
-    } else {
-      // Android 风格 - 现代化设计
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        builder: (BuildContext context) {
-          final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-          final cardColor = isDarkMode ? const Color(0xFF2C2C2E) : Colors.white;
-          final textColor = isDarkMode ? Colors.white : Colors.black87;
-          final iconColor = Theme.of(context).primaryColor;
+    // Android 风格 - 现代化设计
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+        final cardColor = isDarkMode ? const Color(0xFF2C2C2E) : Colors.white;
+        final textColor = isDarkMode ? Colors.white : Colors.black87;
+        final iconColor = Theme.of(context).primaryColor;
 
-          return DecoratedBox(
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
+            ],
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 拖动条
+                Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 4),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
+                // 标题
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    l10n?.imageActionsTitle ?? '图片操作',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: textColor.withValues(alpha: 0.6),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                // 操作按钮网格
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // 保存按钮
+                      _buildActionButton(
+                        icon: Icons.download_rounded,
+                        label: l10n?.saveAction ?? '保存',
+                        color: iconColor,
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await saveImageToGallery(
+                            context,
+                            imageUrl,
+                            headers: headers,
+                          );
+                        },
+                      ),
+                      // 分享按钮
+                      _buildActionButton(
+                        icon: Icons.share_rounded,
+                        label: l10n?.share ?? '分享',
+                        color: iconColor,
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await _shareImage(
+                            context,
+                            imageUrl,
+                            headers: headers,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // 取消按钮
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        l10n?.cancel ?? '取消',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: textColor.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
               ],
             ),
-            child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 拖动条
-                  Container(
-                    margin: const EdgeInsets.only(top: 12, bottom: 4),
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  // 标题
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      l10n?.imageActionsTitle ?? '图片操作',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: textColor.withValues(alpha: 0.6),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  // 操作按钮网格
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 16,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        // 保存按钮
-                        _buildActionButton(
-                          icon: Icons.download_rounded,
-                          label: l10n?.saveAction ?? '保存',
-                          color: iconColor,
-                          onTap: () async {
-                            Navigator.pop(context);
-                            await saveImageToGallery(
-                              context,
-                              imageUrl,
-                              headers: headers,
-                            );
-                          },
-                        ),
-                        // 分享按钮
-                        _buildActionButton(
-                          icon: Icons.share_rounded,
-                          label: l10n?.share ?? '分享',
-                          color: iconColor,
-                          onTap: () async {
-                            Navigator.pop(context);
-                            await _shareImage(
-                              context,
-                              imageUrl,
-                              headers: headers,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // 取消按钮
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          l10n?.cancel ?? '取消',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: textColor.withValues(alpha: 0.7),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    }
+          ),
+        );
+      },
+    );
   }
 
   /// 构建操作按钮（用于Android风格）

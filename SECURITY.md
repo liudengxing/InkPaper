@@ -50,7 +50,7 @@ We release security updates for the following versions:
 - All data is stored locally on your device
 - No data is sent to any server
 - Data is stored in SQLite database
-- Sensitive tokens are stored in secure storage (iOS Keychain / Android Keystore)
+- Sensitive tokens are stored in secure storage (Android Keystore)
 
 #### Server Sync Mode
 - Data is synced to the official server or the Memos server you configure
@@ -90,12 +90,6 @@ InkPaper uses the following third-party services:
    - Privacy Policy: [https://www.deepseek.com/privacy](https://www.deepseek.com/privacy)
 
 ### Permissions
-
-#### iOS Permissions
-- **Microphone** (`NSMicrophoneUsageDescription`) - For voice-to-text feature
-- **Photos** (`NSPhotoLibraryUsageDescription`) - For image uploads and saving
-- **Camera** (`NSCameraUsageDescription`) - For taking photos to attach to notes
-- **Notifications** - For reminder notifications
 
 #### Android Permissions
 - **INTERNET** - For server sync (only used in sync mode)
@@ -184,7 +178,6 @@ CI release signing uses GitHub Secrets as documented in
 - [Security Best Practices for Flutter Apps](https://flutter.dev/docs/deployment/security)
 - [OWASP Mobile Security Project](https://owasp.org/www-project-mobile-security/)
 - [Android Security Best Practices](https://developer.android.com/topic/security/best-practices)
-- [iOS Security Guide](https://support.apple.com/guide/security/welcome/web)
 
 ---
 

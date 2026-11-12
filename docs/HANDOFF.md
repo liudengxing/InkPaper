@@ -16,7 +16,7 @@
 Android 单端优先的笔记应用（Flutter），本地 SQLite + Memos 服务器同步，AI 侧有「问笔记」聊天、周/月回顾两套能力；最近一轮主要在收**图标视觉、首页滚动掉帧、卡片时间口径、语音识别卡死**四件事。
 
 - 包名：`com.didichou.inkpaper`，深链 `inkpaper://`
-- 支持的构建目标：Android（主力）/ iOS / macOS / Windows / Linux（桌面端未长期验证）
+- 支持的构建目标：只有 Android（APK / AAB）；iOS、macOS、Windows、Linux、Web 工程已于 2026-11-12 删除
 
 ---
 

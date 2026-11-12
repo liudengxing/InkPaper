@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:inkpaper/config/app_identity.dart';
 import 'package:inkpaper/services/app_info_service.dart';
@@ -448,10 +446,6 @@ class AppConfig {
   /// iOS 仍不使用自有更新检查，但可以读取后端公告。
   static bool get enableCloudVerification =>
       appId.isNotEmpty && appKey.isNotEmpty;
-
-  /// 是否启用崩溃报告（Sentry）
-  /// ⚠️ iOS平台禁用，Android平台可用
-  static bool get enableCrashReporting => Platform.isAndroid;
 
   /// 是否启用用户行为分析
   static const bool enableAnalytics = false;

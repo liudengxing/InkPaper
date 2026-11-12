@@ -10,7 +10,7 @@
 
 ## 仓库总览
 
-InkPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台外壳在 `android/`、`ios/`、`macos/`、`windows/`、`linux/`、`web/`，自动化入口集中在 `tool/inkpaper.dart` 和 `.github/workflows/`。
+InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`，原生外壳只有 `android/`，自动化入口集中在 `tool/inkpaper.dart` 和 `.github/workflows/`。
 
 常用维护入口：
 
@@ -47,15 +47,10 @@ InkPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台�
 
 - `.github/`：GitHub 相关配置，包括 Issue 模板、PR 模板、Dependabot 和 Actions。
 - `android/`：Android 原生工程，包含 Gradle 配置、包名、权限、图标、启动页、通知图标、Kotlin 原生代码和签名读取逻辑。
-- `ios/`：iOS 原生工程，包含 Xcode 工程、Info.plist、权限说明、隐私清单、启动页、图标、CocoaPods 配置和本地 Pod。
-- `macos/`：macOS 原生工程，包含 Xcode 工程、菜单、图标、权限和窗口入口。
-- `windows/`：Windows 原生工程，包含 CMake、Win32 Runner、资源文件和应用图标。
-- `linux/`：Linux 原生工程，包含 CMake、GTK Runner 和 Flutter 插件注册。
-- `web/`：Flutter Web 外壳文件。当前 App 发布流程不构建 Web。
 - `assets/`：应用资源，当前主要放图片和字体文件。
 - `docs/`：项目文档、维护说明、商店合规说明、用户指南、API 说明和官网静态协议页。
 - `lib/`：Flutter/Dart 业务代码。
-- `scripts/`：辅助脚本，例如 iOS unsigned IPA、DMG、Windows 包和 release notes。
+- `scripts/`：辅助脚本，例如 CI 入口、CI 日志注解、Gitee 镜像发布和 release notes。
 - `test/`：单元测试和 widget 测试。
 - `tool/`：项目级 Dart CLI。
 - `release/`：历史发布产物目录。正式新版本以 GitHub Releases 为准。
@@ -256,8 +251,6 @@ InkPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台�
 - `graph_isolate_service.dart`：知识图谱或重计算任务的 isolate 处理。
 - `incremental_sync_service.dart`：增量同步流程。
 - `intelligent_related_notes_service.dart`：本地相关笔记算法。
-- `ios_permission_service.dart`：iOS 权限处理。
-- `ios_update_service.dart`：iOS 更新策略，避免 iOS 使用应用内下载安装包更新。
 - `local_note_analysis_service.dart`：本地笔记内容分析。
 - `local_reference_service.dart`：本地引用关系处理。
 - `logger_service.dart`：结构化日志服务。
@@ -272,7 +265,6 @@ InkPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台�
 - `notion_sync_service.dart`：Notion 同步流程。
 - `observability_service.dart`：日志、追踪和可观测性能力。
 - `performance_monitor_service.dart`：性能计时、指标采集和报告。
-- `permission_manager.dart`：跨平台权限管理。
 - `preferences_service.dart`：SharedPreferences 配置读写。
 - `reminder_notification_service.dart`：提醒通知调度。
 - `sentry_monitoring_service.dart`：Sentry 错误上报。
@@ -320,12 +312,11 @@ InkPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台�
 - `animated_checkbox.dart`：自定义动画复选框。
 - `annotations_sidebar.dart`：批注侧边栏。
 - `cached_avatar.dart`：头像缓存显示组件。
-- `desktop_layout.dart`：桌面端布局容器。
 - `heatmap.dart`：笔记热力图。
 - `image_viewer_screen.dart`：图片预览和多图浏览。
 - `intelligent_related_notes_sheet.dart`：智能相关笔记面板。
 - `interactive_markdown.dart`：可交互 Markdown，支持待办点击。
-- `ios_datetime_picker.dart`：iOS 风格日期时间选择器。
+- `ios_datetime_picker.dart`：Cupertino 风格日期时间选择器，用于提醒时间设置。
 - `memo_editing_controller.dart`：编辑器控制器。
 - `memos_markdown_renderer.dart`：Memos Markdown 渲染器。
 - `note_card.dart`：首页笔记卡片。
@@ -349,7 +340,7 @@ InkPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台�
 
 - `docs/README.md`：文档索引。
 - `docs/MAINTENANCE.md`：版本、检查、构建和发布维护流程。
-- `docs/STORE_COMPLIANCE.md`：App Store 和 Google Play 提交前检查。
+- `docs/STORE_COMPLIANCE.md`：Google Play 提交前检查。
 - `docs/PROJECT_STRUCTURE_AND_BUILD.md`：当前这份结构和构建指南。
 - `docs/api/README.md`：API 说明英文入口。
 - `docs/api/README.zh.md`：API 说明中文入口。
@@ -364,7 +355,7 @@ InkPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台�
 
 官网协议页更新后，需要同步部署到 `inkpaper.cn`，同时确认应用内法律文档和公开网页内容一致。
 
-## 平台目录
+## 平台目录（只有 Android）
 
 ### Android
 
@@ -386,70 +377,6 @@ InkPaper 是 Flutter 跨平台应用。核心业务代码在 `lib/`，各平台�
 - `android/key.properties`
 - `android/inkpaper-new-release.keystore`
 - 任何 `.keystore`、`.jks`、`.p12`、`.pem` 私密文件
-
-### iOS
-
-主要文件：
-
-- `ios/Podfile`：CocoaPods 配置。iOS 最低版本为 13.0，使用官方 CocoaPods 源，并保留本地 `SDWebImageWebPCoder`。
-- `ios/Podfile.lock`：Pod 版本锁定。
-- `ios/ExportOptions.plist`：导出 IPA 的配置。
-- `ios/Runner/Info.plist`：Bundle、权限文案、版本元数据等。
-- `ios/Runner/PrivacyInfo.xcprivacy`：Apple 隐私清单。
-- `ios/Runner/Runner.entitlements`：iOS 权限能力。
-- `ios/Runner/AppDelegate.swift`：iOS 应用启动入口。
-- `ios/Runner/SceneDelegate.swift`：iOS Scene 生命周期入口。
-- `ios/Runner/Assets.xcassets/`：App 图标、启动图和背景。
-- `ios/Runner/Base.lproj/LaunchScreen.storyboard`：启动屏。
-- `ios/local_pods/SDWebImageWebPCoder-0.15.0/`：本地 Pod，用于稳定构建 WebP 图片支持。
-
-当前 GitHub Release 构建的是 unsigned IPA，用于测试分发和构建验证。App Store 上架仍需要在 Apple Developer 账号下用正式证书、Bundle ID、Provisioning Profile 归档上传。
-
-### macOS
-
-主要文件：
-
-- `macos/Podfile`、`macos/Podfile.lock`：macOS CocoaPods 配置和锁定。
-- `macos/Runner/Info.plist`：macOS 应用元数据。
-- `macos/Runner/MainFlutterWindow.swift`：macOS Flutter 窗口入口。
-- `macos/Runner/AppDelegate.swift`：macOS 应用生命周期。
-- `macos/Runner/Release.entitlements`、`macos/Runner/DebugProfile.entitlements`：macOS 权限能力。
-- `macos/Runner/Assets.xcassets/`：macOS 图标。
-- `macos/Runner/Base.lproj/MainMenu.xib`：macOS 菜单和主窗口资源。
-
-GitHub Release 当前产出 macOS zip 包。若要面向公网分发安装包，后续还需要 Apple Developer ID 签名和 notarization。
-
-### Windows
-
-主要文件：
-
-- `windows/CMakeLists.txt`：Windows 顶层 CMake 配置。
-- `windows/runner/`：Win32 Runner 源码。
-- `windows/runner/Runner.rc`：Windows 资源配置，包含图标和版本资源。
-- `windows/runner/resources/app_icon.ico`：Windows 应用图标。
-- `windows/flutter/`：Flutter 生成的插件注册和构建桥接文件。
-
-Windows 构建必须在 Windows 环境，并安装 Visual Studio C++ 桌面组件。
-
-### Linux
-
-主要文件：
-
-- `linux/CMakeLists.txt`：Linux 顶层 CMake 配置。
-- `linux/runner/`：GTK Runner 源码。
-- `linux/flutter/`：Flutter 插件注册和构建桥接文件。
-
-Linux 构建需要 GTK、CMake、Ninja、pkg-config、libsecret、curl、c-ares 等系统依赖。
-
-### Web
-
-主要文件：
-
-- `web/index.html`：Flutter Web HTML 外壳。
-- `web/manifest.json`：Web App manifest。
-- `web/icons/`、`web/favicon.png`：Web 图标。
-
-当前 App 发布流程明确不构建 Web。如果以后要恢复 Web，需要单独评估存储、权限、文件、图片和同步能力在浏览器里的限制。
 
 ## assets 目录
 
@@ -480,27 +407,18 @@ Linux 构建需要 GTK、CMake、Ninja、pkg-config、libsecret、curl、c-ares 
 - `build android-debug`：构建 Android Debug APK。
 - `build android-release`：构建 Android Release APK，需要本地签名文件。
 - `build android-aab`：构建 Android Release AAB，需要本地签名文件。
-- `build ios-sim`：构建 iOS 模拟器包，需要 macOS、Xcode、CocoaPods。
-- `build ios-unsigned-ipa`：构建 iOS unsigned IPA，需要 macOS、Xcode、CocoaPods。
-- `build macos-debug`、`build macos-release`：构建 macOS 应用。
-- `build windows-debug`、`build windows-release`：构建 Windows 应用。
-- `build linux-debug`、`build linux-release`：构建 Linux 应用。
-- `run ios-sim`：运行 iOS 模拟器。
-- `run macos`：运行 macOS。
+- `all`：等价于 `build android-release`。
+- `run`：运行到当前连接的 Android 设备。
 - `run <deviceId>`：运行到指定 Flutter 设备。
 - `release vX.Y.Z`：校验版本和工作区干净后创建并推送 tag，触发云端 Release。
 - `clean`：运行 `flutter clean`。
 
 辅助脚本：
 
-- `scripts/ci.sh`：旧 CI 入口，保留兼容。
-- `scripts/build_unsigned_ipa.sh`：构建 iOS unsigned IPA，并处理 CocoaPods 安装重试。
-- `scripts/clean_apple_xattrs.sh`：清理 Apple 扩展属性，减少签名和构建异常。
+- `scripts/ci.sh`：旧 CI 入口，保留兼容，只接受 Android 目标。
+- `scripts/ci_annotate.sh`：把失败 job 的日志转成 GitHub Checks 注解。
+- `scripts/publish_gitee.sh`：把 main 分支与 tag 同步到 Gitee 镜像仓。
 - `scripts/release_notes.py`：从更新日志提取指定版本 Release Notes。
-- `scripts/create_dmg.sh`、`scripts/create_release_dmg.sh`、`scripts/dmg/`：macOS DMG 打包辅助。
-- `scripts/generate_desktop_icons.py`、`scripts/generate_icns.sh`：桌面图标生成辅助。
-- `scripts/windows/build_windows.bat`：Windows 构建辅助。
-- `scripts/IOS_UNSIGNED_BUILD.md`、`scripts/windows/README.md`、`scripts/dmg/README.md`：脚本文档。
 
 ## test 目录
 
@@ -525,10 +443,8 @@ dart tool/inkpaper.dart verify --coverage
 - Flutter stable。
 - Dart SDK 随 Flutter 安装。
 - Git。
-- Android Studio 或 Android SDK，用于 Android。
-- macOS + Xcode + CocoaPods，用于 iOS 和 macOS。
-- Windows + Visual Studio C++ 桌面组件，用于 Windows。
-- Linux GTK/CMake/Ninja 依赖，用于 Linux。
+- Android Studio 或 Android SDK（compileSdk 34 / build-tools 34.0.0）+ JDK 17。
+- Android 真机或模拟器（`adb devices` 能看到设备）。
 
 首次拉取后：
 
@@ -544,18 +460,6 @@ dart tool/inkpaper.dart verify
 
 ```bash
 dart tool/inkpaper.dart run
-```
-
-如果要运行 iOS 模拟器：
-
-```bash
-dart tool/inkpaper.dart run ios-sim
-```
-
-如果要运行 macOS：
-
-```bash
-dart tool/inkpaper.dart run macos
 ```
 
 ## 本地构建
@@ -578,37 +482,13 @@ Android Release AAB：
 dart tool/inkpaper.dart build android-aab
 ```
 
-iOS 模拟器：
+Android 按 ABI 拆包（测包体和分渠道安装用）：
 
 ```bash
-dart tool/inkpaper.dart build ios-sim
+dart tool/inkpaper.dart build android-release-split
 ```
 
-iOS unsigned IPA：
-
-```bash
-dart tool/inkpaper.dart build ios-unsigned-ipa
-```
-
-macOS：
-
-```bash
-dart tool/inkpaper.dart build macos-release
-```
-
-Windows：
-
-```bash
-dart tool/inkpaper.dart build windows-release
-```
-
-Linux：
-
-```bash
-dart tool/inkpaper.dart build linux-release
-```
-
-当前机器无法构建所有平台。iOS 和 macOS 只能在 macOS 构建，Windows 只能在 Windows 构建，Linux 只能在 Linux 构建。云端构建通过不同 GitHub Runner 分别完成。
+构建只需要 JDK 17 + Android SDK，云端构建在 `ubuntu-latest` runner 上完成，本地与 CI 走同一条命令。
 
 ## Android 本地签名
 
@@ -636,25 +516,6 @@ dart tool/inkpaper.dart build android-release
 dart tool/inkpaper.dart build android-aab
 ```
 
-## iOS 和 macOS 签名
-
-当前 CLI 和 GitHub Release 流程：
-
-- iOS 云端产出 unsigned IPA，用于构建验证和测试分发，不等同于 App Store 可直接上架包。
-- macOS 云端产出 zip 包，不包含 Developer ID 公证流程。
-
-App Store 正式上架仍需要：
-
-- Apple Developer Program 账号。
-- Bundle ID：`com.didichou.inkpaper`。
-- App Store Connect 应用记录。
-- Distribution Certificate。
-- App Store Provisioning Profile。
-- Xcode Archive。
-- App Store Connect 上传和审核信息。
-
-后续如需完全自动化 iOS/macOS 签名发布，可以在 GitHub Actions 增加 Apple 证书、Provisioning Profile、App Store Connect API Key 和 notarization 流程。不要把 Apple 私钥或证书明文放入仓库。
-
 ## 版本号规则
 
 版本号统一在 `pubspec.yaml`：
@@ -666,7 +527,7 @@ version: 1.1.13+10113
 含义：
 
 - `1.1.13`：用户看到的版本名。
-- `10113`：构建号，Android versionCode、iOS/macOS build number 等会从这里派生。
+- `10113`：构建号，Android versionCode 会从这里派生。
 
 发布 tag 必须匹配版本名。比如：
 
@@ -680,7 +541,7 @@ version: 1.1.13+10113
 v1.1.13
 ```
 
-不要在 Android、iOS、macOS、Windows、Linux 平台文件里手动重复改版本号，除非明确知道该平台文件不是 Flutter 版本链路的一部分。
+不要在 `android/` 里的平台文件手动重复改版本号，版本统一由 `pubspec.yaml` 下发。
 
 ## 云端 CI
 
@@ -692,14 +553,8 @@ v1.1.13
 - `dart tool/inkpaper.dart verify --coverage`
 - gitleaks 密钥扫描
 - Android Debug APK
-- iOS Simulator App
-- macOS Debug App
-- Windows Debug App
-- Linux Debug App
 
 手动触发 CI 时如果启用 `release_build`，Android 会恢复签名 secrets 并构建 Release APK/AAB。
-
-当前 CI 不构建 Web。
 
 ## 云端正式发布
 
@@ -733,22 +588,13 @@ tag 推送后，GitHub Actions 会执行：
 - Android 签名 secrets 检查。
 - Android Release APK 和 AAB 构建。
 - Android 签名证书指纹校验。
-- iOS unsigned IPA 构建。
-- macOS Release App 打包。
-- Windows Release App 打包。
-- Linux Release App 打包。
-- 创建 GitHub Release 并上传产物。
+- 同步代码与 tag 到 Gitee 镜像仓。
+- 创建 GitHub Release 并上传产物，再补传到 Gitee Release。
 
-当前 Release 产物包括：
+当前 Release 产物只有两个：
 
 - `InkPaper-vX.Y.Z-android.apk`
 - `InkPaper-vX.Y.Z-android.aab`
-- iOS unsigned `.ipa`
-- macOS `.zip`
-- Windows `.zip`
-- Linux `.tar.gz`
-
-当前 Release 不构建 Web。
 
 ## GitHub Actions Secrets
 
@@ -779,7 +625,7 @@ SENTRY_DSN=xxx dart tool/inkpaper.dart build android-release
 - `android/key.properties`。
 - `.env`、服务器密码、GitHub Token、云服务 Token。
 - 用户导出的笔记、数据库、备份包、WebDAV 备份。
-- `build/`、`.dart_tool/`、Pod 生成目录、Gradle 缓存、Xcode DerivedData。
+- `build/`、`.dart_tool/`、Gradle 缓存。
 - 手动下载的临时压缩包和安装包。
 
 提交前建议执行：
@@ -816,9 +662,9 @@ dart tool/inkpaper.dart verify
 
 新增图片或图标：
 
-- 放入 `assets/images/` 或对应平台资源目录。
-- 更新 `pubspec.yaml` 或平台资源配置。
-- 检查浅色、深色、桌面、移动端显示效果。
+- 放入 `assets/images/` 或 `android/app/src/main/res/`。
+- 更新 `pubspec.yaml` 或 Android 资源配置。
+- 检查浅色、深色、不同屏幕尺寸下的显示效果。
 
 修改版本并发布：
 
@@ -842,7 +688,7 @@ dart tool/inkpaper.dart verify
 
 - 运行 `dart tool/inkpaper.dart doctor`。
 - 运行 `flutter clean` 或 `dart tool/inkpaper.dart clean` 后重新 `deps`。
-- iOS/macOS 检查 Xcode、CocoaPods、Podfile 和网络访问。
+- 检查 `ANDROID_HOME`、JDK 版本（必须 17）与 Gradle 下载网络。
 
 Android Release 失败：
 
@@ -850,13 +696,6 @@ Android Release 失败：
 - 检查 keystore 路径是否正确。
 - 检查签名 alias 和密码是否匹配。
 - 检查 CI Secrets 是否完整。
-
-iOS 构建失败：
-
-- 先运行 `dart tool/inkpaper.dart deps`。
-- 检查 `pod install` 是否成功。
-- 检查 `ios/Podfile` 是否被误改。
-- 检查是否在 OneDrive、iCloud 等文件同步目录导致扩展属性问题，必要时运行 `scripts/clean_apple_xattrs.sh`。
 
 页面文案不对或没有国际化：
 
@@ -878,7 +717,7 @@ iOS 构建失败：
 git pull --rebase
 dart tool/inkpaper.dart deps
 dart tool/inkpaper.dart verify
-dart tool/inkpaper.dart run ios-sim
+dart tool/inkpaper.dart run
 ```
 
 提交前：
@@ -904,5 +743,4 @@ dart tool/inkpaper.dart release vX.Y.Z
 - 打开 GitHub Actions Release 工作流，确认所有 job 成功。
 - 打开 GitHub Releases，确认所有产物都已上传。
 - 下载 Android APK 做覆盖安装测试。
-- 下载桌面包做启动测试。
-- 如要上架商店，使用对应商店要求的正式签名和提交流程继续处理。
+- 如要上架 Google Play，用发布流程产出的签名 AAB 提交流程继续处理。

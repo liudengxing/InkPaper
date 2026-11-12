@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:inkpaper/models/app_config_model.dart' as models;
@@ -105,16 +103,11 @@ class AppTheme {
   // 8–15MB），也避免下载完成前正文先用 fallback 渲染造成的字体跳动。
   // 装饰字体（手写体、站酷体）系统没有等价物，仍走 google_fonts。
   static TextStyle? getFontStyle(String fontFamily) {
-    final useSystemCjkFonts = defaultTargetPlatform == TargetPlatform.android;
     switch (fontFamily) {
       case models.AppConfig.FONT_FAMILY_NOTO_SANS:
-        return useSystemCjkFonts
-            ? const TextStyle(fontFamily: 'sans-serif')
-            : GoogleFonts.notoSansSc();
+        return const TextStyle(fontFamily: 'sans-serif');
       case models.AppConfig.FONT_FAMILY_NOTO_SERIF:
-        return useSystemCjkFonts
-            ? const TextStyle(fontFamily: 'serif')
-            : GoogleFonts.notoSerifSc();
+        return const TextStyle(fontFamily: 'serif');
       case models.AppConfig.FONT_FAMILY_MA_SHAN_ZHENG:
         return GoogleFonts.maShanZheng();
       case models.AppConfig.FONT_FAMILY_ZCOOL_XIAOWEI:

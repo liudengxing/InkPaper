@@ -70,34 +70,6 @@ java -version
 # Should be JDK 11 or 21
 ```
 
-### Error: CocoaPods install failed (iOS)
-
-**Problem**:
-```
-Error installing CocoaPods. Please try running `pod install` manually.
-```
-
-**Solutions**:
-```bash
-# 1. Update CocoaPods
-sudo gem install cocoapods
-
-# 2. Update repo
-pod repo update
-
-# 3. Clean and reinstall
-cd ios
-rm -rf Pods Podfile.lock
-pod install --repo-update
-cd ..
-
-# 4. If still failing, try deintegrate
-cd ios
-pod deintegrate
-pod install
-cd ..
-```
-
 ### Error: Duplicate class found
 
 **Problem**:
@@ -136,16 +108,8 @@ flutter clean
 flutter pub get
 flutter run
 
-# 3. For iOS, rebuild pods
-cd ios
-rm -rf Pods Podfile.lock
-pod install
-cd ..
-flutter run
-
-# 4. Check plugin registration
-# For Android: android/app/src/main/AndroidManifest.xml
-# For iOS: ios/Runner/Info.plist
+# 3. Check plugin registration
+# android/app/src/main/AndroidManifest.xml
 ```
 
 ### Error: Null check operator used on null value
@@ -243,44 +207,6 @@ storage APIs instead of broad external-storage access. Do not add
 legacy external storage flags or broad Android 13+ photo/video permissions for
 store builds unless the feature is policy-eligible and has a clear user-facing
 need.
-
-### iOS: Code signing issues
-
-**Problem**:
-```
-Code signing error: No signing certificate found
-```
-
-**Solution**:
-1. Open `ios/Runner.xcworkspace` in Xcode
-2. Select Runner in project navigator
-3. Go to Signing & Capabilities
-4. Select your team
-5. Let Xcode manage signing automatically
-
-### iOS: App not appearing on device
-
-**Problem**: Build succeeds but app doesn't show
-
-**Solution**:
-```bash
-# Trust developer certificate
-# On device: Settings → General → Device Management → Trust
-
-# Clean build folder in Xcode
-# Product → Clean Build Folder (Shift+Cmd+K)
-
-# Delete derived data
-rm -rf ~/Library/Developer/Xcode/DerivedData
-
-# Reinstall
-flutter clean
-flutter pub get
-cd ios
-pod install
-cd ..
-flutter run
-```
 
 ---
 
@@ -651,7 +577,7 @@ If you can't find a solution here:
    - Flutter version (`flutter --version`)
    - Error message and stack trace
    - Steps to reproduce
-   - Platform (iOS/Android) and version
+   - Android version and device model
    - What you've tried
 
 ---

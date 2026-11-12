@@ -1,7 +1,4 @@
-import 'dart:io' show Platform;
-
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
@@ -44,7 +41,6 @@ import 'package:inkpaper/screens/user_preferences_screen.dart'; // 🧠 用户�
 import 'package:inkpaper/screens/webdav_settings_screen.dart';
 import 'package:inkpaper/screens/weread_import_screen.dart';
 import 'package:inkpaper/utils/tag_path_utils.dart';
-import 'package:inkpaper/widgets/desktop_layout.dart';
 
 const bool _screenshotMode = bool.fromEnvironment('INKPAPER_SCREENSHOT_MODE');
 const String _screenshotInitialLocation = String.fromEnvironment(
@@ -70,14 +66,6 @@ Page<void> buildDrawerTransition({
   required GoRouterState state,
   required Widget child,
 }) {
-  // 🔥 在iOS上使用CupertinoPage以支持侧滑返回手势（原生iOS体验）
-  if (Platform.isIOS) {
-    return CupertinoPage<void>(
-      key: state.pageKey,
-      child: child,
-    );
-  }
-
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
@@ -141,14 +129,6 @@ Page<void> buildSlideTransition({
   required Widget child,
   Offset? begin,
 }) {
-  // 🔥 在iOS上使用CupertinoPage以支持侧滑返回手势（原生iOS体验）
-  if (Platform.isIOS) {
-    return CupertinoPage<void>(
-      key: state.pageKey,
-      child: child,
-    );
-  }
-
   // 🎯 Android使用自定义丝滑动画（参考微信/QQ的实现）
   return CustomTransitionPage<void>(
     key: state.pageKey,
@@ -308,33 +288,15 @@ class AppRouter {
               state.uri.queryParameters['quickNoteAction'];
 
           // 桌面端使用NoTransitionPage，移动端使用动画
-          final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-
-          if (isDesktop) {
-            return NoTransitionPage<void>(
-              key: state.pageKey,
-              child: DesktopLayout(
-                child: HomeScreen(
-                  sharedContent: sharedContent,
-                  openQuickNote: shouldOpenQuickNote,
-                  quickNoteTag: quickNoteTag,
-                  quickNoteActionToken: quickNoteActionToken,
-                ),
-              ),
-            );
-          }
-
           return buildSlideTransition(
             context: context,
             state: state,
             begin: const Offset(-0.15, 0),
-            child: DesktopLayout(
-              child: HomeScreen(
-                sharedContent: sharedContent,
-                openQuickNote: shouldOpenQuickNote,
-                quickNoteTag: quickNoteTag,
-                quickNoteActionToken: quickNoteActionToken,
-              ),
+            child: HomeScreen(
+              sharedContent: sharedContent,
+              openQuickNote: shouldOpenQuickNote,
+              quickNoteTag: quickNoteTag,
+              quickNoteActionToken: quickNoteActionToken,
             ),
           );
         },
@@ -520,24 +482,11 @@ class AppRouter {
         path: '/random-review',
         name: 'randomReview',
         pageBuilder: (context, state) {
-          final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-
-          if (isDesktop) {
-            return NoTransitionPage<void>(
-              key: state.pageKey,
-              child: const DesktopLayout(
-                child: RandomReviewScreen(),
-              ),
-            );
-          }
-
           return buildSlideTransition(
             context: context,
             state: state,
             begin: const Offset(-0.15, 0),
-            child: const DesktopLayout(
-              child: RandomReviewScreen(),
-            ),
+            child: const RandomReviewScreen(),
           );
         },
       ),
@@ -547,24 +496,11 @@ class AppRouter {
         path: '/note-chat',
         name: 'noteChat',
         pageBuilder: (context, state) {
-          final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-
-          if (isDesktop) {
-            return NoTransitionPage<void>(
-              key: state.pageKey,
-              child: const DesktopLayout(
-                child: NoteChatScreen(),
-              ),
-            );
-          }
-
           return buildSlideTransition(
             context: context,
             state: state,
             begin: const Offset(0, 0.06),
-            child: const DesktopLayout(
-              child: NoteChatScreen(),
-            ),
+            child: const NoteChatScreen(),
           );
         },
       ),
@@ -575,24 +511,11 @@ class AppRouter {
         path: '/periodic-review',
         name: 'periodicReview',
         pageBuilder: (context, state) {
-          final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-
-          if (isDesktop) {
-            return NoTransitionPage<void>(
-              key: state.pageKey,
-              child: const DesktopLayout(
-                child: PeriodicReviewScreen(),
-              ),
-            );
-          }
-
           return buildSlideTransition(
             context: context,
             state: state,
             begin: const Offset(-0.15, 0),
-            child: const DesktopLayout(
-              child: PeriodicReviewScreen(),
-            ),
+            child: const PeriodicReviewScreen(),
           );
         },
       ),
@@ -603,24 +526,11 @@ class AppRouter {
         path: '/tags',
         name: 'tags',
         pageBuilder: (context, state) {
-          final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-
-          if (isDesktop) {
-            return NoTransitionPage<void>(
-              key: state.pageKey,
-              child: const DesktopLayout(
-                child: TagsScreen(),
-              ),
-            );
-          }
-
           return buildSlideTransition(
             context: context,
             state: state,
             begin: const Offset(-0.15, 0),
-            child: const DesktopLayout(
-              child: TagsScreen(),
-            ),
+            child: const TagsScreen(),
           );
         },
         routes: [
@@ -652,23 +562,6 @@ class AppRouter {
                               '标签名称无效',
                         ),
                       ),
-                    ),
-                  );
-                }
-
-                // 🔥 在iOS上使用CupertinoPage以支持侧滑返回手势
-                if (!kIsWeb && Platform.isIOS) {
-                  return CupertinoPage<void>(
-                    key: state.pageKey,
-                    child: TagNotesScreen(tagName: tagName),
-                  );
-                }
-
-                if (!kIsWeb && (Platform.isMacOS || Platform.isWindows)) {
-                  return NoTransitionPage<void>(
-                    key: state.pageKey,
-                    child: DesktopLayout(
-                      child: TagNotesScreen(tagName: tagName),
                     ),
                   );
                 }
@@ -721,24 +614,11 @@ class AppRouter {
         path: '/knowledge-graph',
         name: 'knowledgeGraph',
         pageBuilder: (context, state) {
-          final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-
-          if (isDesktop) {
-            return NoTransitionPage<void>(
-              key: state.pageKey,
-              child: const DesktopLayout(
-                child: KnowledgeGraphScreenCustom(),
-              ),
-            );
-          }
-
           return buildSlideTransition(
             context: context,
             state: state,
             begin: const Offset(-0.15, 0),
-            child: const DesktopLayout(
-              child: KnowledgeGraphScreenCustom(),
-            ),
+            child: const KnowledgeGraphScreenCustom(),
           );
         },
       ),
@@ -748,23 +628,10 @@ class AppRouter {
         path: '/help',
         name: 'help',
         pageBuilder: (context, state) {
-          final isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows);
-
-          if (isDesktop) {
-            return NoTransitionPage<void>(
-              key: state.pageKey,
-              child: const DesktopLayout(
-                child: HelpScreen(),
-              ),
-            );
-          }
-
           return buildSlideTransition(
             context: context,
             state: state,
-            child: const DesktopLayout(
-              child: HelpScreen(),
-            ),
+            child: const HelpScreen(),
           );
         },
       ),

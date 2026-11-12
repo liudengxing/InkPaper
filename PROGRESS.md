@@ -1,3 +1,19 @@
+## 2026-11-13 · Gitee 镜像只传 APK，附件上传加超时护栏（未升版本）· done
+
+- 用户：「Mirror to Gitee 这个坑修掉，附件上传改成只传 APK」
+- **根因**：Gitee 的 `attach_files` 在 Actions 机房里会挂在半路。1.1.74 / 1.1.76 / 1.1.79 / 1.1.80 四次发版全卡在这一步，而 `curl` 没有超时参数时会一直挂着不报错，只能等 6 小时 job 超时 —— 所以每次都是「Release 建出来了、附件没上来」的半成品状态
+- `scripts/publish_gitee.sh` 第 3 步重写：
+  - 只上传 `*.apk`，AAB 不再传（AAB 只给 Google Play 用，国内用户下载不到，白传 52 MB）
+  - 上传函数从「一条 curl 打到底」改成 2 次尝试 + 失败重试，每次带 `--connect-timeout 30 --max-time 1200 --speed-limit 20480 --speed-time 120 --http1.1`
+  - **关键参数是 `--speed-limit/--speed-time`**：连续 120 秒低于 20 KB/s 主动断开重来，这是把「无声挂死」变成「快速失败」的那一刀
+  - `-w` 打印 HTTP 码/字节数/耗时/速率，日志里能直接看出卡在哪
+  - 找不到 APK 或最终失败时 `::error::` + `exit 1`，不再静默通过
+- `.github/workflows/release.yml`：`Mirror to Gitee` 加 `timeout-minutes: 45`，兜住最坏 2×1200s 的重试
+- `scripts/release_notes.py`：下载区块措辞改为「两个源的 APK 完全相同，AAB 只随 GitHub Release 提供」
+- 未升 `pubspec.yaml` 版本：只动 CI 脚本与发布说明，App 代码零改动（同 `73e2ba2 docs(release)` 的处理）
+- 验证：`bash -n scripts/publish_gitee.sh` 通过、两个 workflow YAML 可解析、`dart analyze` 无问题
+- **待办**：v1.1.80 这次已经发出去的 Release 还得补一次 APK 到 Gitee（等令牌）
+
 ## 2026-11-12 · 仓库收敛为纯 Android（1.1.80+10176）· done
 
 - 用户提问「现在桌面端也会有吗，先只保留安卓吧，然后文档里吧除了安卓以外的版本都删了」，经确认选「全部删掉 + 一并清理成纯 Android」

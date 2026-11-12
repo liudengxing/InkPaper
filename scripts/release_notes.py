@@ -28,8 +28,8 @@ def download_block(version: str) -> str:
             f"APK 直链（Gitee，国内推荐）：",
             f"`{GITEE_REPO}/releases/download/{tag}/InkPaper-{tag}-android.apk`",
             "",
-            "两个源的安装包完全相同（已核对 SHA-256 一致）。应用内「检查更新」只走 Gitee，",
-            "国内无需访问 GitHub。",
+            "两个源的 APK 完全相同（已核对 SHA-256 一致）；AAB 只随 GitHub Release 提供，",
+            "供 Google Play 上架用。应用内「检查更新」只走 Gitee，国内无需访问 GitHub。",
         ]
     )
 

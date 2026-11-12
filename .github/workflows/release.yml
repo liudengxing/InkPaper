@@ -284,10 +284,13 @@ jobs:
             dist/*.aab
           draft: false
           prerelease: false
-      # 大陆用户直连 GitHub 太慢，同步一份到 Gitee 镜像（含 Release 与安装包）。
+      # 大陆用户直连 GitHub 太慢，同步一份到 Gitee 镜像（代码 + tag + APK，不含 AAB）。
+      # Gitee 的附件上传在 Actions 机房里经常卡死，脚本内已加低速断开 + 重试，
+      # 这里再压一道 45 分钟上限，避免像 1.1.79 / 1.1.80 那样挂到 job 超时。
       - name: Mirror to Gitee
         if: env.GITEE_TOKEN != ''
         shell: bash
+        timeout-minutes: 45
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: bash scripts/publish_gitee.sh

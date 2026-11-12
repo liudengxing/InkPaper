@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # 把代码与 Release 同步到 Gitee 镜像仓。
 #
-# 大陆网络直连 GitHub 很慢，所以每次发版后把代码、tag、安装包都推一份到 Gitee，
+# 大陆网络直连 GitHub 很慢，所以每次发版后把代码、tag、APK 都推一份到 Gitee，
 # 应用内「检查更新」也优先读 Gitee。用法：
 #
 #   GITEE_TOKEN=xxx TAG=v1.1.76 bash scripts/publish_gitee.sh
 #
 # 可选环境变量：GITEE_OWNER（默认 liudengxing233）、GITEE_REPO（默认 ink-paper）、
-# DIST_DIR（默认 dist，放 *.apk / *.aab 与 release_notes.md）、
+# DIST_DIR（默认 dist，放 *.apk 与 release_notes.md；AAB 不上传，见第 3 步注释）、
 # MIRROR_ONLY=1（只同步代码与标签，不碰 Release，CI 每次 push main 时用）。
 set -euo pipefail
 
@@ -63,24 +63,62 @@ if [ -z "$release_id" ]; then
 fi
 echo "release id: $release_id"
 
-echo "== 3/3 上传安装包"
+echo "== 3/3 上传安装包（只传 APK）"
+# 为什么不传 AAB：AAB 只给 Google Play 上传用，国内用户根本下载不到它，
+# 传上去等于多传 52 MB。而 Gitee 的附件上传通道在 GitHub Actions 机房里非常不稳，
+# 1.1.74 / 1.1.76 / 1.1.79 / 1.1.80 四次发版都卡在这一步，最后一个跑到 job 超时才被发现。
+# 只传 APK 把字节数砍半，是这条链路上最有效的一刀。
 # 重跑同一次发布时不重复上传同名附件。
 existing="$(
   curl -sS "$api/releases/$release_id?access_token=$GITEE_TOKEN" \
     | python3 -c 'import json,sys; print("\n".join(a.get("name","") for a in json.load(sys.stdin).get("assets") or []))'
 )"
-for f in "$dist"/*.apk "$dist"/*.aab; do
-  [ -f "$f" ] || continue
+
+shopt -s nullglob
+apks=("$dist"/*.apk)
+shopt -u nullglob
+if [ ${#apks[@]} -eq 0 ]; then
+  echo "::error::$dist 下没有 APK，无法上传"
+  exit 1
+fi
+
+# 关键在 --speed-limit / --speed-time：连续 120 秒低于 20 KB/s 就主动断开重来。
+# 没有这两个参数时 curl 会一直挂着不报错，只能等 6 小时的 job 超时。
+upload_asset() {
+  local file="$1" name="$2" attempt
+  for attempt in 1 2; do
+    echo "  upload $name（第 $attempt 次）"
+    if curl -sS -f -X POST \
+      --connect-timeout 30 \
+      --max-time 1200 \
+      --speed-limit 20480 \
+      --speed-time 120 \
+      --http1.1 \
+      -w '  -> HTTP %{http_code}，%{size_upload} 字节，%{time_total}s，%{speed_upload} B/s\n' \
+      "$api/releases/$release_id/attach_files?access_token=$GITEE_TOKEN" \
+      -F "file=@$file"; then
+      return 0
+    fi
+    echo "  .. 第 $attempt 次失败，15 秒后重试" >&2
+    sleep 15
+  done
+  return 1
+}
+
+failed=""
+for f in "${apks[@]}"; do
   name="$(basename "$f")"
   if printf '%s\n' "$existing" | grep -Fxq "$name"; then
     echo "  已存在，跳过 $name"
     continue
   fi
-  echo "  upload $name"
-  curl -sS -f -X POST \
-    "$api/releases/$release_id/attach_files?access_token=$GITEE_TOKEN" \
-    -F "file=@$f" >/dev/null
+  upload_asset "$f" "$name" || failed="$failed $name"
 done
+
+if [ -n "$failed" ]; then
+  echo "::error::Gitee 附件上传失败：$failed（GitHub Release 已经发好了，可以本地补传）"
+  exit 1
+fi
 
 echo "== 完成，当前 Release 资产："
 curl -sS "$api/releases/latest" \

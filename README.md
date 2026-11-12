@@ -29,7 +29,7 @@
 
 发布包在 [Gitee 发行版](https://gitee.com/liudengxing233/ink-paper/releases)（国内推荐）与 [GitHub Releases](https://github.com/liudengxing/InkPaper/releases) 同步提供，两边内容一致。
 
-国内网络直连 GitHub 较慢，代码与安装包会由 CI 自动同步到 Gitee 镜像仓；应用内「检查更新」只读 Gitee。想在本地 clone 也用镜像的话：
+国内网络直连 GitHub 较慢，代码与 APK 会由 CI 自动同步到 Gitee 镜像仓（AAB 只留在 GitHub）；应用内「检查更新」只读 Gitee。想在本地 clone 也用镜像的话：
 
 ```bash
 git clone https://gitee.com/liudengxing233/ink-paper.git

@@ -15,6 +15,9 @@ enum ApkInstallStatus {
   /// 文件不存在（多半被系统清了缓存）
   missingFile,
 
+  /// 系统里没有能处理 APK 的安装器（部分机型把 PackageInstaller 禁了）
+  noInstaller,
+
   /// 当前平台没有这条原生通道（桌面 / iOS）
   unsupported,
 
@@ -71,6 +74,8 @@ class ApkInstallService {
           return ApkInstallStatus.permissionRequired;
         case 'missing_file':
           return ApkInstallStatus.missingFile;
+        case 'no_installer':
+          return ApkInstallStatus.noInstaller;
         default:
           return ApkInstallStatus.failed;
       }

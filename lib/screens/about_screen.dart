@@ -1,13 +1,12 @@
-import 'dart:io' show Directory, File, Platform;
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
-import 'package:inkpaper/services/apk_install_service.dart';
 import 'package:inkpaper/services/update_check_service.dart';
-import 'package:inkpaper/services/update_download_service.dart';
+import 'package:inkpaper/widgets/update_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutScreen extends StatelessWidget {
@@ -529,8 +528,9 @@ class AboutScreen extends StatelessWidget {
 
 /// 关于页底部：本地版本号 + 「检查更新」。
 ///
-/// 检查走 GitHub Release 的 `releases/latest`，拿到 tag 与本机版本比大小；
-/// 有新版本时弹出说明，并直接指向 Release 里的 APK。
+/// 检查走 Gitee 优先、GitHub 兜底的 `releases/latest`，拿到 tag 与本机版本比
+/// 大小；有新版本时弹出统一的更新弹窗 —— 下载进度、取消、重试、拉起系统安装
+/// 器都在那个弹窗里完成，不再把用户丢给浏览器。
 class _UpdateCheckFooter extends StatefulWidget {
   const _UpdateCheckFooter();
 
@@ -541,15 +541,9 @@ class _UpdateCheckFooter extends StatefulWidget {
 class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
   final UpdateCheckService _service = UpdateCheckService();
   bool _checking = false;
-  bool _downloading = false;
-  UpdateDownloadProgress? _progress;
-  UpdateDownloadService? _activeDownload;
-  File? _cachedApk;
-  String? _cachedApkVersion;
 
   @override
   void dispose() {
-    _activeDownload?.cancel();
     _service.dispose();
     super.dispose();
   }
@@ -571,7 +565,7 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
         return;
       }
       if (result.hasUpdate) {
-        await _showUpdateDialog(result);
+        await showUpdateDialog(context, result);
       } else {
         _showMessage('已是最新版本 v${result.currentVersion}');
       }
@@ -587,211 +581,6 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
     }
   }
 
-  Future<void> _showUpdateDialog(UpdateCheckResult result) {
-    final notes = result.releaseNotes;
-    final size = _formatSize(result.apkSizeBytes);
-    final published = result.publishedAt;
-
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('发现新版本 ${result.latestVersion}'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '当前版本 ${result.currentVersion}'
-                '${size == null ? '' : ' · 安装包 $size'}',
-                style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
-              ),
-              if (published != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  '发布于 ${_formatDate(published)}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF888888),
-                  ),
-                ),
-              ],
-              if (result.sourceLabel.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  '下载源 ${result.sourceLabel}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF888888),
-                  ),
-                ),
-              ],
-              if (notes.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                const Text(
-                  '更新内容',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 240),
-                  child: SingleChildScrollView(
-                    child: Text(
-                      notes,
-                      style: const TextStyle(fontSize: 13, height: 1.5),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('稍后'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              _openDownload(result);
-            },
-            child: Text(result.apkDownloadUrl == null ? '前往发布页' : '下载安装包'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _openDownload(UpdateCheckResult result) async {
-    final apkUrl = result.apkDownloadUrl;
-    // APK 只有 Android 认得；其它平台没有系统安装器，仍旧交给浏览器。
-    if (!Platform.isAndroid || apkUrl == null) {
-      final uri = result.downloadUrl;
-      final launched = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
-      if (!launched && mounted) {
-        _showMessage('无法打开链接，请手动访问 $uri');
-      }
-      return;
-    }
-    await _downloadAndInstall(result, apkUrl);
-  }
-
-  Future<void> _downloadAndInstall(UpdateCheckResult result, Uri apkUrl) async {
-    if (_downloading) {
-      return;
-    }
-
-    // 上次已经下好、只是卡在「安装未知应用」授权上时，别再让用户等一遍。
-    final cached = _cachedApk;
-    if (cached != null &&
-        _cachedApkVersion == result.latestVersion &&
-        await cached.exists()) {
-      await _install(cached);
-      return;
-    }
-
-    setState(() {
-      _downloading = true;
-      _progress = UpdateDownloadProgress(
-        received: 0,
-        total: result.apkSizeBytes,
-      );
-    });
-
-    // 目录优先用原生给的 cache/updates：FileProvider 只授权了那一个目录。
-    final service = UpdateDownloadService(
-      directoryProvider: () async {
-        final native = await ApkInstallService.updatesDirectory();
-        return native ??
-            Directory('${Directory.systemTemp.path}/inkpaper-updates');
-      },
-    );
-    _activeDownload = service;
-    try {
-      final file = await service.download(
-        apkUrl,
-        fileName: 'InkPaper-${result.latestVersion}.apk',
-        expectedBytes: result.apkSizeBytes,
-        onProgress: (progress) {
-          if (mounted) {
-            setState(() => _progress = progress);
-          }
-        },
-      );
-      _cachedApk = file;
-      _cachedApkVersion = result.latestVersion;
-      if (!mounted) {
-        return;
-      }
-      await _install(file);
-    } on UpdateDownloadException catch (e) {
-      if (mounted) {
-        _showMessage(e.message);
-      }
-    } finally {
-      _activeDownload = null;
-      service.dispose();
-      if (mounted) {
-        setState(() {
-          _downloading = false;
-          _progress = null;
-        });
-      }
-    }
-  }
-
-  Future<void> _install(File file) async {
-    final status = await ApkInstallService.install(file.path);
-    if (!mounted) {
-      return;
-    }
-    final message = switch (status) {
-      ApkInstallStatus.started => '已打开系统安装界面，按提示完成安装',
-      ApkInstallStatus.permissionRequired => '已打开设置页，请允许「安装未知应用」后再点一次',
-      ApkInstallStatus.missingFile => '安装包已被系统清理，请重新下载',
-      ApkInstallStatus.unsupported => '当前平台不支持应用内安装',
-      ApkInstallStatus.failed => '无法启动系统安装器，请手动安装',
-    };
-    _showMessage(message);
-  }
-
-  void _cancelDownload() {
-    _activeDownload?.cancel();
-    _showMessage('已取消下载');
-  }
-
-  String _progressLabel() {
-    final progress = _progress;
-    if (progress == null) {
-      return '正在准备下载…';
-    }
-    final received = (progress.received / (1024 * 1024)).toStringAsFixed(1);
-    final fraction = progress.fraction;
-    if (fraction == null) {
-      return '已下载 $received MB';
-    }
-    final total = ((progress.total ?? 0) / (1024 * 1024)).toStringAsFixed(1);
-    return '正在下载 $received / $total MB（${(fraction * 100).round()}%）';
-  }
-
-  static String? _formatSize(int? bytes) {
-    if (bytes == null || bytes <= 0) {
-      return null;
-    }
-    final mb = bytes / (1024 * 1024);
-    return '${mb.toStringAsFixed(1)} MB';
-  }
-
-  static String _formatDate(DateTime time) {
-    final local = time.toLocal();
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${local.year}-${two(local.month)}-${two(local.day)}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
@@ -805,7 +594,7 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
             style: const TextStyle(fontSize: 13, color: Color(0xFF999999)),
           ),
           TextButton.icon(
-            onPressed: _checking || _downloading ? null : _checkForUpdates,
+            onPressed: _checking ? null : _checkForUpdates,
             icon: _checking
                 ? SizedBox(
                     width: 14,
@@ -821,29 +610,6 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
               style: const TextStyle(fontSize: 13),
             ),
           ),
-          if (_downloading) ...[
-            const SizedBox(height: 4),
-            SizedBox(
-              width: 176,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: LinearProgressIndicator(
-                  value: _progress?.fraction,
-                  minHeight: 3,
-                  backgroundColor: const Color(0xFFE0E0E0),
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _progressLabel(),
-              style: const TextStyle(fontSize: 12, color: Color(0xFF999999)),
-            ),
-            TextButton(
-              onPressed: _cancelDownload,
-              child: const Text('取消下载', style: TextStyle(fontSize: 12)),
-            ),
-          ],
         ],
       ),
     );

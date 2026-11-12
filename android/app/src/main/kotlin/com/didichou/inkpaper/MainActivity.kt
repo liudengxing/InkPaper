@@ -3,6 +3,8 @@ package com.didichou.inkpaper
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -137,8 +139,8 @@ class MainActivity: FlutterActivity() {
      * 拉起系统安装器。
      *
      * 返回值给 Dart 侧决定提示文案：started / permission_required /
-     * missing_file / failed。API 26 起「安装未知应用」是按应用授权的，
-     * 没开时 startActivity 会静默失败（只打一行日志），所以先查再跳设置页。
+     * missing_file / no_installer / failed。API 26 起「安装未知应用」是按应用
+     * 授权的，没开时 startActivity 会静默失败（只打一行日志），所以先查再跳设置页。
      */
     private fun installApk(path: String): String {
         if (path.isEmpty()) {
@@ -164,14 +166,24 @@ class MainActivity: FlutterActivity() {
         }
         return try {
             val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
-            startActivity(
-                Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-            ReleaseLog.e("MainActivity", "已拉起系统安装器: ${file.name}")
-            "started"
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                // clipData 不能省：部分定制系统（小米 / OPPO 这一类）的安装器
+                // 只从 clipData 里取 URI 去申请读取权限，只写在 data 里会读不到
+                // 文件，表现就是「下载完了什么都没发生」。
+                clipData = ClipData.newRawUri("inkpaper_update", uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            try {
+                startActivity(intent)
+                ReleaseLog.e("MainActivity", "已拉起系统安装器: ${file.name}")
+                "started"
+            } catch (e: ActivityNotFoundException) {
+                // 极少数机型把 PackageInstaller 禁掉了，交给上层提示改用浏览器。
+                ReleaseLog.e("MainActivity", "没有可用的安装器: ${e.message}")
+                "no_installer"
+            }
         } catch (e: Exception) {
             ReleaseLog.e("MainActivity", "拉起安装器失败: ${e.message}")
             "failed"

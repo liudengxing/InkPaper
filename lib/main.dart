@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ import 'package:inkpaper/services/feed_snapshot_service.dart';
 import 'package:inkpaper/services/notification_service.dart';
 import 'package:inkpaper/services/observability_service.dart';
 import 'package:inkpaper/services/performance_monitor_service.dart';
+import 'package:inkpaper/services/startup_update_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 // 🚀 大厂标准：新增工具
 import 'package:inkpaper/utils/attachment_cache.dart';
@@ -392,6 +394,15 @@ Future<void> _initializeApp() async {
 
   // 🚀 大厂标准：记录应用运行
   PerformanceMonitorService().trackAppLaunch('app_running');
+
+  // 开屏检查更新：首帧之后自动拉一次 Release，有新版本直接在弹窗里下载安装。
+  // 内部自己做了 6 小时节流与「稍后再说」记忆，失败一律静默。
+  unawaited(
+    StartupUpdateService.checkOnLaunch(
+      navigatorState: () =>
+          appRouter.router.routerDelegate.navigatorKey.currentState,
+    ),
+  );
 }
 
 void _handleInkPaperDeepLink(AppRouter appRouter, String rawUrl) {

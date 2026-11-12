@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.83] - 2026-11-13
+
+### Fixed
+- In-app "check for updates" works again. When the Gitee mirror was introduced in
+  1.1.76, the release API URL kept GitHub's owner/repo (`liudengxing/InkPaper`) while the
+  actual Gitee mirror is `liudengxing233/ink-paper`, so the request returned 404
+  "no published release yet" - update checks had been reading nothing since 1.1.76.
+  The URL is corrected, and a new test asserts the API URL against the mirror URL so
+  that changing only one of them fails immediately.
+
 ## [1.1.82] - 2026-11-13
 
 ### Fixed

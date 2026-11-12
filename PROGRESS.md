@@ -1,3 +1,15 @@
+## 2026-11-13 · 修正 Gitee 更新检查接口地址（1.1.83+10179）· done
+
+- 用户：「现在 gitee 是什么推送逻辑，我看校验更新显示新版本还是 1.1.80」
+- 排查出两个独立问题：
+  1. **Gitee 最新 Release 仍是 v1.1.80** —— 正常现象：1.1.81 只推了代码没打 tag（只走 `MIRROR_ONLY=1` 那条链路，不建 Release）；1.1.82 的 tag 刚推、CI 还在 android 构建。Gitee 的 `/releases/latest` 按创建时间取最新，不看版本号大小
+  2. **`AppConfig.giteeLatestReleaseApi` 的 owner/repo 写错（真 bug）**：`https://gitee.com/api/v5/repos/liudengxing/InkPaper/releases/latest` 实测 HTTP 404 `{"message":"Not Found Project"}`，正确仓库是 `liudengxing233/ink-paper`。同文件的 `giteeRepo` 是对的，1.1.76 接入 Gitee 镜像时这处漏改
+- 后果：`UpdateSource.all = [gitee]` 只有 Gitee 一个源，404 会抛「仓库还没有已发布的正式版本」，**App 内检查更新从 1.1.76 起完全不可用**
+- 改法：地址改为 `https://gitee.com/api/v5/repos/liudengxing233/ink-paper/releases/latest`
+- 防漏：`test/unit/update_check_service_test.dart` 新增一条一致性断言 —— 从 `giteeRepo` 解析 host 与 owner/repo，与 API 地址的 pathSegments 逐段比对，任一处改漏即红
+- 验证：该测试文件 17 条全过，`dart analyze` 干净
+- 版本 `1.1.82+10178` → `1.1.83+10179`（README 中英、CHANGELOG 中英同步）
+
 ## 2026-11-13 · 图片查看器手势重写（1.1.82+10178）· done
 
 - 用户：「放大手势还是和左右滑有冲突」，要求先讲清现有逻辑再定方案 → 讲完后用户选「方案 A」

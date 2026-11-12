@@ -5,6 +5,8 @@
 - 改法：`UpdateSource.all` 改成 `[gitee]`，默认不再回落。`UpdateSource.github` 常量保留，需要时显式传 `sources: [UpdateSource.gitee, UpdateSource.github]`
 - 测试：原来那条「Gitee 挂了会回落到 GitHub」拆成两条 —— 「默认只走 Gitee，挂了也不会去碰 GitHub」（断言只请求过 gitee.com）＋「显式指定时才回落 GitHub」
 - 发版侧：Release v1.1.78 的 `Mirror to Gitee` 又卡在往 Gitee 传 100MB（历史同样问题），取消 run 后**删掉 Gitee 上只有源码 zip 的 v1.1.78 Release**，避免更新检查拿到 404 的 APK 直链；Gitee latest 回到完整的 v1.1.77，等 1.1.79 上去再接替
+- 发版侧（v1.1.79）：`Mirror to Gitee` 第三次卡在往 Gitee 传附件（Azure runner 上传被限速），cancel run 后本地补传 —— `ghfast.top` 拉回 APK 52,643,460 B / AAB 52,349,916 B（约 1 分钟，与 GitHub API `size` 完全一致），复用 release id=1302898 → `attach_files` 均 201；Gitee 匿名下载 50.2MB 用 25.3s，SHA-256 `febaf5af...` 与 GitHub 原件一致
+- 顺手修正：`scripts/release_notes.py` 里「Gitee 不可用时自动回落到 GitHub」已不成立（1.1.79 起只走 Gitee），改为「只走 Gitee，国内无需访问 GitHub」，并 PATCH 了 Gitee 上 v1.1.79 的 Release 说明
 - 验证：`dart tool/inkpaper.dart verify` 640 项全绿；`store-check` 通过
 
 ## 2026-11-12 · 修图片查看器手势冲突（1.1.78+10174）· done

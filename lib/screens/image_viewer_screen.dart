@@ -49,6 +49,21 @@ class ImageViewerScreen extends StatefulWidget {
   State<ImageViewerScreen> createState() => _ImageViewerScreenState();
 }
 
+/// 查看器当前在响应哪种手势。
+///
+/// 整个查看器只有一个缩放识别器（[_ViewerGestureRecognizer]），翻页也由它驱动，
+/// 所以必须自己记住「这一次手势到底在翻页还是在缩放」。
+enum _ViewerGestureMode {
+  /// 什么都不做（单图，且未放大）。
+  none,
+
+  /// 单指横拖翻页。
+  page,
+
+  /// 双指缩放，或已放大后单指平移。
+  zoom,
+}
+
 class _ImageViewerScreenState extends State<ImageViewerScreen> {
   /// 查看器解码宽度硬上限。
   ///
@@ -58,12 +73,43 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   /// 放大到 1.5 倍屏幕宽（封顶 1600）已经能看清细节，纹理体积只有原来的 1/3。
   static const int _maxViewerDecodeWidth = 1600;
 
+  /// 双击 / 捏合允许的最大放大倍数。
+  static const double _maxPhotoScale = 5;
+
+  /// 松手时判定翻页的两个门槛：拖过屏宽的 [_pageDistanceFraction]，
+  /// 或者甩动速度超过 [_pageVelocityThreshold] px/s。
+  static const double _pageDistanceFraction = 0.22;
+  static const double _pageVelocityThreshold = 520;
+
   late final PageController _pageController;
   late int _currentIndex;
-  bool _currentPageZoomed = false;
   Timer? _precacheTimer;
 
+  /// 当前页的变换矩阵。
+  ///
+  /// `Matrix4.identity()` 就代表「按原始比例完整显示并居中」，图片本身由
+  /// `Center` 布局摆好，矩阵只负责缩放与平移 —— 所以复位就是回到 identity，
+  /// 不需要再算一个居中用的平移量。
+  final TransformationController _transformationController =
+      TransformationController();
+
+  /// 当前页的视口尺寸与图片显示尺寸（由 [_PhotoPage] 布局时回报）。
+  Size? _viewportSize;
+  Size? _displaySize;
+
+  _ViewerGestureMode _mode = _ViewerGestureMode.none;
+  double _gestureStartScale = 1;
+  Offset? _gestureStartFocal;
+  Offset? _gestureFocalScene;
+  double? _pagesAtGestureStart;
+  int _lastPointerCount = 0;
+  Offset? _doubleTapPosition;
+
   String get _currentImagePath => widget.imagePaths[_currentIndex];
+
+  double get _currentScale => _transformationController.value
+      .getMaxScaleOnAxis()
+      .clamp(1.0, _maxPhotoScale);
 
   /// 查看器实际使用的解码宽度（屏幕宽 ×1.5，封顶 [_maxViewerDecodeWidth]）。
   static int viewerDecodeWidth(BuildContext context) {
@@ -89,6 +135,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   void dispose() {
     _precacheTimer?.cancel();
     _pageController.dispose();
+    _transformationController.dispose();
     super.dispose();
   }
 
@@ -240,31 +287,423 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
             ),
           ],
         ),
-        body: PageView.builder(
-          controller: _pageController,
-          physics: _currentPageZoomed
-              ? const NeverScrollableScrollPhysics()
-              : const PageScrollPhysics(),
-          itemCount: widget.imagePaths.length,
-          onPageChanged: (index) => setState(() {
-            _currentIndex = index;
-            _currentPageZoomed = false;
-            _precacheAround(index);
-          }),
-          itemBuilder: (context, index) => _ZoomablePhotoPage(
-            key: ValueKey(widget.imagePaths[index]),
-            imagePath: widget.imagePaths[index],
-            onZoomChanged: index == _currentIndex
-                ? (isZoomed) {
-                    if (_currentPageZoomed == isZoomed) {
-                      return;
-                    }
-                    setState(() => _currentPageZoomed = isZoomed);
-                  }
-                : null,
+        // 键盘 / 鼠标滚轮缩放：只有 PointerSignal，不参与手势竞技场
+        body: Listener(
+          onPointerSignal: _handlePointerSignal,
+          // 查看器里所有触摸手势都归这一个识别器管：翻页、缩放、平移。
+          // PageView 的 physics 恒为 NeverScrollable，它不再注册拖动识别器，
+          // 也就不会和缩放手势抢 —— 这是这次改造的核心。
+          child: RawGestureDetector(
+            behavior: HitTestBehavior.opaque,
+            gestures: <Type, GestureRecognizerFactory>{
+              TapGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+                TapGestureRecognizer.new,
+                (recognizer) => recognizer.onTap = _handleCloseTap,
+              ),
+              DoubleTapGestureRecognizer: GestureRecognizerFactoryWithHandlers<
+                  DoubleTapGestureRecognizer>(
+                DoubleTapGestureRecognizer.new,
+                (recognizer) => recognizer
+                  ..onDoubleTapDown = _handleDoubleTapDown
+                  ..onDoubleTap = _handleDoubleTap,
+              ),
+              _ViewerGestureRecognizer: GestureRecognizerFactoryWithHandlers<
+                  _ViewerGestureRecognizer>(
+                _ViewerGestureRecognizer.new,
+                (recognizer) => recognizer
+                  ..onStart = _handleScaleStart
+                  ..onUpdate = _handleScaleUpdate
+                  ..onEnd = _handleScaleEnd,
+              ),
+            },
+            child: PageView.builder(
+              controller: _pageController,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: widget.imagePaths.length,
+              onPageChanged: _handlePageChanged,
+              itemBuilder: (context, index) => _PhotoPage(
+                key: ValueKey(widget.imagePaths[index]),
+                imagePath: widget.imagePaths[index],
+                matrix:
+                    index == _currentIndex ? _transformationController : null,
+                onLayout: index == _currentIndex ? _handleCurrentLayout : null,
+              ),
+            ),
           ),
         ),
       );
+
+  void _handleCloseTap() {
+    Navigator.of(context).maybePop();
+  }
+
+  void _handleDoubleTapDown(TapDownDetails details) {
+    _doubleTapPosition = details.localPosition;
+  }
+
+  void _handleDoubleTap() {
+    _toggleZoom(focalPoint: _doubleTapPosition);
+  }
+
+  void _handlePageChanged(int index) {
+    // 换页后新的一页要从「完整显示」开始，否则会带着上一张的缩放和偏移。
+    _transformationController.value = Matrix4.identity();
+    setState(() {
+      _currentIndex = index;
+    });
+    _precacheAround(index);
+  }
+
+  /// 当前页布局回报。只在排版阶段被调用，不能 setState。
+  void _handleCurrentLayout(Size viewportSize, Size displaySize) {
+    final changed =
+        _viewportSize != viewportSize || _displaySize != displaySize;
+    _viewportSize = viewportSize;
+    _displaySize = displaySize;
+    if (!changed) {
+      return;
+    }
+    // 旋转屏幕 / 分屏改变尺寸后把图片拉回可视范围；手势进行中不打断。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _mode == _ViewerGestureMode.zoom) {
+        return;
+      }
+      _settlePhotoTransform();
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // 手势
+  // ---------------------------------------------------------------------------
+
+  void _handleScaleStart(ScaleStartDetails details) {
+    _gestureStartScale = _currentScale;
+    _gestureStartFocal = details.localFocalPoint;
+    _gestureFocalScene =
+        _transformationController.toScene(details.localFocalPoint);
+    _pagesAtGestureStart =
+        _pageController.hasClients ? _pageController.page : null;
+    _lastPointerCount = details.pointerCount;
+
+    if (details.pointerCount >= 2 || _gestureStartScale > 1.01) {
+      _mode = _ViewerGestureMode.zoom;
+      return;
+    }
+    // 单图没什么可翻的，单指拖动直接不响应，省得图片被拖着晃。
+    _mode = widget.imagePaths.length > 1
+        ? _ViewerGestureMode.page
+        : _ViewerGestureMode.none;
+  }
+
+  void _handleScaleUpdate(ScaleUpdateDetails details) {
+    final pointerCountChanged = details.pointerCount != _lastPointerCount;
+    _lastPointerCount = details.pointerCount;
+
+    // 先横拖了一段再补上第二根手指：把页面归位并转成缩放。
+    // 否则会带着半页偏移去缩放，看着像整块画面在漂。
+    if (details.pointerCount >= 2 && _mode != _ViewerGestureMode.zoom) {
+      _snapToCurrentPage();
+      _mode = _ViewerGestureMode.zoom;
+      _gestureStartScale = _currentScale;
+      _gestureFocalScene =
+          _transformationController.toScene(details.localFocalPoint);
+      return;
+    }
+
+    // 手指数变化（最常见的是捏合后抬起一根手指、接着单指平移）时，
+    // ScaleGestureRecognizer 会把 span 重新锚定、scale 归 1。
+    // 我们也必须跟着重锚，否则 nextScale 会按「起始倍数 1」算，图片瞬间弹回原大小。
+    if (pointerCountChanged) {
+      _gestureStartScale = _currentScale;
+      _gestureFocalScene =
+          _transformationController.toScene(details.localFocalPoint);
+    }
+
+    switch (_mode) {
+      case _ViewerGestureMode.zoom:
+        _applyZoom(details);
+      case _ViewerGestureMode.page:
+        _applyPageDrag(details);
+      case _ViewerGestureMode.none:
+        break;
+    }
+  }
+
+  void _handleScaleEnd(ScaleEndDetails details) {
+    switch (_mode) {
+      case _ViewerGestureMode.page:
+        _settlePageDrag(details);
+      case _ViewerGestureMode.zoom:
+        _settlePhotoTransform();
+      case _ViewerGestureMode.none:
+        break;
+    }
+    _mode = _ViewerGestureMode.none;
+    _gestureStartFocal = null;
+    _gestureFocalScene = null;
+    _pagesAtGestureStart = null;
+  }
+
+  /// 缩放：全程锚定手势起点，双指外扩时手指底下的像素不会滑走。
+  /// 单指平移复用同一套公式 —— 此时 scale 恒为 1，公式退化成纯平移。
+  void _applyZoom(ScaleUpdateDetails details) {
+    final focalScene = _gestureFocalScene;
+    if (focalScene == null) {
+      return;
+    }
+    final nextScale =
+        (_gestureStartScale * details.scale).clamp(1.0, _maxPhotoScale);
+    final focal = details.localFocalPoint;
+    _transformationController.value = Matrix4.identity()
+      ..translateByDouble(
+        focal.dx - focalScene.dx * nextScale,
+        focal.dy - focalScene.dy * nextScale,
+        0,
+        1,
+      )
+      ..scaleByDouble(nextScale, nextScale, 1, 1);
+  }
+
+  /// 单指横拖翻页：直接把 PageView 拖到对应位置，跟手 1:1。
+  void _applyPageDrag(ScaleUpdateDetails details) {
+    final startFocal = _gestureStartFocal;
+    final startPages = _pagesAtGestureStart;
+    if (startFocal == null || startPages == null) {
+      return;
+    }
+    if (!_pageController.hasClients) {
+      return;
+    }
+
+    final position = _pageController.position;
+    final width = position.viewportDimension;
+    if (width <= 0) {
+      return;
+    }
+
+    final delta = details.localFocalPoint.dx - startFocal.dx;
+    final targetPage = (startPages - delta / width).clamp(
+      0.0,
+      (widget.imagePaths.length - 1).toDouble(),
+    );
+    position.jumpTo(
+      (targetPage * width).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      ),
+    );
+  }
+
+  /// 松手结算：拖得够远或甩得够快就翻到相邻页，否则弹回原页。
+  void _settlePageDrag(ScaleEndDetails details) {
+    final startPages = _pagesAtGestureStart;
+    if (startPages == null || !_pageController.hasClients) {
+      return;
+    }
+
+    final page = _pageController.page ?? startPages;
+    final delta = page - startPages;
+    final velocity = details.velocity.pixelsPerSecond.dx;
+
+    var direction = 0;
+    if (delta.abs() > _pageDistanceFraction) {
+      direction = delta > 0 ? 1 : -1;
+    } else if (velocity.abs() > _pageVelocityThreshold) {
+      // 手指往左甩（dx < 0）表示要看下一张
+      direction = velocity < 0 ? 1 : -1;
+    }
+
+    final target = (startPages.round() + direction).clamp(
+      0,
+      widget.imagePaths.length - 1,
+    );
+    _animateToPage(target);
+  }
+
+  void _animateToPage(int index) {
+    if (!_pageController.hasClients) {
+      return;
+    }
+    unawaited(
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      ),
+    );
+  }
+
+  /// 把手势进行到一半的页面拉回当前页（转成缩放前调用）。
+  void _snapToCurrentPage() {
+    if (!_pageController.hasClients) {
+      return;
+    }
+    final position = _pageController.position;
+    final target = (_currentIndex * position.viewportDimension).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if ((position.pixels - target).abs() > 0.5) {
+      position.jumpTo(target);
+    }
+  }
+
+  /// 鼠标滚轮缩放。
+  void _handlePointerSignal(PointerSignalEvent event) {
+    final viewport = _viewportSize;
+    final display = _displaySize;
+    if (event is! PointerScrollEvent || viewport == null || display == null) {
+      return;
+    }
+
+    final matrix = _transformationController.value;
+    final current = matrix.getMaxScaleOnAxis().clamp(1.0, _maxPhotoScale);
+    // 与 InteractiveViewer 的 scaleFactor = 200 保持同一手感
+    final next = (current * math.exp(-event.scrollDelta.dy / 200)).clamp(
+      1.0,
+      _maxPhotoScale,
+    );
+    if ((next - current).abs() < 1e-4) {
+      return;
+    }
+
+    final focal = event.localPosition;
+    final focalScene = _transformationController.toScene(focal);
+    _transformationController.value = Matrix4.identity()
+      ..translateByDouble(
+        focal.dx - focalScene.dx * next,
+        focal.dy - focalScene.dy * next,
+        0,
+        1,
+      )
+      ..scaleByDouble(next, next, 1, 1);
+    _settlePhotoTransform();
+  }
+
+  // ---------------------------------------------------------------------------
+  // 缩放矩阵运算
+  // ---------------------------------------------------------------------------
+
+  void _toggleZoom({Offset? focalPoint}) {
+    final viewport = _viewportSize;
+    final display = _displaySize;
+    if (viewport == null || display == null) {
+      return;
+    }
+
+    if (_currentScale > 1.01) {
+      _transformationController.value = Matrix4.identity();
+      return;
+    }
+
+    final size = MediaQuery.sizeOf(context);
+    final baseZoom = size.shortestSide < 600 ? 2.4 : 2.0;
+    final coverZoom = math.max(
+      viewport.width / display.width,
+      viewport.height / display.height,
+    );
+    final zoom = math.min(math.max(baseZoom, coverZoom), _maxPhotoScale);
+    final focal = _effectiveZoomFocal(
+      focalPoint,
+      viewportSize: viewport,
+      displaySize: display,
+    );
+    final scenePoint = _transformationController.toScene(focal);
+
+    _transformationController.value = Matrix4.identity()
+      ..translateByDouble(
+        focal.dx - scenePoint.dx * zoom,
+        focal.dy - scenePoint.dy * zoom,
+        0,
+        1,
+      )
+      ..scaleByDouble(zoom, zoom, 1, 1);
+    _clampPhotoTransform();
+  }
+
+  /// 图片在视口里的位置（缩放倍数为 1 时）。
+  Rect _containedImageRect(Size viewportSize, Size displaySize) =>
+      Rect.fromLTWH(
+        (viewportSize.width - displaySize.width) / 2,
+        (viewportSize.height - displaySize.height) / 2,
+        displaySize.width,
+        displaySize.height,
+      );
+
+  Offset _effectiveZoomFocal(
+    Offset? focalPoint, {
+    required Size viewportSize,
+    required Size displaySize,
+  }) {
+    final viewportCenter =
+        Offset(viewportSize.width / 2, viewportSize.height / 2);
+    if (focalPoint == null) {
+      return viewportCenter;
+    }
+
+    final imageRect = _containedImageRect(viewportSize, displaySize);
+    return imageRect.contains(focalPoint) ? focalPoint : viewportCenter;
+  }
+
+  /// 松手后收敛：没放大就复位，放大了就把图片拉回可视范围。
+  void _settlePhotoTransform() {
+    if (_currentScale <= 1.01) {
+      _transformationController.value = Matrix4.identity();
+      return;
+    }
+    _clampPhotoTransform();
+  }
+
+  void _clampPhotoTransform() {
+    final viewport = _viewportSize;
+    final display = _displaySize;
+    if (viewport == null || display == null) {
+      return;
+    }
+
+    final rect = _containedImageRect(viewport, display);
+    final matrix = _transformationController.value;
+    final scale = matrix.getMaxScaleOnAxis().clamp(1.0, _maxPhotoScale);
+    final translation = matrix.getTranslation();
+
+    final nextX = _clampAxis(
+      translation.x,
+      scaledStart: rect.left * scale,
+      scaledExtent: rect.width * scale,
+      viewportExtent: viewport.width,
+    );
+    final nextY = _clampAxis(
+      translation.y,
+      scaledStart: rect.top * scale,
+      scaledExtent: rect.height * scale,
+      viewportExtent: viewport.height,
+    );
+
+    _transformationController.value = Matrix4.identity()
+      ..translateByDouble(nextX, nextY, 0, 1)
+      ..scaleByDouble(scale, scale, 1, 1);
+  }
+
+  /// 把平移量夹到「图片不出视口」的范围；图片比视口小时居中。
+  ///
+  /// [scaledStart] 是图片左/上边在缩放后的坐标（图片已经按居中排好版），
+  /// [scaledExtent] 是缩放后的宽/高。
+  double _clampAxis(
+    double translatedValue, {
+    required double scaledStart,
+    required double scaledExtent,
+    required double viewportExtent,
+  }) {
+    if (scaledExtent <= viewportExtent) {
+      return (viewportExtent - scaledExtent) / 2 - scaledStart;
+    }
+
+    return translatedValue.clamp(
+      viewportExtent - scaledStart - scaledExtent,
+      -scaledStart,
+    );
+  }
 
   /// 预取相邻的一张（没有下一张时退回上一张）。
   ///
@@ -298,24 +737,40 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   }
 }
 
-class _ZoomablePhotoPage extends StatefulWidget {
-  const _ZoomablePhotoPage({
+/// 按原始比例把 [source] 装进 [bounds]。
+Size _containSize(Size source, Size bounds) {
+  if (source.width <= 0 || source.height <= 0) {
+    return bounds;
+  }
+
+  final scale = math.min(
+    bounds.width / source.width,
+    bounds.height / source.height,
+  );
+  return Size(source.width * scale, source.height * scale);
+}
+
+class _PhotoPage extends StatefulWidget {
+  const _PhotoPage({
     required this.imagePath,
     super.key,
-    this.onZoomChanged,
+    this.matrix,
+    this.onLayout,
   });
 
   final String imagePath;
-  final ValueChanged<bool>? onZoomChanged;
+
+  /// 当前页才会拿到缩放矩阵，相邻页传 null（永远按完整显示渲染）。
+  final TransformationController? matrix;
+
+  /// 布局回报：视口尺寸、图片显示尺寸。只在当前页回调。
+  final void Function(Size viewportSize, Size displaySize)? onLayout;
 
   @override
-  State<_ZoomablePhotoPage> createState() => _ZoomablePhotoPageState();
+  State<_PhotoPage> createState() => _PhotoPageState();
 }
 
-class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
-  final TransformationController _transformationController =
-      TransformationController();
-  Offset? _doubleTapPosition;
+class _PhotoPageState extends State<_PhotoPage> {
   ImageProvider? _imageProvider;
   ImageStream? _imageStream;
   ImageStreamListener? _imageStreamListener;
@@ -324,11 +779,8 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
   ImageStream? _previewStream;
   ImageStreamListener? _previewListener;
   Size? _previewSize;
-  Size? _viewportSize;
-  Size? _displaySize;
   Size? _imageSize;
   Object? _imageError;
-  bool _isZoomed = false;
   String? _resolvedPath;
 
   // Live 图（Motion Photo）：图片旁边存了一份内嵌视频，点角标播放
@@ -347,8 +799,7 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 依赖变化（系统栏、转场里的 MediaQuery 抖动）不该重新解码一次大图，
-    // 也不该把用户已经缩放好的位置重置掉。
+    // 依赖变化（系统栏、转场里的 MediaQuery 抖动）不该重新解码一次大图。
     if (_resolvedPath == widget.imagePath) {
       return;
     }
@@ -356,7 +807,7 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
   }
 
   @override
-  void didUpdateWidget(covariant _ZoomablePhotoPage oldWidget) {
+  void didUpdateWidget(covariant _PhotoPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.imagePath != widget.imagePath) {
       _resolveImage();
@@ -528,7 +979,6 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
     }
     _detachPreview();
     _disposeLiveController();
-    _transformationController.dispose();
     super.dispose();
   }
 
@@ -548,14 +998,9 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
     }
 
     _imageProvider = provider;
-    _viewportSize = null;
-    _displaySize = null;
     _imageSize = null;
     _previewSize = null;
     _imageError = null;
-    _transformationController.value = Matrix4.identity();
-    _isZoomed = false;
-    widget.onZoomChanged?.call(false);
 
     // 缩略图先上：磁盘缓存命中时几十毫秒就能出图，
     // 原图解码完会由 _imageSize 到达时的 setState 自动替换。
@@ -591,7 +1036,7 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
     stream.addListener(_imageStreamListener!);
   }
 
-  /// 解析 240px 缩略图，只用于原图就绪前的临时展示。
+  /// 解析 480px 缩略图，只用于原图就绪前的临时展示。
   void _resolvePreview() {
     try {
       final provider = _ImageViewerScreenState.getImageProvider(
@@ -640,148 +1085,13 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
   Widget build(BuildContext context) => Stack(
         fit: StackFit.expand,
         children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {
-              Navigator.of(context).maybePop();
-            },
-            onDoubleTapDown: (details) {
-              _doubleTapPosition = details.localPosition;
-            },
-            onDoubleTap: () =>
-                _toggleZoom(context, focalPoint: _doubleTapPosition),
-            child: ColoredBox(
-              color: Colors.black,
-              child: SafeArea(
-                top: false,
-                bottom: false,
-                child: _buildZoomableImage(context),
-              ),
-            ),
-          ),
+          ColoredBox(color: Colors.black, child: _buildPhoto(context)),
           _buildLiveBadge(),
           _buildLiveOverlay(),
         ],
       );
 
-  void _toggleZoom(BuildContext context, {Offset? focalPoint}) {
-    if (_viewportSize == null || _displaySize == null) {
-      return;
-    }
-
-    if (_isZoomed) {
-      _resetToContained();
-      setState(() {
-        _isZoomed = false;
-      });
-      widget.onZoomChanged?.call(false);
-      return;
-    }
-
-    final size = MediaQuery.sizeOf(context);
-    final baseZoom = size.shortestSide < 600 ? 2.4 : 2.0;
-    final coverZoom = math.max(
-      _viewportSize!.width / _displaySize!.width,
-      _viewportSize!.height / _displaySize!.height,
-    );
-    final zoom = math.min(math.max(baseZoom, coverZoom), 5.0);
-    final focal = _effectiveZoomFocal(
-      focalPoint,
-      viewportSize: _viewportSize!,
-      displaySize: _displaySize!,
-    );
-    final scenePoint = _transformationController.toScene(focal);
-
-    _transformationController.value = Matrix4.identity()
-      ..translateByDouble(
-        focal.dx - scenePoint.dx * zoom,
-        focal.dy - scenePoint.dy * zoom,
-        0,
-        1,
-      )
-      ..scaleByDouble(zoom, zoom, 1, 1);
-    _clampPhotoTransform();
-    setState(() {
-      _isZoomed = true;
-    });
-    widget.onZoomChanged?.call(true);
-  }
-
-  /// 双击 / 捏合允许的最大放大倍数。
-  static const double _maxPhotoScale = 5;
-
-  /// 手势起点：焦点落在图片坐标系里的位置，以及当时的缩放倍数。
-  ///
-  /// 缩放全程锚定这个点，双指外扩时手指底下的像素不会滑走。
-  Offset? _gestureFocalScene;
-  double _gestureStartScale = 1;
-
-  void _handleScaleStart(ScaleStartDetails details) {
-    _gestureStartScale = _transformationController.value
-        .getMaxScaleOnAxis()
-        .clamp(1.0, _maxPhotoScale);
-    _gestureFocalScene = _transformationController.toScene(
-      details.localFocalPoint,
-    );
-  }
-
-  /// 单指拖拽复用同一套公式：单指时 scale 恒为 1，公式退化成纯平移。
-  void _handleScaleUpdate(ScaleUpdateDetails details) {
-    final focalScene = _gestureFocalScene;
-    if (focalScene == null) {
-      return;
-    }
-    final nextScale =
-        (_gestureStartScale * details.scale).clamp(1.0, _maxPhotoScale);
-    final focal = details.localFocalPoint;
-    _transformationController.value = Matrix4.identity()
-      ..translateByDouble(
-        focal.dx - focalScene.dx * nextScale,
-        focal.dy - focalScene.dy * nextScale,
-        0,
-        1,
-      )
-      ..scaleByDouble(nextScale, nextScale, 1, 1);
-    _updateZoomState();
-  }
-
-  void _handleScaleEnd(ScaleEndDetails details) {
-    _gestureFocalScene = null;
-    _settlePhotoTransform();
-  }
-
-  /// 桌面端滚轮缩放 —— 原本由 InteractiveViewer 自带，换成自管手势后要补回来。
-  void _handlePointerSignal(PointerSignalEvent event) {
-    if (event is! PointerScrollEvent ||
-        _viewportSize == null ||
-        _displaySize == null) {
-      return;
-    }
-    final matrix = _transformationController.value;
-    final current = matrix.getMaxScaleOnAxis().clamp(1.0, _maxPhotoScale);
-    // 与 InteractiveViewer 的 scaleFactor = 200 保持同一手感
-    final next = (current * math.exp(-event.scrollDelta.dy / 200)).clamp(
-      1.0,
-      _maxPhotoScale,
-    );
-    if ((next - current).abs() < 1e-4) {
-      return;
-    }
-    final focal = event.localPosition;
-    final focalScene = _transformationController.toScene(focal);
-    _transformationController.value = Matrix4.identity()
-      ..translateByDouble(
-        focal.dx - focalScene.dx * next,
-        focal.dy - focalScene.dy * next,
-        0,
-        1,
-      )
-      ..scaleByDouble(next, next, 1, 1);
-    _updateZoomState();
-    _settlePhotoTransform();
-  }
-
-  Widget _buildZoomableImage(BuildContext context) {
+  Widget _buildPhoto(BuildContext context) {
     if (_imageError != null) {
       return _buildImageError(
         AppLocalizationsSimple.of(context)?.imageLoadError ?? '无法加载图片',
@@ -798,195 +1108,47 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final screenSize = Size(constraints.maxWidth, constraints.maxHeight);
-        final displaySize = _containSize(activeSize, screenSize);
-        _syncPhotoLayout(screenSize, displaySize);
+        final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+        final displaySize = _containSize(activeSize, viewportSize);
+        widget.onLayout?.call(viewportSize, displaySize);
 
-        // 这里不用 InteractiveViewer，改用自带的 ScaleGestureRecognizer，
-        // 原因见 [_PhotoScaleGestureRecognizer] 的注释。
-        return Listener(
-          onPointerSignal: _handlePointerSignal,
-          child: RawGestureDetector(
-            behavior: HitTestBehavior.opaque,
-            gestures: <Type, GestureRecognizerFactory>{
-              _PhotoScaleGestureRecognizer:
-                  GestureRecognizerFactoryWithHandlers<
-                      _PhotoScaleGestureRecognizer>(
-                () => _PhotoScaleGestureRecognizer(
-                  allowAccept: (recognizer) =>
-                      recognizer.pointerCount >= 2 ||
-                      _transformationController.value.getMaxScaleOnAxis() >
-                          1.01,
-                ),
-                (recognizer) => recognizer
-                  ..onStart = _handleScaleStart
-                  ..onUpdate = _handleScaleUpdate
-                  ..onEnd = _handleScaleEnd,
-              ),
-            },
-            child: ClipRect(
-              // 相当于 InteractiveViewer 的 constrained: false：
-              // 让图片按自身尺寸排版，再由 Transform 定位到屏幕中央。
-              child: OverflowBox(
-                alignment: Alignment.topLeft,
-                minWidth: 0,
-                maxWidth: double.infinity,
-                minHeight: 0,
-                maxHeight: double.infinity,
-                child: AnimatedBuilder(
-                  animation: _transformationController,
-                  builder: (context, child) => Transform(
-                    transform: _transformationController.value,
-                    child: child,
-                  ),
-                  child: SizedBox(
-                    width: displaySize.width,
-                    height: displaySize.height,
-                    child: Image(
-                      image: activeProvider,
-                      fit: BoxFit.contain,
-                      // 保持默认 medium 插值：high（三次插值）在缩放拖动时非常吃 GPU
-                      // 缩略图 → 原图切换时保留旧帧，避免闪一下黑
-                      gaplessPlayback: true,
-                    ),
-                  ),
-                ),
+        // 图片按「完整显示并居中」排好，缩放矩阵再作用于整个视口盒子，
+        // 所以 identity 矩阵就是初始状态，不用额外算居中平移。
+        final content = SizedBox(
+          width: viewportSize.width,
+          height: viewportSize.height,
+          child: Center(
+            child: SizedBox(
+              width: displaySize.width,
+              height: displaySize.height,
+              child: Image(
+                image: activeProvider,
+                fit: BoxFit.fill,
+                // 保持默认 medium 插值：high（三次插值）在缩放拖动时非常吃 GPU
+                // 缩略图 → 原图切换时保留旧帧，避免闪一下黑
+                gaplessPlayback: true,
               ),
             ),
           ),
         );
+
+        final matrix = widget.matrix;
+        if (matrix == null) {
+          return ClipRect(child: content);
+        }
+
+        return ClipRect(
+          child: AnimatedBuilder(
+            animation: matrix,
+            builder: (context, inner) => Transform(
+              transform: matrix.value,
+              child: inner,
+            ),
+            child: content,
+          ),
+        );
       },
     );
-  }
-
-  Size _containSize(Size source, Size bounds) {
-    if (source.width <= 0 || source.height <= 0) {
-      return bounds;
-    }
-
-    final scale = math.min(
-      bounds.width / source.width,
-      bounds.height / source.height,
-    );
-    return Size(source.width * scale, source.height * scale);
-  }
-
-  void _syncPhotoLayout(Size viewportSize, Size displaySize) {
-    final layoutChanged =
-        _viewportSize != viewportSize || _displaySize != displaySize;
-    _viewportSize = viewportSize;
-    _displaySize = displaySize;
-
-    if (!layoutChanged || _isZoomed) {
-      return;
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted ||
-          _isZoomed ||
-          _viewportSize != viewportSize ||
-          _displaySize != displaySize) {
-        return;
-      }
-      _resetToContained();
-    });
-  }
-
-  Matrix4 _containedMatrix(Size viewportSize, Size displaySize) {
-    final imageRect = _containedImageRect(viewportSize, displaySize);
-    return Matrix4.identity()
-      ..translateByDouble(imageRect.left, imageRect.top, 0, 1);
-  }
-
-  Rect _containedImageRect(Size viewportSize, Size displaySize) =>
-      Rect.fromLTWH(
-        (viewportSize.width - displaySize.width) / 2,
-        (viewportSize.height - displaySize.height) / 2,
-        displaySize.width,
-        displaySize.height,
-      );
-
-  Offset _effectiveZoomFocal(
-    Offset? focalPoint, {
-    required Size viewportSize,
-    required Size displaySize,
-  }) {
-    final viewportCenter =
-        Offset(viewportSize.width / 2, viewportSize.height / 2);
-    if (focalPoint == null) {
-      return viewportCenter;
-    }
-
-    final imageRect = _containedImageRect(viewportSize, displaySize);
-    return imageRect.contains(focalPoint) ? focalPoint : viewportCenter;
-  }
-
-  void _resetToContained() {
-    if (_viewportSize == null || _displaySize == null) {
-      _transformationController.value = Matrix4.identity();
-      return;
-    }
-    _transformationController.value =
-        _containedMatrix(_viewportSize!, _displaySize!);
-  }
-
-  void _clampPhotoTransform() {
-    if (_viewportSize == null || _displaySize == null) {
-      return;
-    }
-
-    final matrix = _transformationController.value;
-    final scale = matrix.getMaxScaleOnAxis().clamp(1.0, 5.0);
-    final scaledWidth = _displaySize!.width * scale;
-    final scaledHeight = _displaySize!.height * scale;
-    final translation = matrix.getTranslation();
-
-    final nextX = _clampAxis(
-      translation.x,
-      viewportExtent: _viewportSize!.width,
-      contentExtent: scaledWidth,
-    );
-    final nextY = _clampAxis(
-      translation.y,
-      viewportExtent: _viewportSize!.height,
-      contentExtent: scaledHeight,
-    );
-
-    _transformationController.value = Matrix4.identity()
-      ..translateByDouble(nextX, nextY, 0, 1)
-      ..scaleByDouble(scale, scale, 1, 1);
-  }
-
-  double _clampAxis(
-    double value, {
-    required double viewportExtent,
-    required double contentExtent,
-  }) {
-    if (contentExtent <= viewportExtent) {
-      return (viewportExtent - contentExtent) / 2;
-    }
-
-    return value.clamp(viewportExtent - contentExtent, 0.0);
-  }
-
-  void _updateZoomState() {
-    final zoomed = _transformationController.value.getMaxScaleOnAxis() > 1.01;
-    if (zoomed != _isZoomed && mounted) {
-      setState(() => _isZoomed = zoomed);
-      widget.onZoomChanged?.call(zoomed);
-    }
-  }
-
-  void _settlePhotoTransform() {
-    if (_transformationController.value.getMaxScaleOnAxis() <= 1.01) {
-      _resetToContained();
-      if (_isZoomed && mounted) {
-        setState(() => _isZoomed = false);
-        widget.onZoomChanged?.call(false);
-      }
-    } else {
-      _clampPhotoTransform();
-    }
   }
 
   Widget _buildImageLoading(BuildContext context) => Center(
@@ -1019,31 +1181,52 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
       );
 }
 
-/// 只在「双指」或「已经放大」时才参与手势仲裁的缩放识别器。
+/// 查看器唯一的手势识别器：单指翻页 / 平移，双指缩放。
 ///
-/// [ScaleGestureRecognizer] 默认单指平移超过 kPanSlop（36dp）就抢手势，而外层
-/// 翻页用的 HorizontalDragGestureRecognizer 阈值只有 kTouchSlop（18dp）。阈值上
-/// 翻页本该赢，但这个识别器在 Scrollable 内部、指针事件派发更早，所以只要单帧
-/// 位移超过 36dp（快速滑动时很常见），它就先一步 accept，翻页被直接拒掉 ——
-/// 表现成「慢滑能翻页，使劲快滑反而滑不动」。
+/// 之前是 PageView 自带的 `HorizontalDragGestureRecognizer`（阈值 kTouchSlop，
+/// 18dp）和页面里的 `ScaleGestureRecognizer`（阈值 kScaleSlop，同样是 18dp）
+/// 各自抢手势。手势竞技场的规则是「谁先 accept 谁独占整场」，而捏合的自然动作
+/// 是先落一根手指、再落第二根 —— 第一根手指只要横滑 18dp，翻页就先赢了，
+/// 第二根手指落下也缩放不了。两个 18dp 阈值顶着，结果就是掷硬币。
 ///
-/// 这里把「单指且未放大」时的 accepted 请求吞掉，让 PageView 稳定拿到单指横滑；
-/// 双指捏合或已经放大后照常抢占。
-///
-/// 探针实测（PageView 包 InteractiveViewer vs 本实现，单指横滑 480dp）：
-/// - 改前：单帧位移 8~36dp 能翻页，38dp 起翻页失灵；
-/// - 改后：单帧位移 8~240dp 全部正常翻页。
-class _PhotoScaleGestureRecognizer extends ScaleGestureRecognizer {
-  _PhotoScaleGestureRecognizer({required this.allowAccept});
-
-  /// 返回 true 才允许本识别器赢下手势。
-  final bool Function(_PhotoScaleGestureRecognizer recognizer) allowAccept;
+/// 现在翻页也归这个识别器驱动（PageView 的 physics 恒为 NeverScrollable，
+/// 不注册拖动识别器），整个查看器只剩它和点击/双击竞争，冲突从机制上消失。
+class _ViewerGestureRecognizer extends ScaleGestureRecognizer {
+  /// 第一根手指按下的位置，用来判断单指能不能提前抢手势。
+  Offset? _primaryDownPosition;
 
   @override
-  void resolve(GestureDisposition disposition) {
-    if (disposition == GestureDisposition.accepted && !allowAccept(this)) {
+  void addAllowedPointer(PointerDownEvent event) {
+    if (pointerCount == 0) {
+      _primaryDownPosition = event.localPosition;
+    }
+    super.addAllowedPointer(event);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    super.handleEvent(event);
+
+    // 第二根手指一落下就抢，不再等 span 变化凑满 18dp。
+    if (event is PointerDownEvent && pointerCount >= 2) {
+      resolve(GestureDisposition.accepted);
       return;
     }
-    super.resolve(disposition);
+
+    // 单指：比 ScaleGestureRecognizer 默认的 36dp（pan slop）更早接管，
+    // 翻页手感才跟得上手指。
+    if (event is PointerMoveEvent && pointerCount == 1) {
+      final downPosition = _primaryDownPosition;
+      if (downPosition != null &&
+          (event.localPosition - downPosition).distance > kTouchSlop) {
+        resolve(GestureDisposition.accepted);
+      }
+    }
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {
+    _primaryDownPosition = null;
+    super.didStopTrackingLastPointer(pointer);
   }
 }

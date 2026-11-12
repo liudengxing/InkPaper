@@ -32,7 +32,11 @@ git remote remove gitee >/dev/null 2>&1 || true
 git remote add gitee "https://${owner}:${GITEE_TOKEN}@gitee.com/${owner}/${repo}.git"
 # 退出时把带 token 的 remote 删掉，避免残留在 .git/config 里。
 trap 'git remote remove gitee >/dev/null 2>&1 || true' EXIT
-git push gitee --prune "+refs/heads/*:refs/heads/*"
+# 用 HEAD 显式推到 main，不要写 --prune "refs/heads/*:refs/heads/*"：
+# tag 触发的 checkout 是 detached HEAD，本地一个分支都没有，--prune 会把远端 main
+# 当成「本地已删除的分支」去删，Gitee 拒绝删除当前分支，整步直接失败。
+# 镜像仓语义是「完全跟随 GitHub」，所以用 + 前缀强制覆盖。
+git push gitee "+HEAD:refs/heads/main"
 git push gitee "+refs/tags/*:refs/tags/*"
 
 if [ "$mirror_only" = "1" ]; then

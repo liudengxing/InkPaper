@@ -1,3 +1,18 @@
+## 2026-11-12 · Gitee 国内镜像 + 应用内更新走国内源（1.1.76+10172）· done
+
+- 起因：国内直连 GitHub 太慢（本机代理甚至只放行 `api.github.com`，`github.com:443` 恒定 502），发版后下载 APK 体验差
+- 选型：Gitee（国内速度最好、发行版有附件、API v5 与 GitHub 基本同构）；同步方式选 CI 全自动
+- `lib/config/app_config.dart`：新增 `giteeRepo` / `giteeLatestReleaseApi`
+- `lib/services/update_check_service.dart`：新增 `UpdateSource`（id / label / apiUrl / releasePageTemplate / apkUrlTemplate），内置 `gitee` 与 `github` 两个常量，`all` 按「Gitee → GitHub」排序；`UpdateCheckService.check()` 逐个数据源尝试，任一成功即返回，全失败抛最后一个错误；`parseLatestRelease` 增加 `source` 参数补 Gitee 缺的字段
+- **坑**：`Uri.tryParse('')` 返回空 Uri 而不是 null，`html_url` 缺失时 `?? 兜底` 永远不触发 → 必须显式判空（`htmlUrl.isEmpty ? null : Uri.tryParse(...)`）
+- `lib/screens/about_screen.dart`：更新弹窗新增「下载源 xxx」一行
+- 新增 `scripts/publish_gitee.sh`：`MIRROR_ONLY=1` 只推代码+tag；否则再建 Gitee Release 并 `attach_files` 传 apk/aab，最后打印远端资产清单。token 用 `::add-mask::` 打码
+- `.github/workflows/release.yml`：`publish` 作业加 `env.GITEE_TOKEN`，**checkout 必须排在 download-artifact 之前**（checkout 默认 `git clean -ffdx` 会删掉 `dist/`），末尾加 `Mirror to Gitee` 步骤，`env.GITEE_TOKEN == ''` 时自动跳过
+- `.github/workflows/ci.yml`：新增 `mirror` 作业（`needs: quality`、仅 push main），调 `MIRROR_ONLY=1` 同步代码与 tag
+- Gitee 附件下载地址格式已核实：`https://gitee.com/{owner}/{repo}/releases/download/{tag}/{filename}`（官方博客与 openEuler 安装脚本都在用）
+- 验证：`flutter test test/unit/update_check_service_test.dart` 15 项全绿（新增 3 项多数据源用例）；`dart tool/inkpaper.dart store-check` 通过；两个 workflow YAML 解析通过
+- **待办**：Gitee 仓库需先建（公开仓，附件才能匿名下载），`GITEE_TOKEN` 加到 GitHub Repository secrets 后第一次同步才会生效
+
 ## 2026-11-11 · 引导页去掉「找回密码」入口（1.1.75+10171）· done
 
 - `lib/screens/onboarding_screen.dart`：删掉最后一页的「找回密码」`TextButton`（`Icons.lock_reset_rounded`），连带 `_showResetPasswordDialog()` 与它唯一调用的占位弹窗 `_showDevelopmentDialog()`（净删 75 行）

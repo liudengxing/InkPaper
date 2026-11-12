@@ -190,4 +190,83 @@ void main() {
       );
     });
   });
+
+  group('多数据源', () {
+    test('Gitee 缺字段时用模板兜底', () {
+      final result = parseLatestRelease(
+        {
+          'tag_name': 'v1.1.75',
+          'name': 'InkPaper v1.1.75',
+          'body': '### 移除\n- 找回密码入口',
+          'created_at': '2026-11-11T22:30:00+08:00',
+          'assets': [
+            {
+              'name': 'v1.1.75.zip',
+              'browser_download_url':
+                  'https://gitee.com/liudengxing/InkPaper/archive/refs/tags/'
+                      'v1.1.75.zip',
+            },
+          ],
+        },
+        currentVersion: '1.1.74',
+        source: UpdateSource.gitee,
+      );
+
+      expect(result.sourceId, 'gitee');
+      expect(
+        result.releasePageUrl.toString(),
+        'https://gitee.com/liudengxing/InkPaper/releases/tag/v1.1.75',
+      );
+      expect(
+        result.apkDownloadUrl.toString(),
+        'https://gitee.com/liudengxing/InkPaper/releases/download/'
+        'v1.1.75/InkPaper-v1.1.75-android.apk',
+      );
+      expect(result.apkSizeBytes, isNull);
+      expect(result.publishedAt, isNotNull);
+      expect(result.hasUpdate, isTrue);
+    });
+
+    test('Gitee 挂了会回落到 GitHub', () async {
+      final requested = <String>[];
+      final client = MockClient((request) async {
+        requested.add(request.url.host);
+        if (request.url.host == 'gitee.com') {
+          return http.Response('{"message":"404 Not Found"}', 404);
+        }
+        return http.Response.bytes(
+          utf8.encode(jsonEncode(_releasePayload())),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+      final service = UpdateCheckService(client: client);
+      addTearDown(service.dispose);
+
+      final result = await service.check();
+
+      expect(requested, ['gitee.com', 'api.github.com']);
+      expect(result.sourceId, 'github');
+      expect(result.latestVersion, '1.1.69');
+    });
+
+    test('Gitee 命中就不再请求 GitHub', () async {
+      final requested = <String>[];
+      final client = MockClient((request) async {
+        requested.add(request.url.host);
+        return http.Response.bytes(
+          utf8.encode(jsonEncode(_releasePayload())),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+      final service = UpdateCheckService(client: client);
+      addTearDown(service.dispose);
+
+      final result = await service.check();
+
+      expect(requested, ['gitee.com']);
+      expect(result.sourceId, 'gitee');
+    });
+  });
 }

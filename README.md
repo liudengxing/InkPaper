@@ -2,11 +2,11 @@
 
 小纸是一款面向个人知识记录的跨平台笔记应用。它推荐本地记录，也可以连接自托管 Memos 服务进行同步。应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、导入导出、系统分享、小组件和可选 AI 辅助等能力。
 
-[下载最新版本](https://github.com/liudengxing/InkPaper/releases/latest) · [问题反馈](https://github.com/liudengxing/InkPaper/issues) · [English](README.en.md)
+[下载最新版本](https://gitee.com/liudengxing/InkPaper/releases/latest) · [GitHub 仓库](https://github.com/liudengxing/InkPaper) · [问题反馈](https://github.com/liudengxing/InkPaper/issues) · [English](README.en.md)
 
 ## 当前版本
 
-`1.1.75`
+`1.1.76`
 
 正式版本构建（Android APK / AAB）
 
@@ -27,7 +27,13 @@
 
 ## 下载
 
-发布包在 [GitHub Releases](https://github.com/liudengxing/InkPaper/releases) 页面提供。
+发布包在 [Gitee 发行版](https://gitee.com/liudengxing/InkPaper/releases)（国内推荐）与 [GitHub Releases](https://github.com/liudengxing/InkPaper/releases) 同步提供，两边内容一致。
+
+国内网络直连 GitHub 较慢，代码与安装包会由 CI 自动同步到 Gitee 镜像仓；应用内「检查更新」也优先读 Gitee，失败再回落 GitHub。想在本地 clone 也用镜像的话：
+
+```bash
+git clone https://gitee.com/liudengxing/InkPaper.git
+```
 
 GitHub Releases 的 Android APK 用于手动安装和测试分发；Google Play 上架使用发布流程生成的签名 AAB。
 发布流水线目前只构建 Android；iOS、macOS、Windows、Linux 需要按下方命令在本机构建。
@@ -74,7 +80,7 @@ sdkmanager --licenses
 版本号统一维护在 `pubspec.yaml`，`x.y.z` 是语义版本，`+N` 是构建号：
 
 ```yaml
-version: 1.1.75+10171
+version: 1.1.76+10172
 ```
 
 每次改动都要把 `x.y.z` 的 patch 与 `+N` 同时加 1，并同步本文件顶部「当前版本」的那个 `x.y.z`——`dart tool/inkpaper.dart store-check` 会断言两处一致，对不上直接失败。
@@ -82,7 +88,7 @@ version: 1.1.75+10171
 发布入口：
 
 ```bash
-dart tool/inkpaper.dart release v1.1.75
+dart tool/inkpaper.dart release v1.1.76
 ```
 
 这个命令先校验 tag 与 `pubspec.yaml` 一致，然后创建并推送 tag。GitHub Actions 收到 tag 后执行检查、构建并发布 Android APK/AAB。

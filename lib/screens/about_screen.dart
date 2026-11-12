@@ -616,6 +616,16 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
                   ),
                 ),
               ],
+              if (result.sourceLabel.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '下载源 ${result.sourceLabel}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF888888),
+                  ),
+                ),
+              ],
               if (notes.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 const Text(

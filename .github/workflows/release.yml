@@ -255,7 +255,14 @@ jobs:
     needs: [prepare, android]
     # 手动触发的验证跑只到构建为止，不创建 Release。
     if: ${{ inputs.dry_run != true }}
+    env:
+      # Gitee 镜像用；没配这个 secret 就只发 GitHub，不影响发版。
+      GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
     steps:
+      # 必须放在下载产物之前：checkout 默认会 git clean，把 dist/ 一起删掉。
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v7
         with:
           name: android-release
@@ -277,3 +284,10 @@ jobs:
             dist/*.aab
           draft: false
           prerelease: false
+      # 大陆用户直连 GitHub 太慢，同步一份到 Gitee 镜像（含 Release 与安装包）。
+      - name: Mirror to Gitee
+        if: env.GITEE_TOKEN != ''
+        shell: bash
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: bash scripts/publish_gitee.sh

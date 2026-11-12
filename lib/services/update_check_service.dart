@@ -6,10 +6,68 @@ import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/services/app_info_service.dart';
 import 'package:inkpaper/utils/logger.dart';
 
-/// 一次更新检查的结果。
+/// 一个更新检查数据源。
 ///
-/// 数据全部来自 GitHub Release（`releases/latest`），APK 就是 CI 挂在
-/// Release 资产上的那个安装包，不再依赖自建后端。
+/// 国内优先 Gitee 镜像，失败再回落 GitHub 官方。两家的 Release JSON 结构基本
+/// 一致（`tag_name` / `name` / `body` / `assets[].browser_download_url`），差别
+/// 只在 Gitee 没有 `html_url`、`published_at` 和资产里的 `size`，缺的字段用本
+/// 类的模板补出来。
+class UpdateSource {
+  const UpdateSource({
+    required this.id,
+    required this.label,
+    required this.apiUrl,
+    required this.releasePageTemplate,
+    required this.apkUrlTemplate,
+  });
+
+  /// 数据源标识（写日志用）
+  final String id;
+
+  /// 展示给用户的名字
+  final String label;
+
+  /// `releases/latest` 接口
+  final String apiUrl;
+
+  /// Release 页面模板，`{tag}` 会替换成 `v1.1.75`
+  final String releasePageTemplate;
+
+  /// APK 直链模板，`{tag}` 会替换成 `v1.1.75`
+  ///
+  /// Gitee 的 Release JSON 里不一定带附件直链，所以按 CI 的固定命名规则
+  /// （`InkPaper-<tag>-android.apk`）拼出来兜底。
+  final String apkUrlTemplate;
+
+  Uri? releasePageFor(String tag) =>
+      Uri.tryParse(releasePageTemplate.replaceAll('{tag}', tag));
+
+  Uri? apkUrlFor(String tag) =>
+      Uri.tryParse(apkUrlTemplate.replaceAll('{tag}', tag));
+
+  /// 优先级：国内镜像在前，GitHub 兜底。
+  static const List<UpdateSource> all = [gitee, github];
+
+  static const UpdateSource gitee = UpdateSource(
+    id: 'gitee',
+    label: 'Gitee 镜像（国内加速）',
+    apiUrl: AppConfig.giteeLatestReleaseApi,
+    releasePageTemplate: '${AppConfig.giteeRepo}/releases/tag/{tag}',
+    apkUrlTemplate:
+        '${AppConfig.giteeRepo}/releases/download/{tag}/InkPaper-{tag}-android.apk',
+  );
+
+  static const UpdateSource github = UpdateSource(
+    id: 'github',
+    label: 'GitHub',
+    apiUrl: AppConfig.githubLatestReleaseApi,
+    releasePageTemplate: '${AppConfig.githubRepo}/releases/tag/{tag}',
+    apkUrlTemplate:
+        '${AppConfig.githubRepo}/releases/download/{tag}/InkPaper-{tag}-android.apk',
+  );
+}
+
+/// 一次更新检查的结果。
 class UpdateCheckResult {
   const UpdateCheckResult({
     required this.currentVersion,
@@ -20,6 +78,8 @@ class UpdateCheckResult {
     this.apkDownloadUrl,
     this.apkSizeBytes,
     this.publishedAt,
+    this.sourceId = '',
+    this.sourceLabel = '',
   });
 
   /// 本机版本（来自打包元数据，形如 `1.1.68`）
@@ -37,14 +97,20 @@ class UpdateCheckResult {
   /// Release 说明（markdown，来自 CHANGELOG）
   final String releaseNotes;
 
-  /// APK 直链，Release 里没有 APK 资产时为 null
+  /// APK 直链，Release 里找不到时为 null
   final Uri? apkDownloadUrl;
 
-  /// APK 字节数
+  /// APK 字节数（Gitee 不返回该字段，可能为 null）
   final int? apkSizeBytes;
 
   /// 发布时间
   final DateTime? publishedAt;
+
+  /// 命中哪个数据源（`gitee` / `github`）
+  final String sourceId;
+
+  /// 数据源展示名
+  final String sourceLabel;
 
   /// 远端版本是否比本机新
   bool get hasUpdate => compareVersions(latestVersion, currentVersion) > 0;
@@ -99,10 +165,12 @@ List<int> _versionSegments(String raw) {
 
 /// 把 `releases/latest` 的 JSON 解析成 [UpdateCheckResult]。
 ///
-/// 抽成顶层函数便于单测：不碰网络也能覆盖各种资产组合。
+/// 抽成顶层函数便于单测：不碰网络也能覆盖各种资产组合。[source] 用来补
+/// JSON 里缺的字段（Gitee 没有 `html_url` / `published_at` / `size`）。
 UpdateCheckResult parseLatestRelease(
   Map<String, dynamic> json, {
   required String currentVersion,
+  UpdateSource? source,
 }) {
   final tag = (json['tag_name'] as String?)?.trim() ?? '';
   final latestVersion =
@@ -111,9 +179,12 @@ UpdateCheckResult parseLatestRelease(
     throw const UpdateCheckException('返回数据缺少版本号');
   }
 
+  // 注意 `Uri.tryParse('')` 返回的是空 Uri 而不是 null，不能直接用 ?? 兜底。
   final htmlUrl = (json['html_url'] as String?)?.trim() ?? '';
-  final releasePageUrl =
-      Uri.tryParse(htmlUrl) ?? Uri.parse(AppConfig.githubRepo);
+  final parsedHtmlUrl = htmlUrl.isEmpty ? null : Uri.tryParse(htmlUrl);
+  final releasePageUrl = parsedHtmlUrl ??
+      source?.releasePageFor(tag) ??
+      Uri.parse(AppConfig.githubRepo);
 
   Uri? apkUrl;
   int? apkSize;
@@ -131,7 +202,7 @@ UpdateCheckResult parseLatestRelease(
       if (!name.toLowerCase().endsWith('.apk')) {
         continue;
       }
-      apkUrl = Uri.tryParse(url);
+      apkUrl = url.isEmpty ? null : Uri.tryParse(url);
       final size = asset['size'];
       if (size is int) {
         apkSize = size;
@@ -139,8 +210,13 @@ UpdateCheckResult parseLatestRelease(
       break;
     }
   }
+  // Gitee 的附件不一定会出现在 assets 里，按固定命名规则拼直链兜底。
+  apkUrl ??= source?.apkUrlFor(tag);
 
   final rawName = (json['name'] as String?)?.trim() ?? '';
+  final publishedRaw = (json['published_at'] as String?) ??
+      (json['created_at'] as String?) ??
+      '';
 
   return UpdateCheckResult(
     currentVersion: currentVersion,
@@ -150,27 +226,54 @@ UpdateCheckResult parseLatestRelease(
     releasePageUrl: releasePageUrl,
     apkDownloadUrl: apkUrl,
     apkSizeBytes: apkSize,
-    publishedAt: DateTime.tryParse((json['published_at'] as String?) ?? ''),
+    publishedAt: DateTime.tryParse(publishedRaw),
+    sourceId: source?.id ?? '',
+    sourceLabel: source?.label ?? '',
   );
 }
 
-/// 从 GitHub 拉最新 Release 并与本机版本比对。
+/// 依次尝试各个数据源拉最新 Release 并与本机版本比对。
+///
+/// 顺序由构造参数决定，默认国内 Gitee 优先、GitHub 兜底：任一源拿到数据就
+/// 立即返回，只有全部失败才抛 [UpdateCheckException]（用最后一个错误，通常是
+/// GitHub 的）。
 class UpdateCheckService {
-  UpdateCheckService({http.Client? client}) : _client = client ?? http.Client();
+  UpdateCheckService({
+    http.Client? client,
+    List<UpdateSource>? sources,
+  })  : _client = client ?? http.Client(),
+        _sources = sources ?? UpdateSource.all;
 
   static const Logger _log = Logger('UpdateCheck');
 
   final http.Client _client;
+  final List<UpdateSource> _sources;
 
-  /// 检查更新；失败抛 [UpdateCheckException]。
+  /// 检查更新；所有数据源都失败时抛 [UpdateCheckException]。
   Future<UpdateCheckResult> check() async {
-    final uri = Uri.parse(AppConfig.githubLatestReleaseApi);
+    UpdateCheckException? lastError;
+    for (final source in _sources) {
+      try {
+        return await _checkFrom(source);
+      } on UpdateCheckException catch (e) {
+        lastError = e;
+        _log.warning(
+          'Update source failed',
+          data: {'source': source.id, 'error': e.message},
+        );
+      }
+    }
+    throw lastError ?? const UpdateCheckException('网络请求失败，请检查网络后重试');
+  }
+
+  Future<UpdateCheckResult> _checkFrom(UpdateSource source) async {
+    final uri = Uri.parse(source.apiUrl);
     http.Response response;
     try {
       response = await _client.get(
         uri,
         headers: {
-          'Accept': 'application/vnd.github+json',
+          'Accept': 'application/json',
           'User-Agent': AppInfoService.userAgent,
         },
       ).timeout(AppConfig.updateCheckTimeout);
@@ -193,7 +296,7 @@ class UpdateCheckService {
 
     final Object? decoded;
     try {
-      // GitHub 的说明里含中文，按 UTF-8 解码避免乱码。
+      // 说明里含中文，按 UTF-8 解码避免乱码。
       decoded = jsonDecode(utf8.decode(response.bodyBytes));
     } on Object catch (e) {
       throw UpdateCheckException('返回数据格式异常', cause: e);
@@ -205,10 +308,12 @@ class UpdateCheckService {
     final result = parseLatestRelease(
       decoded,
       currentVersion: AppInfoService.version,
+      source: source,
     );
     _log.info(
       'Checked latest release',
       data: {
+        'source': source.id,
         'current': result.currentVersion,
         'latest': result.latestVersion,
         'hasUpdate': result.hasUpdate,

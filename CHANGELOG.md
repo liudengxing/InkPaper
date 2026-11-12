@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **版本记录说明**：`1.1.14`–`1.1.56` 的逐版本记录没有随 2026-10-14 的代码基线重导入（`ca0ed14`）一起迁移过来，无法可靠复原，因此不做臆造补记。`1.1.57` 起的变更以 `PROGRESS.md` 为准（按日期归档，含验证输出与决策依据），本文件只汇总用户可感知的对外变更。
 
+## [1.1.76] - 2026-11-12
+
+### 新增
+
+- **Gitee 国内镜像**：代码、tag 与安装包由 CI 自动同步到 gitee.com，大陆网络下 clone 和下载都
+  比直连 GitHub 快得多。README 的下载入口已切到 Gitee，GitHub 继续作为主仓与备份。
+- **应用内更新优先走国内源**：检查更新先请求 Gitee 的 `releases/latest`，成功就直接用 Gitee 的
+  APK 直链下载；Gitee 不可用（未发布 / 限流 / 断网）才回落 GitHub。更新弹窗会标出这次走的是
+  哪个源，例如「下载源 Gitee 镜像（国内加速）」。
+
+### 变更
+
+- Gitee 的 Release JSON 缺 `html_url`、`published_at` 和资产里的 `size`，解析层用模板兜底：
+  Release 页面按 `{repo}/releases/tag/{tag}` 拼、APK 按 `releases/download/{tag}/`
+  `InkPaper-{tag}-android.apk` 拼，发布时间退回读 `created_at`，大小未知时就不显示。
+- `UpdateCheckService` 改成按数据源列表逐个尝试，任一源成功即返回，全部失败才报错（用最后一个
+  错误，通常是 GitHub 的）。数据源列表可通过构造参数注入，方便单测。
+
 ## [1.1.75] - 2026-11-11
 
 ### 移除

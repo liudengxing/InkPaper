@@ -377,11 +377,23 @@ class AppConfig {
   /// GitHub仓库地址
   static const String githubRepo = 'https://github.com/liudengxing/InkPaper';
 
-  /// GitHub 最新 Release 接口（更新检查的唯一数据源）
+  /// Gitee 镜像仓库（国内下载源）
+  ///
+  /// 代码和 Release 由 CI 自动同步过去，大陆网络下比 GitHub 快一个量级。
+  static const String giteeRepo = 'https://gitee.com/liudengxing/InkPaper';
+
+  /// GitHub 最新 Release 接口（更新检查的兜底数据源）
   ///
   /// 只取 `latest`：CI 发布时不带 draft / prerelease，所以这里天然就是正式版。
   static const String githubLatestReleaseApi =
       'https://api.github.com/repos/liudengxing/InkPaper/releases/latest';
+
+  /// Gitee 最新 Release 接口（国内首选数据源）
+  ///
+  /// v5 API 的字段与 GitHub 基本一致，差别是缺 `html_url`、`published_at` 和
+  /// 资产里的 `size`，缺的部分在 `parseLatestRelease` 里兜底。
+  static const String giteeLatestReleaseApi =
+      'https://gitee.com/api/v5/repos/liudengxing/InkPaper/releases/latest';
 
   /// 更新检查请求超时
   static const Duration updateCheckTimeout = Duration(seconds: 10);

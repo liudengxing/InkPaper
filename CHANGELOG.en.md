@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.81] - 2026-11-13
+
+### Fixed
+- Double-tapping the blank area below the text in the note editor now opens the system
+  copy/paste toolbar. The text field is only as tall as its text, so taps below the last
+  line landed outside it and did nothing; users had to long-press and drag a selection
+  to get the toolbar. A fallback gesture layer now sits behind the text: a single tap
+  places the caret, a double tap selects the nearest word and shows the same toolbar.
+
 ## [1.1.80] - 2026-11-12
 
 ### Changed

@@ -1333,6 +1333,21 @@ class _NoteEditorState extends State<NoteEditor>
                               Expanded(
                                 child: Stack(
                                   children: [
+                                    // 正文输入框的高度只跟着文字走，文字下面的空白在
+                                    // 它自己的矩形之外，双击那儿不会触发 Flutter 的
+                                    // 双击选词，系统工具栏也就弹不出来。这里在最底层
+                                    // 铺一层兜底手势：文字和浮层先吃事件，剩下的空白
+                                    // 由它接住 —— 单击落光标，双击选中该处最近的词并
+                                    // 弹出复制/粘贴工具栏。
+                                    Positioned.fill(
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTapDown: _handleBlankAreaTapDown,
+                                        onDoubleTapDown:
+                                            _handleBlankAreaDoubleTapDown,
+                                        child: const SizedBox.expand(),
+                                      ),
+                                    ),
                                     Container(
                                       padding: const EdgeInsets.only(
                                         left: 16,
@@ -2807,6 +2822,60 @@ class _NoteEditorState extends State<NoteEditor>
       }
       _textFocusNode.requestFocus();
     });
+  }
+
+  /// 空白区单击：把光标落到点击处（越界时由 RenderEditable 夹到最近的位置）。
+  void _handleBlankAreaTapDown(TapDownDetails details) {
+    final editableState = _editableTextState();
+    if (editableState == null) {
+      return;
+    }
+    final renderEditable = editableState.renderEditable;
+    renderEditable.handleTapDown(details);
+    renderEditable.selectPosition(cause: SelectionChangedCause.tap);
+  }
+
+  /// 空白区双击：选中点击处最近的词并弹出系统工具栏。
+  ///
+  /// 走的是 Flutter 自己的选词与工具栏（`RenderEditable.selectWord` /
+  /// `EditableTextState.showToolbar`），所以行为和长按框选出来的那个工具栏
+  /// 完全一致，不是另造一个菜单。
+  void _handleBlankAreaDoubleTapDown(TapDownDetails details) {
+    final editableState = _editableTextState();
+    // 空笔记没有词可选，交给单击逻辑落光标就够了。
+    if (editableState == null || _textController.text.isEmpty) {
+      return;
+    }
+    final renderEditable = editableState.renderEditable;
+    // selectWord 依赖上一次 tapDown 记录的位置，必须先喂进去。
+    renderEditable.handleTapDown(details);
+    renderEditable.selectWord(cause: SelectionChangedCause.doubleTap);
+    // 选区叠加层是在选词之后那一帧才建好的，工具栏得等下一帧再显示。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _editableTextState()?.showToolbar();
+    });
+  }
+
+  /// TextField 不对外暴露内部的 [EditableTextState]，而选词、显示工具栏这些能力
+  /// 都在它身上，只能从编辑器子树里把它捞出来。
+  EditableTextState? _editableTextState() {
+    EditableTextState? found;
+    void visit(Element element) {
+      if (found != null) {
+        return;
+      }
+      if (element is StatefulElement && element.state is EditableTextState) {
+        found = element.state as EditableTextState;
+        return;
+      }
+      element.visitChildren(visit);
+    }
+
+    (context as Element).visitChildren(visit);
+    return found;
   }
 
   void _focusEditorAfterOpen() {

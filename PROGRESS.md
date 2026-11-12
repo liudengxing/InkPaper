@@ -1,3 +1,19 @@
+## 2026-11-13 · 编辑器空白区双击弹复制/粘贴工具栏（1.1.81+10177）· done
+
+- 用户：「编辑界面双击同一个地方增加一个弹出系统的那个操作栏，包含复制黏贴的那个，现在要框选一段文字才能出来」
+- **先复现再改**：临时 widget 测试直接跑真实 `NoteEditor`（复用 `note_editor_image_expand_test.dart` 的 `ChangeNotifierProvider(AppProvider)` + 弹层脚手架），打印了两个矩形：
+  `TextField rect=(96,360)-(664,408)`、`EditableText rect=(96,372)-(664,396)` —— 输入框只有一行高（48px）
+- **根因**：正文输入框高度跟着文字走，文字下方的空白落在输入框自己的矩形之外。Flutter 的双击选词（`TextSelectionGestureDetectorBuilder.onDoubleTapDown` → `selectWord` + `editableText.showToolbar()`）只在自己矩形内生效，空白处点击由外层那句 `GestureDetector(onTap: () {})`（原本用来阻止事件冒泡到「点空白关编辑器」）吞掉，所以只有长按文字框选才能叫出工具栏
+- **验证手法**：在同一个 harness 里对比「文字上双击」「空白处双击」「长按拖选」三种手势的 `selection` 与工具栏文本（`Copy/Select all/Cut`）。改前空白处双击 `selection` 停在初始化时的 `collapsed(19)`、工具栏为空；改后选中 `bar`、工具栏出现
+- 改法（`lib/widgets/note_editor.dart`，+约 60 行）
+  - 在正文区 `Stack` **最底层**加 `Positioned.fill(GestureDetector(behavior: opaque))`：文字与浮层先吃事件，剩下的空白才落到它身上
+  - `onTapDown` → `renderEditable.handleTapDown` + `selectPosition(tap)`，空白处单击也能把光标落到点击处
+  - `onDoubleTapDown` → `handleTapDown` 记录位置 → `selectWord(doubleTap)`（用 Flutter 自己的分词，中文也准）→ 下一帧 `EditableTextState.showToolbar()`
+  - `_editableTextState()`：TextField 不暴露内部的 `EditableTextState`，用 `Element.visitChildren` 从编辑器子树里捞
+- 回归测试：新增 `test/widget_tests/note_editor_blank_doubletap_test.dart` 三条 —— 空白双击选中 `bar` 且弹工具栏 / 正文上双击行为不变 / 空笔记双击空白不报错也不弹窗
+- 版本 `1.1.80+10176` → `1.1.81+10177`（README 中英、CHANGELOG 中英同步）
+- **未真机验证**：`adb connect 192.168.0.108:35819` 已拒绝连接（无线调试端口变了），只能靠 widget 测试
+
 ## 2026-11-13 · Gitee 镜像只传 APK，附件上传加超时护栏（未升版本）· done
 
 - 用户：「Mirror to Gitee 这个坑修掉，附件上传改成只传 APK」

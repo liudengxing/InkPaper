@@ -15,6 +15,10 @@ class MemosMarkdownConverter {
     // GFM 不会把结尾空格包在强调标记内的文本识别为粗体，这里只在渲染前归一化。
     result = _normalizeLooseStrongDelimiters(result);
 
+    // 1.2 紧贴正文的减号串会被 Markdown 当成标题下划线（setext），把整段正文
+    // 升级成 h2 —— 用户看到的就是「莫名其妙被加粗」。统一降回分隔线。
+    result = demoteSetextHeadingUnderlines(result);
+
     // 2. 处理高亮 ==text== → 保留原样，用flutter_markdown的builder处理
     // flutter_markdown支持自定义builder
 
@@ -48,6 +52,65 @@ class MemosMarkdownConverter {
 
     return result;
   }
+
+  /// 把「紧贴正文的减号串」降回分隔线。
+  ///
+  /// Markdown 的 setext 规则是：某行文字下面紧跟一行纯减号，那行文字会被当成标题
+  /// （`---` 是 h2）。手敲分隔线时几乎没人记得上下各留空行，结果整段正文被升级成
+  /// 标题 —— 字号变大、字重变粗，看起来就像莫名其妙被加粗。这里统一补一个空行，
+  /// 让它退化成 `<hr/>`：宁可牺牲一个几乎没人用的 setext 标题，也不要正文被改样式。
+  ///
+  /// 卡片预览（`buildNotePreview`）也走这里，保证列表和详情页的观感一致。
+  static String demoteSetextHeadingUnderlines(String content) {
+    final lines = content.split('\n');
+
+    // 文件开头的 `--- ... ---` 是 Memos 属性区，里面的 `---` 必须原样保留。
+    var frontMatterEnd = -1;
+    if (lines.isNotEmpty && lines.first.trim() == '---') {
+      for (var i = 1; i < lines.length; i++) {
+        if (lines[i].trim() == '---') {
+          frontMatterEnd = i;
+          break;
+        }
+      }
+    }
+
+    final result = <String>[];
+    var inFence = false;
+
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmed = line.trim();
+
+      if (i <= frontMatterEnd) {
+        result.add(line);
+        continue;
+      }
+
+      if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
+        inFence = !inFence;
+        result.add(line);
+        continue;
+      }
+
+      if (!inFence &&
+          _setextUnderlinePattern.hasMatch(trimmed) &&
+          result.isNotEmpty &&
+          result.last.trim().isNotEmpty) {
+        result.add('');
+      }
+
+      result.add(line);
+    }
+
+    return result.join('\n');
+  }
+
+  /// 三个及以上减号（含 `- - -` 写法）算分隔线；两个减号仍交给 Markdown 自己判断，
+  /// 免得动到 `- -` 这种嵌套列表的边界写法。
+  static final RegExp _setextUnderlinePattern = RegExp(
+    r'^-(?:[ \t]*-){2,}[ \t]*$',
+  );
 
   String _normalizeLooseStrongDelimiters(String content) {
     final lines = content.split('\n');

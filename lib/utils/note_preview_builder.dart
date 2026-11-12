@@ -1,5 +1,6 @@
 import 'dart:collection';
 
+import 'package:inkpaper/utils/memos_markdown_converter.dart';
 import 'package:markdown/markdown.dart' as md;
 
 /// 卡片预览支持的轻量行内样式。
@@ -94,11 +95,17 @@ NotePreview buildNotePreview(
     return NotePreview.empty;
   }
 
+  // 紧贴正文的减号串会被解析成 setext 标题下划线，预览里表现为整段变粗。
+  // 和详情页用同一套降级规则，避免同一条笔记两处观感不一致。
+  final source = MemosMarkdownConverter.demoteSetextHeadingUnderlines(
+    _safePrefix(content, parseLimit),
+  );
+
   final nodes = md.Document(
     extensionSet: md.ExtensionSet.gitHubFlavored,
     inlineSyntaxes: <md.InlineSyntax>[_underlineSyntax],
     encodeHtml: false,
-  ).parse(_prepare(_safePrefix(content, parseLimit)));
+  ).parse(_prepare(source));
 
   final walker = _PreviewWalker()..walkBlocks(nodes);
   return NotePreview(

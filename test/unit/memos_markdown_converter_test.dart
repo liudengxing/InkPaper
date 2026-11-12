@@ -75,5 +75,55 @@ https://gpt-agent.cc/v1
         '[#AI](#AI) https://example.com/#section `#code`',
       );
     });
+
+    group('setext 下划线降级为分隔线', () {
+      final converter = MemosMarkdownConverter();
+
+      test('正文下面紧跟减号串时补空行，避免整段变成 h2', () {
+        expect(
+          converter.convert('❶文字段落。\n-----------\n【我做的】：内容'),
+          '❶文字段落。\n\n-----------\n【我做的】：内容',
+        );
+      });
+
+      test('`- - -` 这种带空格的分隔线同样处理', () {
+        expect(
+          converter.convert('文字\n- - -\n内容'),
+          '文字\n\n- - -\n内容',
+        );
+      });
+
+      test('已经有空行的分隔线保持原样', () {
+        const content = '文字\n\n---\n\n内容';
+        expect(converter.convert(content), content);
+      });
+
+      test('减号与文字同处一行时不动', () {
+        const content = '文字-----------文字';
+        expect(converter.convert(content), content);
+      });
+
+      test('两个减号不动，避免影响嵌套列表', () {
+        const content = '文字\n--\n内容';
+        expect(converter.convert(content), content);
+      });
+
+      test('代码围栏内的减号不动', () {
+        const content = '''
+```dart
+文字
+---
+```
+''';
+        expect(converter.convert(content), content);
+      });
+
+      test('文件开头的属性区（frontmatter）不受影响', () {
+        expect(
+          converter.convert('---\ntitle: x\n---\n正文\n---\n'),
+          '---\ntitle: x\n---\n正文\n\n---\n',
+        );
+      });
+    });
   });
 }

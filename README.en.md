@@ -6,7 +6,7 @@ InkPaper is a cross-platform note-taking app for personal knowledge capture. Loc
 
 ## Current Version
 
-`1.1.76`
+`1.1.77`
 
 Official build (Android APK / AAB)
 
@@ -80,7 +80,7 @@ sdkmanager --licenses
 The app version is managed in `pubspec.yaml`, where `x.y.z` is the semantic version and `+N` is the build number:
 
 ```yaml
-version: 1.1.76+10172
+version: 1.1.77+10173
 ```
 
 Bump both the `x.y.z` patch and `+N` on every change, and update the `x.y.z` shown in the "Current Version" section above — `dart tool/inkpaper.dart store-check` asserts that the two match and fails otherwise.
@@ -88,7 +88,7 @@ Bump both the `x.y.z` patch and `+N` on every change, and update the `x.y.z` sho
 Release command:
 
 ```bash
-dart tool/inkpaper.dart release v1.1.76
+dart tool/inkpaper.dart release v1.1.77
 ```
 
 The command first checks that the tag matches `pubspec.yaml`, then creates and pushes the tag. GitHub Actions verifies, builds, and publishes the Android APK/AAB.

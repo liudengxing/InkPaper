@@ -45,8 +45,13 @@ class UpdateSource {
   Uri? apkUrlFor(String tag) =>
       Uri.tryParse(apkUrlTemplate.replaceAll('{tag}', tag));
 
-  /// 优先级：国内镜像在前，GitHub 兜底。
-  static const List<UpdateSource> all = [gitee, github];
+  /// 默认数据源：只走国内镜像。
+  ///
+  /// GitHub 在国内直连很慢（50MB 的包实测 5 分钟只下来 8MB），把它当兜底等于
+  /// 「Gitee 一抖动就多等好几分钟」，用户看到的还是「检查更新卡住」。所以默认
+  /// 列表里只放 Gitee；真需要回落 GitHub 时显式传
+  /// `sources: [UpdateSource.gitee, UpdateSource.github]`。
+  static const List<UpdateSource> all = [gitee];
 
   static const UpdateSource gitee = UpdateSource(
     id: 'gitee',
@@ -234,9 +239,8 @@ UpdateCheckResult parseLatestRelease(
 
 /// 依次尝试各个数据源拉最新 Release 并与本机版本比对。
 ///
-/// 顺序由构造参数决定，默认国内 Gitee 优先、GitHub 兜底：任一源拿到数据就
-/// 立即返回，只有全部失败才抛 [UpdateCheckException]（用最后一个错误，通常是
-/// GitHub 的）。
+/// 顺序由构造参数决定，默认只走 Gitee 镜像（见 [UpdateSource.all]）：任一源拿到
+/// 数据就立即返回，只有全部失败才抛 [UpdateCheckException]（用最后一个错误）。
 class UpdateCheckService {
   UpdateCheckService({
     http.Client? client,

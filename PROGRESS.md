@@ -1,3 +1,12 @@
+## 2026-11-12 · 更新检查默认只走国内源（1.1.79+10175）· done
+
+- 用户提问「首页打开检查的是 GitHub 的版本吗」，并要求「默认全部访问国内的源」
+- 先查证：`UpdateSource.all` 早就是 `[gitee, github]`（Gitee 优先），所以 **1.1.77 起开屏检查和关于页都先打 Gitee**。会看到 GitHub 只有两种情况：一是装的还是 1.1.74 以前没有 Gitee 源的版本；二是 Gitee 那次请求失败，回落到了 GitHub —— 而 GitHub 国内直连极慢（50MB 实测 5 分钟 8MB），观感就是「卡住」
+- 改法：`UpdateSource.all` 改成 `[gitee]`，默认不再回落。`UpdateSource.github` 常量保留，需要时显式传 `sources: [UpdateSource.gitee, UpdateSource.github]`
+- 测试：原来那条「Gitee 挂了会回落到 GitHub」拆成两条 —— 「默认只走 Gitee，挂了也不会去碰 GitHub」（断言只请求过 gitee.com）＋「显式指定时才回落 GitHub」
+- 发版侧：Release v1.1.78 的 `Mirror to Gitee` 又卡在往 Gitee 传 100MB（历史同样问题），取消 run 后**删掉 Gitee 上只有源码 zip 的 v1.1.78 Release**，避免更新检查拿到 404 的 APK 直链；Gitee latest 回到完整的 v1.1.77，等 1.1.79 上去再接替
+- 验证：`dart tool/inkpaper.dart verify` 640 项全绿；`store-check` 通过
+
 ## 2026-11-12 · 修图片查看器手势冲突（1.1.78+10174）· done
 
 - 起因：用户反馈「两指放大手势和图片左右滑手势有冲突」，要求先确认

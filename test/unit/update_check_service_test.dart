@@ -227,7 +227,21 @@ void main() {
       expect(result.hasUpdate, isTrue);
     });
 
-    test('Gitee 挂了会回落到 GitHub', () async {
+    test('默认只走 Gitee，挂了也不会去碰 GitHub', () async {
+      final requested = <String>[];
+      final client = MockClient((request) async {
+        requested.add(request.url.host);
+        return http.Response('{"message":"404 Not Found"}', 404);
+      });
+      final service = UpdateCheckService(client: client);
+      addTearDown(service.dispose);
+
+      await expectLater(service.check(), throwsA(isA<UpdateCheckException>()));
+
+      expect(requested, ['gitee.com']);
+    });
+
+    test('显式指定时才回落 GitHub', () async {
       final requested = <String>[];
       final client = MockClient((request) async {
         requested.add(request.url.host);
@@ -240,7 +254,10 @@ void main() {
           headers: {'content-type': 'application/json; charset=utf-8'},
         );
       });
-      final service = UpdateCheckService(client: client);
+      final service = UpdateCheckService(
+        client: client,
+        sources: const [UpdateSource.gitee, UpdateSource.github],
+      );
       addTearDown(service.dispose);
 
       final result = await service.check();

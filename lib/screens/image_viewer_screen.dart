@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/providers/app_provider.dart';
@@ -706,6 +707,80 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
     widget.onZoomChanged?.call(true);
   }
 
+  /// 双击 / 捏合允许的最大放大倍数。
+  static const double _maxPhotoScale = 5;
+
+  /// 手势起点：焦点落在图片坐标系里的位置，以及当时的缩放倍数。
+  ///
+  /// 缩放全程锚定这个点，双指外扩时手指底下的像素不会滑走。
+  Offset? _gestureFocalScene;
+  double _gestureStartScale = 1;
+
+  void _handleScaleStart(ScaleStartDetails details) {
+    _gestureStartScale = _transformationController.value
+        .getMaxScaleOnAxis()
+        .clamp(1.0, _maxPhotoScale);
+    _gestureFocalScene = _transformationController.toScene(
+      details.localFocalPoint,
+    );
+  }
+
+  /// 单指拖拽复用同一套公式：单指时 scale 恒为 1，公式退化成纯平移。
+  void _handleScaleUpdate(ScaleUpdateDetails details) {
+    final focalScene = _gestureFocalScene;
+    if (focalScene == null) {
+      return;
+    }
+    final nextScale =
+        (_gestureStartScale * details.scale).clamp(1.0, _maxPhotoScale);
+    final focal = details.localFocalPoint;
+    _transformationController.value = Matrix4.identity()
+      ..translateByDouble(
+        focal.dx - focalScene.dx * nextScale,
+        focal.dy - focalScene.dy * nextScale,
+        0,
+        1,
+      )
+      ..scaleByDouble(nextScale, nextScale, 1, 1);
+    _updateZoomState();
+  }
+
+  void _handleScaleEnd(ScaleEndDetails details) {
+    _gestureFocalScene = null;
+    _settlePhotoTransform();
+  }
+
+  /// 桌面端滚轮缩放 —— 原本由 InteractiveViewer 自带，换成自管手势后要补回来。
+  void _handlePointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent ||
+        _viewportSize == null ||
+        _displaySize == null) {
+      return;
+    }
+    final matrix = _transformationController.value;
+    final current = matrix.getMaxScaleOnAxis().clamp(1.0, _maxPhotoScale);
+    // 与 InteractiveViewer 的 scaleFactor = 200 保持同一手感
+    final next = (current * math.exp(-event.scrollDelta.dy / 200)).clamp(
+      1.0,
+      _maxPhotoScale,
+    );
+    if ((next - current).abs() < 1e-4) {
+      return;
+    }
+    final focal = event.localPosition;
+    final focalScene = _transformationController.toScene(focal);
+    _transformationController.value = Matrix4.identity()
+      ..translateByDouble(
+        focal.dx - focalScene.dx * next,
+        focal.dy - focalScene.dy * next,
+        0,
+        1,
+      )
+      ..scaleByDouble(next, next, 1, 1);
+    _updateZoomState();
+    _settlePhotoTransform();
+  }
+
   Widget _buildZoomableImage(BuildContext context) {
     if (_imageError != null) {
       return _buildImageError(
@@ -727,26 +802,56 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
         final displaySize = _containSize(activeSize, screenSize);
         _syncPhotoLayout(screenSize, displaySize);
 
-        return InteractiveViewer(
-          transformationController: _transformationController,
-          minScale: 1,
-          maxScale: 5,
-          boundaryMargin: EdgeInsets.symmetric(
-            horizontal: screenSize.width,
-            vertical: screenSize.height,
-          ),
-          constrained: false,
-          onInteractionUpdate: (_) => _updateZoomState(),
-          onInteractionEnd: (_) => _settlePhotoTransform(),
-          child: SizedBox(
-            width: displaySize.width,
-            height: displaySize.height,
-            child: Image(
-              image: activeProvider,
-              fit: BoxFit.contain,
-              // 保持默认 medium 插值：high（三次插值）在缩放拖动时非常吃 GPU
-              // 缩略图 → 原图切换时保留旧帧，避免闪一下黑
-              gaplessPlayback: true,
+        // 这里不用 InteractiveViewer，改用自带的 ScaleGestureRecognizer，
+        // 原因见 [_PhotoScaleGestureRecognizer] 的注释。
+        return Listener(
+          onPointerSignal: _handlePointerSignal,
+          child: RawGestureDetector(
+            behavior: HitTestBehavior.opaque,
+            gestures: <Type, GestureRecognizerFactory>{
+              _PhotoScaleGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<
+                      _PhotoScaleGestureRecognizer>(
+                () => _PhotoScaleGestureRecognizer(
+                  allowAccept: (recognizer) =>
+                      recognizer.pointerCount >= 2 ||
+                      _transformationController.value.getMaxScaleOnAxis() >
+                          1.01,
+                ),
+                (recognizer) => recognizer
+                  ..onStart = _handleScaleStart
+                  ..onUpdate = _handleScaleUpdate
+                  ..onEnd = _handleScaleEnd,
+              ),
+            },
+            child: ClipRect(
+              // 相当于 InteractiveViewer 的 constrained: false：
+              // 让图片按自身尺寸排版，再由 Transform 定位到屏幕中央。
+              child: OverflowBox(
+                alignment: Alignment.topLeft,
+                minWidth: 0,
+                maxWidth: double.infinity,
+                minHeight: 0,
+                maxHeight: double.infinity,
+                child: AnimatedBuilder(
+                  animation: _transformationController,
+                  builder: (context, child) => Transform(
+                    transform: _transformationController.value,
+                    child: child,
+                  ),
+                  child: SizedBox(
+                    width: displaySize.width,
+                    height: displaySize.height,
+                    child: Image(
+                      image: activeProvider,
+                      fit: BoxFit.contain,
+                      // 保持默认 medium 插值：high（三次插值）在缩放拖动时非常吃 GPU
+                      // 缩略图 → 原图切换时保留旧帧，避免闪一下黑
+                      gaplessPlayback: true,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         );
@@ -912,4 +1017,33 @@ class _ZoomablePhotoPageState extends State<_ZoomablePhotoPage> {
           ],
         ),
       );
+}
+
+/// 只在「双指」或「已经放大」时才参与手势仲裁的缩放识别器。
+///
+/// [ScaleGestureRecognizer] 默认单指平移超过 kPanSlop（36dp）就抢手势，而外层
+/// 翻页用的 HorizontalDragGestureRecognizer 阈值只有 kTouchSlop（18dp）。阈值上
+/// 翻页本该赢，但这个识别器在 Scrollable 内部、指针事件派发更早，所以只要单帧
+/// 位移超过 36dp（快速滑动时很常见），它就先一步 accept，翻页被直接拒掉 ——
+/// 表现成「慢滑能翻页，使劲快滑反而滑不动」。
+///
+/// 这里把「单指且未放大」时的 accepted 请求吞掉，让 PageView 稳定拿到单指横滑；
+/// 双指捏合或已经放大后照常抢占。
+///
+/// 探针实测（PageView 包 InteractiveViewer vs 本实现，单指横滑 480dp）：
+/// - 改前：单帧位移 8~36dp 能翻页，38dp 起翻页失灵；
+/// - 改后：单帧位移 8~240dp 全部正常翻页。
+class _PhotoScaleGestureRecognizer extends ScaleGestureRecognizer {
+  _PhotoScaleGestureRecognizer({required this.allowAccept});
+
+  /// 返回 true 才允许本识别器赢下手势。
+  final bool Function(_PhotoScaleGestureRecognizer recognizer) allowAccept;
+
+  @override
+  void resolve(GestureDisposition disposition) {
+    if (disposition == GestureDisposition.accepted && !allowAccept(this)) {
+      return;
+    }
+    super.resolve(disposition);
+  }
 }

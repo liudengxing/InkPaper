@@ -1,3 +1,23 @@
+## 2026-11-12 · 修图片查看器手势冲突（1.1.78+10174）· done
+
+- 起因：用户反馈「两指放大手势和图片左右滑手势有冲突」，要求先确认
+- **用探针实测确认（而不是推理）**：复刻 `PageView` 包 `InteractiveViewer` 的手势层次，用 `TestGesture` 模拟真实触摸序列，扫出临界值 ——
+  - 单指横滑单帧位移 **≤36dp 能翻页，≥38dp 翻页失灵**（`36 = kPanSlop = kTouchSlop × 2`）
+  - 根因：`ScaleGestureRecognizer` 的平移阈值 36dp 虽大于翻页拖动阈值 18dp，但它所在的 `GestureDetector` 在 `Scrollable` 内部，指针事件**深度优先派发**，所以单帧位移一过 36dp 它就先 `resolve(accepted)`，翻页被 reject —— 表现成「慢滑能翻页、使劲快滑滑不动」
+  - 反向：第一根手指先横向滑出 18dp，PageView 先赢，第二根手指落下也救不回来（pointer1 的 arena 已判定，缩放只剩 pointer2，凑不出两指）
+  - 另测：放大后单指横滑只平移不翻页（`_currentPageZoomed` 门控，设计如此）；两指同向滑两头都不响应
+- 修法：`lib/screens/image_viewer_screen.dart` 去掉 `InteractiveViewer`，改自管 `Transform` + `_PhotoScaleGestureRecognizer`
+  - `_PhotoScaleGestureRecognizer extends ScaleGestureRecognizer` 重写 `resolve()`：**单指且未放大时吞掉自己的 accepted 请求**，把单指横滑稳定让给 `PageView`；双指或已放大时照常抢
+  - 手势数学沿用文件里原有的 `_containedMatrix` / `_clampPhotoTransform` / `_containedImageRect` / `_toScene`；`_handleScaleUpdate` 用「锚定手势起点焦点」的公式 `t = focal − s·sceneFocal`，单指时 scale 恒为 1、自然退化成纯平移
+  - `constrained: false` 用 `OverflowBox(alignment: topLeft)` 等价替代；重绘走 `AnimatedBuilder(animation: _transformationController)`
+  - **补回桌面端滚轮缩放**：`InteractiveViewer` 原本自带，换成自管手势后要自己实现，`Listener(onPointerSignal:)` + `exp(-dy/200)`（与 InteractiveViewer 的 `scaleFactor: 200` 同手感），windows/macos/linux 三个目录都在，不能丢
+- 回归测试 `test/widget_tests/image_viewer_gesture_test.dart`（6 项）：慢滑/快滑/超快滑单指翻页、双指捏合放大且不误翻页、放大后单指只平移、滚轮放大
+  - **验证过测试有效**：`git stash` 回退到旧实现，IVG-02（单帧 60dp）与 IVG-03（单帧 240dp）确实红，IVG-01（单帧 20dp）绿 —— 与探针数据一致
+  - 坑：`tester.dragFrom` 的事件时间戳恒为 0 → 速度恒为 0 → 翻页卡在 50% 位移阈值上，看起来像「连基线都不翻页」。分步拖动必须显式传 `timeStamp` 递增
+  - 坑：`tester.startGesture()` 不接受 `timeStamp`，只有 `moveTo`/`up` 接受
+- 未修（已在 CHANGELOG 明确写出）：起手时第一根手指已横向滑出 >18dp 仍按翻页处理 —— 那已是明确的横滑意图，且需把翻页也自管（`NeverScrollableScrollPhysics` + 自驱动 `PageController`）才能改，改动大一档，暂不引入
+- 验证：`dart tool/inkpaper.dart verify` 639 项全绿（新增 6 项）；`store-check` 通过；纯 Dart 改动无原生变化，未跑 android build
+
 ## 2026-11-12 · 开屏检查更新 + 下载进度搬进弹窗 + 修「下完不弹安装」（1.1.77+10173）· done
 
 - 起因：真机点「下载安装包」，进度走到 100% 后系统安装界面不弹；用户同时要求改成「开屏就检测更新、进度条直接在弹窗里」

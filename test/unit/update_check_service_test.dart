@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/services/update_check_service.dart';
 
 Map<String, dynamic> _releasePayload({
@@ -284,6 +285,19 @@ void main() {
 
       expect(requested, ['gitee.com']);
       expect(result.sourceId, 'gitee');
+    });
+
+    test('Gitee 更新检查接口与镜像仓指向同一个 owner/repo', () {
+      // 1.1.76 接 Gitee 镜像时，API 地址的 owner/repo 被抄成了 GitHub 的
+      // （liudengxing/InkPaper），Gitee 侧直接 404，更新检查从此读不到任何版本。
+      // 这里从 giteeRepo 反推，两边只要有一处改漏就会立刻红。
+      final repo = Uri.parse(AppConfig.giteeRepo);
+      final api = Uri.parse(AppConfig.giteeLatestReleaseApi);
+
+      expect(repo.host, 'gitee.com');
+      expect(api.host, repo.host);
+      expect(api.pathSegments.sublist(3, 5), repo.pathSegments);
+      expect(api.pathSegments.last, 'latest');
     });
   });
 }

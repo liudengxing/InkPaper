@@ -391,7 +391,7 @@ class AppConfig {
   /// v5 API 的字段与 GitHub 基本一致，差别是缺 `html_url`、`published_at` 和
   /// 资产里的 `size`，缺的部分在 `parseLatestRelease` 里兜底。
   static const String giteeLatestReleaseApi =
-      'https://gitee.com/api/v5/repos/liudengxing/InkPaper/releases/latest';
+      'https://gitee.com/api/v5/repos/liudengxing233/ink-paper/releases/latest';
 
   /// 更新检查请求超时
   static const Duration updateCheckTimeout = Duration(seconds: 10);

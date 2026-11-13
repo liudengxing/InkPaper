@@ -94,6 +94,24 @@ bool _hasImages(WidgetTester tester) =>
     find.byType(ReorderableDelayedDragStartListener).evaluate().isNotEmpty ||
     find.byType(LongPressDraggable<int>).evaluate().isNotEmpty;
 
+/// 点图片按钮，一直等到图片真的挂进图片区。
+///
+/// 落盘是真实文件 IO，编辑器拿到文件后还要再走一次 setState 才挂上 Image；
+/// 固定 `delay(300ms)` 在机器忙的时候会不够，表现为偶发「点了图片没反应」。
+Future<void> _pickImage(WidgetTester tester) async {
+  await tester.runAsync(() async {
+    await tester.tap(find.byIcon(Icons.photo_outlined));
+    for (var i = 0; i < 60; i++) {
+      await tester.pump();
+      if (_hasImages(tester)) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  });
+  await tester.pumpAndSettle();
+}
+
 /// 读出草稿槽位里存的原始 Markdown。
 Future<String?> _draftContent(String slot) async {
   final prefs = await SharedPreferences.getInstance();
@@ -216,12 +234,7 @@ void main() {
 
     await _openEditor(tester);
     // 落盘是真的文件 IO，fake async 里不会推进，必须放到 runAsync
-    await tester.runAsync(() async {
-      await tester.tap(find.byIcon(Icons.photo_outlined));
-      await tester.pump();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    });
-    await tester.pumpAndSettle();
+    await _pickImage(tester);
 
     // 图片区已经挂上这张图
     expect(_hasImages(tester), isTrue, reason: '点图片按钮后应当立刻进图片区');
@@ -253,12 +266,7 @@ void main() {
     ImagePickerPlatform.instance = _FakeImagePicker([XFile(picked.path)]);
 
     await _openEditor(tester);
-    await tester.runAsync(() async {
-      await tester.tap(find.byIcon(Icons.photo_outlined));
-      await tester.pump();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    });
-    await tester.pumpAndSettle();
+    await _pickImage(tester);
     await tester.tap(find.byIcon(Icons.close).first);
     await tester.pumpAndSettle();
 
@@ -290,12 +298,7 @@ void main() {
 
     const original = '原内容';
     await _openEditor(tester, content: original, noteId: 'note-5');
-    await tester.runAsync(() async {
-      await tester.tap(find.byIcon(Icons.photo_outlined));
-      await tester.pump();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    });
-    await tester.pumpAndSettle();
+    await _pickImage(tester);
     expect(_hasImages(tester), isTrue);
 
     await tester.tap(find.byIcon(Icons.close).first);
@@ -340,12 +343,7 @@ void main() {
 
     const original = '原内容';
     await _openEditor(tester, content: original, noteId: 'note-6');
-    await tester.runAsync(() async {
-      await tester.tap(find.byIcon(Icons.photo_outlined));
-      await tester.pump();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    });
-    await tester.pumpAndSettle();
+    await _pickImage(tester);
     await tester.tap(find.byIcon(Icons.close).first);
     await tester.pumpAndSettle();
 

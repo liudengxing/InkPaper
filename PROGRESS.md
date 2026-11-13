@@ -1,3 +1,26 @@
+## 2026-11-13 · 清掉无人调用的本地化 getter（1.1.86+10183）· done
+
+### 问题
+- `app_localizations_simple.dart` 攒到 1489 个 getter、2919 行，`translations.dart` 1277 条、
+  2939 行，但界面早就改完了，**467 个 getter 在 `lib/` 与 `test/` 里一次都没被调用过**
+  （`appTitle`、`saveChanges`、`visibilityPrivate`、`syncNow` 这类查无此调用）
+- 死 getter 拖着 434 条翻译一起躺着，两个文件都快三千行，翻起来费劲、改文案容易改到没人看的那份
+
+### 做法
+- 脚本 `Z:/Temp/cleanup_l10n.py`（预演 / `--apply` 两档）：
+  1. 按 `^  String get (\w+)(.*?;)$` 多行切块，1489 块与文件里 `String get` 出现次数一一对上，确认没切错
+  2. 判"没人调"要同时排除两种引用：`lib/`+`test/` 里（l10n 目录外）的 `\bname\b`，
+     以及**同文件内其它成员对它的引用**（少了这步会把被别的 getter 借用的内层 getter 误删）
+  3. 删完 getter 再回收翻译：以剩余代码里 `_t('key')` 的集合为准，不在其中的条目才删，
+     另外还要求该 key 没在别处以字符串字面量出现过
+- **不能简单 grep `'key'`**：`_t` 是动态拼 key 的封装，`'key'` 字面量只出现在 getter 体内，
+  用它判断"有没有被用"会把 832 条全判成在用；得先确认 `Translations.get` 只有
+  `app_localizations_simple.dart:20` 一处调用、没有可变 key 的旁路，才敢按 getter 引用算
+
+### 结果
+- getter **1489 → 1022**，文件 **2919 → 2158 行**；翻译 **1277 → 843 条**，文件 **2939 → 1982 行**
+- 复核：剩余 1022 个 getter 无一无人调用；`dart analyze` 全仓 0 issue；`verify` **694 项全过**
+
 ## 2026-11-13 · 九宫格拖动实时让位 + 展开卡顿定位（1.1.86+10182）· done
 
 ### 问题

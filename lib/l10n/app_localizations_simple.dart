@@ -20,7 +20,6 @@ class AppLocalizationsSimple {
       Translations.get(key, locale.languageCode, fallback: fallback);
 
   // ===== 应用基础 =====
-  String get appTitle => _t('appTitle', fallback: '墨鸣笔记');
   String get preferences => _t('preferences', fallback: '偏好设置');
   String get appearance => _t('appearance', fallback: '外观');
   String get themeSelection => _t('theme', fallback: '主题选择');
@@ -61,28 +60,19 @@ class AppLocalizationsSimple {
   String get delete => _t('delete', fallback: '删除');
   String get edit => _t('edit', fallback: '编辑');
   String get confirm => _t('confirm', fallback: '确认');
-  String get submit => _t('submit', fallback: '提交');
   String get logout => _t('logout', fallback: '退出登录');
   String get export => _t('export', fallback: '导出');
   String get import => _t('import', fallback: '导入');
   String get nickname => _t('nickname', fallback: '昵称');
-  String get bio => _t('bio', fallback: '简介');
-  String get changePassword => _t('changePassword', fallback: '修改密码');
-  String get oldPassword => _t('oldPassword', fallback: '旧密码');
   String get newPassword => _t('newPassword', fallback: '新密码');
-  String get notLoggedIn => _t('notLoggedIn', fallback: '未登录');
   String get serverConnection => _t('serverConnection', fallback: '服务器连接');
   String get connectionStatus => _t('connectionStatus', fallback: '连接状态');
   String get connected => _t('connected', fallback: '已连接');
-  String get disconnected => _t('disconnected', fallback: '未连接');
   String get diagnosing => _t('diagnosing', fallback: '诊断中...');
   String get connectionDiagnosis => _t('connectionDiagnosis', fallback: '连接诊断');
-  String get connectionSettings => _t('connectionSettings', fallback: '连接设置');
   String get connectionLog => _t('connectionLog', fallback: '连接日志');
-  String get saveChanges => _t('saveChanges', fallback: '保存更改');
   String get success => _t('success', fallback: '成功');
   String get failed => _t('failed', fallback: '失败');
-  String get updateSuccess => _t('updateSuccess', fallback: '更新成功');
   String get updateFailed => _t('updateFailed', fallback: '更新失败');
   String get syncSuccess => _t('syncSuccess', fallback: '同步成功');
 
@@ -124,13 +114,6 @@ class AppLocalizationsSimple {
 
   String get defaultNoteVisibility =>
       locale.languageCode == 'zh' ? '默认笔记状态' : 'Default Note Visibility';
-  String get visibilityPrivate =>
-      locale.languageCode == 'zh' ? '私有' : 'Private';
-  String get visibilityPublic => locale.languageCode == 'zh' ? '公开' : 'Public';
-  String get visibilityPrivateDesc =>
-      locale.languageCode == 'zh' ? '仅自己可见' : 'Only visible to you';
-  String get visibilityPublicDesc =>
-      locale.languageCode == 'zh' ? '所有人可见' : 'Visible to everyone';
 
   String get rememberPassword =>
       locale.languageCode == 'zh' ? '记住密码' : 'Remember Password';
@@ -153,10 +136,6 @@ class AppLocalizationsSimple {
   String get autoShowEditorDisabled => locale.languageCode == 'zh'
       ? '已关闭启动自动弹出编辑框'
       : 'Auto show editor on launch disabled';
-
-  String get selectDefaultNoteVisibility => locale.languageCode == 'zh'
-      ? '选择默认笔记状态'
-      : 'Select Default Note Visibility';
 
   String minutesFormat(int minutes) =>
       locale.languageCode == 'zh' ? '$minutes分钟' : '$minutes minutes';
@@ -266,7 +245,6 @@ class AppLocalizationsSimple {
   String get copyNote => locale.languageCode == 'zh' ? '复制笔记' : 'Copy Note';
   String get noteContent =>
       locale.languageCode == 'zh' ? '笔记内容' : 'Note Content';
-  String get emptyNote => locale.languageCode == 'zh' ? '暂无笔记' : 'No notes yet';
   String get searchNotes =>
       locale.languageCode == 'zh' ? '搜索笔记' : 'Search notes';
   String searchResultsCount(int count) =>
@@ -279,27 +257,15 @@ class AppLocalizationsSimple {
   String get relatedNotes => _t('relatedNotes', fallback: '相关笔记');
   String get findingRelatedNotes =>
       _t('findingRelatedNotes', fallback: '正在查找相关笔记…');
-  String get sortNewest => locale.languageCode == 'zh' ? '最新创建' : 'Newest';
-  String get sortOldest => locale.languageCode == 'zh' ? '最早创建' : 'Oldest';
-  String get sortUpdated =>
-      locale.languageCode == 'zh' ? '最近更新' : 'Recently Updated';
 
   // ===== 设置 =====
-  String get generalSettings =>
-      locale.languageCode == 'zh' ? '通用设置' : 'General Settings';
-  String get accountSettings =>
-      locale.languageCode == 'zh' ? '账号设置' : 'Account Settings';
-  String get privacySettings =>
-      locale.languageCode == 'zh' ? '隐私设置' : 'Privacy Settings';
   String get advancedSettings =>
       locale.languageCode == 'zh' ? '高级设置' : 'Advanced Settings';
   String get feedback => locale.languageCode == 'zh' ? '意见反馈' : 'Feedback';
 
   // ===== 同步 =====
   String get syncing => locale.languageCode == 'zh' ? '同步中...' : 'Syncing...';
-  String get syncFailed => locale.languageCode == 'zh' ? '同步失败' : 'Sync failed';
   String get lastSync => locale.languageCode == 'zh' ? '上次同步' : 'Last sync';
-  String get syncNow => locale.languageCode == 'zh' ? '立即同步' : 'Sync now';
 
   // ===== 时间 =====
   String get today => locale.languageCode == 'zh' ? '今天' : 'Today';
@@ -309,73 +275,33 @@ class AppLocalizationsSimple {
 
   // ===== 提示消息 =====
   String get loading => locale.languageCode == 'zh' ? '加载中...' : 'Loading...';
-  String get noData => locale.languageCode == 'zh' ? '暂无数据' : 'No data';
-  String get networkError =>
-      locale.languageCode == 'zh' ? '网络错误' : 'Network error';
-  String get operationSuccess =>
-      locale.languageCode == 'zh' ? '操作成功' : 'Operation successful';
   String get operationFailed =>
       locale.languageCode == 'zh' ? '操作失败' : 'Operation failed';
 
   // ===== 删除确认 =====
-  String get deleteConfirmTitle =>
-      locale.languageCode == 'zh' ? '确认删除' : 'Confirm Delete';
-  String get deleteConfirmMessage => locale.languageCode == 'zh'
-      ? '确定要删除这条笔记吗？'
-      : 'Are you sure you want to delete this note?';
-  String get deleteSuccess =>
-      locale.languageCode == 'zh' ? '删除成功' : 'Deleted successfully';
 
   // ===== 导入导出 =====
-  String get exportBackup => _t('exportBackup', fallback: '导出备份');
-  String get importRestore => _t('importRestore', fallback: '导入恢复');
-  String get backupInfo => _t('backupInfo', fallback: '备份信息');
   String get lastBackup => _t('lastBackup', fallback: '上次备份');
   String get neverBackedUp => _t('neverBackedUp', fallback: '从未备份');
-  String get backupSize => _t('backupSize', fallback: '备份大小');
-  String get exportOptions => _t('exportOptions', fallback: '导出选项');
   String get exportFormat => _t('exportFormat', fallback: '导出格式');
   String get includeImages => _t('includeImages', fallback: '包含图片');
-  String get includeImagesSubtitle =>
-      _t('includeImagesSubtitle', fallback: '将笔记中的图片一同导出');
-  String get includeTags => _t('includeTags', fallback: '包含标签');
-  String get encryptBackup => _t('encryptBackup', fallback: '加密备份');
-  String get encryptionOptions => _t('encryptionOptions', fallback: '加密选项');
-  String get encryptionPassword => _t('encryptionPassword', fallback: '加密密码');
   String get importHistory => _t('importHistory', fallback: '导入历史');
-  String get startExport => _t('startExport', fallback: '开始导出');
   String get startImport => _t('startImport', fallback: '开始导入');
 
   // ===== 实验室 =====
-  String get releasedFeatures => _t('releasedFeatures', fallback: '已发布功能');
-  String get developingFeatures => _t('developingFeatures', fallback: '开发中功能');
   String get inDevelopment => _t('inDevelopment', fallback: '开发中');
-  String get experimentalNotice => _t(
-        'experimentalNotice',
-        fallback: '实验室功能可能不稳定，使用前请备份重要数据。我们会根据用户反馈不断改进这些功能。',
-      );
-  String get featureDetails => _t('featureDetails', fallback: '功能特性');
-  String get exploring => _t('exploring', fallback: '探索前沿功能，体验创新特性');
 
   // ===== 反馈 =====
-  String get feedbackType => _t('feedbackType', fallback: '反馈类型');
   String get featureSuggestion => _t('featureSuggestion', fallback: '功能建议');
-  String get bugReport => _t('bugReport', fallback: '问题反馈');
   String get uiOptimization => _t('uiOptimization', fallback: '界面优化');
   String get performanceIssue => _t('performanceIssue', fallback: '性能问题');
   String get other => _t('other', fallback: '其他');
-  String get contactInfo => _t('contactInfo', fallback: '联系方式');
-  String get feedbackContent => _t('feedbackContent', fallback: '反馈内容');
-  String get submitFeedback => _t('submitFeedback', fallback: '提交反馈');
   String get feedbackSuccess => _t('feedbackSuccess', fallback: '反馈发送成功！');
 
   // ===== 侧边栏扩展 =====
-  String get loginButton => _t('loginButton', fallback: '登录');
   String get logoutButton => _t('logoutButton', fallback: '退出登录');
   String get logoutConfirm => _t('logoutConfirm', fallback: '确认退出');
   String get logoutMessage => _t('logoutMessage', fallback: '退出登录时如何处理本地数据？');
-  String get keepLocal => _t('keepLocal', fallback: '保留本地');
-  String get syncBeforeLogout => _t('syncBeforeLogout', fallback: '同步后退出');
   String get confirmLogout => _t('confirmLogout', fallback: '确定退出');
   String get logoutFailed => _t('logoutFailed', fallback: '退出登录失败');
 
@@ -384,7 +310,6 @@ class AppLocalizationsSimple {
   String get cannotOpenLink => _t('cannotOpenLink', fallback: '无法打开链接');
   String get linkError => _t('linkError', fallback: '链接错误');
   String get copiedToClipboard => _t('copiedToClipboard', fallback: '已复制到剪贴板');
-  String get deletingNote => _t('deletingNote', fallback: '正在删除笔记...');
   String get noteDeleted => _t('noteDeleted', fallback: '笔记已删除');
   String get noteRestored => _t('noteRestored', fallback: '笔记已恢复');
   String get undo => _t('undo', fallback: '撤销');
@@ -408,34 +333,23 @@ class AppLocalizationsSimple {
   String get aiModel => _t('aiModel', fallback: 'AI模型');
   String get modelSelection => _t('modelSelection', fallback: '模型名称');
   String get selectModel => _t('selectModel', fallback: '常用模型示例');
-  String get domesticModels => _t('domesticModels', fallback: '国产大模型');
-  String get apiAddress => _t('apiAddress', fallback: 'API地址');
   String get apiKey => _t('apiKey', fallback: 'API密钥');
   String get saveConfiguration => _t('saveConfiguration', fallback: 'AI配置已保存');
 
   // ===== 关于 & 帮助 =====
   String get aboutUs => _t('aboutUs', fallback: '关于我们');
   String get version => _t('version', fallback: '版本');
-  String get team => _t('team', fallback: '团队');
   String get contactUs => _t('contactUs', fallback: '联系我们');
   String get helpCenter => _t('helpCenter', fallback: '帮助中心');
   String get gettingStarted => _t('gettingStarted', fallback: '开始使用');
-  String get quickGuide => _t('quickGuide', fallback: '快速入门指南');
-  String get quickStartDescription =>
-      _t('quickStartDescription', fallback: '快速了解InkPaper-墨鸣笔记的基本功能和使用方式');
-  String get noteFeaturesDescription =>
-      _t('noteFeaturesDescription', fallback: '全面了解InkPaper-墨鸣笔记的核心功能');
   String get noteFeatures => _t('noteFeatures', fallback: '笔记功能');
   String get tagFeatures => _t('tagFeatures', fallback: '标签功能');
   String get dataSync => _t('dataSync', fallback: '数据同步');
   String get formatEditing => _t('formatEditing', fallback: '格式编辑');
   String get commonQuestions => _t('commonQuestions', fallback: '常见问题');
-  String get markdownSyntax => _t('markdownSyntax', fallback: 'Markdown语法');
 
   // ===== 标签页 =====
   String get searchTags => _t('searchTags', fallback: '搜索标签...');
-  String get tagScanComplete => _t('tagScanComplete', fallback: '标签扫描完成');
-  String get tagScanFailed => _t('tagScanFailed', fallback: '标签扫描失败');
 
   // ===== 数据清理 =====
   String get cleanupConfirm => _t('cleanupConfirm', fallback: '确认清理');
@@ -466,7 +380,6 @@ class AppLocalizationsSimple {
   // ===== 主页空状态 =====
   String get noNotesYet => _t('noNotesYet', fallback: '还没有笔记');
   String get clickToCreate => _t('clickToCreate', fallback: '点击右下角的按钮开始创建');
-  String get noRelationships => _t('noRelationships', fallback: '笔记之间还没有建立关联');
 
   // ===== 引导页 =====
   String get onboardingTitle1 => _t('onboardingTitle1', fallback: '随手记录');
@@ -481,7 +394,6 @@ class AppLocalizationsSimple {
   String get onboardingTitle4 => _t('onboardingTitle4', fallback: '多平台支持');
   String get onboardingDesc4 =>
       _t('onboardingDesc4', fallback: '支持手机、平板、电脑多端协作\n让你的创作思路在任何设备上延续');
-  String get getStarted => _t('getStarted', fallback: '开始使用');
   String get skip => _t('skip', fallback: '跳过');
   String get next => _t('next', fallback: '下一步');
 
@@ -489,14 +401,12 @@ class AppLocalizationsSimple {
   String get activityLog => _t('activityLog', fallback: '活动记录');
   String get notificationCenter => _t('notificationCenter', fallback: '通知中心');
   String get activityLevel => _t('activityLevel', fallback: '活跃度');
-  String get unreadNotifications => _t('unreadNotifications', fallback: '条未读');
   String unreadNotificationsCount(int count) {
     final template = _t('unreadNotificationsCount', fallback: '{count}条未读信息');
     return template.replaceAll('{count}', count.toString());
   }
 
   // ===== 登录注册 =====
-  String get registerNow => _t('registerNow', fallback: '立即注册');
   String get localMode => _t('localMode', fallback: '本地运行');
 
   // ===== 通用对话框 =====
@@ -505,10 +415,8 @@ class AppLocalizationsSimple {
   String get ok => _t('ok', fallback: '好的');
 
   // ===== 账户信息 =====
-  String get localUser => _t('localUser', fallback: '本地用户');
   String get createdTime => _t('createdTime', fallback: '创建时间');
   String get createdTimeLabel => _t('createdTimeLabel', fallback: '创建时间：');
-  String get nicknameNotSet => _t('nicknameNotSet', fallback: '未设置昵称');
   String get emailNotSet => _t('emailNotSet', fallback: '未设置邮箱');
   String get basicInfo => _t('basicInfo', fallback: '基本信息');
   String get modifyNickname => _t('modifyNickname', fallback: '修改昵称');
@@ -543,7 +451,6 @@ class AppLocalizationsSimple {
   // ===== 服务器连接 =====
   String get connectionNormal =>
       _t('connectionNormal', fallback: '服务器连接正常，数据同步正常');
-  String get notConnected => _t('notConnected', fallback: '未连接');
   String get pleaseCheckServerSettings =>
       _t('pleaseCheckServerSettings', fallback: '请检查服务器设置');
   String get host => _t('host', fallback: '主机地址');
@@ -551,23 +458,14 @@ class AppLocalizationsSimple {
   String get latency => _t('latency', fallback: '延迟');
   String get lastSyncTime => _t('lastSyncTime', fallback: '上次同步');
   String get syncNowButton => _t('syncNowButton', fallback: '立即同步');
-  String get enterServerAddress =>
-      _t('enterServerAddress', fallback: '请输入服务器地址');
   String get serverAddress => _t('serverAddress', fallback: '服务器地址');
   String get portNumber => _t('portNumber', fallback: '端口号');
-  String get enterPortNumber => _t('enterPortNumber', fallback: '请输入端口号');
-  String get useHTTPS => _t('useHTTPS', fallback: '使用HTTPS安全连接');
   String get enterAPIKey => _t('enterAPIKey', fallback: '请输入API密钥');
-  String get apiKeyPlaceholder =>
-      _t('apiKeyPlaceholder', fallback: '在此粘贴您从服务器获取的API密钥');
 
   // ===== 意见反馈 =====
   String get yourOpinionMatters =>
       _t('yourOpinionMatters', fallback: '您的意见很重要');
-  String get feedbackEncouragement =>
-      _t('feedbackEncouragement', fallback: '我们致力于不断提升产品体验，您的每一个建议都会让产品更好！感谢！');
   String get quickFeedback => _t('quickFeedback', fallback: '快速反馈');
-  String get nodAndImprove => _t('nodAndImprove', fallback: '轻点选择，快速吐槽');
   String get uiBeautiful => _t('uiBeautiful', fallback: '界面很漂亮，体验很棒！');
   String get moreTemplates => _t('moreTemplates', fallback: '希望增加更多笔记模板');
   String get fasterSync => _t('fasterSync', fallback: '同步速度可以更快一些');
@@ -575,18 +473,13 @@ class AppLocalizationsSimple {
   String get problemReport => _t('problemReport', fallback: '问题反馈');
   String get feedbackTypeRequired =>
       _t('feedbackTypeRequired', fallback: '反馈类型');
-  String get pleaseSelectFeedbackType =>
-      _t('pleaseSelectFeedbackType', fallback: '请选择建议类型');
   String get contactMethod => _t('contactMethod', fallback: '联系方式');
-  String get contactPlaceholder =>
-      _t('contactPlaceholder', fallback: '请输入邮箱或其他联系方式（选填）');
   String get feedbackContentRequired =>
       _t('feedbackContentRequired', fallback: '反馈内容');
   String get feedbackContentPlaceholder => _t(
         'feedbackContentPlaceholder',
         fallback: '请详细描述您遇到的问题或建议...\n\n我们会认真对待每一条反馈，并尽快回复您。',
       );
-  String get deleteAllFeedback => _t('deleteAllFeedback', fallback: '清除所有反馈记录');
   String get copyEmail => _t('copyEmail', fallback: '复制邮箱');
   String get feedbackSuccessMessage =>
       _t('feedbackSuccessMessage', fallback: '感谢您的反馈！我们会认真阅读并尽快回复您。');
@@ -601,7 +494,6 @@ class AppLocalizationsSimple {
   String get importTab => _t('importTab', fallback: '导入历史');
   String get backupInfoTitle => _t('backupInfoTitle', fallback: '备份信息');
   String get lastBackupTime => _t('lastBackupTime', fallback: '上次备份');
-  String get backupedNotes => _t('backupedNotes', fallback: '备份笔记');
   String get backupSizeLabel => _t('backupSizeLabel', fallback: '备份大小');
   String get exportOptionsTitle => _t('exportOptionsTitle', fallback: '导出选项');
   String get exportFormatLabel => _t('exportFormatLabel', fallback: '导出格式');
@@ -617,7 +509,6 @@ class AppLocalizationsSimple {
   String get encryptBackupDescription =>
       _t('encryptBackupDescription', fallback: '使用密码加密您的备份文件');
   String get startExportButton => _t('startExportButton', fallback: '导出备份');
-  String get startImportButton => _t('startImportButton', fallback: '导入备份');
 
   // ===== 服务器信息页面 =====
   String get serverInfoReadOnlyNotice => _t(
@@ -639,16 +530,12 @@ class AppLocalizationsSimple {
       _t('aiAssistantDescription', fallback: '开启后可使用AI辅助功能');
   String get apiAddressLabel => _t('apiAddressLabel', fallback: 'API地址');
   String get apiKeyLabel => _t('apiKeyLabel', fallback: 'API密钥');
-  String get getAPIKey => _t('getAPIKey', fallback: '获取API密钥');
-  String get modelSelectionTitle => _t('modelSelectionTitle', fallback: '模型名称');
 
   // ===== 数据清理补充 =====
   String get cleanCacheDescription =>
       _t('cleanCacheDescription', fallback: '缓存片段文档数据，不会影响笔记');
   String get cleanUnusedImagesDescription =>
       _t('cleanUnusedImagesDescription', fallback: '删除未关联到笔记的图片文件');
-  String get resetAppSettingsDescription =>
-      _t('resetAppSettingsDescription', fallback: '恢复所有设置为默认状态，不会删除笔记数据');
 
   // ===== 计数格式化 =====
   String notesCountFormatted(int count) => locale.languageCode == 'zh'
@@ -677,8 +564,6 @@ class AppLocalizationsSimple {
   String get periodicReview => _t('periodicReview', fallback: '回顾');
   String get askNotes => _t('askNotes', fallback: '问笔记');
   String get askNotesHint => _t('askNotesHint', fallback: '问问你的笔记…');
-  String get weeklyReview => _t('weeklyReview', fallback: '本周');
-  String get monthlyReview => _t('monthlyReview', fallback: '本月');
   String get reviewGenerating => _t('reviewGenerating', fallback: '正在生成回顾…');
   String get reviewRegenerate => _t('reviewRegenerate', fallback: '重新生成');
   String get reviewCopy => _t('reviewCopy', fallback: '复制');
@@ -711,88 +596,43 @@ class AppLocalizationsSimple {
   String get noteUnit => _t('noteUnit', fallback: '条');
 
   // ===== 时间相对表达 =====
-  String get weeksAgo => _t('weeksAgo', fallback: '周前');
-  String get monthsAgo => _t('monthsAgo', fallback: '个月前');
 
   // ===== 导出导入补充 =====
-  String get exportSuccess => _t('exportSuccess', fallback: '导出成功');
   String get importSuccess => _t('importSuccess', fallback: '导入成功');
   String get exporting => _t('exporting', fallback: '导出中...');
   String get importing => _t('importing', fallback: '导入中...');
-  String get exportComplete => _t('exportComplete', fallback: '导出完成');
-  String get importComplete => _t('importComplete', fallback: '导入完成');
-  String get backupFileExported =>
-      _t('backupFileExported', fallback: '备份文件已成功导出');
   String get dataImported => _t('dataImported', fallback: '数据已成功导入');
 
   // ===== 通知页面 =====
   String get clear => _t('clear', fallback: '清除');
   String get markAllRead => _t('markAllRead', fallback: '全部已读');
   String get noNotifications => _t('noNotifications', fallback: '暂无通知');
-  String get noNotificationsMessage =>
-      _t('noNotificationsMessage', fallback: '您目前没有新的通知消息');
   String get earlier => _t('earlier', fallback: '更早');
   String get notificationDeleted =>
       _t('notificationDeleted', fallback: '已删除通知');
   String get refreshNotificationsFailed =>
       _t('refreshNotificationsFailed', fallback: '刷新通知失败，请检查网络连接');
-  String get markedAllAsRead => _t('markedAllAsRead', fallback: '已全部标记为已读');
   String get noReadNotificationsToDelete =>
       _t('noReadNotificationsToDelete', fallback: '没有已读通知可清除');
   String get clearReadNotifications =>
       _t('clearReadNotifications', fallback: '清除已读通知');
   String get clearFailed => _t('clearFailed', fallback: '清除失败');
-  String get updateNow => _t('updateNow', fallback: '立即更新');
-  String get viewDetails => _t('viewDetails', fallback: '查看详情');
 
   // ===== 服务器连接页面 =====
   String get notSynced => _t('notSynced', fallback: '未同步');
   String get connectionAbnormal => _t('connectionAbnormal', fallback: '连接异常');
   String get timeout => _t('timeout', fallback: '超时');
-  String get serverResponseError =>
-      _t('serverResponseError', fallback: '服务器响应错误');
-  String get notLoggedInPleaseLogin =>
-      _t('notLoggedInPleaseLogin', fallback: '当前未登录，请配置服务器并登录');
-  String get startingSyncData => _t('startingSyncData', fallback: '开始同步数据...');
-  String get syncFailedNotLoggedIn =>
-      _t('syncFailedNotLoggedIn', fallback: '同步失败: 未登录');
-  String get syncFailedPleaseLogin =>
-      _t('syncFailedPleaseLogin', fallback: '同步失败: 请先登录');
-  String get syncingLocalDataToServer =>
-      _t('syncingLocalDataToServer', fallback: '正在同步本地数据到服务器...');
-  String get gettingLatestDataFromServer =>
-      _t('gettingLatestDataFromServer', fallback: '正在从服务器获取最新数据...');
-  String get syncSuccessMessage => _t('syncSuccessMessage', fallback: '同步成功');
   String get syncFailedMessage => _t('syncFailedMessage', fallback: '同步失败');
-  String get startingConnectionDiagnosis =>
-      _t('startingConnectionDiagnosis', fallback: '开始连接诊断...');
-  String get serverAddressNotConfigured =>
-      _t('serverAddressNotConfigured', fallback: '未配置服务器地址');
-  String get diagnosisFailedNoServerAddress =>
-      _t('diagnosisFailedNoServerAddress', fallback: '诊断失败: 未配置服务器地址');
-  String get parsingServerAddress =>
-      _t('parsingServerAddress', fallback: '解析服务器地址...');
   String get protocol => _t('protocol', fallback: '协议');
-  String get parseServerAddressFailed =>
-      _t('parseServerAddressFailed', fallback: '解析服务器地址失败');
-  String get diagnosisFailedInvalidAddress =>
-      _t('diagnosisFailedInvalidAddress', fallback: '诊断失败: 服务器地址无效');
-  String get checkingDNSResolution =>
-      _t('checkingDNSResolution', fallback: '检查DNS解析...');
-  String get dnsResolutionFailed =>
-      _t('dnsResolutionFailed', fallback: 'DNS解析失败');
   String get testingAPIConnection =>
       _t('testingAPIConnection', fallback: '测试API连接...');
 
   // ===== 导入导出页面补充 =====
   String get fileName => _t('fileName', fallback: '文件名');
-  String get youCan => _t('youCan', fallback: '您可以：');
   String get shareBackupFile => _t('shareBackupFile', fallback: '分享备份文件');
   String get saveToDevice => _t('saveToDevice', fallback: '保存到设备');
   String get share => _t('share', fallback: '分享');
   String get shareFailed => _t('shareFailed', fallback: '分享失败: 文件不存在');
-  String get successfullyImported =>
-      _t('successfullyImported', fallback: '成功导入');
   String get selectExportMethod => _t('selectExportMethod', fallback: '选择导出方式');
   String get selectHowToSaveExportedFile =>
       _t('selectHowToSaveExportedFile', fallback: '请选择要如何保存导出的文件：');
@@ -828,25 +668,8 @@ class AppLocalizationsSimple {
   }
 
   // ===== 帮助中心 =====
-  String get quickStartGuide => _t('quickStartGuide', fallback: '快速入门指南');
-  String get welcomeToInkPaper =>
-      _t('welcomeToInkPaper', fallback: '欢迎使用InkPaper-墨鸣笔记');
-  String get coreFeatures => _t('coreFeatures', fallback: '核心特色');
-  String get minimalistDesign => _t('minimalistDesign', fallback: '极简设计');
-  String get crossPlatform => _t('crossPlatform', fallback: '本地优先');
-  String get perfectCompatibility =>
-      _t('perfectCompatibility', fallback: '完美兼容');
-  String get dataSecurity => _t('dataSecurity', fallback: '数据安全');
   String get markdownSupport => _t('markdownSupport', fallback: 'Markdown支持');
-  String get smartTags => _t('smartTags', fallback: '智能标签');
   String get fullTextSearch => _t('fullTextSearch', fallback: '全文搜索');
-  String get appArchitecture => _t('appArchitecture', fallback: '应用架构');
-  String get platformSupport => _t('platformSupport', fallback: '平台支持');
-  String get firstTimeUse => _t('firstTimeUse', fallback: '初次使用');
-  String get downloadInstall => _t('downloadInstall', fallback: '下载安装');
-  String get memosServerSetup => _t('memosServerSetup', fallback: 'Memos服务器准备');
-  String get accountLogin => _t('accountLogin', fallback: '账户登录');
-  String get createFirstNote => _t('createFirstNote', fallback: '创建首条笔记');
 
   // ===== 关于页面 =====
   String get aboutInkPaper => _t('aboutInkPaper', fallback: '关于InkPaper');
@@ -874,14 +697,7 @@ class AppLocalizationsSimple {
   String get coreFeaturesTitle => _t('coreFeaturesTitle', fallback: '核心功能');
   String get contactMessage =>
       _t('contactMessage', fallback: '我们非常重视用户的反馈和建议。');
-  String get feedbackSuggestions => _t('feedbackSuggestions', fallback: '反馈建议');
-  String get clickToSubmitFeedback =>
-      _t('clickToSubmitFeedback', fallback: '点击提交反馈建议');
   String get officialWebsite => _t('officialWebsite', fallback: '官方网站');
-  String get communicationAddress =>
-      _t('communicationAddress', fallback: '联系地址');
-  String get copyrightInfo => _t('copyrightInfo', fallback: '版权信息');
-  String get opening => _t('opening', fallback: '正在打开');
 
   // ===== 功能标签 =====
   String get memosExclusiveVersion =>
@@ -904,8 +720,6 @@ class AppLocalizationsSimple {
   String get notionTokenHint =>
       _t('notionTokenHint', fallback: '输入 Notion Integration Token');
   String get aiInsight => _t('aiInsight', fallback: 'AI洞察');
-  String get tagInputExampleHint =>
-      _t('tagInputExampleHint', fallback: '例如：工作、学习、思考...');
   String get zoomIn => _t('zoomIn', fallback: '放大');
   String get zoomOut => _t('zoomOut', fallback: '缩小');
   String get reviewWidgetRefreshTitle =>
@@ -953,42 +767,23 @@ class AppLocalizationsSimple {
   String get createAccount => _t('createAccount', fallback: '创建账户');
   String get startYourCreativeJourney =>
       _t('startYourCreativeJourney', fallback: '开启您的创作之旅');
-  String get onlySupportsMemosVersion =>
-      _t('onlySupportsMemosVersion', fallback: '支持多个 Memos 版本');
   String get pleaseEnterUsername =>
       _t('pleaseEnterUsername', fallback: '请输入用户名');
-  String get usernameMinLength =>
-      _t('usernameMinLength', fallback: '用户名至少需要2个字符');
   String get usernameNoSpaces => _t('usernameNoSpaces', fallback: '用户名不能包含空格');
   String get pleaseEnterPassword =>
       _t('pleaseEnterPassword', fallback: '请输入密码');
   String get passwordMinLength =>
       _t('passwordMinLength', fallback: '密码至少需要6个字符');
   String get server => _t('server', fallback: '服务器');
-  String get customServer => _t('customServer', fallback: '自定义服务器');
-  String get serverAddressMustStartWithHttp => _t(
-        'serverAddressMustStartWithHttp',
-        fallback: '服务器地址必须以 http:// 或 https:// 开头',
-      );
   String get change => _t('change', fallback: '更改');
   String get customize => _t('customize', fallback: '自定义');
   String get custom => _t('custom', fallback: '自定义');
   String get saveAccountLocally =>
       _t('saveAccountLocally', fallback: '保存账号和密码到本地');
-  String get noAccount => _t('noAccount', fallback: '还没有账号？');
   String get versionCompatibility =>
       _t('versionCompatibility', fallback: '版本兼容性说明');
-  String get contactSupport =>
-      _t('contactSupport', fallback: '如有疑问，请查看官方文档或联系技术支持');
-  String get customServerWarning =>
-      _t('customServerWarning', fallback: '使用自定义服务器可能会影响使用体验');
   String get answerYourQuestions =>
       _t('answerYourQuestions', fallback: '为您解答使用中的疑问');
-  String get howToLogin => _t('howToLogin', fallback: '如何登录账号？');
-  String get howToLoginAnswer => _t(
-        'howToLoginAnswer',
-        fallback: '输入您注册时使用的用户名和密码，即可登录。如果开启"记住密码"，下次将自动登录。',
-      );
   String get whatIsServer => _t('whatIsServer', fallback: '什么是服务器？');
   String get whatIsServerAnswer => _t(
         'whatIsServerAnswer',
@@ -1067,8 +862,6 @@ class AppLocalizationsSimple {
   // updateFailed已在前面定义(line 80)
   // noteDeleted已在前面定义(line 277)
   // deleteFailed已在前面定义(line 278)
-  String get notePinned => _t('notePinned', fallback: '笔记已置顶');
-  String get noteUnpinned => _t('noteUnpinned', fallback: '笔记已取消置顶');
   // searchNotes已在前面定义(line 183)
   // loading已在前面定义(line 211)
   String loadedAllNotes(int count) {
@@ -1076,37 +869,19 @@ class AppLocalizationsSimple {
     return template.replaceAll('{count}', count.toString());
   }
 
-  String get enableAIFirst => _t('enableAIFirst', fallback: '请先在设置中启用AI功能');
-  String get configureAIFirst =>
-      _t('configureAIFirst', fallback: '请先在设置中配置AI API');
-
   // ===== 笔记详情页面 =====
   String get unableToOpenLink => _t('unableToOpenLink', fallback: '无法打开链接');
   // linkError已在前面定义(line 274)
-  String get reviewCopied => _t('reviewCopied', fallback: '点评内容已复制');
-  String get copyReview => _t('copyReview', fallback: '复制点评');
   // close已在前面定义(line 163)
   String get noteUpdated => _t('noteUpdated', fallback: '笔记已更新');
-  String get noteActions => _t('noteActions', fallback: '笔记操作');
-  String get selectAction => _t('selectAction', fallback: '选择您要执行的操作');
   // share已在前面定义(line 551)
   // edit已在前面定义(line 56)
   // pinNote已在前面定义(line 177)
   // unpinNote已在前面定义(line 178)
-  String get archiveNote => _t('archiveNote', fallback: '归档');
-  String get unarchiveNote => _t('unarchiveNote', fallback: '取消归档');
   // deleteNote已在前面定义(line 176)
   // copyContent已在前面定义(line 472)
-  String get viewHistory => _t('viewHistory', fallback: '查看历史');
   String get setReminder => _t('setReminder', fallback: '设置提醒');
   String get aiReview => _t('aiReview', fallback: 'AI点评');
-  String get aiReviewSubtitle => _t('aiReviewSubtitle', fallback: 'AI Review');
-  String get exportAsImage => _t('exportAsImage', fallback: '导出图片');
-  String get contentCopied => _t('contentCopied', fallback: '内容已复制');
-  String get copyFailed => _t('copyFailed', fallback: '复制失败');
-  String get confirmDelete => _t('confirmDelete', fallback: '确认删除');
-  String get deleteNoteMessage =>
-      _t('deleteNoteMessage', fallback: '确定要删除这条笔记吗？此操作不可恢复。');
 
   // ===== 账户信息页面 =====
   // unknown已在前面定义(line 280)
@@ -1115,8 +890,6 @@ class AppLocalizationsSimple {
       _t('currentUserInfoEmpty', fallback: '当前用户信息为空');
   String get userInfoSyncSuccess =>
       _t('userInfoSyncSuccess', fallback: '用户信息同步成功');
-  String get allAPIVersionsFailed =>
-      _t('allAPIVersionsFailed', fallback: '所有API版本都无法获取用户信息');
   String allAPIVersionsUpdateFailed(String v1Error, String v2Error) {
     final template = _t(
       'allAPIVersionsUpdateFailed',
@@ -1125,8 +898,6 @@ class AppLocalizationsSimple {
     return template.replaceAll('{v1}', v1Error).replaceAll('{v2}', v2Error);
   }
 
-  String get userInfoEmpty => _t('userInfoEmpty', fallback: '用户信息为空');
-  String get cannotGetUsername => _t('cannotGetUsername', fallback: '无法获取用户名');
   String allPasswordUpdateFailed(String v1Error, String v2Error) {
     final template = _t(
       'allPasswordUpdateFailed',
@@ -1136,115 +907,32 @@ class AppLocalizationsSimple {
   }
 
   // ===== 实验室页面 =====
-  String get telegramBot => _t('telegramBot', fallback: 'Telegram 助手');
-  String get telegramBotDesc =>
-      _t('telegramBotDesc', fallback: '连接 InkPaper_Bot，实现跨设备笔记同步');
-  String get stableRunning => _t('stableRunning', fallback: '稳定运行');
-  String get voiceToText => _t('voiceToText', fallback: '语音转文字');
-  String get voiceToTextDesc =>
-      _t('voiceToTextDesc', fallback: '语音录制自动转换为文字笔记');
-  String get aiNoteAssistant => _t('aiNoteAssistant', fallback: 'AI 笔记助手');
-  String get aiNoteAssistantDesc =>
-      _t('aiNoteAssistantDesc', fallback: '智能分析和优化您的笔记内容');
-  String get expectedNextRelease =>
-      _t('expectedNextRelease', fallback: '预计下个版本发布');
-  String get connectInkPaperBot =>
-      _t('connectInkPaperBot', fallback: '连接 InkPaper_Bot');
-  String get telegramBotDialogContent => _t(
-        'telegramBotDialogContent',
-        fallback:
-            '在 Telegram 中搜索 @InkPaper_Bot，连接机器人后即可发送消息自动创建笔记。支持 Markdown 格式，实时同步到 InkPaper 应用。',
-      );
-  String get voiceToTextDialogContent => _t(
-        'voiceToTextDialogContent',
-        fallback:
-            '在笔记编辑器中点击麦克风按钮即可开始语音识别。支持离线识别，无需联网。识别过程中可随时暂停和继续，文字将自动插入到编辑器中。',
-      );
 
   // AI 智能助手
-  String get aiSmartAssistant => _t('aiSmartAssistant', fallback: 'AI 智能助手');
-  String get aiSmartAssistantDesc =>
-      _t('aiSmartAssistantDesc', fallback: '相关笔记推荐、智能续写、标签生成、内容摘要');
-  String get aiAssistantFeatures =>
-      _t('aiAssistantFeatures', fallback: 'AI 智能助手包含以下功能：');
-  String get relatedNotesRecommend =>
-      _t('relatedNotesRecommend', fallback: '📌 相关笔记推荐');
-  String get relatedNotesDesc =>
-      _t('relatedNotesDesc', fallback: '根据内容查找可能相关的笔记');
-  String get smartContinueWriting =>
-      _t('smartContinueWriting', fallback: '✍️ 智能续写');
-  String get smartContinueWritingDesc =>
-      _t('smartContinueWritingDesc', fallback: '根据上下文智能续写笔记内容');
-  String get contentSummary => _t('contentSummary', fallback: '📝 内容摘要');
-  String get contentSummaryDesc =>
-      _t('contentSummaryDesc', fallback: '快速生成笔记内容摘要');
-  String get aiAssistantTip =>
-      _t('aiAssistantTip', fallback: '💡 提示：在笔记详情页点击右下角魔法棒图标即可使用');
 
   String get testing => _t('testing', fallback: '测试中');
 
   String get iKnow => _t('iKnow', fallback: '我知道了');
 
   // ===== AI设置页面 =====
-  String get doubaoModel => _t('doubaoModel', fallback: '豆包 Pro');
-  String get zhipuModel => _t('zhipuModel', fallback: '智谱 GLM-4');
-  String get baichuanModel => _t('baichuanModel', fallback: '百川智能');
-  String get unknownModel => _t('unknownModel', fallback: '未知模型');
-  String get deepseekchat => _t('deepseekchat', fallback: 'DeepSeek Chat');
-  String get deepseekchatDesc =>
-      _t('deepseekchatDesc', fallback: '快速响应，适合日常对话');
-  String get deepseekReasoner =>
-      _t('deepseekReasoner', fallback: 'DeepSeek Reasoner');
-  String get deepseekReasonerDesc =>
-      _t('deepseekReasonerDesc', fallback: '深度思考，适合复杂推理');
-  String get gpt4o => _t('gpt4o', fallback: 'GPT-4o');
-  String get gpt4oDesc => _t('gpt4oDesc', fallback: '最新旗舰，强大全能');
-  String get gpt4oMini => _t('gpt4oMini', fallback: 'GPT-4o Mini');
-  String get gpt4oMiniDesc => _t('gpt4oMiniDesc', fallback: '轻量快速，性价比高');
-  String get gpt4Turbo => _t('gpt4Turbo', fallback: 'GPT-4 Turbo');
-  String get gpt4TurboDesc => _t('gpt4TurboDesc', fallback: '强大推理');
-  String get gpt35Turbo => _t('gpt35Turbo', fallback: 'GPT-3.5 Turbo');
 
   // ===== 设置页面 =====
   String get waitPatiently => _t('waitPatiently', fallback: '记录是为了');
   String get poiseToResound => _t('poiseToResound', fallback: '成为更好的自己');
 
   // ===== NoteEditor Widget =====
-  String get thinkingNow => _t('thinkingNow', fallback: '现在的想法是...');
-  String get listening => _t('listening', fallback: '正在聆听...');
-  String get recognizing => _t('recognizing', fallback: '识别中');
-  String get tapToStop => _t('tapToStop', fallback: '点击停止');
   String get saveFailed => _t('saveFailed', fallback: '保存失败');
   String get loadFailed => _t('loadFailed', fallback: '加载失败');
   String get selectImageFailed => _t('selectImageFailed', fallback: '选择图片失败');
   String get noteNotFound => _t('noteNotFound', fallback: '找不到要引用的笔记');
-  String get referenceInserted =>
-      _t('referenceInserted', fallback: '引用内容已插入，保存笔记后将自动建立引用关系');
-  String get referenceCreatedSuccess =>
-      _t('referenceCreatedSuccess', fallback: '引用关系已创建');
-  String get createReferenceFailed =>
-      _t('createReferenceFailed', fallback: '创建引用关系失败');
   String get referenceFailed => _t('referenceFailed', fallback: '引用失败');
-  String get needMicPermission =>
-      _t('needMicPermission', fallback: '需要麦克风权限才能使用语音识别');
 
   // ===== NoteCard Widget =====
   String get cannotDisplayImage => _t('cannotDisplayImage', fallback: '无法显示图片');
-  String get pinnedStatus => _t('pinned', fallback: '置顶');
-  String get unpinnedStatus => _t('unpinned', fallback: '取消置顶');
   String get referenceDetails => _t('referenceDetails', fallback: '引用详情');
-  String get viewReferenceRelations =>
-      _t('viewReferenceRelations', fallback: '查看笔记引用关系');
 
   // ===== Widget通用文本 =====
-  String get pleaseEnableNotificationFirst =>
-      _t('pleaseEnableNotificationFirst', fallback: '请先开启通知权限才能设置提醒');
-  String get setReminderFailed =>
-      _t('setReminderFailed', fallback: '设置提醒失败，请稍后重试');
-  String get needNotificationPermission =>
-      _t('needNotificationPermission', fallback: '需要开启通知权限');
   String get later => _t('later', fallback: '稍后');
-  String get batteryOptimization => _t('batteryOptimization', fallback: '电池优化');
 
   // ===== 权限引导对话框 =====
   String get permissionsReady => _t('permissionsReady', fallback: '✅ 权限已就绪');
@@ -1272,20 +960,9 @@ class AppLocalizationsSimple {
   String get postponeSettings => _t('postponeSettings', fallback: '稍后设置');
 
   // ===== NoteCard侧滑按钮 =====
-  String get pinAction => _t('pinAction', fallback: '置顶');
-  String get unpinAction => _t('unpinAction', fallback: '取消置顶');
-  String get deleteAction => _t('deleteAction', fallback: '删除');
 
   // ===== 分享功能 =====
-  String get shareLink => _t('shareLink', fallback: '分享链接');
-  String get generateShareLink => _t('generateShareLink', fallback: '生成分享链接');
   String get shareImage => _t('shareImage', fallback: '分享图片');
-  String get generateImageShare => _t('generateImageShare', fallback: '生成图片分享');
-  String get quickActions => _t('quickActions', fallback: '快捷操作');
-  String get copyNoteContent => _t('copyNoteContent', fallback: '复制笔记内容到剪贴板');
-  String get systemShare => _t('systemShare', fallback: '系统分享');
-  String get useSystemShare => _t('useSystemShare', fallback: '使用系统分享功能');
-  String get noteSummary => _t('noteSummary', fallback: '笔记摘要');
   String get sharePermissionConfirmation =>
       _t('sharePermissionConfirmation', fallback: '分享权限确认');
   String get sharePermissionMessage => _t(
@@ -1293,53 +970,20 @@ class AppLocalizationsSimple {
         fallback: '要分享此笔记，需要将其设置为公开状态。\n任何拥有链接的人都可以查看该笔记的内容。',
       );
   String get confirmAndShare => _t('confirmAndShare', fallback: '确定并分享');
-  String get pleaseLoginToShare =>
-      _t('pleaseLoginToShare', fallback: '请先登录后再使用分享链接功能');
-  String get generatingHighQualityImage =>
-      _t('generatingHighQualityImage', fallback: '生成高质量分享图片需要一些时间');
-  String get analyzingImages => _t('analyzingImages', fallback: '正在分析图片...');
-  String get loadingImages => _t('loadingImages', fallback: '正在加载图片...');
-  String get generatingShareImage =>
-      _t('generatingShareImage', fallback: '正在生成分享图片...');
   String get savingImage => _t('savingImage', fallback: '正在保存图片...');
-  String get shareFailedRetry =>
-      _t('shareFailedRetry', fallback: '生成分享链接失败，请稍后再试');
-  String get loginRequired => _t('loginRequired', fallback: '需要登录');
-  String get shareUnknownError =>
-      _t('shareUnknownError', fallback: '生成分享链接时发生未知错误，请稍后重试');
-  String get setReminderTime => _t('setReminderTime', fallback: '设置提醒时间');
-  String get setNoteReminderTime =>
-      _t('setNoteReminderTime', fallback: '设定笔记提醒时间');
-  String get shareSettings => _t('shareSettings', fallback: '分享设置');
-  String get customizeShareContent =>
-      _t('customizeShareContent', fallback: '自定义分享内容和选项');
   String get changeTime => _t('changeTime', fallback: '修改时间');
   String get selectDate => _t('selectDate', fallback: '选择日期');
   String get selectTime => _t('selectTime', fallback: '选择时间');
   String get timeUpdated => _t('timeUpdated', fallback: '时间已更新');
   String get viewOriginalImage => _t('viewOriginalImage', fallback: '查看原图');
   String get saveImage => _t('saveImage', fallback: '保存图片');
-  String get fitScreen => _t('fitScreen', fallback: '适应屏幕');
-  String get fillScreen => _t('fillScreen', fallback: '填满屏幕');
   String get loadingHDImage => _t('loadingHDImage', fallback: '正在加载高清原图...');
   String get imageLoadError => _t('imageLoadError', fallback: '无法加载图片');
-  String get networkFailedNoCache =>
-      _t('networkFailedNoCache', fallback: '网络连接失败且无缓存');
-  String get authFailedNoCache => _t('authFailedNoCache', fallback: '认证失败且无缓存');
-  String get unsupportedImageFormat =>
-      _t('unsupportedImageFormat', fallback: '不支持的图片格式');
-  String get allImagesCount => _t('allImagesCount', fallback: '全部图片 ({count})');
   String get timeUpdateFailed => _t('timeUpdateFailed', fallback: '时间更新失败');
   String get detailedInfo => _t('detailedInfo', fallback: '详细信息');
-  String get viewCreationTime => _t('viewCreationTime', fallback: '查看创建时间详细信息');
-  String get appSettings => _t('appSettings', fallback: '应用设置');
-  String get modifyReminderTime => _t('modifyReminderTime', fallback: '修改提醒时间');
-  String get cancelReminder => _t('cancelReminder', fallback: '取消提醒');
   String get referenceCreated => _t('referenceCreated', fallback: '引用关系已创建');
   String get linkCopied => _t('linkCopied', fallback: '链接已复制到剪贴板');
-  String get copyLink => _t('copyLink', fallback: '复制链接');
   // Note: cancel and share are already defined above
-  String get saveAndShare => _t('saveAndShare', fallback: '保存并分享');
   String get generatingShareLink =>
       _t('generatingShareLink', fallback: '正在生成分享链接...');
   String get reviewCopiedShort => _t('reviewCopiedShort', fallback: '✨ 点评已复制');
@@ -1347,7 +991,6 @@ class AppLocalizationsSimple {
       _t('aiReviewCompleted', fallback: '✨ AI点评完成！');
   String get aiReviewTitle => _t('aiReviewTitle', fallback: '给你的点评');
   String get aiReadingNote => _t('aiReadingNote', fallback: 'AI正在阅读笔记...');
-  String get aiAnalyzing => _t('aiAnalyzing', fallback: 'AI正在分析中...');
   String startInsightWithCount(int count) =>
       _t('startInsightWithCount', fallback: '开始洞察 ({count} 条笔记)')
           .replaceAll('{count}', count.toString());
@@ -1367,8 +1010,6 @@ class AppLocalizationsSimple {
       _t('jsonBackupDescription', fallback: '标准备份格式，笔记 ID 与时间一并保留');
   String get zipBackupDescription =>
       _t('zipBackupDescription', fallback: '四种格式的导出都是 ZIP 包，正文和图片在一起');
-  String get htmlImportDescription =>
-      _t('htmlImportDescription', fallback: '支持从其他笔记软件导出的HTML');
   String get importWarning =>
       _t('importWarning', fallback: '导入操作可能会影响现有数据，建议先备份当前数据');
   String get importOptions => _t('importOptions', fallback: '导入选项');
@@ -1409,50 +1050,23 @@ class AppLocalizationsSimple {
   String get cleanUnusedImages => _t('cleanUnusedImages', fallback: '清理未使用图片');
   String get cleanImportExportHistory =>
       _t('cleanImportExportHistory', fallback: '清理导入导出历史');
-  String get cleanImportExportDescription =>
-      _t('cleanImportExportDescription', fallback: '删除所有导入/export历史记录');
   String get resetAppSettings => _t('resetAppSettings', fallback: '重置应用设置');
-  String get resetAppDescription =>
-      _t('resetAppDescription', fallback: '恢复所有设置到默认状态，不会删除笔记数据');
   String get deleteAllNotes => _t('deleteAllNotes', fallback: '清理所有笔记');
-  String get deleteAllNotesWarning => _t(
-        'deleteAllNotesWarning',
-        fallback: 'Danger: Delete all local data, cannot be undone',
-      );
-  String get selectTagToView =>
-      _t('selectTagToView', fallback: '选择一个标签以查看相关笔记');
 
   // ===== 版本更新 =====
-  String get newVersionAvailable =>
-      _t('newVersionAvailable', fallback: '发现新版本');
   String latestVersion(String version) =>
       _t('latestVersion', fallback: '最新版本：{version}')
           .replaceAll('{version}', version);
-  String get updateAvailableMessage =>
-      _t('updateAvailableMessage', fallback: '墨鸣笔记有新版本可用，建议立即更新以体验新功能！');
-  String get updateNotes => _t('updateNotes', fallback: '更新内容：');
-  String get remindMeLater => _t('remindMeLater', fallback: '稍后再说');
-  String get goToUpdate => _t('goToUpdate', fallback: '前往更新');
   // updateNow已在line 519定义
 
   // ===== 分享相关 =====
   String get sharedText => _t('sharedText', fallback: '收到分享的文本');
-  String get sharedImage => _t('sharedImage', fallback: '收到分享的图片');
-  String get sharedImages => _t('sharedImages', fallback: '收到分享的图片');
-  String get sharedFile => _t('sharedFile', fallback: '收到分享的文件');
-  String get sharedFromOther => _t('sharedFromOther', fallback: '来自分享的');
   String sharedImagesCount(int count) {
     final template = _t('sharedImagesCount', fallback: '来自分享的图片 ({count}张)');
     return template.replaceAll('{count}', count.toString());
   }
 
-  String get sharedFiles => _t('sharedFiles', fallback: '分享的文件：');
-
   // ===== 排序和筛选 =====
-  String get fromNewToOld => _t('fromNewToOld', fallback: '从新到旧');
-  String get fromOldToNew => _t('fromOldToNew', fallback: '从旧到新');
-  String get filterNotes => _t('filterNotes', fallback: '筛选笔记');
-  String get totalWordCount => _t('totalWordCount', fallback: '总字数');
   String get tagCount => _t('tagCount', fallback: '标签数');
 
   // ===== 登录状态 =====
@@ -1462,80 +1076,34 @@ class AppLocalizationsSimple {
   String get keepLocalData => _t('keepLocalData', fallback: '保留本地数据');
 
   // ===== 功能菜单 =====
-  String get featureMenu => _t('featureMenu', fallback: '功能菜单');
-  String get noAvailableTags => _t('noAvailableTags', fallback: '暂无可用标签');
 
   // ===== AI洞察相关 =====
   String get keywords => _t('keywords', fallback: '关键词');
-  String get inputKeywords => _t('inputKeywords', fallback: '输入想要洞察的关键词');
-  String get timeRange => _t('timeRange', fallback: '时间范围');
-  String get selectAnalysisTimeRange =>
-      _t('selectAnalysisTimeRange', fallback: '选择要分析的时间段');
   // includeTags已在line 233定义
-  String get selectIncludeTags => _t('selectIncludeTags', fallback: '选择要包含的标签');
-  String get excludeTags => _t('excludeTags', fallback: '排除标签');
-  String get selectExcludeTags => _t('selectExcludeTags', fallback: '选择要排除的标签');
-  String get insightResults => _t('insightResults', fallback: '洞察结果');
-  String get aiGeneratedAnalysis =>
-      _t('aiGeneratedAnalysis', fallback: '根据当前筛选生成的整理结果');
-  String get allTime => _t('allTime', fallback: '全部');
-  String get openInNewWindow => _t('openInNewWindow', fallback: '在新窗口打开');
 
   // ===== 权限和设置提示 =====
   String get permissionRequired => _t('permissionRequired', fallback: '需要通知权限');
-  String get permissionInstructions => _t(
-        'permissionInstructions',
-        fallback:
-            '为了准时提醒您，InkPaper需要发送通知。请在iPhone设置中找到InkPaper，开启"允许通知"，并启用"时间敏感通知"。',
-      );
-  String get operationSteps => _t('operationSteps', fallback: '操作步骤：');
-  String get permissionStepGuide => _t(
-        'permissionStepGuide',
-        fallback: '1. 点击"去设置"按钮\n2. 找到"通知"权限\n3. 开启权限开关\n4. 返回应用重试',
-      );
-  String get goToSettings => _t('goToSettings', fallback: '去设置');
-  String get rateLimitExceeded =>
-      _t('rateLimitExceeded', fallback: '请求过于频繁，请稍后再试');
-  String get streamResponseNotImplemented =>
-      _t('streamResponseNotImplemented', fallback: '流式响应功能待实现');
-  String get noTitle => _t('noTitle', fallback: '无标题');
   String get view => _t('view', fallback: '查看');
 
   // ===== 通知相关 =====
-  String get noteReminder => _t('noteReminder', fallback: '笔记提醒');
-  String get noteReminderDescription =>
-      _t('noteReminderDescription', fallback: '笔记定时提醒通知');
-  String get dismiss => _t('dismiss', fallback: '关闭');
 
   // ===== 时间相关 =====
   String get last7Days => _t('last7Days', fallback: '近7天');
   String get last30Days => _t('last30Days', fallback: '近30天');
-  String get last1Year => _t('last1Year', fallback: '近1年');
 
   // ===== 笔记详情页 =====
   String get noteDetail => _t('noteDetail', fallback: '笔记详情');
   String get linkNote => _t('linkNote', fallback: '链接');
-  String get deleteNoteConfirmTitle =>
-      _t('deleteNoteConfirmTitle', fallback: '删除笔记');
-  String get deleteNoteConfirmMessage =>
-      _t('deleteNoteConfirmMessage', fallback: '确定要删除这条笔记吗？删除后无法恢复。');
   // referenceDetails已在line 900定义
   // viewReferenceRelations已在line 901定义
   // detailedInfo已在line 957定义
-  String get viewCreationTimeInfo =>
-      _t('viewCreationTimeInfo', fallback: '查看创建时间等信息');
   String get reminderSet => _t('reminderSet', fallback: '提醒已设置');
-  String get clickToModifyReminder =>
-      _t('clickToModifyReminder', fallback: '点击修改或取消提醒');
   // setNoteReminderTime已在line 954定义
   // shareSettings已在line 955定义
-  String get manageNoteVisibility =>
-      _t('manageNoteVisibility', fallback: '管理笔记可见性');
   // createdTime已在line 369定义
   // characterCount已在line 470定义
   String get characters => _t('characters', fallback: '字符');
   // tagCount已在line 1044定义
-  String get tagsCount => _t('tagsCount', fallback: '个标签');
   String get noteCreatedSuccess => _t('noteCreatedSuccess', fallback: '笔记已创建');
   // shareNote已在line 874定义
   // shareLink已在line 875定义
@@ -1544,8 +1112,6 @@ class AppLocalizationsSimple {
   // generateImageShare已在line 935定义
 
   // ===== AI提示词 =====
-  String get aiSystemPrompt =>
-      _t('aiSystemPrompt', fallback: '你是一个专业的内容分析助手...');
 
   // ===== 笔记编辑器 =====
   String get image => _t('image', fallback: '图片');
@@ -1555,32 +1121,14 @@ class AppLocalizationsSimple {
   String get noNotesToReference =>
       _t('noNotesToReference', fallback: '暂无笔记可引用');
   String get noMatchingNotes => _t('noMatchingNotes', fallback: '没有找到相关笔记');
-  String get createNotesFirst =>
-      _t('createNotesFirst', fallback: '先创建一些笔记再来建立引用关系');
   String get tryOtherKeywords => _t('tryOtherKeywords', fallback: '试试其他关键词');
 
   // ===== NoteCard相关 =====
   String get expand => _t('expand', fallback: '展开');
   String get collapse => _t('collapse', fallback: '收起');
-  String get reminderCancelled => _t('reminderCancelled', fallback: '已取消提醒');
-  String get cancelFailed => _t('cancelFailed', fallback: '取消失败');
   // pleaseEnableNotificationFirst已在line 904定义
   // setReminderFailed已在line 905定义
   // needNotificationPermission已在line 906定义
-  String get notificationSteps =>
-      _t('notificationSteps', fallback: '为了准时收到笔记提醒，请按以下步骤操作：');
-  String get tapAppSettingsButton =>
-      _t('tapAppSettingsButton', fallback: '🔥 点击下方"应用设置"按钮，然后：');
-  String get returnToSettings =>
-      _t('returnToSettings', fallback: '6️⃣ 返回手机"设置"主页');
-  String get enableAutoStart =>
-      _t('enableAutoStart', fallback: '7️⃣ 搜索"自启动" → 找到InkPaper → 开启✅');
-  String get disableBatteryOptimization => _t(
-        'disableBatteryOptimization',
-        fallback: '8️⃣ 搜索"电池优化" → InkPaper → 不限制✅',
-      );
-  String get autoStartWarning =>
-      _t('autoStartWarning', fallback: '不开启自启动和电池优化，应用关闭后就收不到提醒！');
   // batteryOptimization已在line 908定义
   // appSettings已在line 959定义
 
@@ -1592,10 +1140,6 @@ class AppLocalizationsSimple {
 
   // ===== AccountInfo相关 =====
   // userInfoEmpty已在line 829定义
-  String get currentPasswordVerificationFailed =>
-      _t('currentPasswordVerificationFailed', fallback: '当前密码验证失败');
-  String get currentPasswordIncorrect =>
-      _t('currentPasswordIncorrect', fallback: '当前密码不正确');
   String get avatarUpdated => _t('avatarUpdated', fallback: '头像已更新');
   // modifyNickname已在line 374定义
   String get pleaseEnterNewNickname =>
@@ -1604,11 +1148,7 @@ class AppLocalizationsSimple {
       _t('nicknameUpdateSuccess', fallback: '昵称更新成功');
   String get nicknameUpdateFailed =>
       _t('nicknameUpdateFailed', fallback: '昵称更新失败');
-  String get modifyBio => _t('modifyBio', fallback: '修改简介');
   // bio已在line 63定义
-  String get pleaseEnterNewBio => _t('pleaseEnterNewBio', fallback: '请输入新的简介');
-  String get bioUpdateSuccess => _t('bioUpdateSuccess', fallback: '简介更新成功');
-  String get bioUpdateFailed => _t('bioUpdateFailed', fallback: '简介更新失败');
   // modifyEmail已在line 375定义
   String get pleaseEnterNewEmail =>
       _t('pleaseEnterNewEmail', fallback: '请输入新的邮箱地址');
@@ -1653,8 +1193,6 @@ class AppLocalizationsSimple {
       _t('storagePermissionRequiredForImage', fallback: '需要存储权限才能保存图片');
   String get imageSavedToGallery =>
       _t('imageSavedToGallery', fallback: '图片已保存到相册');
-  String get imageSavedToDevice =>
-      _t('imageSavedToDevice', fallback: '图片已保存到设备');
   String get saveImageFailed => _t('saveImageFailed', fallback: '保存图片失败');
   String get downloadImageFailed =>
       _t('downloadImageFailed', fallback: '下载图片失败');
@@ -1668,51 +1206,21 @@ class AppLocalizationsSimple {
   }
 
   // ===== 编辑器 =====
-  String get discardEditTitle => _t('discardEditTitle', fallback: '放弃本次编辑？');
-  String get unsavedChangesMessage =>
-      _t('unsavedChangesMessage', fallback: '当前修改尚未保存。');
-  String get discard => _t('discard', fallback: '放弃');
   String get addLink => _t('addLink', fallback: '添加链接');
   String get displayText => _t('displayText', fallback: '显示文字');
   String get linkAddress => _t('linkAddress', fallback: '链接地址');
 
   // ===== SnackBarUtils相关 =====
-  String get networkConnectionFailed =>
-      _t('networkConnectionFailed', fallback: '网络连接失败，请检查网络设置');
   String get connectionTimeout =>
       _t('connectionTimeout', fallback: '连接超时，请检查网络或稍后重试');
-  String get serverResponseFormatError =>
-      _t('serverResponseFormatError', fallback: '服务器响应格式错误，请检查服务器地址');
-  String get loginInfoExpired =>
-      _t('loginInfoExpired', fallback: '登录信息已过期，请重新登录');
-  String get noAccessPermission =>
-      _t('noAccessPermission', fallback: '没有访问权限，请联系管理员');
-  String get resourceNotFound =>
-      _t('resourceNotFound', fallback: '请求的资源不存在，请检查服务器地址');
-  String get serverInternalError =>
-      _t('serverInternalError', fallback: '服务器内部错误，请稍后重试');
-  String get serverTemporarilyUnavailable =>
-      _t('serverTemporarilyUnavailable', fallback: '服务器暂时不可用，请稍后重试');
-  String get retry => _t('retry', fallback: '重试');
 
   // ===== DatabaseService相关 =====
-  String get invalidBackupFileFormat =>
-      _t('invalidBackupFileFormat', fallback: '无效的备份文件格式');
-  String get fileNameContentMismatch =>
-      _t('fileNameContentMismatch', fallback: '文件名和内容数量不匹配');
 
   // ===== 引用关系相关 =====
   String get referenceRelations => _t('referenceRelations', fallback: '引用关系');
-  String get viewAllReferences =>
-      _t('viewAllReferences', fallback: '查看此笔记的所有引用关系');
-  String get noReferences => _t('noReferences', fallback: '暂无引用关系');
-  String get canAddReferencesWhenEditing =>
-      _t('canAddReferencesWhenEditing', fallback: '在编辑笔记时可以添加引用关系');
   // referenceCreated已在line 962定义
   // referenceFailed已在line 893定义
   // createReferenceFailed已在line 892定义
-  String get errorCreatingReference =>
-      _t('errorCreatingReference', fallback: '创建引用关系时发生错误');
   String get references => _t('references', fallback: '引用关系');
 
   // ===== 侧滑操作 =====
@@ -1724,25 +1232,10 @@ class AppLocalizationsSimple {
 
   // ===== 导入导出 =====
   String get selectImportMethod => _t('selectImportMethod', fallback: '选择导入方式');
-  String get storagePermissionRequired =>
-      _t('storagePermissionRequired', fallback: '需要存储权限');
-  String get storagePermissionMessage => _t(
-        'storagePermissionMessage',
-        fallback:
-            '为了能够导出备份文件，需要授予"所有文件访问权限"。\n\n请按照以下步骤操作：\n1. 点击"允许访问所有文件"\n2. 找到并允许"InkPaper-墨鸣笔记"的权限',
-      );
-  String get allFilesAccessRequired =>
-      _t('allFilesAccessRequired', fallback: '需要"所有文件访问权限"才能导出文件');
-  String get storagePermissionRequiredForExport =>
-      _t('storagePermissionRequiredForExport', fallback: '需要存储权限才能导出文件');
-  String get unsupportedExportFormat =>
-      _t('unsupportedExportFormat', fallback: '不支持的导出格式');
 
   // ===== 笔记详情页-提醒相关(新增不重复的) =====
   // reminderSet已在line 1099定义
   // setReminder已在line 811定义
-  String get clickToModifyOrCancel =>
-      _t('clickToModifyOrCancel', fallback: '点击修改或取消提醒');
   // setNoteReminderTime已在line 954定义
   String get currentReminderTime =>
       _t('currentReminderTime', fallback: '当前提醒时间');
@@ -1754,48 +1247,23 @@ class AppLocalizationsSimple {
   String get reminderTimeMustBeFuture =>
       _t('reminderTimeMustBeFuture', fallback: '提醒时间必须在未来');
   // setReminderFailed已在line 905定义
-  String get setReminderFailedRetry =>
-      _t('setReminderFailedRetry', fallback: '设置提醒失败，请稍后重试');
-  String get desktopReminderUnsupported => _t(
-        'desktopReminderUnsupported',
-        fallback: '当前设备暂不支持系统级定时提醒，请检查系统通知权限',
-      );
 
   // ===== 笔记详情页-详细信息 =====
-  String get creationTime => _t('creationTime', fallback: '创建时间');
-  String get characterCountLabel => _t('characterCountLabel', fallback: '字符数量');
-  String get charactersUnit => _t('charactersUnit', fallback: '字符');
-  String get tagsCountLabel => _t('tagsCountLabel', fallback: '标签数量');
-  String get tagsUnit => _t('tagsUnit', fallback: '个标签');
 
   // ===== 笔记详情页-分享相关 =====
-  String get shareLinkTitle => _t('shareLinkTitle', fallback: '分享链接');
-  String get noteMadePublic =>
-      _t('noteMadePublic', fallback: '您的笔记已设置为公开，任何人都可以通过链接访问');
   // linkCopied已在line 963定义
-  String get linkCopiedToClipboard =>
-      _t('linkCopiedToClipboard', fallback: '链接已复制到剪贴板');
   // copyLink已在line 964定义
-  String get shareAction => _t('shareAction', fallback: '分享');
   String get generateShareLinkFailed =>
       _t('generateShareLinkFailed', fallback: '生成分享链接失败，请稍后再试');
-  String get copyLinkFailed => _t('copyLinkFailed', fallback: '复制链接失败，请稍后再试');
   String get serverUrlEmpty => _t('serverUrlEmpty', fallback: '服务器地址为空');
-  String get cannotMakeNotePublic =>
-      _t('cannotMakeNotePublic', fallback: '无法将笔记设置为公开');
 
   // ===== 数据清理页面 =====
   String get resetSettingsDescription =>
       _t('resetSettingsDescription', fallback: '将所有应用设置恢复到默认状态，不会删除笔记数据');
 
   // ===== AI设置页面 =====
-  String get getApiKey => _t('getApiKey', fallback: '获取API密钥');
 
   // ===== 首页其他 =====
-  String get noNotesMatchingCriteria =>
-      _t('noNotesMatchingCriteria', fallback: '没有符合条件的笔记');
-  String get contentCopiedToClipboard =>
-      _t('contentCopiedToClipboard', fallback: '内容已复制到剪贴板');
 
   // ===== 热力图统计 =====
   String get totalWords => _t('totalWords', fallback: '总字数');
@@ -1806,23 +1274,8 @@ class AppLocalizationsSimple {
   String get todayNewTags => _t('todayNewTags', fallback: '新增标签');
 
   // ===== AI 功能 =====
-  String get aiAssistant =>
-      locale.languageCode == 'zh' ? 'AI 智能助手' : 'AI Assistant';
-  String get aiContinueWriting =>
-      locale.languageCode == 'zh' ? 'AI 续写' : 'AI Continue';
-  String get aiContinueWritingDesc => locale.languageCode == 'zh'
-      ? '基于已有内容智能续写'
-      : 'Intelligently continue based on existing content';
-  String get aiSmartTags => locale.languageCode == 'zh' ? '智能标签' : 'Smart Tags';
-  String get aiSmartTagsDesc => locale.languageCode == 'zh'
-      ? '根据内容生成标签建议'
-      : 'Suggest tags based on note content';
-  String get aiRelatedNotes =>
-      locale.languageCode == 'zh' ? '相关笔记' : 'Related Notes';
   String get aiSummary =>
       locale.languageCode == 'zh' ? '智能摘要' : 'Smart Summary';
-  String get aiProcessing =>
-      locale.languageCode == 'zh' ? 'AI 处理中...' : 'AI processing...';
   String get aiContinueWritingProcessing =>
       locale.languageCode == 'zh' ? '✨ AI 正在续写中...' : '✨ AI is continuing...';
   String get aiContinueWritingSuccess =>
@@ -1837,15 +1290,6 @@ class AppLocalizationsSimple {
     return template.replaceAll('{count}', count.toString());
   }
 
-  String get aiSummaryProcessing => locale.languageCode == 'zh'
-      ? '🤖 AI 正在生成摘要...'
-      : '🤖 AI is generating summary...';
-  String get aiSummarySuccess => locale.languageCode == 'zh'
-      ? '✅ 摘要生成成功！'
-      : '✅ Summary generated successfully!';
-  String get aiRelatedNotesProcessing => locale.languageCode == 'zh'
-      ? '🔍 AI 正在查找相关笔记...'
-      : '🔍 AI is finding related notes...';
   String get aiRelatedNotesEmpty =>
       locale.languageCode == 'zh' ? '暂无相关笔记' : 'No related notes found';
   String get aiConfigRequired => locale.languageCode == 'zh'
@@ -1860,42 +1304,8 @@ class AppLocalizationsSimple {
   String get aiGenerateSummaryFailed => locale.languageCode == 'zh'
       ? '生成摘要失败，请稍后重试'
       : 'Failed to generate summary, please try again later';
-  String get aiRelatedNotesTitle =>
-      locale.languageCode == 'zh' ? '相关笔记' : 'Related Notes';
 
   // 实验室功能
-  String get aiRelatedNotesFeature =>
-      locale.languageCode == 'zh' ? 'AI 相关笔记' : 'AI Related Notes';
-  String get aiRelatedNotesFeatureDesc => locale.languageCode == 'zh'
-      ? '查找与当前笔记可能相关的内容'
-      : 'Find notes that may be related to the current note';
-  String get aiContinueWritingFeature =>
-      locale.languageCode == 'zh' ? 'AI 续写' : 'AI Continue Writing';
-  String get aiContinueWritingFeatureDesc => locale.languageCode == 'zh'
-      ? '基于已有内容智能续写笔记'
-      : 'Intelligently continue writing based on existing content';
-  String get aiSmartTagsAndSummary =>
-      locale.languageCode == 'zh' ? 'AI 智能标签 & 摘要' : 'AI Smart Tags & Summary';
-  String get aiSmartTagsAndSummaryDesc => locale.languageCode == 'zh'
-      ? '根据内容生成标签建议和摘要'
-      : 'Suggest tags and summaries based on note content';
-  String get wechatAssistant =>
-      locale.languageCode == 'zh' ? '微信小助手' : 'WeChat Assistant';
-  String get wechatAssistantDesc => locale.languageCode == 'zh'
-      ? '通过微信直接输入快速记录笔记，支持文字、图片'
-      : 'Quickly record notes via WeChat, supports text and images';
-  String get featureCompleted =>
-      locale.languageCode == 'zh' ? '已完成' : 'Completed';
-  String get aiRelatedNotesUsage => locale.languageCode == 'zh'
-      ? '在笔记详情页点击右下角的 AI 按钮即可查看相关笔记'
-      : 'Click the AI button in the bottom right corner of the note details page to view related notes';
-  String get aiContinueWritingUsage => locale.languageCode == 'zh'
-      ? '在编辑笔记时点击工具栏的 AI 按钮，选择续写功能'
-      : 'Click the AI button in the toolbar when editing notes and select the continue writing feature';
-  String get aiSmartTagsAndSummaryUsage => locale.languageCode == 'zh'
-      ? '编辑笔记时使用 AI 按钮生成标签，详情页使用智能摘要功能'
-      : 'Use the AI button to generate tags when editing notes, and use the smart summary feature on the details page';
-  String get understood => locale.languageCode == 'zh' ? '知道了' : 'Got it';
 
   // WebDAV 同步（部分key已存在，只添加新的）
   String get webdavSync =>
@@ -1935,9 +1345,6 @@ class AppLocalizationsSimple {
       locale.languageCode == 'zh' ? '恢复中...' : 'Restoring...';
   String get pleaseEnterServerAddress =>
       locale.languageCode == 'zh' ? '请输入服务器地址' : 'Please enter server address';
-  String get addressMustStartWithHttp => locale.languageCode == 'zh'
-      ? '地址必须以 http:// 或 https:// 开头'
-      : 'Address must start with http:// or https://';
   String get pleaseEnterSyncFolderPath => locale.languageCode == 'zh'
       ? '请输入同步文件夹路径'
       : 'Please enter sync folder path';
@@ -1967,8 +1374,6 @@ class AppLocalizationsSimple {
       _t('backupServiceUnavailable', fallback: '备份服务未初始化');
   String get restoreServiceUnavailable =>
       _t('restoreServiceUnavailable', fallback: '恢复服务未初始化');
-  String get imagesBackupAttempted =>
-      _t('imagesBackupAttempted', fallback: '图片：已尝试备份');
   String webdavResourcesUploaded(int count) =>
       _t('webdavResourcesUploaded', fallback: '资源：{count} 个')
           .replaceAll('{count}', count.toString());
@@ -1988,13 +1393,6 @@ class AppLocalizationsSimple {
   String get webdavHelpText => locale.languageCode == 'zh'
       ? '• 推荐使用坚果云等专业 WebDAV 服务\n• 坚果云需要使用"应用专用密码"而不是登录密码\n• 立即测试：测试 WebDAV 服务器连接\n• 立即备份：单向上传，完整备份所有数据到云端\n• 从 WebDAV 恢复：下载云端数据到本地（覆盖本地）\n• 定时备份：可选择每次启动或定时自动备份'
       : '• Recommend using professional WebDAV services like Nutstore\n• Nutstore requires using "App-specific password" instead of login password\n• Test Now: Test WebDAV server connection\n• Backup Now: One-way upload, full backup of all data to cloud\n• Restore from WebDAV: Download cloud data to local (overwrite local)\n• Timed Backup: Choose to auto backup on every startup or timed intervals';
-  String get webdavGuide =>
-      locale.languageCode == 'zh' ? 'WebDAV 使用指南' : 'WebDAV Usage Guide';
-  String get whatIsWebdav =>
-      locale.languageCode == 'zh' ? '🤔 什么是 WebDAV？' : '🤔 What is WebDAV?';
-  String get webdavDescription => locale.languageCode == 'zh'
-      ? 'WebDAV 是一种网络协议，可以让你将笔记备份到云端服务器。本应用支持使用 WebDAV 进行笔记备份和恢复。'
-      : 'WebDAV is a network protocol that allows you to backup notes to a cloud server. This app supports using WebDAV for note backup and recovery.';
 
   // ===== 新增缺失的国际化字符串 =====
   String get undoDelete => _t('undoDelete', fallback: '已撤销删除');
@@ -2006,10 +1404,6 @@ class AppLocalizationsSimple {
   String get setToPublic => _t('setToPublic', fallback: '已设为公开');
   String get setFailed => _t('setFailed', fallback: '设置失败');
   String get fullText => _t('fullText', fallback: '全文');
-  String get referencedNoteNotFound =>
-      _t('referencedNoteNotFound', fallback: '引用的笔记不存在或已被删除 (ID: {id})');
-  String get cancelSuccess => _t('cancelSuccess', fallback: '取消成功');
-  String get setSuccess => _t('setSuccess', fallback: '设置成功');
   String get editorPlaceholder =>
       _t('editorPlaceholder', fallback: '现在的想法是...');
   String get voiceListening => _t('voiceListening', fallback: '正在聆听...');
@@ -2029,38 +1423,15 @@ class AppLocalizationsSimple {
       _t('logoutDataPrompt', fallback: '退出登录前，请选择如何处理本地数据：');
   String get functionMenu => _t('functionMenu', fallback: '功能菜单');
   String get loadedAll => _t('loadedAll', fallback: '已加载全部 {count} 条笔记');
-  String get serverError => _t('serverError', fallback: '服务器错误');
-  String get unknownError => _t('unknownError', fallback: '未知错误');
   String get copySuccess => _t('copySuccess', fallback: '已复制');
 
   // 更新对话框相关
-  String get mustUpdateMessage =>
-      _t('mustUpdateMessage', fallback: '此为重要更新，必须更新后才能继续使用');
   String get downloading => _t('downloading', fallback: '正在下载...');
-  String get laterUpdate => _t('laterUpdate', fallback: '稍后更新');
-  String get downloadComplete =>
-      _t('downloadComplete', fallback: '下载完成！请安装更新包');
-  String get downloadFailed =>
-      locale.languageCode == 'zh' ? '下载失败' : 'Download failed';
-  String get openLinkFailed =>
-      locale.languageCode == 'zh' ? '打开链接失败' : 'Failed to open link';
 
   // 标签相关
   String get statistics => _t('statistics', fallback: '统计图表');
   String get rename => _t('rename', fallback: '重命名');
-  String get tagStatistics => _t('tagStatistics', fallback: '标签统计');
   String get noteCount => _t('noteCount', fallback: '笔记数');
-  String get creationMonths => _t('creationMonths', fallback: '创建月数');
-  String get recentSixMonthsTrend =>
-      _t('recentSixMonthsTrend', fallback: '最近6个月趋势');
-  String get noStatisticsData => _t('noStatisticsData', fallback: '暂无统计数据');
-  String get renameTag => _t('renameTag', fallback: '重命名标签');
-  String get enterNewTagName => _t('enterNewTagName', fallback: '输入新标签名');
-  String get deleteTag => _t('deleteTag', fallback: '删除标签');
-  String get deleteTagConfirm =>
-      _t('deleteTagConfirm', fallback: '确定要删除此标签吗？删除后，该标签下的所有笔记将失去此标签。');
-  String get deleteTagSimpleConfirm =>
-      _t('deleteTagSimpleConfirm', fallback: '确定要删除此标签吗？');
 
   // 导入导出相关
   String get localBackupRestore =>
@@ -2085,7 +1456,6 @@ class AppLocalizationsSimple {
   String get howToUseTags => _t('howToUseTags', fallback: '如何使用标签');
   String get expandAll => _t('expandAll', fallback: '展开所有');
   String get collapseAll => _t('collapseAll', fallback: '收起所有');
-  String get expandAllTags => _t('expandAllTags', fallback: '展开全部');
   String expandAllTagsWithCount(int count) {
     final template =
         _t('expandAllTagsWithCount', fallback: '展开全部 ({count}个标签)');
@@ -2115,9 +1485,6 @@ class AppLocalizationsSimple {
   String get selectFile => _t('selectFile', fallback: '选择文件');
   String get selectFlomoExportFolder =>
       _t('selectFlomoExportFolder', fallback: '选择 Flomo 导出文件夹');
-  String get selectFlomoHtmlFile =>
-      _t('selectFlomoHtmlFile', fallback: '选择 Flomo HTML 文件');
-  String get alreadyInTagPage => _t('alreadyInTagPage', fallback: '已在标签页中');
   String get imageFileMissing => _t('imageFileMissing', fallback: '图片文件缺失');
   String get possibleReasons => _t('possibleReasons', fallback: '可能原因：');
   String get htmlAndFileSeparated =>
@@ -2161,8 +1528,6 @@ class AppLocalizationsSimple {
   String get importAllDesc => _t('importAllDesc', fallback: '忽略重复检测，全部作为新笔记导入');
   String get notePreview => _t('notePreview', fallback: '笔记预览（前5条）');
   String get dirNotExist => _t('dirNotExist', fallback: '目录不存在');
-  String get noHtmlFileInFolder =>
-      _t('noHtmlFileInFolder', fallback: '该文件夹中没有找到HTML文件');
   String get selectFolderFailed =>
       _t('selectFolderFailed', fallback: '选择文件夹失败');
   String get fileNotExist => _t('fileNotExist', fallback: '文件不存在');
@@ -2178,15 +1543,8 @@ class AppLocalizationsSimple {
   String get importSuccessful => _t('importSuccessful', fallback: '导入成功');
   String get importedFromFlomo =>
       _t('importedFromFlomo', fallback: '成功从 Flomo 导入：');
-  String get exactMatch => _t('exactMatch', fallback: '精确匹配');
   String get contentOnly => _t('contentOnly', fallback: '内容相同');
   String get time => _t('time', fallback: '时间');
-  String get duplicatesFoundTitle =>
-      _t('duplicatesFoundTitle', fallback: '发现重复笔记');
-  String get selectedToImportHint =>
-      _t('selectedToImportHint', fallback: '选中的笔记将被导入，未选中的将跳过');
-  String get selectAll => _t('selectAll', fallback: '全选');
-  String get deselectAll => _t('deselectAll', fallback: '取消全选');
   String get skipAll => _t('skipAll', fallback: '全部跳过');
   String get toImport => _t('toImport', fallback: '待导入');
   String get existing => _t('existing', fallback: '已存在');
@@ -2291,11 +1649,6 @@ class AppLocalizationsSimple {
   String get notionSyncDescription => locale.languageCode == 'zh'
       ? '与 Notion 工作区实时同步笔记数据，支持双向同步与自动同步功能'
       : 'Real-time sync with Notion workspace, supports bidirectional and auto-sync';
-  String get notionAccessTokenHint => locale.languageCode == 'zh'
-      ? '输入 Notion Integration Token'
-      : 'Enter Notion Integration Token';
-  String get notionTestConnection =>
-      locale.languageCode == 'zh' ? '测试' : 'Test';
   String get notionSelectDatabase =>
       locale.languageCode == 'zh' ? '选择数据库' : 'Select Database';
   String get notionSelectDatabaseHint => locale.languageCode == 'zh'
@@ -2320,19 +1673,8 @@ class AppLocalizationsSimple {
   String get notionAutoSyncDesc => locale.languageCode == 'zh'
       ? '笔记创建或编辑时自动同步至 Notion'
       : 'Auto sync when creating or modifying notes';
-  String get notionSyncNow => locale.languageCode == 'zh' ? '立即同步' : 'Sync Now';
-  String get notionLastSync =>
-      locale.languageCode == 'zh' ? '最后同步' : 'Last Sync';
   String get notionEnableSync =>
       locale.languageCode == 'zh' ? '启用 Notion 同步' : 'Enable Notion Sync';
-  String get notionEnableSyncDesc => locale.languageCode == 'zh'
-      ? '自动同步笔记到 Notion'
-      : 'Auto sync notes to Notion';
-  String get notionConnectionSuccess =>
-      locale.languageCode == 'zh' ? '✅ 连接成功！' : '✅ Connection successful!';
-  String get notionConnectionFailed => locale.languageCode == 'zh'
-      ? '❌ 连接失败，请检查令牌是否正确'
-      : '❌ Connection failed, please check your token';
   String get notionSyncFailed =>
       locale.languageCode == 'zh' ? '同步失败' : 'Sync failed';
   String get notionHowToGetToken => locale.languageCode == 'zh'
@@ -2364,25 +1706,14 @@ class AppLocalizationsSimple {
       locale.languageCode == 'zh' ? '更新时间' : 'Updated Time';
   String get notionNoteContent =>
       locale.languageCode == 'zh' ? '笔记内容' : 'Note Content';
-  String get notionMapsTo => locale.languageCode == 'zh' ? '映射到' : 'Maps to';
-  String get notionPropertyType =>
-      locale.languageCode == 'zh' ? '属性类型' : 'Property Type';
   String get notionNoProperty =>
       locale.languageCode == 'zh' ? '不映射' : 'No Mapping';
-  String get notionAutoDetected =>
-      locale.languageCode == 'zh' ? '自动检测' : 'Auto Detected';
-  String get notionConfigureMapping =>
-      locale.languageCode == 'zh' ? '配置映射' : 'Configure Mapping';
   String get notionUseDefaultMapping =>
       locale.languageCode == 'zh' ? '使用默认映射' : 'Use Default Mapping';
   String get notionMappingRequired =>
       locale.languageCode == 'zh' ? '必需' : 'Required';
   String get notionMappingOptional =>
       locale.languageCode == 'zh' ? '可选' : 'Optional';
-  String get notionDatabaseProperties =>
-      locale.languageCode == 'zh' ? '数据库属性' : 'Database Properties';
-  String get notionPropertyName =>
-      locale.languageCode == 'zh' ? '属性名称' : 'Property Name';
   String get notionContentMappingHint => locale.languageCode == 'zh'
       ? '不映射则写入页面正文'
       : 'If not mapped, write to page body';
@@ -2461,13 +1792,6 @@ class AppLocalizationsSimple {
   String notionSyncSuccess(int count) => locale.languageCode == 'zh'
       ? '同步成功！已同步 $count 条笔记'
       : 'Sync successful! $count notes synced';
-  String get notionTestConnectionFailed =>
-      locale.languageCode == 'zh' ? '连接测试失败' : 'Connection test failed';
-  String get notionNoDatabaseFound => locale.languageCode == 'zh'
-      ? '未找到任何数据库，请确保已在 Notion 中分享数据库给集成'
-      : 'No databases found. Please share a database with the integration in Notion';
-  String get notionLoadDatabasesFailed =>
-      locale.languageCode == 'zh' ? '加载数据库列表失败' : 'Failed to load databases';
 
   // 微信读书笔记导入
   String get wereadImportTitle =>
@@ -2490,8 +1814,6 @@ class AppLocalizationsSimple {
   String get wereadPasteHint => locale.languageCode == 'zh'
       ? '粘贴微信读书笔记...\n\n例如：\n《书名》\n\n35个笔记\n点评\n\n第一章 标题\n\n笔记内容...'
       : 'Paste WeRead notes here...\n\nExample:\n《Book Title》\n\n35 notes\nReview\n\nChapter 1 Title\n\nNote content...';
-  String get wereadCheckResult =>
-      locale.languageCode == 'zh' ? '检查结果' : 'Check Result';
   String wereadBookInfo(String title, int noteCount, int chapterCount) =>
       locale.languageCode == 'zh'
           ? '书名: $title\n笔记数: $noteCount 条\n章节数: $chapterCount 个'
@@ -2507,15 +1829,8 @@ class AppLocalizationsSimple {
       locale.languageCode == 'zh' ? '显示章节信息' : 'Show Chapter Info';
   String get wereadShowChapterDesc =>
       locale.languageCode == 'zh' ? '显示笔记所在章节' : 'Show note chapter';
-  String get wereadShowReview =>
-      locale.languageCode == 'zh' ? '显示点评内容' : 'Show Review';
-  String get wereadShowReviewDesc =>
-      locale.languageCode == 'zh' ? '显示笔记的点评部分' : 'Show note review section';
   String get wereadCustomTags =>
       locale.languageCode == 'zh' ? '自定义标签' : 'Custom Tags';
-  String get wereadCustomTagsDesc => locale.languageCode == 'zh'
-      ? '点击上方添加按钮添加标签，默认使用"微信读书"和书名作为标签'
-      : 'Tap add button above to add tags. Default: "WeRead" and book title';
   String get wereadClear => locale.languageCode == 'zh' ? '清空' : 'Clear';
   String get wereadCheck => locale.languageCode == 'zh' ? '检查' : 'Check';
   String get wereadImport => locale.languageCode == 'zh' ? '导入' : 'Import';
@@ -2532,38 +1847,12 @@ class AppLocalizationsSimple {
   String wereadImportSuccess(int count) => locale.languageCode == 'zh'
       ? '成功导入 $count 条笔记！'
       : 'Successfully imported $count notes!';
-  String get wereadImportFailed =>
-      locale.languageCode == 'zh' ? '导入失败' : 'Import failed';
 
   // ===== 通用弹窗与操作 =====
   String get reset => _t('reset', fallback: '重置');
-  String get allow => _t('allow', fallback: '允许');
-  String get denyPermission => _t('denyPermission', fallback: '暂不授权');
-  String get authorizeNow => _t('authorizeNow', fallback: '立即授权');
-  String get permissionTip =>
-      _t('permissionTip', fallback: '💡 提示：授权后可以正常使用相关功能');
-  String get permissionStepTitle =>
-      _t('permissionStepTitle', fallback: '操作步骤：');
-  String get permissionStepGeneral => _t(
-        'permissionStepGeneral',
-        fallback: '1. 点击"去设置"按钮\n2. 找到相应权限开关\n3. 开启权限后返回应用\n4. 重新尝试使用功能',
-      );
-  String get permissionStepShort => _t(
-        'permissionStepShort',
-        fallback: '请按以下步骤操作：\n1. 点击"去设置"\n2. 找到相应权限开关\n3. 开启权限后返回应用',
-      );
-  String get permissionStepSpeech => _t(
-        'permissionStepSpeech',
-        fallback: '1. 点击"去设置"按钮\n2. 找到"麦克风"和"语音识别"\n3. 开启权限开关\n4. 返回应用重试',
-      );
-  String get permissionStepNotification => _t(
-        'permissionStepNotification',
-        fallback: '1. 点击"去设置"按钮\n2. 找到"通知"权限\n3. 开启权限开关\n4. 返回应用重试',
-      );
 
   // ===== 图片操作 =====
   String get imageActionsTitle => _t('imageActionsTitle', fallback: '图片操作');
-  String get saveToGallery => _t('saveToGallery', fallback: '保存到相册');
   String get saveAction => _t('saveAction', fallback: '保存');
   String get preparingShareImage =>
       _t('preparingShareImage', fallback: '准备分享图片...');
@@ -2576,8 +1865,6 @@ class AppLocalizationsSimple {
 
   // ===== 分享图 =====
   String get shareImageTitle => _t('shareImageTitle', fallback: '生成分享图');
-  String get shareImageGenerating =>
-      _t('shareImageGenerating', fallback: '生成中...');
   String get shareImageGeneratingPreview =>
       _t('shareImageGeneratingPreview', fallback: '正在生成预览（加载图片中...）');
   String get shareImageLoadingImages =>
@@ -2589,10 +1876,6 @@ class AppLocalizationsSimple {
   String get shareImageSave => _t('shareImageSave', fallback: '保存图片');
   String get shareImageShare => _t('shareImageShare', fallback: '分享');
   String get shareImageSaving => _t('shareImageSaving', fallback: '正在保存图片...');
-  String get shareImageSavingToAlbum =>
-      _t('shareImageSavingToAlbum', fallback: '正在保存图片，请稍候');
-  String get shareImageSaveSuccess =>
-      _t('shareImageSaveSuccess', fallback: '图片已保存');
   String get shareImageSaveFailed =>
       _t('shareImageSaveFailed', fallback: '保存失败，请检查权限或保存位置');
   String get shareImageShareFailed =>
@@ -2619,11 +1902,7 @@ class AppLocalizationsSimple {
       _t('shareTemplateMagazine', fallback: '杂志风格');
 
   // ===== 标签配色 =====
-  String get tagColorTitle => _t('tagColorTitle', fallback: '标签配色');
-  String get previewEffect => _t('previewEffect', fallback: '预览效果');
   String get presetColors => _t('presetColors', fallback: '预设配色');
-  String get selectPreset => _t('selectPreset', fallback: '选择预设');
-  String get customColor => _t('customColor', fallback: '自定义');
   String get backgroundColor => _t('backgroundColor', fallback: '背景色');
   String get textColor => _t('textColor', fallback: '文字色');
 
@@ -2677,47 +1956,7 @@ class AppLocalizationsSimple {
   String get metricImageLoad => _t('metricImageLoad', fallback: '图片加载');
 
   // ===== 语音识别 =====
-  String get speechPermissionTitle =>
-      _t('speechPermissionTitle', fallback: '语音识别权限');
-  String get speechPermissionMessage => _t(
-        'speechPermissionMessage',
-        fallback: '语音识别功能需要访问您的麦克风来录制语音并转换为文字。\n\n这将帮助您快速输入笔记内容。',
-      );
-  String get microphonePermissionTitle =>
-      _t('microphonePermissionTitle', fallback: '麦克风权限');
-  String get microphonePermissionDenied =>
-      _t('microphonePermissionDenied', fallback: '麦克风权限被拒绝');
-  String get microphonePermissionMessage => _t(
-        'microphonePermissionMessage',
-        fallback: '语音识别功能需要访问麦克风来录制您的语音并转换为文字。',
-      );
-  String get microphoneSettingsMessage => _t(
-        'microphoneSettingsMessage',
-        fallback: '请在设置中手动开启麦克风权限以使用语音识别功能。',
-      );
-  String get speechPermissionDenied =>
-      _t('speechPermissionDenied', fallback: '语音识别权限被拒绝');
-  String get speechSettingsMessage =>
-      _t('speechSettingsMessage', fallback: '请在设置中手动开启语音识别权限。');
-  String get speechPermissionRequiredTitle =>
-      _t('speechPermissionRequiredTitle', fallback: '需要麦克风权限');
-  String get speechPermissionRequiredMessage =>
-      _t('speechPermissionRequiredMessage', fallback: '语音识别功能需要麦克风和语音识别权限。');
-  String get speechRecognitionUnavailable =>
-      _t('speechRecognitionUnavailable', fallback: '语音识别不可用');
-  String get localSpeechUnavailable =>
-      _t('localSpeechUnavailable', fallback: '本地语音识别功能暂时不可用。');
-  String get speechUnavailableReasons => _t(
-        'speechUnavailableReasons',
-        fallback: '• 设备缺少 Google 语音服务\n• 网络连接问题',
-      );
   String get suggestion => _t('suggestion', fallback: '💡 建议');
-  String get cloudSpeechSuggestion =>
-      _t('cloudSpeechSuggestion', fallback: '您可以使用云端语音识别功能（百度语音），识别准确率更高。');
-  String get useCloudRecognition =>
-      _t('useCloudRecognition', fallback: '使用云端识别');
-  String get cloudRecognitionNotConfigured =>
-      _t('cloudRecognitionNotConfigured', fallback: '云端识别未配置');
 
   // ===== Flomo 导入 =====
   String get htmlFileNotFoundTitle =>

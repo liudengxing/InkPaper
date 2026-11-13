@@ -55,7 +55,18 @@ push_with_retry() {
   return 1
 }
 
-if ! push_with_retry "+HEAD:refs/heads/main"; then
+# 镜像 main 要推「GitHub 上最新的 main」，而不是当前 checkout 的 HEAD：tag 触发的
+# 发版流程 checkout 的是 tag 指向的提交，发版之后又推了一个 commit 时它就落后了，
+# 用 +HEAD 强推会把镜像仓的 main 顶回旧提交（1.1.84 发版时就把刚同步过去的 12a76c1
+# 顶掉了）。actions/checkout 带 fetch-depth: 0 会把所有分支取下来，所以
+# refs/remotes/origin/main 就是正确答案；只有它不存在时才退回 HEAD。
+main_ref="HEAD"
+if git rev-parse --verify --quiet refs/remotes/origin/main >/dev/null; then
+  main_ref="refs/remotes/origin/main"
+fi
+echo "  镜像 main 来源：$main_ref"
+
+if ! push_with_retry "+${main_ref}:refs/heads/main"; then
   echo "::error::推送 main 到 Gitee 失败（3 次），镜像仓与 GitHub 已不同步"
   exit 1
 fi

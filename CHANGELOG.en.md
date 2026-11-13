@@ -46,6 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Drafts that contain images no longer get lost.** When editing an existing note, the
+  previous unsaved draft only showed a "found an unsaved draft" banner and waited for you to
+  tap Recover. That banner is easy to skim past, and the moment you started typing on the
+  original text, the 800ms autosave overwrote the whole draft with "original text + your new
+  input" — the images you had just added were gone. Notes now restore the draft automatically
+  on open, with an "unsaved draft restored" banner and an Undo action that reverts to the
+  original note.
 - The speech-recognition failure hint still listed "iOS: System version is too old". It now
   only mentions missing Google speech services and network issues.
 - The WebDAV iCloud Drive example and the Flomo import step about saving to the Files app

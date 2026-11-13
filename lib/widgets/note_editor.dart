@@ -107,8 +107,12 @@ class _NoteEditorState extends State<NoteEditor>
   final DraftService _draftService = DraftService();
   Timer? _draftDebounce;
 
-  /// 检测到「上次未保存的草稿」，等用户决定是否覆盖当前内容。
-  NoteDraft? _pendingDraft;
+  /// 编辑已有笔记时自动恢复了草稿，这里存恢复前的笔记原文，供「撤销」回退。
+  /// 非空也代表草稿槽位里压着一条不该被随手清掉的草稿。
+  String? _draftRevertContent;
+
+  /// 「已恢复上次未保存的草稿」提示条是否还挂着。
+  bool _showDraftRecovered = false;
 
   String get _draftId => widget.currentNoteId ?? DraftService.newNoteDraftId;
 
@@ -417,7 +421,9 @@ class _NoteEditorState extends State<NoteEditor>
   }
 
   /// 把草稿内容写回编辑器（连同图片一起重建）。
-  void _restoreDraftContent(String content) {
+  ///
+  /// [originalContent] 是恢复前的笔记原文，撤销时要用；新建笔记没有原文，留空。
+  void _restoreDraftContent(String content, {String? originalContent}) {
     setState(() {
       final draftBody = _loadVisualContent(content);
       _suppressImageAnchorSync = true;
@@ -427,8 +433,7 @@ class _NoteEditorState extends State<NoteEditor>
         _suppressImageAnchorSync = false;
       }
       _lastTextForImageAnchors = _textController.text;
-      _initialSavedContent = '';
-      _pendingDraft = null;
+      _initialSavedContent = originalContent ?? '';
       _updateLineCount();
     });
     _focusEditorAfterOpen();
@@ -462,16 +467,28 @@ class _NoteEditorState extends State<NoteEditor>
 
     // 草稿恢复：
     //   · 新建笔记 → 直接恢复（用户本来就是从空白开始写）
-    //   · 编辑已有笔记 → 不覆盖正文，只在顶部提示，等用户点「恢复」
+    //   · 编辑已有笔记 → 也直接恢复，但顶部给一条「已恢复」提示 + 撤销
+    //
+    // 以前编辑已有笔记只弹提示、等用户点「恢复」。可是提示很容易被忽略，
+    // 用户直接在原文上接着写，输入停顿 800ms 的自动暂存就会把带图片的草稿
+    // 整条盖掉 —— 表现就是「明明说保存了草稿，图却没留下」。
     _loadDraft().then((draft) {
       if (!mounted || draft == null || draft.content.trim().isEmpty) {
         return;
       }
       if (_isNewNote) {
         _restoreDraftContent(draft.content);
-      } else if (draft.content.trim() != _initialSavedContent.trim()) {
-        setState(() => _pendingDraft = draft);
+        return;
       }
+      final original = _initialSavedContent;
+      if (draft.content.trim() == original.trim()) {
+        return;
+      }
+      _restoreDraftContent(draft.content, originalContent: original);
+      setState(() {
+        _draftRevertContent = original;
+        _showDraftRecovered = true;
+      });
     });
 
     WidgetsBinding.instance.addObserver(this);
@@ -1040,9 +1057,9 @@ class _NoteEditorState extends State<NoteEditor>
 
     try {
       if (!_hasUnsavedChanges) {
-        // 没有改动就不留草稿；但用户手动「忽略」过的旧草稿、
+        // 没有改动就不留草稿；但刚恢复出来的草稿（撤销前）、
         // 以及从草稿箱打开待继续编辑的草稿要保留
-        if (_pendingDraft == null && !widget.preserveDraftOnClose) {
+        if (_draftRevertContent == null && !widget.preserveDraftOnClose) {
           await _clearDraft();
         }
         if (mounted) {
@@ -1073,19 +1090,32 @@ class _NoteEditorState extends State<NoteEditor>
     }
   }
 
-  /// 用户在「发现草稿」提示条里点了「恢复」。
-  void _acceptPendingDraft() {
-    final draft = _pendingDraft;
-    if (draft == null) {
+  /// 提示条里点「撤销」：丢掉这份草稿，正文退回笔记原文。
+  Future<void> _revertDraftRecovery() async {
+    final original = _draftRevertContent;
+    if (original == null) {
       return;
     }
-    _restoreDraftContent(draft.content);
+    setState(() {
+      final body = _loadVisualContent(original);
+      _suppressImageAnchorSync = true;
+      try {
+        _textController.setMarkdown(body);
+      } finally {
+        _suppressImageAnchorSync = false;
+      }
+      _lastTextForImageAnchors = _textController.text;
+      _initialSavedContent = original;
+      _draftRevertContent = null;
+      _showDraftRecovered = false;
+      _updateLineCount();
+    });
+    await _draftService.clear(_draftId);
   }
 
-  /// 用户在提示条里点了「忽略」：这次不带入草稿，并把旧草稿清掉。
-  Future<void> _dismissPendingDraft() async {
-    setState(() => _pendingDraft = null);
-    await _draftService.clear(_draftId);
+  /// 提示条里点「知道了」：只收掉提示，草稿已经恢复进编辑器，不动内容。
+  void _dismissDraftRecovered() {
+    setState(() => _showDraftRecovered = false);
   }
 
   /// 「发现未保存草稿」提示条。
@@ -1108,31 +1138,31 @@ class _NoteEditorState extends State<NoteEditor>
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                '发现上次未保存的草稿',
+                '已恢复上次未保存的草稿',
                 style: TextStyle(fontSize: 12, color: textColor),
               ),
             ),
             TextButton(
-              onPressed: _dismissPendingDraft,
+              onPressed: _dismissDraftRecovered,
               style: TextButton.styleFrom(
                 minimumSize: const Size(0, 34),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: Text(
-                '忽略',
+                '知道了',
                 style: TextStyle(fontSize: 12, color: secondaryTextColor),
               ),
             ),
             TextButton(
-              onPressed: _acceptPendingDraft,
+              onPressed: _revertDraftRecovery,
               style: TextButton.styleFrom(
                 minimumSize: const Size(0, 34),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: Text(
-                '恢复',
+                '撤销',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -1337,8 +1367,8 @@ class _NoteEditorState extends State<NoteEditor>
                                 ),
                               ),
 
-                              // 编辑已有笔记时，上次没保存的草稿只提示、不直接覆盖
-                              if (_pendingDraft != null)
+                              // 自动恢复草稿后给一条可撤销的提示
+                              if (_showDraftRecovered)
                                 _buildDraftBanner(
                                   accentColor: iconColor,
                                   textColor: textColor,

@@ -31,6 +31,29 @@
   变成 `[b, c, a]`、拖回原位不动、九宫格图片 provider 是 400px 的 `ResizeImage`
 - `verify` **685 项全过**（676 + 9）
 
+### 追加：加了图片的草稿被自动暂存覆盖（真实丢数据）
+- **反馈**：「编辑的时候，添加的图片显示说已保存草稿，但实际上图片的草稿并没有保存」
+- **先证明存的没问题**：给 `PathProviderPlatform` / `ImagePickerPlatform` 打假实现（真写文件、
+  真读目录），走完整 `_pickImage` → `_saveImageLocally` 链路。草稿里确实写进了
+  `![图片](file://…/images/image_*.png)`，重开也能解析回 `_imageList` —— **保存与恢复本身是对的**
+- **真正的坑在「恢复」这一步**：编辑已有笔记时，`_loadDraft()` 只 `setState(_pendingDraft = draft)`，
+  正文仍是笔记原文；用户没点「恢复」而直接在原文上打字 → `_textController` listener 触发 800ms
+  debounce → `_saveDraft()` 用 `_prepareFinalContent()`（原文 + 新输入，`_imageList` 里没有那张新图）
+  **整条覆盖草稿**，图片永久丢失。提示条容易被当成通知忽略，所以用户看到的就是「说保存了其实没保存」
+- 修复：编辑已有笔记时**自动恢复草稿**（与新建笔记一致），顶部提示条从「发现上次未保存的草稿
+  [忽略][恢复]」改为「已恢复上次未保存的草稿 [知道了][撤销]」
+  - `_pendingDraft` 换成 `_draftRevertContent`（恢复前的原文，撤销用）+ `_showDraftRecovered`（提示条开关）
+  - `_restoreDraftContent(content, {originalContent})`：`_initialSavedContent` 记原文而不是 `''`，
+    `_hasUnsavedChanges` 语义才对
+  - `_requestCloseEditor` 的「没改动就清草稿」改为按 `_draftRevertContent == null` 判断，
+    刚恢复出来的草稿不会被清
+- 测试：`test/widget_tests/note_editor_draft_image_test.dart` 9 条 —— 新建笔记只贴图关闭留草稿、
+  编辑已有笔记改动后草稿带原图引用、关闭时保存带图、真加图后草稿带 `file://` 路径、
+  重开自动恢复、恢复后继续写不丢图、撤销回原文并清草稿
+- 坑：widget test 里真实文件 IO 必须放 `tester.runAsync`，否则 `Directory.create` / `writeAsBytes`
+  的 Future 在 fake async 下永不完成，表现为「图片按钮点了没反应」；`_focusEditorAfterOpen` 有个
+  180ms 延时，测试结束前要 `pump` 掉，不然报 `A Timer is still pending`
+
 ## 2026-11-13 · 品牌图标全套重做 + 文档单平台对齐（1.1.86+10182）· done
 
 ### 问题

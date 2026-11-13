@@ -653,7 +653,7 @@ packages:
     source: hosted
     version: "0.2.2+1"
   image_picker_platform_interface:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: image_picker_platform_interface
       sha256: "2dee4b4e3be429db71472c9c559c981498070a61af1ba82e0e4986fc5dadc042"
@@ -930,7 +930,7 @@ packages:
     source: hosted
     version: "2.2.2"
   path_provider_platform_interface:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: path_provider_platform_interface
       sha256: "484838772624c3a4b94f1e44a3e19897fee738f2d5c4ce448443b0417f7c9dda"
@@ -1010,7 +1010,7 @@ packages:
     source: hosted
     version: "3.2.0"
   plugin_platform_interface:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: plugin_platform_interface
       sha256: "4820fbfdb9478b1ebae27888254d445073732dae3d6ea81f0b7e06d5dedc3f02"

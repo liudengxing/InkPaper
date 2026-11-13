@@ -100,7 +100,9 @@ class CapsuleTextSelectionToolbar extends StatelessWidget {
       case ContextMenuButtonType.liveTextInput:
         return isZh ? '扫描文本' : 'Scan text';
       case ContextMenuButtonType.custom:
-        return item.label ?? '';
+        // 第三方 PROCESS_TEXT 注入的项（「朗读」「在浏览器中打开」之类）文案
+        // 长度不可控，塞进来会把胶囊撑出屏幕、末端被硬切，统一不显示。
+        return '';
     }
   }
 }
@@ -121,8 +123,9 @@ class _CapsuleButton extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        // 系统那条按钮间的留白比 Material 松，靠水平 14dp 撑开。
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+        // 系统那条按钮间的留白比 Material 松，靠水平 12dp 撑开；
+        // 再大会让「剪切/复制/粘贴/分享/全选」六项顶出屏幕。
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Center(
           child: Text(
             label,

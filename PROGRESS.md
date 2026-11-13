@@ -1,3 +1,26 @@
+## 2026-11-13 · 图标回到墨绿纸页造型（1.1.86+10186）· done
+
+- 触发：`c526930` 当天下午把桌面图标换成「白底圆角 + 双色块」后，用户反馈桌面图标、启动图、
+  关于页三处都不对
+- 现状核对（三处其实不同源）：
+  - 桌面图标 `mipmap-*/ic_launcher.png`：白底圆角 + 灰绿/亮绿双色块，自适应底色 `#FFFFFF`
+  - 启动图 `assets/images/splash_logo.png`：底部图形是同款双色块（`c526930` 新增的图）
+  - 关于页 `assets/images/logo.png`：从 10 月起没改过，白底不透明、图形只占画布约 45%，
+    放进 80px 白容器后实际图形约 25px，看着又小又淡
+- 处理：
+  - `mipmap-*/ic_launcher.png`、`drawable-*/ic_launcher_foreground.png`、
+    `drawable-*/ic_notification.png` 三组共 15 个文件按 `git checkout c526930^` 还原成
+    「墨绿满底 + 白色折角纸页」
+  - `values/colors.xml` 的 `ic_launcher_background` 回 `#21473D`；`android:roundIcon` 声明保留
+  - `ic_launcher_round` 五档重绘为「墨绿满圆 + 白纸页」（`c526930^` 没有这份文件）
+  - `assets/images/logo.png` 重绘成透明底墨绿纸页、`black2logo.png` 重绘成透明底白纸页；
+    折角改成二次贝塞尔弧边 + 折痕阴影，避免直线三角的「缺口感」
+  - 启动图底部双色块换成白纸页，墨绿底、竖排标语、位置比例原样保留，四份 drawable 同步
+  - 登录 / 注册页的 logo 容器是品牌绿渐变，固定用 `black2logo.png`（白纸页），不再按主题切换
+  - 关于页 logo 容器 padding 12 → 10；`marketing/real/google-play/icon-512x512.png` 同步换图
+  - 生成脚本 `Z:/Temp/gen_paper_brand.py`（4x 超采样，参数：圆角 0.095W、折角 0.21W、
+    横线长 0.56W / 粗 0.048H / 位置 0.52H）
+
 ## 2026-11-13 · 启动图改成明暗共用墨绿底（1.1.86+10186）· done
 
 ### 问题

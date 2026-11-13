@@ -697,9 +697,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: Image.asset(
-                      Theme.of(context).brightness == Brightness.dark
-                          ? 'assets/images/black2logo.png'
-                          : 'assets/images/logo.png',
+                      // 容器是品牌绿渐变，用白色纸页 logo 才看得清
+                      'assets/images/black2logo.png',
                       width: 32,
                       height: 32,
                       // A-14：按实际像素密度解码

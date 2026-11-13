@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 自适应图标底色：跟随品牌 logo 的白底，图形为墨绿/亮绿两色块 -->
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- 自适应图标底色：墨绿满底，前景为白色折角纸页 -->
+    <color name="ic_launcher_background">#21473D</color>
     <!-- 启动图底色：明暗主题共用同一张墨绿底图，这里是它的纯色版，
          用作窗口在图片加载前、以及图片未覆盖区域的颜色 -->
     <color name="splash_brand">#143B30</color>

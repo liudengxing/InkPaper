@@ -18,11 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selectable, so you can copy it, edit it and paste it back. The panel also spells out what a
   custom prompt replaces: for review and recap your text replaces the body while the trailing
   format requirements still apply; for continuation the whole instruction block is replaced.
-- **New brand mark for every icon slot.** Launcher, round and notification icons now use
-  the same dark/light green mark as the splash screen, and the adaptive-icon background
-  switched from deep green to the brand white so it reads better on light wallpapers.
-  There was no dedicated `ic_launcher_round` before, so round-mask launchers had to crop
-  the square asset; the full round set is now generated and declared as `android:roundIcon`.
+- **Icons are back to the dark-green paper sheet.** The afternoon change that turned the
+  launcher icon into a white-background two-tone block left the icon edge blending into
+  light wallpapers and drifting away from the paper mark used inside the app. Launcher,
+  round and notification icons are dark green with a white folded corner again, and the
+  adaptive-icon background is back to deep green; the dedicated `ic_launcher_round` set
+  stays, so round-mask launchers no longer crop the square asset. The mark on the splash
+  screen, the in-app logo (About / sign-in / onboarding) and the store asset
+  `marketing/real/google-play/icon-512x512.png` all follow the same paper shape.
 - **The About screen no longer claims iOS / macOS / Windows / Linux support.** The app ships
   for Android only, so the technical-details paragraph now says so; the welcome note, help
   intro and home onboarding copy switched from "cross-platform" to "Android" as well.

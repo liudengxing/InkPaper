@@ -99,13 +99,16 @@ jobs:
           java-version: "17"
       # Gradle 的发行包所有官方地址（services/downloads.gradle.org）都会 307 到
       # github.com/gradle/gradle-distributions/releases，Actions runner 拉自家
-      # release 资产时不时 504，重试三次也不一定过得去。把解压后的发行包缓存住，
-      # 命中缓存的 run 完全不碰网络；key 固定到版本，不随代码变化失效。
-      - name: Cache Gradle distribution
-        uses: actions/cache@v4
+      # release 资产时不时 504，重试三次也不一定过得去。
+      # 原来只缓存 ~/.gradle/wrapper/dists：发行包确实不用重下了，但 ~/.gradle/caches
+      # 里那几百 MB 依赖每次仍要从 Maven 重拉 —— 实测 assembleDebug 报 550.5s，
+      # 其中 254 秒是没有任何日志的静默下载。官方的 setup-gradle 会一并管住
+      # wrapper 与 caches（key 按 gradle 脚本的哈希算，改构建脚本才失效），
+      # cache-cleanup 顺手删掉本次没用到的条目，避免缓存无限膨胀。
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          path: ~/.gradle/wrapper/dists
-          key: gradle-dist-${{ runner.os }}-8.14.3-bin
+          gradle-home-cache-cleanup: true
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -138,7 +141,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          # gradlew 第一次要从 GitHub Releases 下载 gradle 发行包，偶发 504
+          # gradlew 第一次要从镜像源下载 gradle 发行包，偶发失败
           # （Server returned HTTP response code: 504）。失败时 wrapper 会清掉半截
           # 文件，所以整体重试是安全的；三次都失败才真的红。
           # 每次 attempt 写独立日志：共用一份会被后一次覆盖，而失败常常只在

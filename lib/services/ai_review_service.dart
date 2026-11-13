@@ -75,16 +75,11 @@ class AiReviewService {
       appConfig.aiApiKey != null &&
       appConfig.aiApiKey!.isNotEmpty;
 
-  String _systemPrompt(AppConfig appConfig) {
-    if (appConfig.useCustomPrompt &&
-        appConfig.customReviewPrompt != null &&
-        appConfig.customReviewPrompt!.trim().isNotEmpty) {
-      return '${appConfig.customReviewPrompt!.trim()}\n\n'
-          '额外硬性要求：不要使用 Markdown 标题、列表符号或 emoji；不要复述原文；'
-          '必须给出具体价值判断、一个可执行下一步，并保持克制。';
-    }
-
-    return '''
+  /// 默认点评提示词。
+  ///
+  /// 设置页的「查看系统默认提示词」直接读这里，保证展示出来的就是真正
+  /// 发给模型的那一份，不会出现「文档里写一套、代码里用另一套」。
+  static const String defaultSystemPrompt = '''
 你是 InkPaper 的专业笔记点评顾问。你的任务不是夸奖、摘要或聊天，而是帮用户看见这条笔记真正有用的地方，以及下一步怎么让它产生价值。
 
 输出必须像一个高水准产品经理、写作教练和知识管理顾问的综合判断。
@@ -107,6 +102,21 @@ class AiReviewService {
 好的点评应该让用户觉得“它指出了我没说透但确实重要的点”。
 差的点评是泛泛总结、空洞鼓励、套话建议。
 ''';
+
+  /// 自定义提示词后面固定追加的硬性要求，同样用于设置页展示。
+  static const String customPromptHardRequirements =
+      '额外硬性要求：不要使用 Markdown 标题、列表符号或 emoji；不要复述原文；'
+      '必须给出具体价值判断、一个可执行下一步，并保持克制。';
+
+  String _systemPrompt(AppConfig appConfig) {
+    if (appConfig.useCustomPrompt &&
+        appConfig.customReviewPrompt != null &&
+        appConfig.customReviewPrompt!.trim().isNotEmpty) {
+      return '${appConfig.customReviewPrompt!.trim()}\n\n'
+          '$customPromptHardRequirements';
+    }
+
+    return defaultSystemPrompt;
   }
 
   String _userPrompt({

@@ -332,17 +332,17 @@ class AIInsightEngine {
     final buffer = StringBuffer();
 
     // 角色（简洁）
-    buffer.writeln('角色：学习伙伴（不是分析工具）');
+    buffer.writeln(_roleLine);
     buffer.writeln();
 
     // 当前笔记（最重要，放最前）
-    buffer.writeln('【笔记内容】');
+    buffer.writeln(_noteHeader);
     buffer.writeln(note.content);
     buffer.writeln();
 
     // 上下文信息（如果有，强调）
     if (context.relatedNotes.isNotEmpty) {
-      buffer.writeln('【⚠️ 重要：用户还写过相关笔记，必须提到！】');
+      buffer.writeln(_relatedNotesHeader);
       for (var i = 0; i < context.relatedNotes.take(2).length; i++) {
         final related = context.relatedNotes[i];
         final preview = _getPreview(related.note.content, 60);
@@ -352,7 +352,7 @@ class AIInsightEngine {
     }
 
     // 任务要求
-    buffer.writeln('【任务】');
+    buffer.writeln(_taskHeader);
     switch (type) {
       case AnalysisType.insight:
         buffer.writeln(_buildInsightTask(strategy));
@@ -367,6 +367,22 @@ class AIInsightEngine {
 
     return buffer.toString();
   }
+
+  // 下面这几个分段标题和任务正文，既拼进真正发出去的 Prompt，
+  // 也用来给设置页展示「默认提示词」，一处改动两边同步。
+  static const String _roleLine = '角色：学习伙伴（不是分析工具）';
+  static const String _noteHeader = '【笔记内容】';
+  static const String _relatedNotesHeader = '【⚠️ 重要：用户还写过相关笔记，必须提到！】';
+  static const String _taskHeader = '【任务】';
+
+  /// 续写功能的默认提示词（供设置页展示）。
+  ///
+  /// 与 [_buildPrompt] 的默认分支同源：分段标题与任务正文都取自同一组常量，
+  /// 只有笔记正文和相关笔记要运行时才有，这里用占位符表示。
+  static const String defaultContinuationPrompt = '$_roleLine\n\n'
+      '$_noteHeader\n（当前笔记正文）\n\n'
+      '$_relatedNotesHeader\n• （相关笔记片段，只有存在相关笔记时才出现）\n\n'
+      '$_taskHeader\n$_continuationTask';
 
   String _buildInsightTask(AnalysisStrategy strategy) {
     if (strategy == AnalysisStrategy.deepThinking) {
@@ -415,7 +431,10 @@ class AIInsightEngine {
 ❌ 差："介绍了基于协同过滤算法的推荐服务。"（太技术化，丢失用户关心的信息）
 ''';
 
-  String _buildContinuationTask(AnalysisStrategy strategy) => '''
+  String _buildContinuationTask(AnalysisStrategy strategy) => _continuationTask;
+
+  /// 续写的任务指令正文（两个策略共用同一份）。
+  static const String _continuationTask = '''
 在原文后面续写 80-160 字，像原作者自己继续写，不要像 AI 在帮忙总结。
 
 【硬性要求】

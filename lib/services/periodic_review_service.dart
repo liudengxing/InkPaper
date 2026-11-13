@@ -327,17 +327,16 @@ class PeriodicReviewService {
     return buffer.toString().trim();
   }
 
-  String _systemPrompt(ReviewPeriod period, AppConfig config) {
-    final custom = _customPrompt(config);
-    if (custom != null) {
-      // 自定义提示词只负责"写成什么样"，输出格式的硬性要求仍由这里兜住，
-      // 否则用户随手写的 Prompt 很容易让模型输出 Markdown 或寒暄。
-      return '$custom\n\n'
-          '额外硬性要求：只用中文，纯文本分段，不要 Markdown 标题、列表符号或代码块；'
-          '只基于给出的笔记内容，不要编造笔记里没有的事实；'
-          '直接输出回顾正文，不要"好的""以下是"之类的开场白。';
-    }
+  /// 自定义提示词后面固定追加的硬性要求，设置页展示时一并带上。
+  static const String customPromptHardRequirements =
+      '额外硬性要求：只用中文，纯文本分段，不要 Markdown 标题、列表符号或代码块；'
+      '只基于给出的笔记内容，不要编造笔记里没有的事实；'
+      '直接输出回顾正文，不要"好的""以下是"之类的开场白。';
 
+  /// 默认的周/月回顾提示词。
+  ///
+  /// 设置页「查看系统默认提示词」直接读这里，展示的就是真正发出去的那一份。
+  static String defaultSystemPrompt(ReviewPeriod period) {
     final unit = period == ReviewPeriod.week ? '7 天' : '30 天';
     return '''
 你是一位懂知识管理的写作教练，擅长从零散笔记里看出一个人的思考轨迹。
@@ -351,6 +350,17 @@ class PeriodicReviewService {
 4. 语气克制、具体，不要空泛鼓励，不要"首先/其次/最后"的模板腔；
 5. 全文 220~320 字，直接输出回顾正文，不要"好的""以下是"之类的开场白。
 ''';
+  }
+
+  String _systemPrompt(ReviewPeriod period, AppConfig config) {
+    final custom = _customPrompt(config);
+    if (custom != null) {
+      // 自定义提示词只负责"写成什么样"，输出格式的硬性要求仍由这里兜住，
+      // 否则用户随手写的 Prompt 很容易让模型输出 Markdown 或寒暄。
+      return '$custom\n\n$customPromptHardRequirements';
+    }
+
+    return defaultSystemPrompt(period);
   }
 
   String _userPrompt(

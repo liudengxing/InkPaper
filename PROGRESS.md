@@ -1,3 +1,37 @@
+## 2026-11-13 · 设置页展示系统默认提示词（1.1.86+10184）· done
+
+### 问题
+- 需求：「自定义提示词那块，把系统默认的提示词也展示出来，现在实际用什么就展示什么」
+- 现状只有一句「留空使用默认提示词」，默认那套到底写了什么、该从哪改全靠猜；三条提示词
+  （点评 / 续写 / 周月回顾）分散在三个服务里，用户没法参考
+
+### 做法
+- **单一事实来源**：把默认提示词从服务里抽出来，改成对外常量，设置页直接引用
+  - `AiReviewService.defaultSystemPrompt` + `customPromptHardRequirements`
+  - `AIInsightEngine.defaultContinuationPrompt`（分段标题 `_roleLine` / `_noteHeader` /
+    `_relatedNotesHeader` / `_taskHeader` 与任务正文 `_continuationTask` 提成常量，
+    `_buildPrompt` 和展示面板共用同一组，改一处两边同步）
+  - `PeriodicReviewService.defaultSystemPrompt(ReviewPeriod)` + `customPromptHardRequirements`
+- 新组件 `lib/widgets/default_prompt_panel.dart`：折叠面板，展开后 `SelectableText` 展示正文
+  （可选中复制），下面跟一行「填了自定义会怎么替换」，续写那条额外说明括号里是运行时占位
+- 关键差异要说清：点评 / 回顾的自定义**只替换正文**、末尾格式要求仍追加；续写是**整段替换**，
+  自带格式要求和示例都不再生效 —— 以前这点只有读代码才知道
+- 规则文案（`customPromptHardRequirements`）也一起展示，避免用户以为填了自定义就完全自由
+
+### 验证
+- `test/widget_tests/default_prompt_panel_test.dart` 6 条：默认收起 / 展开露出正文与说明 / 补充说明
+  按需出现；点评常量含角色与硬性要求；续写常量含实际发送用的四个分段标题；周回顾与月回顾
+  `week.replaceAll('7 天', '30 天') == month`，保证两份文案不会各写一套
+- `dart analyze` 0 issue；`verify` **700 项全过**（694 + 6）
+
+### 顺带：草稿图片测试的偶发失败
+- 跑 verify 时 `note_editor_draft_image_test.dart` 偶发红，且每次红的是不同用例；单独重跑 3 次
+  有 2 次失败，报 `_hasImages` 为 false —— 也就是「点了图片按钮，图片没进图片区」
+- 原因不是功能坏了，是测试用固定 `delay(300ms)` 等真实文件 IO：机器一忙就不够，而落盘完成
+  后编辑器还要再 `setState` 一次才挂上 `Image`
+- 改成 `_pickImage()` 助手：点完按钮循环 `pump` + 50ms 真实等待，最多 3 秒，见到图片就返回；
+  4 处调用点统一替换，连跑 5 次全绿
+
 ## 2026-11-13 · 清掉无人调用的本地化 getter（1.1.86+10183）· done
 
 ### 问题

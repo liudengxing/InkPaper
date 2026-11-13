@@ -1626,6 +1626,9 @@ class AppLocalizationsSimple {
   String get continuationPromptHint => locale.languageCode == 'zh'
       ? '自定义AI续写的提示词，留空使用默认提示词'
       : 'Customize AI continuation prompt, leave empty to use default';
+  String get defaultSystemPrompt => locale.languageCode == 'zh'
+      ? '查看系统默认提示词'
+      : 'View built-in default prompt';
   // 引用关系侧边栏
   String get referencesCount =>
       locale.languageCode == 'zh' ? '个引用' : 'references';

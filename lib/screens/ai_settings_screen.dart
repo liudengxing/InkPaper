@@ -3,11 +3,15 @@ import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/services/ai_insight_engine.dart';
+import 'package:inkpaper/services/ai_review_service.dart';
 import 'package:inkpaper/services/deepseek_api_service.dart';
 import 'package:inkpaper/services/iflytek_speech_service.dart';
+import 'package:inkpaper/services/periodic_review_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/responsive_utils.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/widgets/default_prompt_panel.dart';
 import 'package:provider/provider.dart';
 
 class AiSettingsScreen extends StatefulWidget {
@@ -1770,6 +1774,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                       contentPadding: const EdgeInsets.all(12),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  const DefaultPromptPanel(
+                    prompt: AiReviewService.defaultSystemPrompt,
+                    replacedBy: '填写自定义提示词后，上面这一整段会被你的内容替换，末尾仍固定追加一行格式要求：'
+                        '${AiReviewService.customPromptHardRequirements}',
+                  ),
                   const SizedBox(height: 16),
 
                   // 续写Prompt
@@ -1854,6 +1864,13 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                       contentPadding: const EdgeInsets.all(12),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  const DefaultPromptPanel(
+                    prompt: AIInsightEngine.defaultContinuationPrompt,
+                    replacedBy: '填写自定义提示词后，上面这一整段会被整段替换，只保留笔记正文 —— '
+                        '也就是说自带的格式要求与示例都不再生效。',
+                    note: '括号里的内容是运行时填入的占位，不是固定文字。',
+                  ),
                   const SizedBox(height: 16),
 
                   // 周回顾 / 月回顾 Prompt
@@ -1937,6 +1954,15 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                           isDarkMode ? Colors.grey[900] : Colors.grey[50],
                       contentPadding: const EdgeInsets.all(12),
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  DefaultPromptPanel(
+                    prompt: PeriodicReviewService.defaultSystemPrompt(
+                      ReviewPeriod.week,
+                    ),
+                    replacedBy: '填写自定义提示词后，上面这一整段会被你的内容替换，末尾仍固定追加一行格式要求：'
+                        '${PeriodicReviewService.customPromptHardRequirements}',
+                    note: '这里是周回顾（7 天）的版本，月回顾只把「7 天」换成「30 天」。',
                   ),
                   const SizedBox(height: 16),
                 ],

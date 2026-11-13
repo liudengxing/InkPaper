@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The built-in default prompt is now visible under each custom prompt field.** Previously
+  there was only a "leave empty to use the default" hint, so what that default actually said
+  was a guess. Each of the three fields (review, continuation, weekly/monthly recap) now has a
+  collapsible **View built-in default prompt** panel showing the exact text sent to the model —
+  selectable, so you can copy it, edit it and paste it back. The panel also spells out what a
+  custom prompt replaces: for review and recap your text replaces the body while the trailing
+  format requirements still apply; for continuation the whole instruction block is replaced.
 - **New brand mark for every icon slot.** Launcher, round and notification icons now use
   the same dark/light green mark as the splash screen, and the adaptive-icon background
   switched from deep green to the brand white so it reads better on light wallpapers.

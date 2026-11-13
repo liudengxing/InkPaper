@@ -105,8 +105,10 @@ jobs:
       # 其中 254 秒是没有任何日志的静默下载。官方的 setup-gradle 会一并管住
       # wrapper 与 caches（key 按 gradle 脚本的哈希算，改构建脚本才失效），
       # cache-cleanup 顺手删掉本次没用到的条目，避免缓存无限膨胀。
+      # 钉在 v5.0.2：最后一个 MIT 许可 + node24 的版本。v6 起缓存逻辑抽成
+      # gradle-actions-caching，受 Gradle 商业条款约束，本仓库不跟进。
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5.0.2
         with:
           gradle-home-cache-cleanup: true
       - uses: subosito/flutter-action@v2

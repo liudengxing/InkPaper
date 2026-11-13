@@ -1,3 +1,36 @@
+## 2026-11-13 · 品牌图标全套重做 + 文档单平台对齐（1.1.86+10182）· done
+
+### 问题
+- 桌面图标还是旧的「墨绿底 + 白纸页折角」，与启动页 / 应用内 logo 的墨绿双色块品牌图形不一致
+- `drawable-night/background.png` 与亮色版**字节完全相同**（sha256 一致），深色模式冷启动白闪
+- 关于页 `technicalDetails` 写着「当前支持 Android、iOS、macOS、Windows 和 Linux」，
+  但仓库只有 `android/` 一个平台工程
+- Issue 模板平台下拉、PR 模板勾选、`ARCHITECTURE.md` 目标平台行、`marketing/README.md`
+  都还留着 iOS/macOS/Windows/Linux/Web
+
+### 改动
+- 图标：从 `assets/images/logo.png` 反解白底合成（`p = a*F + (1-a)*W`）抠出透明品牌图形，
+  再按各 dpi 生成 `ic_launcher_foreground`（108dp 画布、图形 46%）、legacy `ic_launcher`
+  （白底圆角 20%、图形 62%）、新增 `ic_launcher_round`（圆形、图形 50%）
+  与 `ic_notification` 白色剪影；`colors.xml` 的 `ic_launcher_background` 改 `#FFFFFF`；
+  清单补 `android:roundIcon`；另出 Play 商店 `icon-512x512.png`
+- 夜间启动图：灰阶像素反相（白→黑、文字→浅灰）、绿色仅提亮 10%，写入
+  `drawable-night` 与 `drawable-night-v21`；`assets/images/splash_logo.png` /
+  `splash_logo_dark.png` 补齐（`flutter_native_splash.yaml` 引用但仓库里缺失）
+- 文案：`technicalDetails`、`speechUnavailableReasons`、`desktopReminderUnsupported`、
+  `welcomeNoteContent`、`telegramBotDesc`、`crossPlatform` 中英双改，
+  `app_localizations_simple.dart` 的 fallback 同步；`about_screen` / `help_screen` /
+  `home_screen` / `webdav_settings_screen` 硬编码文案跟进
+- 文档：`ARCHITECTURE.md`、`docs/BUILD_AND_DEVICE_TESTING.md`、`docs/BUSINESS_OVERVIEW.md`、
+  `docs/MAINTENANCE.md`、`docs/development/troubleshooting.md`、`marketing/README.md`、
+  `docs/site/agreement.html`、`docs/site/privacy.html`、
+  `.github/ISSUE_TEMPLATE/bug_report.yml`、`.github/pull_request_template.md`
+- `AppConfig.appStoreId` 死配置删除
+
+### 验证
+- 图标预览三形态（圆角/圆形/自适应裁切）+ 通知剪影五档目视检查通过
+- 夜间启动页缩略图确认黑底、浅色文字、绿色图形正常
+
 ## 2026-11-13 · 更新弹窗：说明按 Markdown 渲染、裁剪到正文、底部选下载源（1.1.85+10181）· done
 
 ### 问题

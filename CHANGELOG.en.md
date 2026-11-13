@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.86] - 2026-11-13
+
+### Changed
+
+- **New brand mark for every icon slot.** Launcher, round and notification icons now use
+  the same dark/light green mark as the splash screen, and the adaptive-icon background
+  switched from deep green to the brand white so it reads better on light wallpapers.
+  There was no dedicated `ic_launcher_round` before, so round-mask launchers had to crop
+  the square asset; the full round set is now generated and declared as `android:roundIcon`.
+- **The dark launch screen is no longer white.** `drawable-night` used to point at the same
+  image as the light theme, which caused a white flash on cold start in dark mode. It is now
+  black with light copy, and the green mark is lifted by 10%.
+- **The About screen no longer claims iOS / macOS / Windows / Linux support.** The app ships
+  for Android only, so the technical-details paragraph now says so; the welcome note, help
+  intro and home onboarding copy switched from "cross-platform" to "Android" as well.
+- **Docs now match the single-platform reality.** The issue-template platform dropdown, the
+  PR checklist, the target-platform row in `ARCHITECTURE.md`, and the "screenshots must come
+  from the iOS simulator" rule in `marketing/README.md` were all corrected; the agreement and
+  privacy pages on the site dropped their iOS wording.
+
+### Fixed
+
+- The speech-recognition failure hint still listed "iOS: System version is too old". It now
+  only mentions missing Google speech services and network issues.
+- The WebDAV iCloud Drive example and the Flomo import step about saving to the Files app
+  were rewritten for Android.
+- Removed the unused `appStoreId` constant from `AppConfig`.
+
 ## [1.1.85] - 2026-11-13
 
 ### Changed

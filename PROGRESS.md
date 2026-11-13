@@ -1,3 +1,22 @@
+## 2026-11-14 · 「那年今日」卡片去掉品牌绿（1.1.86+10186）· done
+
+- 触发：用户反馈首页顶部「那年今日」不要用绿色主题色，时间要跟下面正常笔记一个样式
+- 改动（`lib/widgets/on_this_day_card.dart`）：
+  - 描边：`accentColor` 绿边（浅色 alpha 0.18 / 深色 0.28）→ 与 `NoteCard` 一致的
+    0.5 半透明细边（深色 `white@0.06`、浅色 `black@0.05`）
+  - 卡片 `Material` 的 `elevation` 1 → 0（默认值，analyze 判 `avoid_redundant_argument_values`）
+  - 「那年今日」胶囊标签、轮播圆点由绿改次级灰（圆点 active `alpha 0.85` / 其余 0.25）
+  - 时间行：「$year 年的今天」绿字 12sp w600 → `DateFormat('yyyy-MM-dd')` + 10sp
+    w300 letterSpacing 0.2 + `#949494`（深色 `#8E8E93`），与 `NoteCard._formatCardTimestamp`
+    的往年格式和样式完全一致
+  - 内边距：header 12→16、正文 12→16，与列表卡片左对齐
+- 测试：`test/widget_tests/on_this_day_card_test.dart` 的 OTD-01/OTD-03 断言由
+  「2024 年的今天」改为 `2024-10-27`；新增 OTD-06 钉住字号 10 / w300 / `#949494`，
+  防止以后又被改回强调色
+- 验证：`dart tool/inkpaper.dart verify` 705 项全过；真机 Xiaomi 14 装 release 包，
+  浅色与深色（`cmd uimode night yes` 临时切）各看一眼，标签 / 时间 / 圆点都是灰，
+  与下方笔记卡片同一节奏
+
 ## 2026-11-13 · 图标回到墨绿纸页造型（1.1.86+10186）· done
 
 - 触发：`c526930` 当天下午把桌面图标换成「白底圆角 + 双色块」后，用户反馈桌面图标、启动图、

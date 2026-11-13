@@ -1006,7 +1006,7 @@ class _NoteCardState extends State<NoteCard>
                             Icons.more_horiz,
                             color: isDarkMode
                                 ? AppTheme.darkTextSecondaryColor
-                                : AppTheme.textTertiaryColor,
+                                : AppTheme.textPrimaryColor,
                             size: 16,
                           ),
                           padding: EdgeInsets.zero,

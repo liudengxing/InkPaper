@@ -748,7 +748,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                           onTap: () => _showMoreOptions(btnContext),
                           child: Icon(
                             Icons.more_horiz,
-                            color: Colors.grey.shade400,
+                            color: isDarkMode
+                                ? Colors.grey.shade400
+                                : AppTheme.textPrimaryColor,
                           ),
                         ),
                       ),

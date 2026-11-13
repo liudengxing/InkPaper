@@ -260,11 +260,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: android-release
           path: dist
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: release-notes
           path: dist
@@ -314,13 +314,13 @@ jobs:
         if: env.GITEE_TOKEN != ''
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         if: env.GITEE_TOKEN != ''
         with:
           name: android-release
           path: dist
       # release_notes.md 也在 dist/ 里，Release 正文靠它。
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         if: env.GITEE_TOKEN != ''
         with:
           name: release-notes

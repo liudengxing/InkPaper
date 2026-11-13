@@ -34,7 +34,8 @@
     <application
         android:label="InkPaper"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
 
         <!-- 应用内更新下载的 APK 落在私有 cache 里，安装器读不到 file://，
              必须经 FileProvider 换成带临时授权的 content:// 才能安装。 -->

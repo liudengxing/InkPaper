@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#21473D</color>
+    <!-- 自适应图标底色：跟随品牌 logo 的白底，图形为墨绿/亮绿两色块 -->
+    <color name="ic_launcher_background">#FFFFFF</color>
     <color name="splash_color">#F5F4F7</color>
     <color name="splash_color_dark">#000000</color>
     <color name="inkpaper_primary">#2C9678</color>

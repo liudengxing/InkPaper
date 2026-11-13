@@ -84,10 +84,17 @@ version: 1.1.84+10180
 发布入口：
 
 ```bash
-dart tool/inkpaper.dart release v1.1.84
+# 打 tag → CI 检查构建并发布 GitHub Release → 等 APK 出来再补传到 Gitee
+dart tool/inkpaper.dart release v1.1.85 --sync-gitee
+
+# 只想先打 tag，稍后（CI 约半小时）再补传
+dart tool/inkpaper.dart release v1.1.85
+dart tool/inkpaper.dart release-gitee v1.1.85
 ```
 
-这个命令先校验 tag 与 `pubspec.yaml` 一致，然后创建并推送 tag。GitHub Actions 收到 tag 后执行检查、构建并发布 Android APK/AAB。
+这个命令先校验 tag 与 `pubspec.yaml` 一致，然后创建并推送 tag（示例版本号按实际替换）。GitHub Actions 收到 tag 后执行检查、构建并发布 Android APK/AAB。
+
+Gitee 镜像仓的代码、tag 和发行说明由 CI 同步；安装包因为 Actions 机房到 Gitee 的上传带宽只有约 10 KB/s，改由本机的 `release-gitee` 补传（需要 Python 3，令牌取 `GITEE_TOKEN` 环境变量或 `.git/gitee_token`）。
 
 ## 文档
 

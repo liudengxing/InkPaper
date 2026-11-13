@@ -24,10 +24,19 @@ dart tool/inkpaper.dart store-check
 dart tool/inkpaper.dart build android-debug
 dart tool/inkpaper.dart build android-release
 dart tool/inkpaper.dart release v1.1.13
+dart tool/inkpaper.dart release v1.1.13 --sync-gitee
+dart tool/inkpaper.dart release-gitee v1.1.13
 ```
 
 The project ships Android only. Builds need an Android SDK and JDK 17; there
 are no iOS, macOS, Windows, Linux, or Web targets in the repository.
+
+`release` only creates and pushes the tag. `--sync-gitee` keeps running after
+that: it waits for CI to build the APK, then copies the artifact to the Gitee
+mirror (about half an hour; Ctrl-C and run `release-gitee` later if needed).
+The APK is not uploaded from CI because runners reach Gitee at roughly 10 KB/s.
+`release-gitee` needs Python 3 and reads the Gitee token from `GITEE_TOKEN` or
+`.git/gitee_token`.
 
 The shell entrypoint remains available for compatibility:
 

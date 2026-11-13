@@ -57,6 +57,9 @@ class InkPaperCli {
         case 'release':
           await _release(args);
           return 0;
+        case 'release-gitee':
+          await _releaseGitee(args);
+          return 0;
         case 'clean':
           await _run(['flutter', 'clean']);
           return 0;
@@ -255,7 +258,88 @@ class InkPaperCli {
     await _run(['git', 'tag', '-a', tag, '-m', 'InkPaper $tag']);
     await _run(['git', 'push', 'origin', tag]);
     stdout.writeln('Release tag pushed: $tag');
-    stdout.writeln('GitHub Actions will build and publish the release.');
+
+    if (!args.contains('--sync-gitee')) {
+      stdout.writeln('GitHub Actions will build and publish the release.');
+      stdout.writeln('补传到 Gitee：dart tool/inkpaper.dart release-gitee $tag');
+      return;
+    }
+
+    stdout.writeln('等 CI 构建完再把安装包补传到 Gitee（约半小时，别关窗口）。');
+    await _giteeRelease(tag, wait: true);
+  }
+
+  /// 把 GitHub Release 的安装包补传到 Gitee 镜像仓。
+  ///
+  /// GitHub Actions 的机房到 Gitee 只有约 10 KB/s，50 MB 的包要跑一个多小时，
+  /// 所以 CI 只同步代码、tag 与 Release 说明，安装包由本机传（2 MB/s 左右）。
+  Future<void> _giteeRelease(
+    String tag, {
+    required bool wait,
+    int? timeoutSeconds,
+  }) async {
+    final python = await _pythonExecutable();
+    final command = <String>[
+      python,
+      'scripts/gitee_release.py',
+      '--tag',
+      tag,
+      '--notes-from-github',
+      '--apk-from-github',
+      '--dist',
+      '.dart_tool/gitee-dist',
+    ];
+    if (wait) {
+      command.add('--wait');
+      if (timeoutSeconds != null) {
+        command.addAll(<String>['--wait-timeout', '$timeoutSeconds']);
+      }
+    }
+    await _run(command);
+  }
+
+  /// 补传脚本是 Python 写的（手写 multipart 上传比引依赖省事），
+  /// Windows 上命令名可能是 python3 也可能是 python。
+  Future<String> _pythonExecutable() async {
+    for (final candidate in const <String>['python3', 'python']) {
+      try {
+        final result =
+            await Process.run(candidate, const <String>['--version']);
+        if (result.exitCode == 0) {
+          return candidate;
+        }
+      } on ProcessException {
+        continue;
+      }
+    }
+    throw ToolExit(
+      1,
+      'python3 未找到。补传 Gitee 附件需要 Python 3，'
+      '也可以直接运行 python3 scripts/gitee_release.py。',
+    );
+  }
+
+  Future<void> _releaseGitee(List<String> args) async {
+    String? tag;
+    int? timeoutSeconds;
+    var wait = true;
+    for (var i = 1; i < args.length; i++) {
+      final arg = args[i];
+      if (arg == '--no-wait') {
+        wait = false;
+      } else if (arg == '--timeout' && i + 1 < args.length) {
+        timeoutSeconds = int.tryParse(args[++i]);
+      } else if (!arg.startsWith('-')) {
+        tag = arg;
+      }
+    }
+
+    tag ??= 'v${_readVersion().split('+').first}';
+    if (!RegExp(r'^v\d+\.\d+\.\d+([+-][0-9A-Za-z.-]+)?$').hasMatch(tag)) {
+      throw ToolExit(2, 'Release tag must look like v1.1.0.');
+    }
+
+    await _giteeRelease(tag, wait: wait, timeoutSeconds: timeoutSeconds);
   }
 
   Future<void> _build(String target) async {
@@ -527,7 +611,9 @@ Commands:
   run [target]                   Run app with shared dart-defines
   clean                          Run flutter clean
   version                        Print pubspec version
-  release vX.Y.Z                 Push a release tag for GitHub Actions
+  release vX.Y.Z [--sync-gitee]  Push a release tag for GitHub Actions
+  release-gitee [vX.Y.Z]         Wait for the release APK, then copy it to Gitee
+                                 (--no-wait to skip waiting, --timeout <秒>)
 
 Build targets:
   all                            Alias of android-release

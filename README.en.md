@@ -85,10 +85,17 @@ Bump both the `x.y.z` patch and `+N` on every change, and update the `x.y.z` sho
 Release command:
 
 ```bash
-dart tool/inkpaper.dart release v1.1.84
+# Tag → CI verifies, builds and publishes the GitHub Release → wait for the APK, then copy it to Gitee
+dart tool/inkpaper.dart release v1.1.85 --sync-gitee
+
+# Tag only, copy to Gitee later (CI takes about half an hour)
+dart tool/inkpaper.dart release v1.1.85
+dart tool/inkpaper.dart release-gitee v1.1.85
 ```
 
-The command first checks that the tag matches `pubspec.yaml`, then creates and pushes the tag. GitHub Actions verifies, builds, and publishes the Android APK/AAB.
+The command first checks that the tag matches `pubspec.yaml`, then creates and pushes the tag (replace the version in the examples). GitHub Actions verifies, builds, and publishes the Android APK/AAB.
+
+CI mirrors the code, tags and release notes to the Gitee repository. The APK itself is copied by the local `release-gitee` command, because CI runners can only push about 10 KB/s to Gitee. It needs Python 3 and reads the token from `GITEE_TOKEN` or `.git/gitee_token`.
 
 ## Documentation
 

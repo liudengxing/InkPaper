@@ -1,3 +1,28 @@
+## 2026-11-13 · 发版一条命令：release --sync-gitee 等 CI 出包后自动补传 Gitee · done
+
+### 背景
+- 上一轮把 Gitee 安装包上传从 CI 拿掉了（Actions 机房到 Gitee 约 10 KB/s），但补传还得手工跑，
+  用户希望「每次发版时直接本地补传」
+- 流水线顺序确认：`prepare → quality/secret-scan/release-secrets → android（构建 APK+AAB）
+  → publish（GitHub Release）→ mirror-gitee（同步代码/tag/说明）`，所以本地补传必须等
+  `publish` 完成，约 25–35 分钟
+
+### 改动
+- `scripts/gitee_release.py` 新增 `--wait` / `--wait-timeout`（默认 3600 秒）/
+  `--wait-interval`（默认 60 秒）：轮询 GitHub Release 直到出现 `*.apk`，再下载→上传→回显资产
+- 令牌解析改为链式：`--token` → `GITEE_TOKEN` → `--token-file` → `.git/gitee_token` → `~/.gitee_token`，
+  打印实际来源；GitHub 侧用 `GITHUB_TOKEN` 或 `git credential fill`（避免匿名 60 次/小时）
+- `tool/inkpaper.dart`：`release vX.Y.Z --sync-gitee`（推完 tag 接着等+补传）、
+  新增 `release-gitee [vX.Y.Z] [--no-wait] [--timeout 秒]`（可单独跑，缺省用 pubspec 版本）；
+  Python 解释器按 `python3` → `python` 探测
+- README 中英、`docs/MAINTENANCE.md` 同步两条命令与「为什么不由 CI 传」
+
+### 验证
+- `dart tool/inkpaper.dart release-gitee v1.1.84` 实跑：等待分支立即命中（Release 已挂 APK）→
+  走 `ghfast.top` 下载 50.2 MB / 13 秒 → 令牌自动取自 `.git/gitee_token` → 说明 PATCH 200 →
+  同名附件「已存在，跳过」，幂等成立
+- 无令牌时给出三种给法的提示；`dart analyze` / `dart format` / `store-check`（1.1.84+10180）全绿
+- 令牌已写入 `.git/gitee_token`（仓库内部，不进版本库）
 ## 2026-11-13 · Gitee 安装包改由本机补传，Release 不再常红 · done
 
 ### 问题

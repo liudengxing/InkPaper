@@ -1,3 +1,26 @@
+## 2026-11-13 · 冷启动首帧不再闪深色（1.1.86+10185）· done
+
+### 问题
+- 反馈：系统开深色模式时进 App，先显示深色再切回浅色，而设置里选的是浅色主题
+
+### 根因
+- `AppProvider` 的 `_appConfig` 初始化成 `AppConfig()` → `themeSelection = THEME_SYSTEM`
+- 真正读盘发生在 `initializeApp()`（`home_screen` 首帧后调用），此时 `MaterialApp`
+  已经按「跟随系统」渲染过一帧；系统深色 → 深色一帧 → 配置回来 → 切浅色
+- 同一路径还影响语言（默认跟随系统）与字号，只是因为视觉冲击小没被注意到
+
+### 做法
+- `AppProvider` 加可选 `initialConfig`，构造时直接用；同时记进 `_preloadedConfig`
+- `initializeApp` 的加载改成 `_preloadedConfig ?? await loadAppConfig()`，避免重复读
+  secure storage
+- `main._initializeApp()` 在 `runApp` 之前 `await PreferencesService().loadAppConfig()`，
+  与已有的 `FeedSnapshotService.load()` 同一个阶段（原生启动图还盖着，不会看到空白）
+- 测试 `test/unit/app_chrome_preload_test.dart` 4 条：系统深色 + 用户浅色 → 首帧浅色；
+  深色 → 深色；跟随系统 → 依系统；不传预载 → 仍是旧的「跟随系统」行为（钉住根因）
+
+### 验证
+- `dart analyze` 0 issue；新增 4 条测试全过；全量 verify 见提交记录
+
 ## 2026-11-13 · 设置页展示系统默认提示词（1.1.86+10184）· done
 
 ### 问题

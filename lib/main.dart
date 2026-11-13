@@ -16,6 +16,7 @@ import 'package:inkpaper/services/feed_snapshot_service.dart';
 import 'package:inkpaper/services/notification_service.dart';
 import 'package:inkpaper/services/observability_service.dart';
 import 'package:inkpaper/services/performance_monitor_service.dart';
+import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/services/startup_update_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 // 🚀 大厂标准：新增工具
@@ -190,8 +191,16 @@ Future<void> _initializeApp() async {
   // 冷启动首帧先用上次的首屏快照渲染，避免先闪一条「欢迎笔记」再被真实数据顶掉
   final cachedFeed = await FeedSnapshotService.instance.load();
 
+  // 主题 / 语言在 runApp 之前就要定下来：MaterialApp 首帧若用默认配置
+  // （themeSelection = system）渲染，系统是深色模式时用户会先看到一帧深色，
+  // 等 initializeApp 读完配置再闪回自己选的浅色主题。
+  final initialConfig = await PreferencesService().loadAppConfig();
+
   // 创建主应用提供器
-  final appProvider = AppProvider(initialFeed: cachedFeed);
+  final appProvider = AppProvider(
+    initialFeed: cachedFeed,
+    initialConfig: initialConfig,
+  );
 
   // 创建路由器（需要在通知服务和 MethodChannel 回调中使用）
   final appRouter = AppRouter(appProvider);

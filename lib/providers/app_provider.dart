@@ -57,7 +57,14 @@ part 'app_provider_sync.part.dart';
 const bool _screenshotMode = bool.fromEnvironment('INKPAPER_SCREENSHOT_MODE');
 
 class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
-  AppProvider({List<Note>? initialFeed}) {
+  AppProvider({List<Note>? initialFeed, AppConfig? initialConfig}) {
+    // 主题、语言这类外壳配置由 runApp 之前读好再传进来：否则首帧用的是
+    // AppConfig() 的默认值（themeSelection = system），系统正好是深色模式时
+    // 会先按深色渲染一帧，等 initializeApp 把配置读回来再闪成用户的浅色主题。
+    if (initialConfig != null) {
+      _appConfig = initialConfig;
+      _preloadedConfig = initialConfig;
+    }
     // 冷启动首帧先用上次的首屏快照渲染，真实数据加载完会整体替换。
     // 快照只做展示预填，不参与任何业务判断。
     if (initialFeed != null && initialFeed.isNotEmpty) {
@@ -150,6 +157,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   final DatabaseService _databaseService = DatabaseService();
   final PreferencesService _preferencesService = PreferencesService();
   AppConfig _appConfig = AppConfig();
+
+  /// 构造时预载的配置，`initializeApp` 消费一次后清空，免得重复读 secure storage。
+  AppConfig? _preloadedConfig;
   bool _mounted = true;
 
   // 🚀 WebDAV 同步相关（字段已迁入 WebDavStore，此处仅保留转发）
@@ -568,8 +578,10 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       });
 
       // 加载应用配置
-      // 加载应用配置
-      _appConfig = await _preferencesService.loadAppConfig();
+      // 首帧用的那份已经由 main 预载进构造函数，这里直接用，不再读一遍。
+      _appConfig =
+          _preloadedConfig ?? await _preferencesService.loadAppConfig();
+      _preloadedConfig = null;
 
       // 上次同步的冲突条数，用于服务器信息页展示
       _lastSyncConflicts = await _preferencesService.getLastSyncConflicts();

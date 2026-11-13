@@ -53,6 +53,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A cold start no longer flashes dark before turning light.** Theme, font scale and
+  language used to be read from local storage only after the first frame, and the first
+  frame used the default "follow system" value. On a device with dark mode enabled the app
+  painted one dark frame, then switched to the light theme you picked — it looked like the
+  app was blinking. The settings are now loaded before the UI is built, so the very first
+  frame already uses your theme.
 - **Drafts that contain images no longer get lost.** When editing an existing note, the
   previous unsaved draft only showed a "found an unsaved draft" banner and waited for you to
   tap Recover. That banner is easy to skim past, and the moment you started typing on the

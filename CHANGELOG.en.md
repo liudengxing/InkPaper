@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.85] - 2026-11-13
+
+### Changed
+
+- **Release notes in the update dialog are rendered as Markdown.** They used to be dropped
+  into a plain `Text`, so users saw raw `### Fixed`, `- ...` and `| source | url |` markers.
+  Headings are now only bolded (not enlarged) and spacing is tightened.
+- **Notes are trimmed to "what changed this release".** The download table, APK link and
+  AAB note at the end of the web version are noise in a 400-wide dialog, and tables squeeze
+  into a sliver on narrow screens. They are dropped along with duplicate blank lines. The
+  trimming happens in the app, so notes of already-published releases get cleaner too.
+- **Download source moved to the bottom of the dialog**, with the mainland mirror selected
+  by default and marked green; GitHub sits on the right as a fallback. Both sources serve
+  the same package, the mirror is just an order of magnitude faster in mainland China.
+
 ## [1.1.84] - 2026-11-13
 
 ### Fixed

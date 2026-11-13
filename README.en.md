@@ -6,7 +6,7 @@ InkPaper is an Android note-taking app for personal knowledge capture. Local not
 
 ## Current Version
 
-`1.1.84`
+`1.1.85`
 
 Official build (Android APK / AAB)
 
@@ -77,7 +77,7 @@ sdkmanager --licenses
 The app version is managed in `pubspec.yaml`, where `x.y.z` is the semantic version and `+N` is the build number:
 
 ```yaml
-version: 1.1.84+10180
+version: 1.1.85+10181
 ```
 
 Bump both the `x.y.z` patch and `+N` on every change, and update the `x.y.z` shown in the "Current Version" section above — `dart tool/inkpaper.dart store-check` asserts that the two match and fails otherwise.
@@ -86,11 +86,11 @@ Release command:
 
 ```bash
 # Tag → CI verifies, builds and publishes the GitHub Release → wait for the APK, then copy it to Gitee
-dart tool/inkpaper.dart release v1.1.85 --sync-gitee
+dart tool/inkpaper.dart release vX.Y.Z --sync-gitee
 
 # Tag only, copy to Gitee later (CI takes about half an hour)
-dart tool/inkpaper.dart release v1.1.85
-dart tool/inkpaper.dart release-gitee v1.1.85
+dart tool/inkpaper.dart release vX.Y.Z
+dart tool/inkpaper.dart release-gitee vX.Y.Z
 ```
 
 The command first checks that the tag matches `pubspec.yaml`, then creates and pushes the tag (replace the version in the examples). GitHub Actions verifies, builds, and publishes the Android APK/AAB.

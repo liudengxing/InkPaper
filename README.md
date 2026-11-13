@@ -6,7 +6,7 @@
 
 ## 当前版本
 
-`1.1.84`
+`1.1.85`
 
 正式版本构建（Android APK / AAB）
 
@@ -76,7 +76,7 @@ sdkmanager --licenses
 版本号统一维护在 `pubspec.yaml`，`x.y.z` 是语义版本，`+N` 是构建号：
 
 ```yaml
-version: 1.1.84+10180
+version: 1.1.85+10181
 ```
 
 每次改动都要把 `x.y.z` 的 patch 与 `+N` 同时加 1，并同步本文件顶部「当前版本」的那个 `x.y.z`——`dart tool/inkpaper.dart store-check` 会断言两处一致，对不上直接失败。
@@ -85,11 +85,11 @@ version: 1.1.84+10180
 
 ```bash
 # 打 tag → CI 检查构建并发布 GitHub Release → 等 APK 出来再补传到 Gitee
-dart tool/inkpaper.dart release v1.1.85 --sync-gitee
+dart tool/inkpaper.dart release vX.Y.Z --sync-gitee
 
 # 只想先打 tag，稍后（CI 约半小时）再补传
-dart tool/inkpaper.dart release v1.1.85
-dart tool/inkpaper.dart release-gitee v1.1.85
+dart tool/inkpaper.dart release vX.Y.Z
+dart tool/inkpaper.dart release-gitee vX.Y.Z
 ```
 
 这个命令先校验 tag 与 `pubspec.yaml` 一致，然后创建并推送 tag（示例版本号按实际替换）。GitHub Actions 收到 tag 后执行检查、构建并发布 Android APK/AAB。

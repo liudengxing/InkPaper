@@ -1,3 +1,32 @@
+## 2026-11-13 · 更新弹窗：说明按 Markdown 渲染、裁剪到正文、底部选下载源（1.1.85+10181）· done
+
+### 问题
+- 用户反馈：更新提示里的说明看着是 Markdown 但没渲染，实际露出 `###`、`-`、`|`
+- 根因：`update_dialog.dart` 的 prompt 分支用 `Text(notes)` 直接展示 `result.releaseNotes`
+- 附带问题：说明里混着 `scripts/release_notes.py` 追加的「### 下载」区块（表格 + 直链 +
+  AAB 去向 + SHA 说明），在 400 宽弹窗里是噪音；header 那行还把 sourceLabel 拼进去，
+  与用户想要的「底部选源」重复
+
+### 改动
+- 新增 `lib/utils/release_notes_formatter.dart`：`compactReleaseNotes()` 砍掉 `### 下载`
+  / `## 下载` / `### Download` 及其后内容、去掉孤立分隔线（`---` `***` `___`）、连续空行
+  压成一个、CRLF 归一。**裁剪在 App 端做，历史版本的说明也自动变干净**
+- `update_dialog.dart`：说明改用 `MarkdownBody` + 紧凑 `MarkdownStyleSheet`（标题只加粗
+  不放大、blockSpacing 6、代码块浅底），`maxHeight` 220 → 200
+- 新增 `_DownloadSource` 枚举与 `_giteeUrl` / `_githubUrl`（按 host 判定，Gitee 源时
+  GitHub 直链取自 `UpdateCheckResult.fallbackApkUrls`），默认 `gitee`
+- 弹窗底部新增「下载源」行：国内镜像 chip 带 6x6 绿色圆点（`0xFF2EA043`），选中时绿色
+  描边+加粗，GitHub chip 用主题色；只有一个源时不显示切换但仍显示该源
+- `_startDownload` 把 `_selectedUrl` / `_selectedFallbacks` 传给
+  `UpdateInstaller.download`（新增可选参数 `sourceUrl` / `fallbackUrls`，默认仍走
+  `apkDownloadUrl` + `fallbackApkUrls`）
+- header subtitle 去掉 sourceLabel（与底部选源重复）
+
+### 验证
+- 新增 `test/unit/release_notes_formatter_test.dart` 7 条（含「说明就是下载区块」清空）
+- `test/widget_tests/update_dialog_test.dart` 重写为 11 条：Markdown 渲染不露 `###`、
+  下载区块被裁、默认选中绿标国内镜像、点 GitHub 切选中态、只有 GitHub 时不显示切换
+- 两个文件 18 条全过；`dart analyze` 干净
 ## 2026-11-13 · 发版一条命令：release --sync-gitee 等 CI 出包后自动补传 Gitee · done
 
 ### 背景

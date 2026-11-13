@@ -69,10 +69,16 @@ class UpdateDownloadService {
     _client.close();
   }
 
+  /// [fallbackUrls] 是主地址拿不到包时的退路，按顺序尝试。目前只有一种场景：
+  /// Gitee 的 Release 建出来了、但附件没传上去（1.1.83 就翻过这车），此时 Gitee
+  /// 直链恒返回 404，而 GitHub 上的同名资产是好的。只在 403/404/410 这种「这个
+  /// 地址上确实没有东西」的状态下回退，网络超时 / 5xx 不换源 —— GitHub 在国内太慢，
+  /// 换过去大概率是从「失败」变成「卡十分钟」。
   Future<File> download(
     Uri url, {
     required String fileName,
     int? expectedBytes,
+    List<Uri> fallbackUrls = const <Uri>[],
     void Function(UpdateDownloadProgress progress)? onProgress,
   }) async {
     final directory = await _directoryProvider();
@@ -85,23 +91,37 @@ class UpdateDownloadService {
     final partial = File('${target.path}.part');
     await _deleteQuietly(partial);
 
-    final http.StreamedResponse response;
-    try {
-      final request = http.Request('GET', url)
-        ..headers['User-Agent'] = AppInfoService.userAgent;
-      response =
-          await _client.send(request).timeout(AppConfig.updateDownloadTimeout);
-    } on TimeoutException catch (e) {
-      throw UpdateDownloadException('连接下载服务器超时，请稍后重试', cause: e);
-    } on Object catch (e) {
-      if (_cancelled) {
-        throw const UpdateDownloadException('已取消下载');
+    // 主地址在前，退路在后；同一个地址只试一次。
+    final candidates = <Uri>[url];
+    for (final fallback in fallbackUrls) {
+      if (!candidates.contains(fallback)) {
+        candidates.add(fallback);
       }
-      throw UpdateDownloadException('下载失败，请检查网络后重试', cause: e);
     }
 
-    if (response.statusCode != 200) {
-      throw UpdateDownloadException('下载失败（HTTP ${response.statusCode}）');
+    http.StreamedResponse? response;
+    for (var i = 0; i < candidates.length; i++) {
+      final candidate = candidates[i];
+      final opened = await _open(candidate);
+      if (opened.statusCode == 200) {
+        response = opened;
+        break;
+      }
+      final hasFallback = i + 1 < candidates.length;
+      if (hasFallback && _meansMissingAsset(opened.statusCode)) {
+        _log.warning(
+          'Download source missing, trying fallback',
+          data: {'host': candidate.host, 'status': opened.statusCode},
+        );
+        await _discard(opened);
+        continue;
+      }
+      await _discard(opened);
+      throw UpdateDownloadException('下载失败（HTTP ${opened.statusCode}）');
+    }
+    if (response == null) {
+      // 候选列表为空理论上进不来（至少有一个地址），留一道保险更稳妥。
+      throw const UpdateDownloadException('下载失败，请检查网络后重试');
     }
 
     final total = response.contentLength;
@@ -152,6 +172,40 @@ class UpdateDownloadService {
       data: {'bytes': received, 'path': target.path},
     );
     return target;
+  }
+
+  /// 发一次 GET 并返回流式响应，把底层异常收敛成可读文案。
+  Future<http.StreamedResponse> _open(Uri url) async {
+    try {
+      final request = http.Request('GET', url)
+        ..headers['User-Agent'] = AppInfoService.userAgent;
+      return await _client
+          .send(request)
+          .timeout(AppConfig.updateDownloadTimeout);
+    } on TimeoutException catch (e) {
+      throw UpdateDownloadException('连接下载服务器超时，请稍后重试', cause: e);
+    } on Object catch (e) {
+      if (_cancelled) {
+        throw const UpdateDownloadException('已取消下载');
+      }
+      throw UpdateDownloadException('下载失败，请检查网络后重试', cause: e);
+    }
+  }
+
+  /// 这个状态码是不是「地址上没有这个包」，而不是「网络有问题」。
+  ///
+  /// 403 是 Gitee 附件被撤下后直链的表现，404 是附件从来没传上去，410 是资源
+  /// 已删除 —— 三者都说明换一个源是唯一出路。
+  static bool _meansMissingAsset(int statusCode) =>
+      statusCode == 403 || statusCode == 404 || statusCode == 410;
+
+  /// 丢弃一个不用的响应体。不读干净会让 keep-alive 连接一直挂着。
+  static Future<void> _discard(http.StreamedResponse response) async {
+    try {
+      await response.stream.drain<void>();
+    } on Object {
+      // 丢弃失败不影响后续重试。
+    }
   }
 
   Future<void> _deleteQuietly(File file) async {

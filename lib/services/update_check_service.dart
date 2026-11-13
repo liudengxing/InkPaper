@@ -122,6 +122,22 @@ class UpdateCheckResult {
 
   /// 下载链接：优先 APK 直链，没有就回落到 Release 页面
   Uri get downloadUrl => apkDownloadUrl ?? releasePageUrl;
+
+  /// 主地址上确实没有安装包时的退路：同 tag 的 GitHub 直链。
+  ///
+  /// 只对 Gitee 源给出 —— Gitee 的附件走的是独立上传通道，历史上失败过好几次
+  /// （1.1.83 那次 Release 建出来了、APK 却没传上去），这时 Gitee 直链恒返回
+  /// 404，而 GitHub 上的同名资产是好的。GitHub 在国内很慢，所以只在下载明确
+  /// 回 403/404/410 时才用，正常情况完全走不到这里。
+  List<Uri> get fallbackApkUrls {
+    if (sourceId != UpdateSource.gitee.id) {
+      return const <Uri>[];
+    }
+    // CI 的 tag 一定带 `v` 前缀（release.yml 的 prepare 步骤会校验），而
+    // [latestVersion] 已经把 `v` 剥掉了，这里补回去。
+    final url = UpdateSource.github.apkUrlFor('v$latestVersion');
+    return url == null ? const <Uri>[] : <Uri>[url];
+  }
 }
 
 /// 检查更新失败，[message] 可直接展示给用户。

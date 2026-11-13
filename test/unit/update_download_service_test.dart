@@ -51,6 +51,36 @@ class _ManualClient extends http.BaseClient {
   }
 }
 
+/// 按地址返回不同状态码，用来验证「主源缺包 → 换退路」。
+class _RoutedClient extends http.BaseClient {
+  _RoutedClient(this.statusByUrl);
+
+  /// 成功时下发的固定 4 字节内容。
+  static final List<List<int>> _chunks = <List<int>>[
+    <int>[1, 2, 3, 4],
+  ];
+
+  final Map<String, int> statusByUrl;
+
+  /// 实际被请求过的地址，顺序即尝试顺序。
+  final List<String> requested = <String>[];
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final url = request.url.toString();
+    requested.add(url);
+    final status = statusByUrl[url] ?? 404;
+    if (status != 200) {
+      return http.StreamedResponse(const Stream<List<int>>.empty(), status);
+    }
+    return http.StreamedResponse(
+      Stream<List<int>>.fromIterable(_chunks),
+      200,
+      contentLength: _chunks.fold<int>(0, (sum, chunk) => sum + chunk.length),
+    );
+  }
+}
+
 void main() {
   late Directory tempDir;
 
@@ -194,5 +224,87 @@ void main() {
     expect(progress.single.total, isNull);
     expect(progress.single.fraction, isNull);
     expect(progress.single.received, 4);
+  });
+
+  group('主源缺包时换退路', () {
+    final primary = Uri.parse('https://gitee.com/ink-paper/latest.apk');
+    final fallback = Uri.parse('https://github.com/InkPaper/latest.apk');
+
+    test('主源 404 时改走退路地址并成功落盘', () async {
+      final client = _RoutedClient({
+        primary.toString(): 404,
+        fallback.toString(): 200,
+      });
+      final service = buildService(client);
+
+      final file = await service.download(
+        primary,
+        fileName: 'InkPaper.apk',
+        fallbackUrls: [fallback],
+      );
+
+      expect(await file.length(), 4);
+      expect(client.requested, [primary.toString(), fallback.toString()]);
+    });
+
+    test('没有退路时 404 直接失败，不多发请求', () async {
+      final client = _RoutedClient({primary.toString(): 404});
+      final service = buildService(client);
+
+      await expectLater(
+        service.download(primary, fileName: 'InkPaper.apk'),
+        throwsA(
+          isA<UpdateDownloadException>().having(
+            (e) => e.message,
+            'message',
+            contains('HTTP 404'),
+          ),
+        ),
+      );
+      expect(client.requested, [primary.toString()]);
+    });
+
+    test('5xx 不换源：GitHub 在国内太慢，换过去只会从失败变成长时间等待', () async {
+      final client = _RoutedClient({
+        primary.toString(): 503,
+        fallback.toString(): 200,
+      });
+      final service = buildService(client);
+
+      await expectLater(
+        service.download(
+          primary,
+          fileName: 'InkPaper.apk',
+          fallbackUrls: [fallback],
+        ),
+        throwsA(
+          isA<UpdateDownloadException>().having(
+            (e) => e.message,
+            'message',
+            contains('HTTP 503'),
+          ),
+        ),
+      );
+      expect(client.requested, [primary.toString()]);
+    });
+
+    test('退路也没有包时抛错，两个地址各试一次且不留残缺文件', () async {
+      final client = _RoutedClient({
+        primary.toString(): 404,
+        fallback.toString(): 404,
+      });
+      final service = buildService(client);
+
+      await expectLater(
+        service.download(
+          primary,
+          fileName: 'InkPaper.apk',
+          fallbackUrls: [fallback],
+        ),
+        throwsA(isA<UpdateDownloadException>()),
+      );
+      expect(client.requested, [primary.toString(), fallback.toString()]);
+      expect(tempDir.listSync(), isEmpty);
+    });
   });
 }

@@ -300,4 +300,30 @@ void main() {
       expect(api.pathSegments.last, 'latest');
     });
   });
+
+  group('下载退路', () {
+    test('Gitee 源给出同 tag 的 GitHub 直链', () {
+      // Gitee 的附件是独立上传通道，Release 建出来了但 APK 没传上去时直链恒 404
+      // （1.1.83 就翻过这车），此时要能换到 GitHub 上的同名资产。
+      final result = parseLatestRelease(
+        {'tag_name': 'v1.1.83', 'assets': const []},
+        currentVersion: '1.1.80',
+        source: UpdateSource.gitee,
+      );
+
+      expect(result.fallbackApkUrls.map((url) => url.toString()).toList(), [
+        'https://github.com/liudengxing/InkPaper/releases/download/v1.1.83/InkPaper-v1.1.83-android.apk',
+      ]);
+    });
+
+    test('GitHub 源本身就是最后一站，没有退路', () {
+      final result = parseLatestRelease(
+        {'tag_name': 'v1.1.83', 'assets': const []},
+        currentVersion: '1.1.80',
+        source: UpdateSource.github,
+      );
+
+      expect(result.fallbackApkUrls, isEmpty);
+    });
+  });
 }

@@ -83,6 +83,7 @@ class UpdateInstaller {
         url,
         fileName: 'InkPaper-${result.latestVersion}.apk',
         expectedBytes: result.apkSizeBytes,
+        fallbackUrls: result.fallbackApkUrls,
         onProgress: onProgress,
       );
       _cachedApk = file;

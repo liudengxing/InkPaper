@@ -2309,8 +2309,16 @@ class _NoteEditorState extends State<NoteEditor>
         ? _imageGridScrollController.offset
         : 0.0;
 
-    final col = ((local.dx - _imageGridHPadding) / stride).floor();
-    final row = ((local.dy + scrolled - _imageGridTopPadding) / stride).floor();
+    // 列先夹住：指针在左右边距里时 floor 会算出 -1 或 3，直接代入会把「同一行
+    // 第一格」错算成「上一行最后一格」。
+    final col = ((local.dx - _imageGridHPadding) / stride)
+        .floor()
+        .clamp(0, _imageGridColumns - 1);
+    final row =
+        ((local.dy + scrolled - _imageGridTopPadding) / stride).floor().clamp(
+              0,
+              (_imageList.length + _imageGridColumns - 1) ~/ _imageGridColumns,
+            );
     final index =
         (row * _imageGridColumns + col).clamp(0, _imageList.length - 1);
     if (index != _dragHoverIndex) {

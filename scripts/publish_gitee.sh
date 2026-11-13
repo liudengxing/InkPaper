@@ -36,8 +36,33 @@ trap 'git remote remove gitee >/dev/null 2>&1 || true' EXIT
 # tag 触发的 checkout 是 detached HEAD，本地一个分支都没有，--prune 会把远端 main
 # 当成「本地已删除的分支」去删，Gitee 拒绝删除当前分支，整步直接失败。
 # 镜像仓语义是「完全跟随 GitHub」，所以用 + 前缀强制覆盖。
-git push gitee "+HEAD:refs/heads/main"
-git push gitee "+refs/tags/*:refs/tags/*"
+#
+# 为什么要包一层重试：git 默认没有超时，Gitee 抖动时会一路卡到 TCP 层 5 分钟才报
+# 「Connection timed out after 300028 milliseconds」然后 exit 128（CI #115 就是）。
+# http.lowSpeedLimit/lowSpeedTime 把「连上了但没数据」变成 120 秒主动断开，外加重试
+# 3 次；push 本身是幂等的，重来一次是安全的。
+push_with_retry() {
+  local refspec="$1" attempt
+  for attempt in 1 2 3; do
+    echo "  push $refspec（第 $attempt 次）"
+    if git -c http.lowSpeedLimit=1024 -c http.lowSpeedTime=120 \
+      push gitee "$refspec"; then
+      return 0
+    fi
+    echo "  .. 第 $attempt 次失败，20 秒后重试" >&2
+    sleep 20
+  done
+  return 1
+}
+
+if ! push_with_retry "+HEAD:refs/heads/main"; then
+  echo "::error::推送 main 到 Gitee 失败（3 次），镜像仓与 GitHub 已不同步"
+  exit 1
+fi
+if ! push_with_retry "+refs/tags/*:refs/tags/*"; then
+  echo "::error::推送 tag 到 Gitee 失败（3 次）"
+  exit 1
+fi
 
 if [ "$mirror_only" = "1" ]; then
   echo "== 只同步代码，跳过 Release（MIRROR_ONLY=1）"

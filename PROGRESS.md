@@ -1,3 +1,34 @@
+## 2026-11-13 · 启动图改成明暗共用墨绿底（1.1.86+10186）· done
+
+### 问题
+- 上一个提交只修了 Flutter 首帧，冷启动仍然先黑一屏：原生启动图跟着系统夜间模式走，
+  系统深色 + 应用内选浅色时，用户还是看到「先暗一下」
+
+### 为什么不能在运行时改
+- Android 的 starting window 由系统在进程启动前按资源限定符（`values-night`）生成，
+  `setTheme()` 改不了已画出来的那一屏
+- `UiModeManager.setApplicationNightMode` 能改但会触发 Activity 重建，等于重启 Flutter 引擎，代价太大
+
+### 做法
+- 明暗共用一张墨绿底（#143B30）启动图：`drawable` / `drawable-v21` / `drawable-night` /
+  `drawable-night-v21` 四份同一张，`assets/images/splash_logo{,_dark}.png` 同源
+- 不用反相（反相会把亮绿变成粉红），按 4 个锚色做加权插值重映射：白底→墨绿、字 #323233→
+  浅色 #E9F2ED、亮绿 #55B986→#5FC492、次块 #5E8579→#376F5E；5bit 量化查表，2 秒跑完 330 万像素
+- 四个 `styles.xml` 的 `NormalTheme.windowBackground` 从白/黑统一为 `@color/splash_brand`，
+  `LaunchTheme` 父主题统一 `Theme.Black.NoTitleBar`（深底要浅色状态栏图标）
+- `flutter_native_splash.yaml` 去掉 `background_image_dark`，防止重新生成又跑出深色变体
+
+### 验证
+- 真机 Xiaomi 14（`install -r` 覆盖，保留笔记），`cmd uimode night yes/no` 各跑一次冷启动连拍：
+  系统深色 → t01 墨绿启动图（avg 48.5）→ t02 起深色界面；系统浅色 → l01 同一张启动图（avg 57.2）→ l02 起浅色界面
+- 两种系统主题下启动图完全一致，中间没有黑帧也没有白屏；状态栏图标是浅色（`Theme.Black` 生效）
+- **没能验证的组合**：系统深色 + 应用内手动选浅色 —— 这台机器重连后 `input tap` 注入被系统安全策略拦下
+  （`keyevent` 正常），点不动设置页。但启动图已与系统主题彻底解耦（同一张资源 + 同一份 styles），
+  该组合必然同样走这张图
+- 脚本 `Z:/Temp/gen_brand_splash.py`（源图备份在 `Z:/Temp/splash_source_light.png`，
+  否则第二次运行会把深色图当浅色图再映射）
+- 验完已把系统夜间模式还原成 `auto`
+
 ## 2026-11-13 · 冷启动首帧不再闪深色（1.1.86+10185）· done
 
 ### 问题

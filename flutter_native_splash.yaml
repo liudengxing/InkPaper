@@ -5,8 +5,11 @@
 flutter_native_splash:
   # 🚀 使用 background_image（全屏背景图，包含所有设计元素）
   # 优势：只生成一张图片，无需叠加，性能更好
+  #
+  # 明暗主题共用同一张墨绿底图：Android 的 starting window 是系统在进程启动前
+  # 按资源限定符（values-night）生成的，运行时改不了；只要留深色变体，系统开着
+  # 深色模式时就必然先黑一屏再切浅色界面。用品牌墨绿底后两种主题下都不突兀。
   background_image: assets/images/splash_logo.png
-  background_image_dark: assets/images/splash_logo_dark.png
   
   # 图片填充模式（等比例填充，保持宽高比）
   android_gravity: fill_horizontal|fill_vertical|clip_vertical

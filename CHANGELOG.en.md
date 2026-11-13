@@ -23,9 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   switched from deep green to the brand white so it reads better on light wallpapers.
   There was no dedicated `ic_launcher_round` before, so round-mask launchers had to crop
   the square asset; the full round set is now generated and declared as `android:roundIcon`.
-- **The dark launch screen is no longer white.** `drawable-night` used to point at the same
-  image as the light theme, which caused a white flash on cold start in dark mode. It is now
-  black with light copy, and the green mark is lifted by 10%.
 - **The About screen no longer claims iOS / macOS / Windows / Linux support.** The app ships
   for Android only, so the technical-details paragraph now says so; the welcome note, help
   intro and home onboarding copy switched from "cross-platform" to "Android" as well.
@@ -52,6 +49,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   size, so switching between them doesn't decode anything again.
 
 ### Fixed
+
+- **The launch screen no longer turns black with the system theme.** With dark mode
+  enabled the app used to show a black splash first and then jump to the light interface
+  you had picked. Android draws that splash before the process even starts, so it cannot
+  be changed at runtime — the splash is now a dark green brand screen used in both light
+  and dark themes, which looks right either way.
 
 - **A cold start no longer flashes dark before turning light.** Theme, font scale and
   language used to be read from local storage only after the first frame, and the first

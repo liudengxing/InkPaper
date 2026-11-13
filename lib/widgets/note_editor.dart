@@ -117,6 +117,21 @@ class _NoteEditorState extends State<NoteEditor>
   List<String> _mdCodes = [];
   List<int?> _imageAnchors = [];
   final ScrollController _imageScrollController = ScrollController();
+
+  /// 九宫格自己的滚动控制器：拖动时要把指针的全局坐标换算回网格内容坐标，
+  /// 换算里得把已滚动的距离加回去。
+  final ScrollController _imageGridScrollController = ScrollController();
+
+  /// 用 [GlobalKey] 取九宫格 viewport 的 RenderBox 做坐标换算。
+  final GlobalKey _imageGridKey = GlobalKey();
+
+  /// 九宫格拖动排序的实时状态：正在拖的那张的原始下标、指针当前压住的格子。
+  ///
+  /// 没用 `DragTarget` 判定：格子让位后位置会变，「指针不动但命中的格子变了」
+  /// 会让 DragTarget 反复进出、让位动画来回抽搐。改成直接从指针坐标反算格子。
+  int? _dragSourceIndex;
+  int? _dragHoverIndex;
+
   String _lastTextForImageAnchors = '';
   bool _suppressImageAnchorSync = false;
 
@@ -528,6 +543,7 @@ class _NoteEditorState extends State<NoteEditor>
     _textFocusNode.dispose();
     _scrollController.dispose();
     _imageScrollController.dispose();
+    _imageGridScrollController.dispose();
     _speechAnimationController.dispose();
     _imageExpandController.dispose();
     super.dispose();
@@ -1992,6 +2008,15 @@ class _NoteEditorState extends State<NoteEditor>
   // 图片区高度：单行横滑条 / 展开后的九宫格
   static const double _imageStripHeight = 110;
   static const double _imageGridHeight = 330;
+
+  // 九宫格布局参数（拖动排序的坐标反算依赖这几个值，别只改 GridView）
+  static const int _imageGridColumns = 3;
+  static const double _imageGridSpacing = 8;
+  static const double _imageGridHPadding = 16;
+  static const double _imageGridTopPadding = 4;
+
+  /// 让位动画时长。比展开动画短，拖动时读起来是「跟着手走」而不是「慢半拍」。
+  static const Duration _imageGridSwapDuration = Duration(milliseconds: 130);
   static const Duration _imageExpandDuration = Duration(milliseconds: 220);
 
   /// 内容交叉淡化比高度动画短：切换在高度还在变化的前段就完成，中间不会出现
@@ -2151,52 +2176,164 @@ class _NoteEditorState extends State<NoteEditor>
           ),
         ),
         Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemCount: _imageList.length,
-            itemBuilder: (context, index) => _buildGridImageItem(index),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // 格子是正方形，间距两个方向一致，所以横竖位移都用同一个步长。
+              final available = constraints.maxWidth -
+                  _imageGridHPadding * 2 -
+                  _imageGridSpacing * (_imageGridColumns - 1);
+              final tileSize = available / _imageGridColumns;
+              final stride = tileSize + _imageGridSpacing;
+              return GridView.builder(
+                key: _imageGridKey,
+                controller: _imageGridScrollController,
+                padding: const EdgeInsets.fromLTRB(
+                  _imageGridHPadding,
+                  _imageGridTopPadding,
+                  _imageGridHPadding,
+                  16,
+                ),
+                // 拖动排序时每帧都会重建，省掉 keep-alive 的额外开销。
+                addAutomaticKeepAlives: false,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: _imageGridColumns,
+                  crossAxisSpacing: _imageGridSpacing,
+                  mainAxisSpacing: _imageGridSpacing,
+                ),
+                itemCount: _imageList.length,
+                itemBuilder: (context, index) =>
+                    _buildGridImageItem(index, tileSize, stride),
+              );
+            },
           ),
         ),
       ],
     );
   }
 
-  Widget _buildGridImageItem(int index) {
+  /// 九宫格里的一格。
+  ///
+  /// 拖动时不再用 `DragTarget` 做「放下才交换」，而是：
+  /// 1. 长按起拖记下原始下标；
+  /// 2. 指针每次移动按坐标反算压住了哪一格（[_updateGridDragHover]）；
+  /// 3. 被跨越的格子用 [AnimatedSlide] 实时让开一格，看起来像整块在流动；
+  /// 4. 松手才真正改数据顺序，位移与重排在同一帧抵掉，不会看到回弹。
+  Widget _buildGridImageItem(int index, double tileSize, double stride) {
     final image = _imageList[index];
-    return DragTarget<int>(
-      onWillAcceptWithDetails: (details) => details.data != index,
-      onAcceptWithDetails: (details) => _moveImage(details.data, index),
-      builder: (context, candidates, rejected) {
-        final highlighted = candidates.isNotEmpty;
-        return LongPressDraggable<int>(
-          data: index,
-          feedback: Material(
-            color: Colors.transparent,
-            elevation: 6,
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(
-              width: 96,
-              height: 96,
-              child: _buildGridTile(image, index, showDelete: false),
-            ),
-          ),
-          childWhenDragging: Opacity(
-            opacity: 0.25,
+    return AnimatedSlide(
+      key: ObjectKey(image),
+      offset: _gridTileDisplacement(index, stride, tileSize),
+      // 松手那一刻要让位移瞬间归零：数据重排和位移复位必须落在同一帧，否则会
+      // 先看到格子滑回原位、再跳到新位置的两段动作。
+      duration:
+          _dragSourceIndex == null ? Duration.zero : _imageGridSwapDuration,
+      curve: Curves.easeOut,
+      child: LongPressDraggable<int>(
+        data: index,
+        // 让位后原位置的半透明占位要跟着「空位」走，所以拖起来的是哪一格就只有
+        // 那一格变淡。
+        childWhenDragging: Opacity(
+          opacity: 0.25,
+          child: _buildGridTile(image, index, showDelete: false),
+        ),
+        feedback: Material(
+          color: Colors.transparent,
+          elevation: 8,
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(
+            width: tileSize,
+            height: tileSize,
             child: _buildGridTile(image, index, showDelete: false),
           ),
-          child: _buildGridTile(
-            image,
-            index,
-            highlighted: highlighted,
-          ),
-        );
-      },
+        ),
+        onDragStarted: () => setState(() {
+          _dragSourceIndex = index;
+          _dragHoverIndex = index;
+        }),
+        onDragUpdate: (details) => _updateGridDragHover(details.globalPosition),
+        onDragEnd: (details) => _finishGridDrag(),
+        onDraggableCanceled: (velocity, offset) =>
+            _finishGridDrag(cancelled: true),
+        child: _buildGridTile(image, index, showDelete: false),
+      ),
     );
+  }
+
+  /// 第 [index] 格在拖动中应该偏移多少像素。
+  ///
+  /// 把网格按行优先展平成一维序列：从起拖格拖到被压住的格子时，中间被越过的
+  /// 格子依次顶上（或退后）一格。跨行时横纵位移分开算，所以第二行第一列会正确
+  /// 斜着挪。
+  Offset _gridTileDisplacement(int index, double stride, double tileSize) {
+    final from = _dragSourceIndex;
+    final to = _dragHoverIndex;
+    if (from == null || to == null) {
+      return Offset.zero;
+    }
+    final steps = gridSwapSteps(
+      index: index,
+      from: from,
+      to: to,
+      columns: _imageGridColumns,
+    );
+    if (steps == null) {
+      return Offset.zero;
+    }
+    // AnimatedSlide 的 offset 是相对自身尺寸的比例，格子是正方形、步长也相等，
+    // 横纵可以共用一个换算系数。
+    final unit = stride / tileSize;
+    return Offset(steps.dx * unit, steps.dy * unit);
+  }
+
+  /// 按指针位置反算压在哪个格子上。
+  ///
+  /// 不用 `DragTarget` 是因为格子会让位，「指针没动、命中目标却变了」会让
+  /// DragTarget 反复触发 onMove/onLeave，让位动画来回抖。坐标反算则完全取决于
+  /// 指针本身，稳定。
+  void _updateGridDragHover(Offset globalPosition) {
+    final from = _dragSourceIndex;
+    if (from == null) {
+      return;
+    }
+    final box = _imageGridKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || _imageList.isEmpty) {
+      return;
+    }
+    final local = box.globalToLocal(globalPosition);
+    final contentWidth = box.size.width -
+        _imageGridHPadding * 2 -
+        _imageGridSpacing * (_imageGridColumns - 1);
+    final tileSize = contentWidth / _imageGridColumns;
+    final stride = tileSize + _imageGridSpacing;
+    final scrolled = _imageGridScrollController.hasClients
+        ? _imageGridScrollController.offset
+        : 0.0;
+
+    final col = ((local.dx - _imageGridHPadding) / stride).floor();
+    final row = ((local.dy + scrolled - _imageGridTopPadding) / stride).floor();
+    final index =
+        (row * _imageGridColumns + col).clamp(0, _imageList.length - 1);
+    if (index != _dragHoverIndex) {
+      setState(() => _dragHoverIndex = index);
+    }
+  }
+
+  /// 松手：先清掉让位状态，再把数据真正挪过去。
+  ///
+  /// 两次 setState 在同一帧内生效，位移归零与列表重排同时发生，视觉上没有回弹。
+  void _finishGridDrag({bool cancelled = false}) {
+    final from = _dragSourceIndex;
+    final to = _dragHoverIndex;
+    if (from == null) {
+      return;
+    }
+    setState(() {
+      _dragSourceIndex = null;
+      _dragHoverIndex = null;
+    });
+    if (!cancelled && to != null && from != to) {
+      _moveImage(from, to);
+    }
   }
 
   Widget _buildGridTile(
@@ -2522,6 +2659,16 @@ class _NoteEditorState extends State<NoteEditor>
   }
 
   // 构建图片Widget，处理认证问题
+  /// 编辑器图格的解码宽度（物理像素）。
+  ///
+  /// 九宫格最宽的一格约 110dp，3x 屏也就 330px；取 400 够用还有余量。单行条和
+  /// 九宫格统一用这个值——两者尺寸不同如果各写一个，展开/收起时每张图都会因为
+  /// ImageCache 的 key 不同而重新解码一遍，切换会卡一下。
+  ///
+  /// 不设这个值时会按原图尺寸解码：一张 4000x3000 的手机照片就是 45.8MB 位图，
+  /// 九宫格首帧要解 9 张（实测 412MB / 514ms），中端机直接 GC 风暴。
+  static const int _imageDecodeWidth = 400;
+
   Widget _buildImageWidget(String uriString) {
     // 数据维护里缓存过的服务端附件：直接读本地副本
     final cachedAttachment = AttachmentCache.instance.fileFor(uriString);
@@ -2529,7 +2676,7 @@ class _NoteEditorState extends State<NoteEditor>
       return Image.file(
         cachedAttachment,
         fit: BoxFit.cover,
-        cacheWidth: 240,
+        cacheWidth: _imageDecodeWidth,
         errorBuilder: (context, error, stackTrace) => Container(
           color: Colors.grey[200],
           child: const Icon(Icons.broken_image, color: Colors.grey),
@@ -2543,29 +2690,24 @@ class _NoteEditorState extends State<NoteEditor>
       if (appProvider.resourceService != null) {
         final fullUrl = appProvider.resourceService!.buildImageUrl(uriString);
         final token = appProvider.user?.token;
-        debugPrint(
-          'NoteEditor: 使用CachedNetworkImage加载 - URL: $fullUrl, 有Token: ${token != null}',
-        );
 
         return CachedNetworkImage(
           imageUrl: fullUrl,
           fit: BoxFit.cover,
           // 编辑器里只显示 90~110px 的小格子，按缩略尺寸解码即可
-          memCacheWidth: 240,
+          memCacheWidth: _imageDecodeWidth,
           httpHeaders: token != null ? {'Authorization': 'Bearer $token'} : {},
-          placeholder: (context, url) {
-            debugPrint('NoteEditor: 图片加载中 - $url');
-            return Container(
-              color: Colors.grey[200],
-              child: const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            );
-          },
+          placeholder: (context, url) => Container(
+            color: Colors.grey[200],
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
           errorWidget: (context, url, error) {
-            debugPrint(
-              'NoteEditor: CachedNetworkImage加载失败 - URL: $url, 错误: $error',
-            );
+            // 只在真出错时打一条，正常的 build 路径不能有 log：拖动排序时每帧
+            // 都会重建这九个格子，debugPrint 的字符串拼接 + logcat 写入足够把
+            // 60fps 拖到掉帧。
+            debugPrint('NoteEditor: CachedNetworkImage 加载失败 - $url');
             return Container(
               color: Colors.grey[200],
               child: Column(
@@ -2586,7 +2728,11 @@ class _NoteEditorState extends State<NoteEditor>
 
     // 其他情况使用常规Image
     return Image(
-      image: _getImageProvider(uriString),
+      image: ResizeImage.resizeIfNeeded(
+        _imageDecodeWidth,
+        null,
+        _getImageProvider(uriString),
+      ),
       fit: BoxFit.cover,
       errorBuilder: (context, error, stackTrace) {
         debugPrint('Image error for $uriString: $error');
@@ -2615,9 +2761,6 @@ class _NoteEditorState extends State<NoteEditor>
         if (appProvider.resourceService != null) {
           final fullUrl = appProvider.resourceService!.buildImageUrl(uriString);
           final token = appProvider.user?.token;
-          debugPrint(
-            'NoteEditor: 加载Memos图片 - URL: $fullUrl, 有Token: ${token != null}',
-          );
           if (token != null) {
             return CachedNetworkImageProvider(
               fullUrl,
@@ -2634,9 +2777,6 @@ class _NoteEditorState extends State<NoteEditor>
           if (baseUrl.isNotEmpty) {
             final token = appProvider.user?.token;
             final fullUrl = '$baseUrl$uriString';
-            debugPrint(
-              'NoteEditor: 加载Memos图片(fallback) - URL: $fullUrl, 有Token: ${token != null}',
-            );
             if (token != null) {
               return CachedNetworkImageProvider(
                 fullUrl,
@@ -3556,6 +3696,46 @@ class _NoteEditorState extends State<NoteEditor>
       setState(() => _isAIProcessing = false);
     }
   }
+}
+
+/// 九宫格拖动排序时，第 [index] 格应该朝哪个方向挪几格。
+///
+/// 把网格按行优先展平成一维序列：被拖动的格子从 [from] 移到 [to] 时，中间被
+/// 越过的格子依次顶上（或退后）一格。返回值以「格」为单位，[Offset.dx] 是列、
+/// [Offset.dy] 是行，*不* 需要挪动时返回 null。
+///
+/// 抽成纯函数是为了能直接测跨行这类边界：第二行第一列被推挤时要斜着走
+/// （dx = 1, dy = -1），单看一维下标很容易算错。
+@visibleForTesting
+Offset? gridSwapSteps({
+  required int index,
+  required int from,
+  required int to,
+  required int columns,
+}) {
+  if (columns <= 0 || from == to || index == from) {
+    return null;
+  }
+  final int target;
+  if (from < to) {
+    // 往后拖：区间 (from, to] 的格子各退一格
+    if (index <= from || index > to) {
+      return null;
+    }
+    target = index - 1;
+  } else {
+    // 往前拖：区间 [to, from) 的格子各进一格
+    if (index >= from || index < to) {
+      return null;
+    }
+    target = index + 1;
+  }
+  final colDelta = (target % columns) - (index % columns);
+  final rowDelta = (target ~/ columns) - (index ~/ columns);
+  if (colDelta == 0 && rowDelta == 0) {
+    return null;
+  }
+  return Offset(colDelta.toDouble(), rowDelta.toDouble());
 }
 
 // 上传状态枚举

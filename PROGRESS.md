@@ -1,3 +1,23 @@
+## 2026-11-13 · 下载退路：Gitee 缺包时改用 GitHub（1.1.84+10180）· done
+
+### 问题
+- 用户反馈：1.1.80 点「检查更新」查不到新版本；1.1.77 能查到 1.1.83，但点「立即更新」下载很慢
+- 结论（`git show <tag>:lib/config/app_config.dart` 对比三个 tag）：1.1.77 与 1.1.80 的
+  `giteeLatestReleaseApi` 都还是错的（`liudengxing/InkPaper` → Gitee 404）。1.1.77 的数据源是
+  `[gitee, github]`，404 后回落 GitHub 所以查得到，下载自然走 `github.com`（慢）；1.1.80 只剩
+  `[gitee]`（`41485f6` 去掉了回落），于是彻底查不到
+- 1.1.83 已修正地址。用 `http` 包带 App 的 UA 实测：`/releases/latest` 200 + `tag_name=v1.1.83`；
+  APK 直链 200、`Content-Length: 52643460`、302 链正常跟随（Gitee 的 `assets[].size` 仍是 null）
+
+### 改动
+- `UpdateDownloadService.download()` 新增 `fallbackUrls`：主地址回 403/404/410 且还有候选地址时
+  换下一个，日志 `Download source missing, trying fallback`；超时与 5xx 不换源
+- `UpdateCheckResult.fallbackApkUrls`：命中 Gitee 源时给出同 tag 的 GitHub 直链，其它源为空
+- `UpdateInstaller` 把 `result.fallbackApkUrls` 传给下载服务
+- 新增 6 条单测：下载侧（404 换源成功 / 无退路直接失败 / 5xx 不换源 / 退路也 404）、
+  检查侧（Gitee 有退路 / GitHub 无退路）
+- 版本 `1.1.83+10179` → `1.1.84+10180`（README 中英、CHANGELOG 中英同步）
+
 ## 2026-11-13 · 修正 Gitee 更新检查接口地址（1.1.83+10179）· done
 
 - 用户：「现在 gitee 是什么推送逻辑，我看校验更新显示新版本还是 1.1.80」

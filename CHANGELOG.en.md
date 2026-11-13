@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.84] - 2026-11-13
+
+### Fixed
+- **Falls back to the GitHub asset when the Gitee one is missing.** Gitee uploads release
+  assets over a separate channel that occasionally fails - the Release gets created but
+  the APK never lands, as happened with 1.1.83 - and the direct link then returns 404, so
+  the only thing users saw was "Download failed (HTTP 404)". Downloads now retry once
+  against the same version on GitHub when the primary source answers 403 / 404 / 410.
+  Timeouts and 5xx do not switch sources, so a transient hiccup does not turn into a
+  ten-minute slow download.
+
 ## [1.1.83] - 2026-11-13
 
 ### Fixed

@@ -1,11 +1,13 @@
 import 'dart:io' show File;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:inkpaper/services/apk_install_service.dart';
 import 'package:inkpaper/services/update_check_service.dart';
 import 'package:inkpaper/services/update_download_service.dart';
 import 'package:inkpaper/services/update_installer.dart';
 import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/release_notes_formatter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// 弹出版本更新提示，下载进度直接在弹窗里滚动。
@@ -46,6 +48,12 @@ enum _UpdatePhase {
   blocked,
 }
 
+/// 安装包从哪个源下载。
+///
+/// 默认国内镜像（Gitee）：国内网络下它比 GitHub 快一个数量级，所以弹窗里
+/// 把它排在前面并打绿标；GitHub 作为可选的备用源，两边装出来的是同一个包。
+enum _DownloadSource { gitee, github }
+
 class _UpdateDialog extends StatefulWidget {
   const _UpdateDialog({required this.result, this.onPostpone});
 
@@ -64,6 +72,9 @@ class _UpdateDialogState extends State<_UpdateDialog>
   UpdateDownloadProgress? _progress;
   String? _error;
   File? _apk;
+
+  /// 用户选的下载源，默认国内镜像 —— 两个源装出来是同一个包，只是速度差。
+  late _DownloadSource _source = _initialSource();
 
   /// 刚才是因为缺「安装未知应用」授权被打断的：用户从设置页回来后自动续上。
   bool _awaitingPermission = false;
@@ -106,6 +117,48 @@ class _UpdateDialogState extends State<_UpdateDialog>
   }
 
   bool get _canInstallInApp => widget.result.apkDownloadUrl != null;
+
+  /// 国内镜像（Gitee）直链；命中 GitHub 源等取不到时返回 null。
+  Uri? get _giteeUrl {
+    final url = widget.result.apkDownloadUrl;
+    if (url != null && _isGitee(url)) {
+      return url;
+    }
+    for (final candidate in widget.result.fallbackApkUrls) {
+      if (_isGitee(candidate)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  /// GitHub 直链；检查更新命中 Gitee 时它是 fallbackApkUrls 里的那一个。
+  Uri? get _githubUrl {
+    final url = widget.result.apkDownloadUrl;
+    if (url != null && !_isGitee(url)) {
+      return url;
+    }
+    for (final candidate in widget.result.fallbackApkUrls) {
+      if (!_isGitee(candidate)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  static bool _isGitee(Uri url) => url.host == 'gitee.com';
+
+  /// 默认国内镜像，只有确实拿不到镜像地址时才退回 GitHub。
+  _DownloadSource _initialSource() =>
+      _giteeUrl != null ? _DownloadSource.gitee : _DownloadSource.github;
+
+  Uri? get _selectedUrl =>
+      _source == _DownloadSource.gitee ? _giteeUrl : _githubUrl;
+
+  List<Uri> get _selectedFallbacks {
+    final other = _source == _DownloadSource.gitee ? _githubUrl : _giteeUrl;
+    return other == null ? const <Uri>[] : <Uri>[other];
+  }
 
   void _notifyPostpone() {
     if (_postponeNotified) {
@@ -173,6 +226,8 @@ class _UpdateDialogState extends State<_UpdateDialog>
     try {
       final file = await _installer.download(
         widget.result,
+        sourceUrl: _selectedUrl,
+        fallbackUrls: _selectedFallbacks,
         onProgress: _onProgress,
       );
       if (!mounted) {
@@ -286,9 +341,6 @@ class _UpdateDialogState extends State<_UpdateDialog>
         final size = _formatSize(result.apkSizeBytes);
         if (size != null) {
           parts.add('安装包 $size');
-        }
-        if (result.sourceLabel.isNotEmpty) {
-          parts.add(result.sourceLabel);
         }
         return parts.join(' · ');
       case _UpdatePhase.downloading:
@@ -422,40 +474,162 @@ class _UpdateDialogState extends State<_UpdateDialog>
         ],
       );
 
+  /// 国内镜像的绿标。
+  static const Color _mirrorGreen = Color(0xFF2EA043);
+
+  /// 至少有一个可用直链时才谈「选源」。
+  bool get _hasSourceChoice => _giteeUrl != null || _githubUrl != null;
+
+  Widget _buildSourcePicker(Color subtle) {
+    final options = <_DownloadSource>[
+      if (_giteeUrl != null) _DownloadSource.gitee,
+      if (_githubUrl != null) _DownloadSource.github,
+    ];
+    final selectable = options.length > 1;
+    return Row(
+      children: [
+        Text(
+          '下载源',
+          style: TextStyle(fontSize: 12, height: 1.2, color: subtle),
+        ),
+        const SizedBox(width: 10),
+        for (final option in options) ...[
+          _buildSourceChip(option, subtle, selectable: selectable),
+          const SizedBox(width: 8),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSourceChip(
+    _DownloadSource source,
+    Color subtle, {
+    required bool selectable,
+  }) {
+    final isMirror = source == _DownloadSource.gitee;
+    final selected = _source == source;
+    final accent = isMirror ? _mirrorGreen : AppTheme.primaryColor;
+    return InkWell(
+      onTap: selectable ? () => setState(() => _source = source) : null,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? accent.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected
+                ? accent.withValues(alpha: 0.55)
+                : subtle.withValues(alpha: 0.28),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isMirror) ...[
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: _mirrorGreen,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              isMirror ? '国内镜像' : 'GitHub',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.2,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                color: selected ? accent : subtle,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 弹窗里的 Markdown 走紧凑样式：标题不放大，读起来像一段正文。
+  MarkdownStyleSheet _notesStyle(Color subtle) {
+    const body = TextStyle(fontSize: 13, height: 1.55);
+    final heading = body.copyWith(fontWeight: FontWeight.w600, height: 1.4);
+    return MarkdownStyleSheet(
+      p: body,
+      h1: heading,
+      h2: heading,
+      h3: heading,
+      h4: heading,
+      h5: heading,
+      h6: heading,
+      strong: body.copyWith(fontWeight: FontWeight.w600),
+      em: body.copyWith(fontStyle: FontStyle.italic),
+      listBullet: body,
+      listIndent: 16,
+      blockSpacing: 6,
+      pPadding: const EdgeInsets.only(bottom: 2),
+      code: body.copyWith(
+        fontFamily: 'SF Mono',
+        fontSize: 12,
+        backgroundColor: subtle.withValues(alpha: 0.12),
+      ),
+      codeblockDecoration: BoxDecoration(
+        color: subtle.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      codeblockPadding: const EdgeInsets.all(8),
+      blockquote: body.copyWith(color: subtle),
+      blockquotePadding: const EdgeInsets.fromLTRB(10, 2, 0, 2),
+      blockquoteDecoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: subtle.withValues(alpha: 0.3), width: 2),
+        ),
+      ),
+      horizontalRuleDecoration: BoxDecoration(
+        border: Border(top: BorderSide(color: subtle.withValues(alpha: 0.2))),
+      ),
+    );
+  }
+
   List<Widget> _buildBody(ThemeData theme, Color subtle) {
     switch (_phase) {
       case _UpdatePhase.prompt:
-        final notes = widget.result.releaseNotes;
-        if (notes.isEmpty) {
-          return const [];
-        }
+        final notes = compactReleaseNotes(widget.result.releaseNotes);
         return [
-          Text(
-            '更新内容',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: subtle,
+          if (notes.isNotEmpty) ...[
+            Text(
+              '更新内容',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: subtle,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 220),
-              child: SingleChildScrollView(
-                child: Text(
-                  notes,
-                  style: const TextStyle(fontSize: 13, height: 1.55),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: SingleChildScrollView(
+                  child: MarkdownBody(
+                    data: notes,
+                    styleSheet: _notesStyle(subtle),
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
+          if (_hasSourceChoice) ...[
+            const SizedBox(height: 12),
+            _buildSourcePicker(subtle),
+          ],
         ];
       case _UpdatePhase.downloading:
         return [_buildProgress(subtle)];

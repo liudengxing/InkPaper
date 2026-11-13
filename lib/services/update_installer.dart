@@ -56,8 +56,13 @@ class UpdateInstaller {
   ///
   /// [onProgress] 在缓存命中时会立刻回调一次「已完成」的进度，UI 不用为
   /// 这条快路径单独写分支。
+  ///
+  /// [sourceUrl] / [fallbackUrls] 让弹窗能按用户选的下载源覆盖默认顺序：
+  /// 默认走 [UpdateCheckResult.apkDownloadUrl]（国内镜像），退路是 GitHub。
   Future<File> download(
     UpdateCheckResult result, {
+    Uri? sourceUrl,
+    List<Uri>? fallbackUrls,
     void Function(UpdateDownloadProgress progress)? onProgress,
   }) async {
     final cached = cachedApkFor(result.latestVersion);
@@ -71,7 +76,7 @@ class UpdateInstaller {
       return cached;
     }
 
-    final url = result.apkDownloadUrl;
+    final url = sourceUrl ?? result.apkDownloadUrl;
     if (url == null) {
       throw const UpdateDownloadException('这个版本没有提供安装包，请到发布页手动下载');
     }
@@ -83,7 +88,7 @@ class UpdateInstaller {
         url,
         fileName: 'InkPaper-${result.latestVersion}.apk',
         expectedBytes: result.apkSizeBytes,
-        fallbackUrls: result.fallbackApkUrls,
+        fallbackUrls: fallbackUrls ?? result.fallbackApkUrls,
         onProgress: onProgress,
       );
       _cachedApk = file;

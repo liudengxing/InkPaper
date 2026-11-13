@@ -50,6 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   412MB and a GC storm on mid-range devices. Images are now decoded to the size actually
   needed — 400px wide, 4.1MB for the same nine — and the strip and the grid share that one
   size, so switching between them doesn't decode anything again.
+- **The "On this day" card no longer wears the brand green.** Its border, badge, year
+  label and carousel dots were green, which made the card read like a special alert sitting
+  above a column of white notes. The border now matches a normal note card, the badge and
+  dots use the secondary grey, and the green "2023, this day" line became the same full
+  date the feed shows (`2023-11-14`) in the same 10sp light grey, so scrolling past it no
+  longer feels like hitting a different UI.
 
 ### Fixed
 

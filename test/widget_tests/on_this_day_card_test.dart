@@ -18,7 +18,7 @@ Widget _wrap(Widget child) => MaterialApp(
 
 void main() {
   group('OnThisDayCard', () {
-    testWidgets('OTD-01 展示「那年今日」标签与年份', (tester) async {
+    testWidgets('OTD-01 展示「那年今日」标签与完整日期', (tester) async {
       await tester.pumpWidget(
         _wrap(
           OnThisDayCard(
@@ -30,7 +30,7 @@ void main() {
       );
 
       expect(find.text('那年今日'), findsOneWidget);
-      expect(find.text('2024 年的今天'), findsOneWidget);
+      expect(find.text('2024-10-27'), findsOneWidget);
       expect(find.text('2024 年的记录'), findsOneWidget);
     });
 
@@ -63,13 +63,13 @@ void main() {
       );
 
       expect(find.text('1/2'), findsOneWidget);
-      expect(find.text('2025 年的今天'), findsOneWidget);
+      expect(find.text('2025-10-27'), findsOneWidget);
 
       await tester.drag(find.byType(PageView), const Offset(-320, 0));
       await tester.pumpAndSettle();
 
       expect(find.text('2/2'), findsOneWidget);
-      expect(find.text('2024 年的今天'), findsOneWidget);
+      expect(find.text('2024-10-27'), findsOneWidget);
     });
 
     testWidgets('OTD-04 点正文打开对应笔记', (tester) async {
@@ -87,6 +87,24 @@ void main() {
       await tester.tap(find.text('2024 年的记录'));
       await tester.pump();
       expect(openedId, 'a');
+    });
+
+    testWidgets('OTD-06 时间样式与列表笔记卡片一致', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          OnThisDayCard(
+            notes: [_note('a', 2024)],
+            onClose: () {},
+            onOpenNote: (_) {},
+          ),
+        ),
+      );
+
+      final style = tester.widget<Text>(find.text('2024-10-27')).style!;
+      // 对齐 NoteCard 里的时间行：10sp、细字重、次级灰
+      expect(style.fontSize, 10);
+      expect(style.fontWeight, FontWeight.w300);
+      expect(style.color, const Color(0xFF949494));
     });
 
     testWidgets('OTD-05 无笔记时不渲染任何内容', (tester) async {

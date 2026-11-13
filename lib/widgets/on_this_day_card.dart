@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
+import 'package:intl/intl.dart';
+
+/// 卡片时间戳格式：与列表里的笔记卡片一致（往年显示完整日期）。
+final DateFormat _onThisDayDateFormat = DateFormat('yyyy-MM-dd');
 
 /// 「那年今日」卡片：首页列表顶部的可滑动回顾。
 ///
@@ -65,30 +69,31 @@ class _OnThisDayCardState extends State<OnThisDayCard> {
     final secondaryTextColor = isDarkMode
         ? AppTheme.darkTextSecondaryColor
         : AppTheme.textSecondaryColor;
-    final accentColor =
-        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
+    // 卡片外观对齐列表里的笔记卡片：不用品牌绿描边，时间也是那套次级灰
+    final timestampColor =
+        isDarkMode ? const Color(0xFF8E8E93) : const Color(0xFF949494);
+    final borderColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.05);
     final multiple = widget.notes.length > 1;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       child: Material(
         color: cardColor,
-        elevation: isDarkMode ? 0 : 1,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(
-            color: accentColor.withValues(alpha: isDarkMode ? 0.28 : 0.18),
-          ),
+          side: BorderSide(color: borderColor, width: 0.5),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 4, 0),
+              padding: const EdgeInsets.fromLTRB(16, 8, 6, 0),
               child: Row(
                 children: [
-                  OnThisDayBadge(label: '那年今日', color: accentColor),
+                  OnThisDayBadge(label: '那年今日', color: timestampColor),
                   const Spacer(),
                   if (multiple)
                     Text(
@@ -127,7 +132,7 @@ class _OnThisDayCardState extends State<OnThisDayCard> {
                   return _buildPage(
                     context,
                     note,
-                    accentColor: accentColor,
+                    timestampColor: timestampColor,
                     textColor: textColor,
                     secondaryTextColor: secondaryTextColor,
                   );
@@ -147,8 +152,8 @@ class _OnThisDayCardState extends State<OnThisDayCard> {
                         margin: const EdgeInsets.symmetric(horizontal: 2),
                         decoration: BoxDecoration(
                           color: i == _currentIndex
-                              ? accentColor
-                              : secondaryTextColor.withValues(alpha: 0.3),
+                              ? secondaryTextColor.withValues(alpha: 0.85)
+                              : secondaryTextColor.withValues(alpha: 0.25),
                           borderRadius: BorderRadius.circular(3),
                         ),
                       ),
@@ -164,29 +169,30 @@ class _OnThisDayCardState extends State<OnThisDayCard> {
   Widget _buildPage(
     BuildContext context,
     Note note, {
-    required Color accentColor,
+    required Color timestampColor,
     required Color textColor,
     required Color secondaryTextColor,
   }) {
-    final year = note.createdAt.toLocal().year;
     final preview = MemosContentHelper.previewVisibleText(note.content);
 
     return InkWell(
       onTap: () => widget.onOpenNote(note),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '$year 年的今天',
+              _onThisDayDateFormat.format(note.createdAt.toLocal()),
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: accentColor,
+                fontSize: 10,
+                height: 1.1,
+                fontWeight: FontWeight.w300,
+                letterSpacing: 0.2,
+                color: timestampColor,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Expanded(
               child: Text(
                 preview.isEmpty ? '（无文字内容）' : preview,

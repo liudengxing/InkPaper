@@ -33,6 +33,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The editor now watches pointer-up events and shows the system toolbar itself when the
   tapped offset matches the caret. Tapping elsewhere still only moves the caret, and
   double-tap word selection keeps working as before.
+- **Reordering images in the grid now shifts tiles live.** Dragging used to do nothing until
+  you dropped on a tile, and then the two swapped — no feedback during the gesture. Tiles
+  between the dragged one and the hovered cell now slide one slot over as you drag (diagonally
+  when crossing rows), and the order only commits on release. Dropping back where you started,
+  or cancelling, leaves everything untouched.
+- **Expanding to the grid no longer stutters.** Editor images were always decoded at their
+  original resolution: one 4000×3000 phone photo is a 45.8MB bitmap, so nine tiles meant
+  412MB and a GC storm on mid-range devices. Images are now decoded to the size actually
+  needed — 400px wide, 4.1MB for the same nine — and the strip and the grid share that one
+  size, so switching between them doesn't decode anything again.
 
 ### Fixed
 

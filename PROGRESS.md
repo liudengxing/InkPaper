@@ -1,3 +1,36 @@
+## 2026-11-13 · 九宫格拖动实时让位 + 展开卡顿定位（1.1.86+10182）· done
+
+### 问题
+- 反馈一：九宫格长按拖动排序「只有交换」，拖动过程中没有位置反馈
+- 反馈二：点右上角从单行切成九宫格会卡，怀疑是图片太大或缓存问题
+- **卡顿定位（实测）**：编辑器 `_buildImageWidget` 的兜底分支直接
+  `Image(image: _getImageProvider(...))`，本地 `file://` 走 `FileImage` 且**没设解码尺寸**
+  → 按原图解码。用 4000×3000 相机原图跑基准：
+  | | 9 张图片首帧 |
+  |---|---|
+  | 全尺寸解码 | **514ms / 412MB 位图** |
+  | 解码到 400px | **164ms / 4.1MB** |
+  中端机 heap 上限通常 256–512MB，412MB 直接 GC 风暴甚至 OOM。**不是缓存问题**——
+  `ImageCache` 本身工作正常，问题在解码出来的位图尺寸
+- 修复：新增 `_imageDecodeWidth = 400`，`Image.file(cacheWidth:)`、
+  `CachedNetworkImage(memCacheWidth:)`、兜底分支的 `ResizeImage.resizeIfNeeded` 统一用它。
+  **单行条和九宫格必须同一个值**，否则两种排布来回切会因为 ImageCache key 不同而重新解码
+- 顺带清掉 `_buildImageWidget` / `_getImageProvider` 里每次 build 都执行的 `debugPrint`：
+  拖动时每帧重建九格，字符串拼接 + logcat 写入足够把 60fps 拖到掉帧
+- 拖动改法：去掉 `DragTarget`（格子让位后位置会变，「指针没动但命中目标变了」会让
+  DragTarget 反复 onMove/onLeave、让位动画来回抽搐），改成 `onDragUpdate` 拿指针全局坐标
+  反算格子（`_imageGridKey` 的 RenderBox + 滚动偏移）；被越过的格子用 `AnimatedSlide`
+  实时让开一格，跨行时横纵分开算；松手才 `_moveImage`
+- **松手必须瞬时归零**：`AnimatedSlide` 的 duration 在 `_dragSourceIndex == null` 时给
+  `Duration.zero`，让「位移复位」和「数据重排」落在同一帧，否则会先滑回原位再跳到新位置
+- 算法抽成纯函数 `gridSwapSteps()`（`@visibleForTesting`），行优先展平成一维序列
+
+### 验证
+- `test/unit/grid_swap_steps_test.dart` 6 条：同行双向、跨行斜向、起拖格自身、列数非法
+- `test/widget_tests/note_editor_grid_reorder_test.dart` 3 条：拖动中两格让位 + 松手顺序
+  变成 `[b, c, a]`、拖回原位不动、九宫格图片 provider 是 400px 的 `ResizeImage`
+- `verify` **685 项全过**（676 + 9）
+
 ## 2026-11-13 · 品牌图标全套重做 + 文档单平台对齐（1.1.86+10182）· done
 
 ### 问题

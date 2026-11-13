@@ -35,7 +35,7 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       notes: ${{ steps.notes.outputs.notes }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: version
         shell: bash
         env:
@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: prepare
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -125,7 +125,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: prepare
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install gitleaks
         shell: bash
         run: |
@@ -148,7 +148,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [prepare, quality, secret-scan, release-secrets]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       # ubuntu-latest 自带 JDK 已到 25，而项目的 Gradle 8.14.3 支持不到那一档，
       # 构建会直接报 "The Java version used for the build is 25.0.5, which is
       # incompatible with Gradle 8.14.3"。钉到本地验证过的 Temurin 17。
@@ -257,7 +257,7 @@ jobs:
     if: ${{ inputs.dry_run != true }}
     steps:
       # 必须放在下载产物之前：checkout 默认会 git clean，把 dist/ 一起删掉。
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/download-artifact@v7
@@ -310,7 +310,7 @@ jobs:
         if: env.GITEE_TOKEN == ''
         run: echo 'GITEE_TOKEN 未配置，跳过 Gitee 镜像同步。'
       # 镜像作业只拿产物，不需要构建缓存；checkout 要完整历史，脚本里要推 tag。
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         if: env.GITEE_TOKEN != ''
         with:
           fetch-depth: 0

@@ -71,4 +71,40 @@ void main() {
       Colors.white,
     );
   });
+
+  testWidgets('CST-04 平台注入的自定义项收进 ⋮ 菜单', (tester) async {
+    var customTapped = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CapsuleTextSelectionToolbar(
+            anchorAbove: const Offset(200, 400),
+            anchorBelow: const Offset(200, 460),
+            buttonItems: [
+              ContextMenuButtonItem(
+                type: ContextMenuButtonType.copy,
+                onPressed: () {},
+              ),
+              ContextMenuButtonItem(
+                label: 'Read aloud',
+                onPressed: () => customTapped++,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // 主条上不直接铺开，只留一个 ⋮。
+    expect(find.text('Read aloud'), findsNothing);
+    expect(find.byIcon(Icons.more_vert), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    expect(find.text('Read aloud'), findsOneWidget);
+
+    await tester.tap(find.text('Read aloud'));
+    await tester.pumpAndSettle();
+    expect(customTapped, 1);
+  });
 }

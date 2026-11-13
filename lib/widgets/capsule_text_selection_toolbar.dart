@@ -37,7 +37,21 @@ class CapsuleTextSelectionToolbar extends StatelessWidget {
     final backgroundColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
     final labelColor = isDarkMode ? Colors.white : const Color(0xFF1C1C1E);
 
-    // 项多时（剪切/复制/粘贴/全选/分享/搜索）不撑出屏幕，横向滚动兜底。
+    // 平台注入的自定义项（「朗读」「在浏览器中打开」）文案长度不可控，
+    // 直接铺在主条上会把胶囊顶出屏幕；按系统做法收进末尾的 ⋮ 里。
+    final primaryItems = <ContextMenuButtonItem>[];
+    final overflowItems = <ContextMenuButtonItem>[];
+    for (final item in buttonItems) {
+      if (item.type == ContextMenuButtonType.custom) {
+        if ((item.label ?? '').isNotEmpty) {
+          overflowItems.add(item);
+        }
+      } else if (_labelOf(item, isZh).isNotEmpty) {
+        primaryItems.add(item);
+      }
+    }
+
+    // 项多时不撑出屏幕，横向滚动兜底。
     return CustomSingleChildLayout(
       delegate: TextSelectionToolbarLayoutDelegate(
         anchorAbove: anchorAbove,
@@ -61,13 +75,25 @@ class CapsuleTextSelectionToolbar extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (final item in buttonItems)
-                    if (_labelOf(item, isZh).isNotEmpty)
-                      _CapsuleButton(
-                        label: _labelOf(item, isZh),
+                  for (final item in primaryItems)
+                    _CapsuleButton(
+                      label: _labelOf(item, isZh),
+                      color: labelColor,
+                      onTap: item.onPressed,
+                    ),
+                  if (overflowItems.isNotEmpty)
+                    Builder(
+                      builder: (buttonContext) => _CapsuleButton(
+                        icon: Icons.more_vert,
                         color: labelColor,
-                        onTap: item.onPressed,
+                        onTap: () => _showOverflowMenu(
+                          buttonContext,
+                          overflowItems,
+                          backgroundColor,
+                          labelColor,
+                        ),
                       ),
+                    ),
                 ],
               ),
             ),
@@ -75,6 +101,49 @@ class CapsuleTextSelectionToolbar extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// ⋮ 二级菜单：贴着按钮下方弹出，样式跟胶囊保持一致（圆角白卡）。
+  Future<void> _showOverflowMenu(
+    BuildContext buttonContext,
+    List<ContextMenuButtonItem> items,
+    Color backgroundColor,
+    Color labelColor,
+  ) async {
+    final box = buttonContext.findRenderObject() as RenderBox?;
+    final overlayBox =
+        Overlay.of(buttonContext).context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || overlayBox == null) {
+      return;
+    }
+
+    final anchor =
+        box.localToGlobal(Offset.zero, ancestor: overlayBox) & box.size;
+    final selected = await showMenu<ContextMenuButtonItem>(
+      context: buttonContext,
+      position: RelativeRect.fromRect(
+        anchor,
+        Offset.zero & overlayBox.size,
+      ),
+      color: backgroundColor,
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      items: [
+        for (final item in items)
+          PopupMenuItem<ContextMenuButtonItem>(
+            value: item,
+            height: 44,
+            child: Text(
+              item.label ?? '',
+              style: TextStyle(fontSize: _fontSize, color: labelColor),
+            ),
+          ),
+      ],
+    );
+
+    selected?.onPressed?.call();
   }
 
   /// Dart 的 switch 已经穷尽 `ContextMenuButtonType`，新增枚举值会编译报错，
@@ -100,8 +169,7 @@ class CapsuleTextSelectionToolbar extends StatelessWidget {
       case ContextMenuButtonType.liveTextInput:
         return isZh ? '扫描文本' : 'Scan text';
       case ContextMenuButtonType.custom:
-        // 第三方 PROCESS_TEXT 注入的项（「朗读」「在浏览器中打开」之类）文案
-        // 长度不可控，塞进来会把胶囊撑出屏幕、末端被硬切，统一不显示。
+        // 主条不显示，统一由 build 里挑出来丢进 ⋮ 菜单，label 用平台给的原文。
         return '';
     }
   }
@@ -109,33 +177,38 @@ class CapsuleTextSelectionToolbar extends StatelessWidget {
 
 class _CapsuleButton extends StatelessWidget {
   const _CapsuleButton({
-    required this.label,
     required this.color,
     required this.onTap,
-  });
+    this.label,
+    this.icon,
+  }) : assert(label != null || icon != null, '文字或图标至少给一个');
 
-  final String label;
+  final String? label;
+  final IconData? icon;
   final Color color;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final icon = this.icon;
     return InkWell(
       onTap: onTap,
       child: Padding(
         // 系统那条按钮间的留白比 Material 松，靠水平 14dp 撑开；
-        // 再大会让「剪切/复制/粘贴/分享/全选」六项顶出屏幕。
+        // 再大会让「剪切/复制/粘贴/分享/全选」连 ⋮ 一起顶出屏幕。
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: CapsuleTextSelectionToolbar._fontSize,
-              fontWeight: FontWeight.w500,
-              height: 1.1,
-              color: color,
-            ),
-          ),
+          child: icon != null
+              ? Icon(icon, size: 20, color: color)
+              : Text(
+                  label ?? '',
+                  style: TextStyle(
+                    fontSize: CapsuleTextSelectionToolbar._fontSize,
+                    fontWeight: FontWeight.w500,
+                    height: 1.1,
+                    color: color,
+                  ),
+                ),
         ),
       ),
     );

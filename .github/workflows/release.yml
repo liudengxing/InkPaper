@@ -255,9 +255,6 @@ jobs:
     needs: [prepare, android]
     # 手动触发的验证跑只到构建为止，不创建 Release。
     if: ${{ inputs.dry_run != true }}
-    env:
-      # Gitee 镜像用；没配这个 secret 就只发 GitHub，不影响发版。
-      GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
     steps:
       # 必须放在下载产物之前：checkout 默认会 git clean，把 dist/ 一起删掉。
       - uses: actions/checkout@v6
@@ -284,13 +281,52 @@ jobs:
             dist/*.aab
           draft: false
           prerelease: false
-      # 大陆用户直连 GitHub 太慢，同步一份到 Gitee 镜像（代码 + tag + APK，不含 AAB）。
-      # Gitee 的附件上传在 Actions 机房里经常卡死，脚本内已加低速断开 + 重试，
-      # 这里再压一道 45 分钟上限，避免像 1.1.79 / 1.1.80 那样挂到 job 超时。
-      - name: Mirror to Gitee
+
+  # 大陆用户直连 GitHub 太慢，同步一份到 Gitee 镜像（代码 + tag + APK，不含 AAB）。
+  #
+  # 单独成 job 是为了能挂 concurrency：Gitee 的附件上传通道一次只能好好服务一个
+  # 50MB 的上传，两个 run 同时推时后一个的 APK 会被挤掉，Release 建好了资产却是
+  # 空的 —— 而 /releases/latest 已经指向它，用户点「更新」直接 404（1.1.83 就是这么
+  # 翻的车）。同一个 concurrency 组（gitee-sync，与 ci.yml 的 mirror 共用）下后来者
+  # 排队。隔离在镜像这一步的好处是：排队/取消都不会影响 GitHub Release 的发布，
+  # 最坏情况只是重跑一次镜像作业。
+  #
+  # Gitee 的附件上传在 Actions 机房里经常卡死，脚本内已加低速断开 + 重试，
+  # 这里再压一道 45 分钟上限，避免像 1.1.79 / 1.1.80 那样挂到 job 超时。
+  mirror-gitee:
+    name: Mirror to Gitee
+    runs-on: ubuntu-latest
+    needs: [prepare, publish]
+    if: ${{ inputs.dry_run != true }}
+    concurrency:
+      group: gitee-sync
+      cancel-in-progress: false
+    env:
+      # Gitee 镜像用；没配这个 secret 就只发 GitHub，不影响发版。
+      GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+    steps:
+      - name: Skip (GITEE_TOKEN not configured)
+        if: env.GITEE_TOKEN == ''
+        run: echo 'GITEE_TOKEN 未配置，跳过 Gitee 镜像同步。'
+      # 镜像作业只拿产物，不需要构建缓存；checkout 要完整历史，脚本里要推 tag。
+      - uses: actions/checkout@v6
+        if: env.GITEE_TOKEN != ''
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v7
+        if: env.GITEE_TOKEN != ''
+        with:
+          name: android-release
+          path: dist
+      # release_notes.md 也在 dist/ 里，Release 正文靠它。
+      - uses: actions/download-artifact@v7
+        if: env.GITEE_TOKEN != ''
+        with:
+          name: release-notes
+          path: dist
+      - name: Push code, tags and APK to Gitee
         if: env.GITEE_TOKEN != ''
         shell: bash
         timeout-minutes: 45
-        env:
-          TAG: ${{ needs.prepare.outputs.tag }}
         run: bash scripts/publish_gitee.sh

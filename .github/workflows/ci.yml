@@ -177,6 +177,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [quality]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # 同一时间只允许一个作业往 Gitee 推。这个组和 release.yml 的 mirror-gitee 共用：
+    # Gitee 的附件上传通道一次只能好好服务一个 50MB 的上传，1.1.82 / 1.1.83 两次发版
+    # 并发推的时候，后一个的 APK 被挤掉，Release 建好了资产却是空的 —— 而 latest
+    # 已经指向它，用户点「更新」直接 404。后来者排队，而不是互相抢。
+    # 排队组只影响这一个 job，不会取消别人的构建。
+    concurrency:
+      group: gitee-sync
+      cancel-in-progress: false
     env:
       GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
     steps:

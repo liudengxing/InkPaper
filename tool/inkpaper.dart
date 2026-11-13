@@ -204,6 +204,19 @@ class InkPaperCli {
       "defaultValue: '$_cloudVerifyAppKey'",
       'Cloud verification AppKey must keep the official default in source.',
     );
+    // Gitee 的附件上传通道一次只能好好服务一个 50MB 的上传，两个作业同时推会把
+    // 后一个的 APK 挤掉（Release 建好了却没资产，而 latest 已指向它 → 下载 404）。
+    // 两条链路的镜像作业必须挂在同一个 concurrency 组上，改名字要一起改。
+    await _assertFileContains(
+      '.github/workflows/release.yml',
+      'group: gitee-sync',
+      'Release workflow must serialize Gitee mirror uploads.',
+    );
+    await _assertFileContains(
+      '.github/workflows/ci.yml',
+      'group: gitee-sync',
+      'CI mirror job must share the Gitee concurrency group.',
+    );
 
     await _assertReadmeVersion(version.split('+').first);
 

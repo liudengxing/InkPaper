@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PR checklist, the target-platform row in `ARCHITECTURE.md`, and the "screenshots must come
   from the iOS simulator" rule in `marketing/README.md` were all corrected; the agreement and
   privacy pages on the site dropped their iOS wording.
+- **Tapping the caret position again now opens the copy/paste toolbar.** Flutter only shows
+  the toolbar after a double-tap selection or a long-press drag. With a collapsed caret, a
+  second tap on the same character just puts the caret back where it was, so no selection
+  change fires and the menu never appears — copying surrounding text meant long-pressing.
+  The editor now watches pointer-up events and shows the system toolbar itself when the
+  tapped offset matches the caret. Tapping elsewhere still only moves the caret, and
+  double-tap word selection keeps working as before.
 
 ### Fixed
 

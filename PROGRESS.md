@@ -27,9 +27,23 @@
   `.github/ISSUE_TEMPLATE/bug_report.yml`、`.github/pull_request_template.md`
 - `AppConfig.appStoreId` 死配置删除
 
+### 追加：光标处再点一次弹工具栏
+- 反馈：光标停在字中间（没框选）时再点同一位置，系统工具栏不出现，复制上下文只能长按
+- 根因：Flutter 只在双击选词 / 长按拖动后 `showToolbar`；collapsed 时再点同处，位置没变
+  就没有 selection 变化事件，`_handleSelectionChanged` 不会触发，菜单自然不弹
+- 改法：`TextField` 外包一层 `Listener`（不参与手势竞技场，TextField 落点/选词/双击判定
+  全部照旧），`onPointerUp` 时用 `RenderEditable.getPositionForPoint` 把落点换算成字符
+  位置，正好等于光标就 `addPostFrameCallback` 里 `EditableTextState.showToolbar()`
+- **坑**：`getPositionForPoint` 收的是**全局坐标**，内部会自己 globalToLocal；先转一次会让
+  坐标变负、被夹到 offset 0，表现为「永远判成不在光标处」
+- 测试：新增 `test/widget_tests/note_editor_retap_toolbar_test.dart` 4 条（再点弹菜单 /
+  点别处只挪光标 / 双击选词不受影响 / 空笔记不抛异常）
+
 ### 验证
 - 图标预览三形态（圆角/圆形/自适应裁切）+ 通知剪影五档目视检查通过
 - 夜间启动页缩略图确认黑底、浅色文字、绿色图形正常
+- `verify` 676 项全过（新增 4 条），`store-check` 绿，`build android-debug` 出包并确认
+  4 类图标各 5 档都在 APK 里
 
 ## 2026-11-13 · 更新弹窗：说明按 Markdown 渲染、裁剪到正文、底部选下载源（1.1.85+10181）· done
 

@@ -1358,40 +1358,47 @@ class _NoteEditorState extends State<NoteEditor>
                                       child: CompositedTransformTarget(
                                         link:
                                             _textFieldLayerLink, // 🎯 用于跟踪光标位置
-                                        child: TextField(
-                                          controller: _textController,
-                                          focusNode: _textFocusNode,
-                                          scrollController: _scrollController,
-                                          keyboardType: TextInputType.multiline,
-                                          maxLines: null, // 允许无限行
-                                          autofocus: true,
-                                          decoration: InputDecoration(
-                                            hintText: AppLocalizationsSimple.of(
-                                                  context,
-                                                )?.editorPlaceholder ??
-                                                '现在的想法是...',
-                                            // 全局主题给输入框设了 filled:true，
-                                            // 玻璃卡片上会糊出一块实心白，这里关掉
-                                            filled: false,
-                                            border: InputBorder.none,
-                                            contentPadding: EdgeInsets.zero,
-                                            hintStyle: TextStyle(
+                                        // 只旁听，不抢手势：TextField 自身的落点、
+                                        // 选词、双击判定全部照旧。
+                                        child: Listener(
+                                          onPointerUp: _handleBodyPointerUp,
+                                          child: TextField(
+                                            controller: _textController,
+                                            focusNode: _textFocusNode,
+                                            scrollController: _scrollController,
+                                            keyboardType:
+                                                TextInputType.multiline,
+                                            maxLines: null, // 允许无限行
+                                            autofocus: true,
+                                            decoration: InputDecoration(
+                                              hintText:
+                                                  AppLocalizationsSimple.of(
+                                                        context,
+                                                      )?.editorPlaceholder ??
+                                                      '现在的想法是...',
+                                              // 全局主题给输入框设了 filled:true，
+                                              // 玻璃卡片上会糊出一块实心白，这里关掉
+                                              filled: false,
+                                              border: InputBorder.none,
+                                              contentPadding: EdgeInsets.zero,
+                                              hintStyle: TextStyle(
+                                                fontSize: 16,
+                                                color: hintTextColor,
+                                                height: 1.5,
+                                              ),
+                                              enabledBorder: InputBorder.none,
+                                              focusedBorder: InputBorder.none,
+                                              disabledBorder: InputBorder.none,
+                                              errorBorder: InputBorder.none,
+                                              focusedErrorBorder:
+                                                  InputBorder.none,
+                                            ),
+                                            cursorColor: iconColor,
+                                            style: TextStyle(
                                               fontSize: 16,
-                                              color: hintTextColor,
+                                              color: textColor,
                                               height: 1.5,
                                             ),
-                                            enabledBorder: InputBorder.none,
-                                            focusedBorder: InputBorder.none,
-                                            disabledBorder: InputBorder.none,
-                                            errorBorder: InputBorder.none,
-                                            focusedErrorBorder:
-                                                InputBorder.none,
-                                          ),
-                                          cursorColor: iconColor,
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: textColor,
-                                            height: 1.5,
                                           ),
                                         ),
                                       ),
@@ -2853,6 +2860,55 @@ class _NoteEditorState extends State<NoteEditor>
     // 选区叠加层是在选词之后那一帧才建好的，工具栏得等下一帧再显示。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
+        return;
+      }
+      _editableTextState()?.showToolbar();
+    });
+  }
+
+  /// 点在当前光标所在的位置时，把系统工具栏叫出来。
+  ///
+  /// Flutter 只在双击选词、长按拖动之后 showToolbar；光标已经落在字中间
+  /// （selection 折叠）时再点同一个字，框架只是把光标摆回原地 —— 位置没变，
+  /// 也就没有选区变化事件，复制/粘贴菜单根本不会出现。
+  ///
+  /// 这里旁听指针抬起：把落点换算成字符位置，正好等于当前光标就手动弹菜单。
+  /// 用 [Listener] 而不是 GestureDetector 是有意的 —— 它不参与手势竞技场，
+  /// TextField 该落的落点、该选的词、双击判定一律照旧。
+  void _handleBodyPointerUp(PointerUpEvent event) {
+    final editableState = _editableTextState();
+    if (editableState == null || !_textFocusNode.hasFocus) {
+      return;
+    }
+
+    final renderEditable = editableState.renderEditable;
+    if (!renderEditable.hasSize) {
+      return;
+    }
+
+    final selection = _textController.selection;
+    if (!selection.isValid || !selection.isCollapsed) {
+      return;
+    }
+
+    // 注意 getPositionForPoint 收的是全局坐标，内部自己会转局部，别再转一次。
+    final tapped = renderEditable.getPositionForPoint(event.position);
+    // 点在别处就是在挪光标，交给 TextField 自己处理。
+    if (tapped.offset != selection.baseOffset) {
+      return;
+    }
+
+    // 抬起时 Flutter 的单击还得过一道双击判定才落定，落定过程会再摆一次光标；
+    // 等这一帧收尾再弹，避免刚出来就被收起。若这时选区已经变成选词（用户其实
+    // 是在双击），说明框架自己会弹，这里就不插手。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final current = _textController.selection;
+      if (!_textFocusNode.hasFocus ||
+          !current.isValid ||
+          !current.isCollapsed) {
         return;
       }
       _editableTextState()?.showToolbar();

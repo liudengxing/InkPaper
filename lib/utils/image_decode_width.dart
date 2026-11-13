@@ -34,6 +34,13 @@ int bucketedDecodeWidth(
   );
 }
 
+/// 网格缩略图的统一解码宽度档位（[gridTileDecodeWidth] 的常规输出）。
+///
+/// 编辑器里的图片条/九宫格直接引用这个常量，别另写一个数字：两边一旦不同，
+/// `ImageCache` 会认为是两张图，从列表进入编辑器时同一批图要重新解码一遍
+/// （1.1.86 实测：5 张图的笔记首次双击进编辑页卡 1 秒，缓存条目 +5）。
+const int kGridTileDecodeWidth = 480;
+
 /// 网格缩略图（一行 2~3 张、九宫格）的统一解码宽度。
 ///
 /// 列表卡片每格约 105~110dp、详情页九宫格约 100~110dp，若按精确像素分桶会分别
@@ -50,7 +57,10 @@ int gridTileDecodeWidth(
   if (!raw.isFinite || raw <= 0) {
     return minWidth;
   }
-  return (raw <= 480 ? 480 : 720).clamp(minWidth, maxWidth);
+  return (raw <= kGridTileDecodeWidth ? kGridTileDecodeWidth : 720).clamp(
+    minWidth,
+    maxWidth,
+  );
 }
 
 /// 直接对已有的像素宽度做分桶（调用方已乘过像素密度时使用）。

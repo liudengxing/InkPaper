@@ -17,6 +17,7 @@ import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/services/speech_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
+import 'package:inkpaper/utils/image_decode_width.dart';
 import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:inkpaper/utils/note_image_anchor.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
@@ -2717,13 +2718,13 @@ class _NoteEditorState extends State<NoteEditor>
   // 构建图片Widget，处理认证问题
   /// 编辑器图格的解码宽度（物理像素）。
   ///
-  /// 九宫格最宽的一格约 110dp，3x 屏也就 330px；取 400 够用还有余量。单行条和
-  /// 九宫格统一用这个值——两者尺寸不同如果各写一个，展开/收起时每张图都会因为
-  /// ImageCache 的 key 不同而重新解码一遍，切换会卡一下。
+  /// 必须和列表卡片 / 详情页九宫格用同一个档位（[kGridTileDecodeWidth]），否则
+  /// `ImageCache` 的 key 不同，从首页双击进编辑器时会把同一批图再解码一份：缓存
+  /// 条目凭空 +N，首次进入要卡上一秒左右（1.1.86 实测 5 张图的笔记）。
   ///
   /// 不设这个值时会按原图尺寸解码：一张 4000x3000 的手机照片就是 45.8MB 位图，
   /// 九宫格首帧要解 9 张（实测 412MB / 514ms），中端机直接 GC 风暴。
-  static const int _imageDecodeWidth = 400;
+  static const int _imageDecodeWidth = kGridTileDecodeWidth;
 
   Widget _buildImageWidget(String uriString) {
     // 数据维护里缓存过的服务端附件：直接读本地副本

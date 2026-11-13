@@ -64,4 +64,21 @@ void main() {
       expect(bucketPixelWidth(-5), 160);
     });
   });
+
+  group('gridTileDecodeWidth — 网格缩略图统一档位', () {
+    test('IDW-14 首页卡片与编辑器图格命中同一档位', () {
+      // 首页卡片每格约 105dp、编辑器图片条约 110dp，dpr 3
+      expect(gridTileDecodeWidth(105, 3), kGridTileDecodeWidth);
+      expect(gridTileDecodeWidth(110, 3), kGridTileDecodeWidth);
+    });
+
+    test('IDW-15 大格子升到 720 档', () {
+      expect(gridTileDecodeWidth(300, 3), 720);
+    });
+
+    test('IDW-16 宽度非法时退回最小档', () {
+      expect(gridTileDecodeWidth(0, 3), 320);
+      expect(gridTileDecodeWidth(double.nan, 3), 320);
+    });
+  });
 }

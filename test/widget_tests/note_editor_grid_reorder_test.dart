@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/utils/image_decode_width.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -125,7 +126,7 @@ void main() {
     expect(_slideKeys(tester), before);
   });
 
-  testWidgets('九宫格图片按 400px 解码，不按原图尺寸', (tester) async {
+  testWidgets('九宫格图片按缩略档位解码，不按原图尺寸', (tester) async {
     await _openGridEditor(tester, 3);
 
     final resizeProviders = tester
@@ -136,9 +137,11 @@ void main() {
 
     expect(resizeProviders, isNotEmpty, reason: '九宫格图片应当走 ResizeImage');
     expect(
-      resizeProviders.every((provider) => provider.width == 400),
+      resizeProviders
+          .every((provider) => provider.width == kGridTileDecodeWidth),
       isTrue,
-      reason: '一张 4000x3000 的照片全尺寸解码是 45.8MB 位图，九张就是 412MB',
+      reason: '一张 4000x3000 的照片全尺寸解码是 45.8MB 位图，九张就是 412MB；'
+          '同时必须与列表/详情共用同一档位，否则进编辑器会重新解码一份',
     );
   });
 }

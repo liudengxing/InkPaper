@@ -34,9 +34,6 @@ flutter doctor
 # Create/edit android/local.properties
 flutter.sdk=/path/to/flutter
 
-# macOS example
-flutter.sdk=/Users/username/flutter
-
 # Windows example
 flutter.sdk=C:\\flutter
 ```

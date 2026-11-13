@@ -10,7 +10,7 @@
 
 **InkPaper（墨鸣笔记）**：本地优先的笔记应用。核心是「纯文本 + Markdown + 本地图片」的快速记录，可选连自己的 Memos 服务器做多端同步；AI 侧提供「问笔记」（拿全库笔记当资料对话）与「周/月回顾」（AI 总结近期笔记）。
 
-- 平台范围：只做 Android（仓库已删除 iOS / macOS / Windows / Linux / Web 工程），全部迭代在真机
+- 平台范围：只做 Android（仓库内只有 `android/` 一个平台工程），全部迭代在真机
 - 数据主权：默认不登录也能用，全部数据在本机 `notes.db`；登录 Memos 后才双向同步
 - 无自建后端：新账号/同步都指向用户自己填的 Memos 服务器；只有公告/反馈走 `https://api.didichou.site`
 

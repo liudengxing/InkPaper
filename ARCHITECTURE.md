@@ -18,7 +18,7 @@
 | 本地化 | 自研 `AppLocalizationsSimple` + `translations.dart`（zh / en） | `lib/l10n/` |
 | 崩溃上报 | `sentry_flutter: ^8.9.0` | `pubspec.yaml:118` |
 | 应用 ID | `com.didichou.inkpaper`，深链 `inkpaper://` | `android/app/build.gradle` |
-| 目标平台 | Android（`android/`）、iOS（`ios/` 目录存在） | 目录 |
+| 目标平台 | Android（`android/`，仓库唯一平台） | 目录 |
 
 关键依赖（与本次审计相关）：`flutter_markdown ^0.6.23`、`flutter_local_notifications ^17.2.3`、`timezone ^0.9.4`、`speech_to_text ^7.0.0`、`record ^6.1.2`、`image_picker ^1.1.2`、`flutter_secure_storage ^8.1.0`、`share_plus ^7.2.2`、`file_picker ^8.1.2`、`crypto ^3.0.3`、`uuid ^4.5.1`、`url_launcher ^6.3.0`、`shared_preferences ^2.2.3`。
 

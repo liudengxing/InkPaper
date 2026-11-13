@@ -27,17 +27,12 @@ body:
       placeholder: "1.1.0"
     validations:
       required: true
-  - type: dropdown
+  - type: input
     id: platform
     attributes:
-      label: Platform
-      options:
-        - iOS
-        - Android
-        - macOS
-        - Windows
-        - Linux
-        - Web
+      label: Device and Android version
+      description: InkPaper only ships for Android.
+      placeholder: "Android 14 · Pixel 7"
     validations:
       required: true
   - type: textarea

@@ -833,7 +833,7 @@ class AppLocalizationsSimple {
       _t('welcomeToInkPaper', fallback: '欢迎使用InkPaper-墨鸣笔记');
   String get coreFeatures => _t('coreFeatures', fallback: '核心特色');
   String get minimalistDesign => _t('minimalistDesign', fallback: '极简设计');
-  String get crossPlatform => _t('crossPlatform', fallback: '跨平台支持');
+  String get crossPlatform => _t('crossPlatform', fallback: '本地优先');
   String get perfectCompatibility =>
       _t('perfectCompatibility', fallback: '完美兼容');
   String get dataSecurity => _t('dataSecurity', fallback: '数据安全');
@@ -864,7 +864,7 @@ class AppLocalizationsSimple {
   String get technicalDetails => _t(
         'technicalDetails',
         fallback:
-            '当前支持 Android、iOS、macOS、Windows 和 Linux。应用提供富文本式编辑、Markdown 渲染、图片、标签、搜索、提醒、随机回顾、WebDAV 备份、导入导出和可选 AI 功能。',
+            '当前只发布 Android 版本。应用提供富文本式编辑、Markdown 渲染、图片、标签、搜索、提醒、随机回顾、WebDAV 备份、导入导出和可选 AI 功能。',
       );
   String get securityCommitment => _t(
         'securityCommitment',
@@ -1138,7 +1138,7 @@ class AppLocalizationsSimple {
   // ===== 实验室页面 =====
   String get telegramBot => _t('telegramBot', fallback: 'Telegram 助手');
   String get telegramBotDesc =>
-      _t('telegramBotDesc', fallback: '连接 InkPaper_Bot，实现跨平台笔记同步');
+      _t('telegramBotDesc', fallback: '连接 InkPaper_Bot，实现跨设备笔记同步');
   String get stableRunning => _t('stableRunning', fallback: '稳定运行');
   String get voiceToText => _t('voiceToText', fallback: '语音转文字');
   String get voiceToTextDesc =>
@@ -1758,7 +1758,7 @@ class AppLocalizationsSimple {
       _t('setReminderFailedRetry', fallback: '设置提醒失败，请稍后重试');
   String get desktopReminderUnsupported => _t(
         'desktopReminderUnsupported',
-        fallback: '当前桌面系统暂不支持系统级定时提醒，请在手机或 macOS 上设置',
+        fallback: '当前设备暂不支持系统级定时提醒，请检查系统通知权限',
       );
 
   // ===== 笔记详情页-详细信息 =====
@@ -2104,7 +2104,7 @@ class AppLocalizationsSimple {
       _t('flomoImportStep2', fallback: '2. 导出后会得到一个包含 HTML 文件和 file 目录的文件夹');
   String get flomoImportStep3 => _t(
         'flomoImportStep3',
-        fallback: '3. 📁 将整个导出文件夹保存到"文件"App中（iCloud Drive或本地）',
+        fallback: '3. 📁 把整个导出文件夹解压到手机的下载目录或存储根目录',
       );
   String get flomoImportStep4 =>
       _t('flomoImportStep4', fallback: '4. 点击下方"选择Flomo导出文件夹"按钮');
@@ -2415,8 +2415,8 @@ class AppLocalizationsSimple {
       ? '❓ GlobalKey 错误怎么办？'
       : '❓ What about GlobalKey error?';
   String get notionFaqGlobalKeyContent => locale.languageCode == 'zh'
-      ? '这是 Flutter 热重载的已知问题：\n• 完全停止应用（按 q）\n• 重新运行 flutter run -d macos'
-      : 'This is a known Flutter hot reload issue:\n• Stop the app completely (press q)\n• Re-run flutter run -d macos';
+      ? '这是 Flutter 热重载的已知问题：\n• 完全停止应用（按 q）\n• 重新运行 flutter run'
+      : 'This is a known Flutter hot reload issue:\n• Stop the app completely (press q)\n• Re-run flutter run';
 
   String get notionFaqViewLogsTitle => locale.languageCode == 'zh'
       ? '❓ 如何查看详细日志？'
@@ -2709,7 +2709,7 @@ class AppLocalizationsSimple {
       _t('localSpeechUnavailable', fallback: '本地语音识别功能暂时不可用。');
   String get speechUnavailableReasons => _t(
         'speechUnavailableReasons',
-        fallback: '• Android: 缺少 Google 服务\n• iOS: 系统版本过低\n• 网络连接问题',
+        fallback: '• 设备缺少 Google 语音服务\n• 网络连接问题',
       );
   String get suggestion => _t('suggestion', fallback: '💡 建议');
   String get cloudSpeechSuggestion =>
@@ -2813,7 +2813,7 @@ class AppLocalizationsSimple {
   // ===== 首页欢迎笔记 =====
   String get welcomeNoteContent => _t(
         'welcomeNoteContent',
-        fallback: '小纸是一款面向个人知识记录的跨平台笔记应用。'
+        fallback: '小纸是一款面向个人知识记录的 Android 笔记应用。'
             '它可以本地优先使用，也可以连接自托管 Memos 服务进行同步。'
             '应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、'
             '导入导出、系统分享、小组件和可选 AI 辅助等能力。'

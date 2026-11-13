@@ -1211,7 +1211,6 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
                         context,
                         question: '🔑 推荐的 WebDAV 服务？',
                         answer: '• 坚果云（推荐）：国内访问速度快，每月免费1GB流量\n'
-                            '• iCloud Drive：苹果用户原生支持\n'
                             '• Nextcloud：开源自建方案\n'
                             '• Synology NAS：自建私有云',
                       ),
@@ -1254,15 +1253,11 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
                         context,
                         question: '🌰 其他 WebDAV 服务如何配置？',
                         answer: '各服务商配置方法类似：\n\n'
-                            '1️⃣ iCloud Drive：\n'
-                            '• 服务器：https://contacts.icloud.com/\n'
-                            '• 用户名：你的 Apple ID\n'
-                            '• 密码：需要在 appleid.apple.com 生成"应用专用密码"\n\n'
-                            '2️⃣ Nextcloud（自建）：\n'
+                            '1️⃣ Nextcloud（自建）：\n'
                             '• 服务器：https://你的域名/remote.php/dav/files/用户名/\n'
                             '• 用户名：Nextcloud 用户名\n'
                             '• 密码：在 Nextcloud 设置中生成应用密码\n\n'
-                            '3️⃣ Synology NAS：\n'
+                            '2️⃣ Synology NAS：\n'
                             '• 服务器：https://你的NAS地址:5006/（推荐HTTPS）\n'
                             '• 用户名：NAS 账号\n'
                             '• 密码：建议在 DSM 中创建专用账号\n\n'

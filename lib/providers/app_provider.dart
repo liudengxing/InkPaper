@@ -695,7 +695,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
           id: 'demo-004',
           content: '本周计划\n\n'
               '- [ ] 完成官网素材\n'
-              '- [ ] 整理 App Store 截图\n'
+              '- [ ] 整理 Google Play 截图\n'
               '- [x] 修复待办和 Markdown 渲染\n\n'
               '#计划 #发布',
           createdAt: DateTime(2026, 6, 14, 9, 5),

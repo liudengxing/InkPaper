@@ -1260,7 +1260,7 @@ class _NotionSettingsScreenState extends State<NotionSettingsScreen> {
               _buildFAQItem(
                 l10n?.notionFaqGlobalKeyTitle ?? '❓ GlobalKey 错误怎么办？',
                 l10n?.notionFaqGlobalKeyContent ??
-                    '这是 Flutter 热重载的已知问题：\n• 完全停止应用（按 q）\n• 重新运行 flutter run -d macos',
+                    '这是 Flutter 热重载的已知问题：\n• 完全停止应用（按 q）\n• 重新运行 flutter run',
                 textColor,
                 secondaryTextColor,
               ),

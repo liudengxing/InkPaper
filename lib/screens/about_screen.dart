@@ -179,7 +179,7 @@ class AboutScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     AppLocalizationsSimple.of(context)?.appIntroduction ??
-                        'InkPaper-墨鸣笔记是一款面向个人记录与知识沉淀的跨平台笔记应用。它保留轻量记录的速度，也提供标签、搜索、回顾、备份和同步能力，让零散内容逐步沉淀成可回看的资料库。',
+                        'InkPaper-墨鸣笔记是一款面向个人记录与知识沉淀的 Android 笔记应用。它保留轻量记录的速度，也提供标签、搜索、回顾、备份和同步能力，让零散内容逐步沉淀成可回看的资料库。',
                     style: const TextStyle(
                       fontSize: 15,
                       height: 1.6,
@@ -189,7 +189,7 @@ class AboutScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     AppLocalizationsSimple.of(context)?.technicalDetails ??
-                        '当前支持 Android、iOS、macOS、Windows 和 Linux。应用提供富文本式编辑、Markdown 渲染、图片、标签、搜索、提醒、随机回顾、WebDAV 备份、导入导出和可选 AI 功能。',
+                        '当前只发布 Android 版本。应用提供富文本式编辑、Markdown 渲染、图片、标签、搜索、提醒、随机回顾、WebDAV 备份、导入导出和可选 AI 功能。',
                     style: const TextStyle(
                       fontSize: 15,
                       height: 1.6,

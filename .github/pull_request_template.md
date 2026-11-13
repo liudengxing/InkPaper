@@ -5,7 +5,7 @@
 ## Validation
 
 - [ ] `dart tool/inkpaper.dart verify`
-- [ ] Platform build checked when relevant: Android / iOS / macOS / Windows / Linux / Web
+- [ ] Android build checked when relevant
 - [ ] UI changes include screenshots or screen recording
 - [ ] Data migration, sync, import, or backup changes include rollback/edge-case notes
 

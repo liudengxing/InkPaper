@@ -433,10 +433,7 @@ class AppConfig {
 
   // ==================== 应用商店信息 ====================
 
-  /// App Store ID（iOS）
-  static const String appStoreId = '';
-
-  /// Google Play包名（Android）
+  /// Google Play 包名（Android，唯一发布渠道）
   static const String googlePlayPackage = packageName;
 
   // ==================== 功能开关 ====================

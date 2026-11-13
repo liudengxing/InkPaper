@@ -1,6 +1,6 @@
 # 构建与真机测试指南
 
-本文覆盖小纸（InkPaper）的 Android 本地构建方式、发布流程，以及真机测试时需要特别留意的行为与坑点。仓库只维护 Android 平台，没有 iOS / macOS / Windows / Linux 的工程与构建目标。日常开发只跑 `dart tool/inkpaper.dart` 里的命令即可，不要手写零散的 `flutter build`，以免漏掉签名与 Gradle 前置步骤。
+本文覆盖小纸（InkPaper）的 Android 本地构建方式、发布流程，以及真机测试时需要特别留意的行为与坑点。仓库只维护 Android 平台，没有其他平台的工程与构建目标。日常开发只跑 `dart tool/inkpaper.dart` 里的命令即可，不要手写零散的 `flutter build`，以免漏掉签名与 Gradle 前置步骤。
 
 ## 1. 环境准备
 

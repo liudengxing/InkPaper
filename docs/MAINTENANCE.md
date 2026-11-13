@@ -28,8 +28,8 @@ dart tool/inkpaper.dart release v1.1.13 --sync-gitee
 dart tool/inkpaper.dart release-gitee v1.1.13
 ```
 
-The project ships Android only. Builds need an Android SDK and JDK 17; there
-are no iOS, macOS, Windows, Linux, or Web targets in the repository.
+The project ships Android only. Builds need an Android SDK and JDK 17; no other
+platform targets exist in the repository.
 
 `release` only creates and pushes the tag. `--sync-gitee` keeps running after
 that: it waits for CI to build the APK, then copies the artifact to the Gitee

@@ -764,7 +764,7 @@ class Translations {
     },
     'coreFeatures': {'zh': '核心特色', 'en': 'Core Features'},
     'minimalistDesign': {'zh': '极简设计', 'en': 'Minimalist Design'},
-    'crossPlatform': {'zh': '跨平台支持', 'en': 'Cross-Platform'},
+    'crossPlatform': {'zh': '本地优先', 'en': 'Local-first'},
     'perfectCompatibility': {'zh': '完美兼容', 'en': 'Perfect Compatibility'},
     'dataSecurity': {'zh': '数据安全', 'en': 'Data Security'},
     'smartTags': {'zh': '智能标签', 'en': 'Smart Tags'},
@@ -795,9 +795,9 @@ class Translations {
     },
     'technicalDetails': {
       'zh':
-          '当前支持 Android、iOS、macOS、Windows 和 Linux。应用提供富文本式编辑、Markdown 渲染、图片、标签、搜索、提醒、随机回顾、WebDAV 备份、导入导出和可选 AI 功能。',
+          '当前只发布 Android 版本。应用提供富文本式编辑、Markdown 渲染、图片、标签、搜索、提醒、随机回顾、WebDAV 备份、导入导出和可选 AI 功能。',
       'en':
-          'InkPaper currently supports Android, iOS, macOS, Windows, and Linux. It includes rich-text-style editing, Markdown rendering, images, tags, search, reminders, random review, WebDAV backup, import/export, and optional AI features.',
+          'InkPaper ships for Android only. It includes rich-text-style editing, Markdown rendering, images, tags, search, reminders, random review, WebDAV backup, import/export, and optional AI features.',
     },
     'securityCommitment': {
       'zh': '笔记优先保存在本机。登录、同步、WebDAV 和 AI 相关配置由你主动设置；自部署服务中的数据由对应服务器保存和管理。',
@@ -1299,8 +1299,8 @@ class Translations {
     // ===== 实验室页面 =====
     'telegramBot': {'zh': 'Telegram 助手', 'en': 'Telegram Bot'},
     'telegramBotDesc': {
-      'zh': '连接 InkPaper_Bot，实现跨平台笔记同步',
-      'en': 'Connect InkPaper_Bot for cross-platform note syncing',
+      'zh': '连接 InkPaper_Bot，实现跨设备笔记同步',
+      'en': 'Connect InkPaper_Bot for cross-device note syncing',
     },
     'stableRunning': {'zh': '稳定运行', 'en': 'Stable'},
     'voiceToText': {'zh': '语音转文字', 'en': 'Voice to Text'},
@@ -2042,9 +2042,9 @@ class Translations {
       'en': 'Please enable notification permission first',
     },
     'desktopReminderUnsupported': {
-      'zh': '当前桌面系统暂不支持系统级定时提醒，请在手机或 macOS 上设置',
+      'zh': '当前设备暂不支持系统级定时提醒，请检查系统通知权限',
       'en':
-          'System scheduled reminders are not supported on this desktop platform yet. Set reminders on mobile or macOS.',
+          'System scheduled reminders are not available on this device. Check the system notification permission.',
     },
     'reminderTimeMustBeFuture': {
       'zh': '提醒时间必须在未来',
@@ -2123,9 +2123,9 @@ class Translations {
           '2. You will get a folder containing HTML files and a file directory',
     },
     'flomoImportStep3': {
-      'zh': '3. 📁 将整个导出文件夹保存到"文件"App中（iCloud Drive或本地）',
+      'zh': '3. 📁 把整个导出文件夹解压到手机的下载目录或存储根目录',
       'en':
-          '3. 📁 Save the entire export folder to Files app (iCloud Drive or local)',
+          '3. 📁 Unzip the entire export folder into the Downloads folder or storage root',
     },
     'flomoImportStep4': {
       'zh': '4. 点击下方"选择Flomo导出文件夹"按钮',
@@ -2637,9 +2637,9 @@ class Translations {
       'en': 'Local speech recognition is temporarily unavailable.',
     },
     'speechUnavailableReasons': {
-      'zh': '• Android: 缺少 Google 服务\n• iOS: 系统版本过低\n• 网络连接问题',
+      'zh': '• 设备缺少 Google 语音服务\n• 网络连接问题',
       'en':
-          '• Android: Google services are missing\n• iOS: System version is too old\n• Network connection issue',
+          '• Google speech services are missing on this device\n• Network connection issue',
     },
     'suggestion': {'zh': '💡 建议', 'en': '💡 Suggestion'},
     'cloudSpeechSuggestion': {
@@ -2834,12 +2834,12 @@ class Translations {
     },
     // ===== 首页欢迎笔记 =====
     'welcomeNoteContent': {
-      'zh': '小纸是一款面向个人知识记录的跨平台笔记应用。'
+      'zh': '小纸是一款面向个人知识记录的 Android 笔记应用。'
           '它可以本地优先使用，也可以连接自托管 Memos 服务进行同步。'
           '应用提供 Memos 兼容 Markdown、图片、标签、提醒、搜索、WebDAV 备份、'
           '导入导出、系统分享、小组件和可选 AI 辅助等能力。'
           '（本条笔记在您正式使用后会自动删除）',
-      'en': 'InkPaper is a cross-platform note app for personal knowledge. '
+      'en': 'InkPaper is an Android note app for personal knowledge. '
           'It works local-first, and can sync with a self-hosted Memos server. '
           'It supports Memos-compatible Markdown, images, '
           'tags, reminders, search, WebDAV backup, import/export, system share, '

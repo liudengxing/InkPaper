@@ -468,7 +468,7 @@ class _HelpScreenState extends State<HelpScreen> {
 
   String _gettingStartedOverview() => _helpText(
         zh: '''
-InkPaper-墨鸣笔记是一款面向 Memos 用户的跨平台笔记应用。它保留 Memos 的开放数据结构，同时强化移动端记录、离线发布、图片查看、标签整理、WebDAV 备份和 AI 辅助能力。
+InkPaper-墨鸣笔记是一款面向 Memos 用户的 Android 笔记应用。它保留 Memos 的开放数据结构，同时强化移动端记录、离线发布、图片查看、标签整理、WebDAV 备份和 AI 辅助能力。
 
 ### 当前核心能力
 - **快速记录**：主页直接创建、编辑、删除和搜索笔记
@@ -481,7 +481,7 @@ InkPaper-墨鸣笔记是一款面向 Memos 用户的跨平台笔记应用。它�
 - **AI 辅助**：可配置兼容 OpenAI 格式的服务，用于点评、续写和周期回顾
         ''',
         en: '''
-InkPaper is a cross-platform note app for Memos users. It keeps the open Memos data model while improving mobile capture, offline posting, image viewing, tag organization, WebDAV backup, and AI-assisted workflows.
+InkPaper is an Android note app for Memos users. It keeps the open Memos data model while improving mobile capture, offline posting, image viewing, tag organization, WebDAV backup, and AI-assisted workflows.
 
 ### Core capabilities
 - **Fast capture**: create, edit, delete, and search notes from the home screen
@@ -590,7 +590,7 @@ docker run -d \
 - 打开图片后单击背景退出
 - 多图可左右滑动切换
 - 优先显示原图或可访问的远程资源
-- 移动端保存到相册，桌面端选择保存位置
+- 移动端保存到相册
         ''',
         en: '''
 ### Home rendering
@@ -602,7 +602,7 @@ docker run -d \
 - Tap the background once to exit
 - Swipe horizontally to switch between multiple images
 - Original images or accessible remote resources are preferred
-- Mobile saves to Photos; desktop lets you choose a save location
+- Saved images go to the system photo album
         ''',
       );
 

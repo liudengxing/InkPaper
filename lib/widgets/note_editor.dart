@@ -21,6 +21,7 @@ import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:inkpaper/utils/note_image_anchor.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_input_helper.dart';
+import 'package:inkpaper/widgets/capsule_text_selection_toolbar.dart';
 import 'package:inkpaper/widgets/memo_editing_controller.dart';
 import 'package:inkpaper/widgets/note_reference_dialog.dart';
 import 'package:path/path.dart' as path;
@@ -1440,6 +1441,23 @@ class _NoteEditorState extends State<NoteEditor>
                                                   InputBorder.none,
                                             ),
                                             cursorColor: iconColor,
+                                            // 选中文字的复制/粘贴菜单换成
+                                            // 仿系统的胶囊横条，尺寸参考
+                                            // HyperOS 的 ActionMode 悬浮条。
+                                            contextMenuBuilder:
+                                                (context, editableTextState) {
+                                              final anchors = editableTextState
+                                                  .contextMenuAnchors;
+                                              return CapsuleTextSelectionToolbar(
+                                                anchorAbove:
+                                                    anchors.primaryAnchor,
+                                                anchorBelow:
+                                                    anchors.secondaryAnchor ??
+                                                        anchors.primaryAnchor,
+                                                buttonItems: editableTextState
+                                                    .contextMenuButtonItems,
+                                              );
+                                            },
                                             style: TextStyle(
                                               fontSize: 16,
                                               color: textColor,

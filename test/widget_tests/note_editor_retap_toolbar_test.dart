@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/widgets/capsule_text_selection_toolbar.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -35,7 +36,7 @@ final Finder _editorField = find.byWidgetPredicate(
   (widget) => widget is TextField && widget.autofocus,
 );
 
-Finder get _selectionToolbar => find.byType(AdaptiveTextSelectionToolbar);
+Finder get _selectionToolbar => find.byType(CapsuleTextSelectionToolbar);
 
 Future<void> _openEditor(WidgetTester tester, String content) async {
   await tester.pumpWidget(_app(content));

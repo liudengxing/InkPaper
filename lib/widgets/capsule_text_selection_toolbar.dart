@@ -25,10 +25,10 @@ class CapsuleTextSelectionToolbar extends StatelessWidget {
   /// 由 `EditableTextState.contextMenuButtonItems` 提供（剪切/复制/粘贴…）。
   final List<ContextMenuButtonItem> buttonItems;
 
-  /// 参考 HyperOS 悬浮条：40dp 高、全圆角、14sp。
-  static const double _height = 40;
+  /// 参考 HyperOS 悬浮条：实测触控区 150px / density 3 = 50dp 高，字号 15sp。
+  static const double _height = 50;
   static const double _radius = _height / 2;
-  static const double _fontSize = 14;
+  static const double _fontSize = 15;
 
   @override
   Widget build(BuildContext context) {
@@ -123,9 +123,9 @@ class _CapsuleButton extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        // 系统那条按钮间的留白比 Material 松，靠水平 12dp 撑开；
+        // 系统那条按钮间的留白比 Material 松，靠水平 14dp 撑开；
         // 再大会让「剪切/复制/粘贴/分享/全选」六项顶出屏幕。
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Center(
           child: Text(
             label,

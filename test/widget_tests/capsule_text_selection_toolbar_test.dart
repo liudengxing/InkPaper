@@ -36,15 +36,15 @@ void main() {
         (widget) => widget is Material && widget.borderRadius != null,
       );
 
-  testWidgets('CST-01 胶囊尺寸：40dp 高、全圆角', (tester) async {
+  testWidgets('CST-01 胶囊尺寸：50dp 高、全圆角', (tester) async {
     await pumpToolbar(tester);
 
     final capsule = findCapsule();
     expect(capsule, findsOneWidget);
-    expect(tester.getSize(capsule).height, 40);
+    expect(tester.getSize(capsule).height, 50);
     expect(
       tester.widget<Material>(capsule).borderRadius,
-      BorderRadius.circular(20),
+      BorderRadius.circular(25),
     );
   });
 

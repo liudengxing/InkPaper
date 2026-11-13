@@ -99,6 +99,36 @@ if [ -z "$release_id" ]; then
 fi
 echo "release id: $release_id"
 
+if [ "${SKIP_ASSET_UPLOAD:-0}" = "1" ]; then
+  # 实测：GitHub Actions 机房到 Gitee 的上传带宽约 10 KB/s（1.1.84 那次 767 秒只传了
+  # 7.6 MB），50 MB 的 APK 要跑一个多小时，必定被 --speed-limit 掐断。CI 里试一次就是
+  # 白烧十几分钟外加一条常红的 Release 记录，所以只同步代码/标签/Release 本体，安装包
+  # 由本机 scripts/gitee_release.py 补传。
+  echo "== 3/3 跳过安装包上传（SKIP_ASSET_UPLOAD=1）"
+  echo "::warning::Gitee 安装包需本机补传：python3 scripts/gitee_release.py --tag $tag --notes-from-github --apk-from-github"
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    {
+      echo "### Gitee 安装包未在 CI 上传"
+      echo ""
+      echo "机房到 Gitee 的上传带宽约 10 KB/s，50 MB 的 APK 要跑一个多小时，CI 内无法完成。"
+      echo "代码、tag、Release 本体与发布说明已同步，安装包请在本地补传："
+      echo ""
+      echo '```bash'
+      echo "GITEE_TOKEN=<个人令牌> python3 scripts/gitee_release.py \\"
+      echo "    --tag $tag --notes-from-github --apk-from-github"
+      echo '```'
+    } >>"$GITHUB_STEP_SUMMARY"
+  fi
+  curl -sS "$api/releases/latest" \
+    | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+print("tag:", data.get("tag_name"))
+print("当前资产:", [a.get("name") for a in data.get("assets") or []] or "（空，待补传）")
+'
+  exit 0
+fi
+
 echo "== 3/3 上传安装包（只传 APK）"
 # 为什么不传 AAB：AAB 只给 Google Play 上传用，国内用户根本下载不到它，
 # 传上去等于多传 52 MB。而 Gitee 的附件上传通道在 GitHub Actions 机房里非常不稳，

@@ -305,6 +305,9 @@ jobs:
       # Gitee 镜像用；没配这个 secret 就只发 GitHub，不影响发版。
       GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
       TAG: ${{ needs.prepare.outputs.tag }}
+      # 机房到 Gitee 只有约 10 KB/s，50 MB 的 APK 在 CI 里必定传不完，
+      # 只同步代码/标签/Release 本体，安装包由本机 scripts/gitee_release.py 补传。
+      SKIP_ASSET_UPLOAD: '1'
     steps:
       - name: Skip (GITEE_TOKEN not configured)
         if: env.GITEE_TOKEN == ''
@@ -325,8 +328,8 @@ jobs:
         with:
           name: release-notes
           path: dist
-      - name: Push code, tags and APK to Gitee
+      - name: Push code, tags and release to Gitee
         if: env.GITEE_TOKEN != ''
         shell: bash
-        timeout-minutes: 45
+        timeout-minutes: 20
         run: bash scripts/publish_gitee.sh

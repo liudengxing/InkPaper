@@ -29,7 +29,7 @@ Official build (Android APK / AAB)
 
 Release assets are published on [Gitee Releases](https://gitee.com/liudengxing233/ink-paper/releases) (recommended from mainland China) and mirrored to [GitHub Releases](https://github.com/liudengxing/InkPaper/releases); both carry the same files.
 
-GitHub is slow to reach from mainland China, so CI mirrors the repository and the APK to Gitee (the AAB stays on GitHub). The in-app update check reads Gitee only. To clone from the mirror:
+GitHub is slow to reach from mainland China, so CI mirrors the repository, tags and release notes to Gitee (the AAB stays on GitHub). CI runners can only push about 10 KB/s to Gitee, so the APK itself is uploaded from the release machine afterwards. The in-app update check reads Gitee only. To clone from the mirror:
 
 ```bash
 git clone https://gitee.com/liudengxing233/ink-paper.git

@@ -1,3 +1,31 @@
+## 2026-11-13 · Gitee 安装包改由本机补传，Release 不再常红 · done
+
+### 问题
+- 每次发版 `Release` 的 `Mirror to Gitee` 都红。1.1.84 的日志给出定量证据：
+  `curl: (28) Operation too slow. Less than 20480 bytes/sec ...` →
+  `-> HTTP 100，7667712 字节，767.846885s，9985 B/s`，第二次 `HTTP 000` 连接 30 秒超时，
+  两次尝试共烧 14 分钟才 `##[error]` 退出
+- 根因是**带宽**不是脚本：GitHub Actions 机房到 Gitee 只有约 10 KB/s，50 MB 的 APK 要跑
+  一个多小时，必然被 `--speed-limit 20480 --speed-time 120` 掐断。本机（厦门电信）同样文件
+  2 MB/s、25 秒传完
+- 注意：`ci.yml` 里 push main 触发的 mirror 作业是绿的，因为它走 `MIRROR_ONLY=1` 不碰附件
+
+### 改动
+- `scripts/publish_gitee.sh` 新增 `SKIP_ASSET_UPLOAD=1`：跳过第 3 步，打 `::warning::` 并把
+  「本机补传」的命令写进 Step Summary，退出码 0。本地直跑脚本不设这个变量时行为不变
+- `.github/workflows/release.yml`：`mirror-gitee` 的 env 设 `SKIP_ASSET_UPLOAD: '1'`，
+  step 超时 45 → 20 分钟，步骤名改为 `Push code, tags and release to Gitee`
+- 新增 `scripts/gitee_release.py`（原 `Z:/Temp/gitee_release.py` 入库并增强）：token 从
+  `GITEE_TOKEN` 读、`--notes-from-github` 拉发布说明、`--apk-from-github` 走 `--mirror`
+  前缀拉 APK 并校验大小、同名附件幂等跳过
+- README 中英同步说明：代码/标签/说明由 CI 同步，安装包由发版机器补传
+
+### 验证
+- `bash -n scripts/publish_gitee.sh` 通过；`release.yml` PyYAML 解析通过，env 与步骤名符合预期
+- `python scripts/gitee_release.py --tag v1.1.84` 只读复跑：复用 Release `1304441`，
+  三个资产均在；加 `--apk-from-github` 后全部「已存在，跳过」，幂等成立
+- `store-check`：`Store checks passed for 1.1.84+10180`
+
 ## 2026-11-13 · 下载退路：Gitee 缺包时改用 GitHub（1.1.84+10180）· done
 
 ### 问题

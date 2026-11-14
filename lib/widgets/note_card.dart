@@ -381,6 +381,8 @@ class _NoteCardState extends State<NoteCard>
     int? decodeWidth,
   }) {
     try {
+      // 持久化缩略图命中就立刻渲染，不再排队错峰（见 _DeferredThumbnail 注释）
+      final thumb = _lookupThumb(imagePath, decodeWidth: decodeWidth);
       return GestureDetector(
         onTap: () => _showFullscreenImage(
           imagePath,
@@ -398,11 +400,13 @@ class _NoteCardState extends State<NoteCard>
             borderRadius: BorderRadius.circular(8),
             child: _DeferredThumbnail(
               delay: _thumbDecodeDelay + _thumbDecodeStep * index.clamp(0, 8),
+              immediate: thumb != null,
               placeholder: _buildThumbPlaceholder(),
               builder: () => _buildImageWidget(
                 imagePath,
                 context,
                 decodeWidth: decodeWidth,
+                knownThumb: thumb,
               ),
             ),
           ),
@@ -528,28 +532,46 @@ class _NoteCardState extends State<NoteCard>
   }
 
   // 构建图片组件，支持不同类型的图片源，支持长按保存
+  /// 卡片格子的解码宽度（物理像素），与九宫格、编辑器共用的档位口径一致。
+  int _memDecodeWidth(int? decodeWidth) => decodeWidth == null
+      ? 720
+      : gridTileDecodeWidth(decodeWidth.toDouble(), 1);
+
+  /// 图片在磁盘上有没有现成的缩略图。
+  ///
+  /// 与 [_buildImageWidget] 里的查找口径保持一致（服务端附件先映射到本地
+  /// 副本再查），否则这里判定「有」而那边又查不到，照样会退回原图。
+  File? _lookupThumb(String imagePath, {int? decodeWidth}) {
+    final memWidth = _memDecodeWidth(decodeWidth);
+    final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);
+    if (cachedAttachment != null) {
+      return ThumbCache.instance.lookup(cachedAttachment.path, width: memWidth);
+    }
+    if (imagePath.startsWith('file://')) {
+      return ThumbCache.instance.lookup(
+        imagePath.replaceFirst('file://', ''),
+        width: memWidth,
+      );
+    }
+    return null;
+  }
+
   Widget _buildImageWidget(
     String imagePath,
     BuildContext context, {
     int? decodeWidth,
+    File? knownThumb,
   }) {
     // 缩略图按卡片格子的实际像素宽度解码；全屏查看由 ImageViewerScreen 自己加载原图。
     // 网格缩略图统一收敛到 480/720 两个粗档，与详情页九宫格共用同一份缓存，
     // 进出详情时不必把同一批图重新解码一遍。
-    final memWidth = decodeWidth == null
-        ? 720
-        : gridTileDecodeWidth(
-            decodeWidth.toDouble(),
-            1,
-          );
+    final memWidth = _memDecodeWidth(decodeWidth);
     try {
       // 数据维护里缓存过的服务端附件：直接读本地副本
       final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);
       if (cachedAttachment != null) {
-        final thumb = ThumbCache.instance.lookup(
-          cachedAttachment.path,
-          width: memWidth,
-        );
+        final thumb = knownThumb ??
+            ThumbCache.instance.lookup(cachedAttachment.path, width: memWidth);
         return Image.file(
           thumb ?? cachedAttachment,
           key: ValueKey((thumb ?? cachedAttachment).path),
@@ -702,7 +724,8 @@ class _NoteCardState extends State<NoteCard>
         // 有持久化缩略图就读小文件：480 宽 JPEG 解码 5~10ms，原图是 12MP、
         // 单张 150~250ms。缩略图存在磁盘上，冷启动与进程被杀后同样命中，
         // 这正是内存 ImageCache 给不了的。
-        final thumb = ThumbCache.instance.lookup(filePath, width: memWidth);
+        final thumb =
+            knownThumb ?? ThumbCache.instance.lookup(filePath, width: memWidth);
         if (thumb != null) {
           return Image.file(
             thumb,
@@ -1180,16 +1203,23 @@ class _NoteCardState extends State<NoteCard>
 ///
 /// [delay] 到了之后才执行 [builder]，让同一张卡片里的多张图不要挤在同一帧解码；
 /// 卡片被回收重建时会重新计时，但命中 ImageCache 的图会立刻出图，不会闪。
+///
+/// [immediate] 为 true 时跳过延迟，首帧就构建。持久化缩略图命中时走这条路：
+/// 480px JPEG 解码只要 5~10ms，为它压 90~330ms 的错峰毫无意义，那段空白
+/// 正是「明明缓存过、滑到还是要白一下」的来源。只有退回原图（12MP，单张
+/// 150~250ms）才值得摊到后面几帧。
 class _DeferredThumbnail extends StatefulWidget {
   const _DeferredThumbnail({
     required this.delay,
     required this.placeholder,
     required this.builder,
+    this.immediate = false,
   });
 
   final Duration delay;
   final Widget placeholder;
   final Widget Function() builder;
+  final bool immediate;
 
   @override
   State<_DeferredThumbnail> createState() => _DeferredThumbnailState();
@@ -1202,12 +1232,22 @@ class _DeferredThumbnailState extends State<_DeferredThumbnail> {
   @override
   void initState() {
     super.initState();
+    if (widget.immediate) {
+      _ready = true;
+      return;
+    }
     _schedule();
   }
 
   @override
   void didUpdateWidget(covariant _DeferredThumbnail oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // 命中状态变了（缩略图刚生成好）就立刻放行，不必等下一次延迟
+    if (widget.immediate && !_ready) {
+      _timer?.cancel();
+      _ready = true;
+      return;
+    }
     if (oldWidget.delay != widget.delay) {
       _timer?.cancel();
       _ready = false;

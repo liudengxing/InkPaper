@@ -34,6 +34,7 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
   int _imagesCount = 0;
   double _imagesSize = 0;
   double _thumbsSize = 0;
+  int _thumbsCount = 0;
 
   @override
   void initState() {
@@ -69,6 +70,9 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
       final thumbsSize = await _directorySizeMb(
         Directory('${thumbsDir.path}/thumbs'),
       );
+      final thumbsCount = await _countFiles(
+        Directory('${thumbsDir.path}/thumbs'),
+      );
 
       if (mounted) {
         setState(() {
@@ -79,6 +83,7 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
           _imagesCount = imagesCount;
           _imagesSize = imagesSize;
           _thumbsSize = thumbsSize;
+          _thumbsCount = thumbsCount;
         });
       }
     } on Object catch (e) {
@@ -107,6 +112,25 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
       return totalSize / (1024 * 1024);
     } on Object catch (e) {
       debugPrint('计算目录占用失败: $e');
+      return 0;
+    }
+  }
+
+  // 数目录里的文件个数（缩略图覆盖率：和图片数量对照着看就知道补没补全）
+  Future<int> _countFiles(Directory dir) async {
+    try {
+      if (!await dir.exists()) {
+        return 0;
+      }
+      var count = 0;
+      await for (final entity in dir.list()) {
+        if (entity is File) {
+          count++;
+        }
+      }
+      return count;
+    } on Object catch (e) {
+      debugPrint('统计文件数失败: $e');
       return 0;
     }
   }
@@ -636,7 +660,14 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
               _buildStatItem(
                 Icons.picture_in_picture_alt_outlined,
                 '缩略图占用',
-                '${_thumbsSize.toStringAsFixed(2)} MB',
+                '${_thumbsSize.toStringAsFixed(2)} MB · $_thumbsCount 个',
+              ),
+              const SizedBox(height: 8),
+              _buildStatItem(
+                Icons.bolt_outlined,
+                '缩略图命中',
+                '${ThumbCache.instance.lookupHits} 命中 / '
+                    '${ThumbCache.instance.lookupMisses} 未命中',
               ),
               const SizedBox(height: 12),
               Center(

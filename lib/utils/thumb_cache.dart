@@ -198,6 +198,21 @@ class ThumbCache {
     }
   }
 
+  /// 本次进程内的命中/未命中统计。
+  ///
+  /// 没有这个数就只能靠肉眼猜「到底命中没有」：卡片命中缩略图出图是毫秒级，
+  /// 落到原图要 150~250ms，观感差别很大但都无法从代码读出。数据清理页把它
+  /// 显示出来，一眼就能判断缩略图有没有真正被用上。
+  int _lookupHits = 0;
+  int _lookupMisses = 0;
+
+  int get lookupHits => _lookupHits;
+
+  int get lookupMisses => _lookupMisses;
+
+  /// 已索引的缩略图数量（约等于覆盖的图片数）。
+  int get knownCount => _known.length;
+
   /// 同步查缩略图。命中返回文件，否则返回 null（调用方回退原图）。
   ///
   /// 未命中时顺手触发一次后台生成：用户这次看的是原图，下次进来就是缩略图。
@@ -220,10 +235,12 @@ class ThumbCache {
       // 这里一次 stat 就能发现，顺手把条目踢掉、退回原图并触发重建；
       // stat 在页缓存里是微秒级，比让 Image.file 渲染成破图划算得多。
       if (file.existsSync()) {
+        _lookupHits++;
         return file;
       }
       _known.remove(name);
     }
+    _lookupMisses++;
     if (_autoGenerateOnMiss &&
         !_inflight.contains(name) &&
         !_giveUp.contains(name)) {

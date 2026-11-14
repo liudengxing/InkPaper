@@ -56,7 +56,7 @@ jobs:
         shell: bash
         run: bash scripts/ci_annotate.sh "$RUNNER_TEMP/verify.log"
       - name: Upload coverage
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-lcov
           path: coverage/lcov.info
@@ -168,7 +168,7 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
         run: dart tool/inkpaper.dart build android-aab
       - name: Upload Android artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: android-package
           path: |

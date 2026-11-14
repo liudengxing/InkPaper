@@ -57,6 +57,24 @@ class ImportExportMainScreen extends StatelessWidget {
 
           const SizedBox(height: 16),
 
+          // WebDAV 备份与恢复
+          _buildOptionCard(
+            context: context,
+            cardColor: cardColor,
+            textColor: textColor,
+            secondaryTextColor: secondaryTextColor,
+            iconColor: iconColor,
+            icon: Icons.cloud_sync_rounded,
+            title: AppLocalizationsSimple.of(context)?.webdavSync ??
+                'WebDAV 备份与恢复',
+            description: '通过 WebDAV 服务（如坚果云）在多台设备间备份与恢复数据',
+            onTap: () {
+              context.push('/webdav-settings');
+            },
+          ),
+
+          const SizedBox(height: 16),
+
           // Flomo 导入
           _buildOptionCard(
             context: context,

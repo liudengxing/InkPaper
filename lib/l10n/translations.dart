@@ -377,7 +377,7 @@ class Translations {
     },
 
     // ===== 导入导出页面 =====
-    'importExport': {'zh': '导入导出', 'en': 'Import/Export'},
+    'importExport': {'zh': '备份与同步', 'en': 'Backup & Sync'},
     'localBackupRestore': {'zh': '本地备份与恢复', 'en': 'Local Backup & Restore'},
     'localBackupDescription': {
       'zh': '备份数据到本地文件，或从本地文件恢复数据',

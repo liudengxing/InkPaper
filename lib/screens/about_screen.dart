@@ -297,7 +297,7 @@ class AboutScreen extends StatelessWidget {
                     label: AppLocalizationsSimple.of(context)?.emailAddress ??
                         '电子邮件',
                     value: AppConfig.supportEmail,
-                    onTap: () => _launchURL('mailto:${AppConfig.supportEmail}'),
+                    onTap: () => context.push('/feedback'),
                   ),
                   const Divider(height: 24),
                   _buildContactItem(
@@ -307,6 +307,15 @@ class AboutScreen extends StatelessWidget {
                         '开源仓库',
                     value: AppConfig.githubRepo,
                     onTap: () => _launchURL(AppConfig.githubRepo),
+                  ),
+                  const Divider(height: 24),
+                  _buildContactItem(
+                    context,
+                    icon: Icons.feedback_outlined,
+                    label:
+                        AppLocalizationsSimple.of(context)?.feedback ?? '意见反馈',
+                    value: '问题和建议直达',
+                    onTap: () => context.push('/feedback'),
                   ),
                 ],
               ),

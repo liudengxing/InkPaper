@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Less brand green**: the help screen, home-screen top bar icons and the update/download dialog now use the same light-grey style as the home cards.
 - **DeepSeek whale for the AI entry**: the "AI Assistant" item in Settings now shows the official DeepSeek whale logo.
 - **AI service preset switcher**: AI settings now offer a service dropdown — pick DeepSeek for the official endpoint and current official models, or Custom to keep free-form setup; "Test API Connection" moved above the custom prompts.
+- **Backup & sync regrouped**: WebDAV sync moved into the "Backup & Sync" screen, one fewer settings entry.
+- **Feedback relocated**: "Feedback" now lives in the About screen's contact section, and tapping the email entry opens it directly.
 - **Page while zoomed**: drag a zoomed photo to its edge and keep going to flip to the next picture, no need to zoom out first.
 
 ### Removed

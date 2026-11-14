@@ -43,7 +43,7 @@ class AppLocalizationsSimple {
       _t('settingsDataManagement', fallback: '数据管理');
   String get settingsSupport => _t('settingsSupport', fallback: '支持');
   String get accountInfo => _t('accountInfo', fallback: '账户信息');
-  String get importExport => _t('importExport', fallback: '导入导出');
+  String get importExport => _t('importExport', fallback: '备份与同步');
   String get dataCleanup => _t('dataCleanup', fallback: '数据清理');
   String get laboratory => _t('laboratory', fallback: '实验室');
   String get randomReview => _t('randomReview', fallback: '随机回顾');

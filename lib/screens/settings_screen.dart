@@ -135,16 +135,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildSettingsItem(
                 context,
-                icon: Icons.import_export,
-                title: l10n?.importExport ?? '导入导出',
+                icon: Icons.backup_outlined,
+                title: l10n?.importExport ?? '备份与同步',
                 onTap: () => context.push('/settings/import-export'),
-              ),
-              _buildSettingsItem(
-                context,
-                icon: Icons.cloud_sync,
-                title: AppLocalizationsSimple.of(context)?.webdavSync ??
-                    'WebDAV 同步',
-                onTap: () => context.push('/webdav-settings'),
               ),
               _buildSettingsItem(
                 context,
@@ -179,12 +172,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 l10n?.settingsSupport ?? '支持',
                 isDarkMode,
                 textColor,
-              ),
-              _buildSettingsItem(
-                context,
-                icon: Icons.feedback_rounded,
-                title: l10n?.feedback ?? '意见反馈',
-                onTap: () => context.push('/feedback'),
               ),
               _buildSettingsItem(
                 context,

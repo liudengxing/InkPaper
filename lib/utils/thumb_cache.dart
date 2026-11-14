@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:inkpaper/utils/image_decode_width.dart';
+import 'package:inkpaper/utils/native_thumb_decoder.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -44,19 +45,22 @@ class ThumbCache {
   /// 82 是肉眼几乎无损的档位，再高只是让文件变大。
   static const int _jpegQuality = 82;
 
-  /// 动图缩略图会变成静图、HEIC 解码器不支持，这些直接回退原图。
-  static const Set<String> _skipExtensions = <String>{
-    '.gif',
-    '.heic',
-    '.heif',
-    '.mp4',
-    '.mov',
-    '.m4v',
-  };
+  /// 视频没有解码器，做了也没意义，直接回退原图。
+  ///
+  /// 动图（GIF）与 HEIC 早先也在这张表里，代价是 151 张图只有 108 个缩略图，
+  /// 剩下 43 张每次渲染都要现解原图 —— 滑到多图笔记就白一片。现在：
+  /// GIF 取首帧存静图（[animatedExtensions]），HEIC 交给 Android 原生解码
+  /// （[nativeDecodeExtensions]）。
+  static const Set<String> _skipExtensions = <String>{'.mp4', '.mov', '.m4v'};
 
-  /// 不做缩略图的扩展名。数据清理页用它区分「没补上」和「本来就不做」：
-  /// 目录里 151 张图只有 108 个缩略图是正常的（动图/HEIC 占一部分），
-  /// 不看这一项会误判成补齐失败。
+  /// 动图只取第一帧，缩略图是静图。列表里不再动，点开大图读的仍是原图。
+  static const Set<String> animatedExtensions = <String>{'.gif'};
+
+  /// Dart 侧没有 HEVC 解码器（`package:image` 只认 jpeg/png/gif/webp/tiff/
+  /// psd/exr/tga/bmp），这两种必须走 Android 原生 `ImageDecoder`。
+  static const Set<String> nativeDecodeExtensions = <String>{'.heic', '.heif'};
+
+  /// 不做缩略图的扩展名。数据清理页用它区分「没补上」和「本来就不做」。
   static Set<String> get skippedExtensions => _skipExtensions;
 
   /// 已生成的缩略图文件名。渲染发生在 build 里，不能做异步 IO，
@@ -144,6 +148,9 @@ class ThumbCache {
   /// 编码器。生产环境走 `compute` 丢到后台 isolate；单测里换成同步实现，
   /// 否则 flutter_test 的 fake async 会把 isolate 的 Future 晾在半空。
   ThumbEncoder _encoder = _computeEncode;
+
+  /// HEIC/HEIF 走这条（Dart 侧解不出来）。单测里换成假实现，避开平台通道。
+  NativeThumbDecoder _nativeDecoder = decodeNativeThumbnail;
 
   String? _dirPath;
   String? _imagesDirPath;
@@ -277,6 +284,7 @@ class ThumbCache {
     if (name == null) {
       return null;
     }
+    final ext = p.extension(abs).toLowerCase();
     final target = File(p.join(dirPath, name));
     if (_known.contains(name)) {
       return target;
@@ -303,8 +311,14 @@ class ThumbCache {
       if (_known.contains(name)) {
         return target;
       }
-      final bytes = await source.readAsBytes();
-      final encoded = await _encoder(bytes, bucket, _wantsLossless(abs));
+      final Uint8List? encoded;
+      if (nativeDecodeExtensions.contains(ext)) {
+        // HEIC 按路径交给原生解码：采样解码连原图字节都不用读（一张 3~5MB）。
+        encoded = await _nativeDecoder(abs, bucket);
+      } else {
+        final bytes = await source.readAsBytes();
+        encoded = await _encoder(bytes, bucket, _wantsLossless(abs));
+      }
       if (encoded == null || encoded.isEmpty) {
         _giveUp.add(name);
         return null;
@@ -565,7 +579,9 @@ class ThumbCache {
 
   bool _wantsLossless(String absolutePath) {
     final ext = p.extension(absolutePath).toLowerCase();
-    return ext == '.png' || ext == '.webp';
+    // GIF 同样走 PNG：表情包多是透明底，首帧还常只覆盖部分区域（GIF 的
+    // 局部帧优化），压成 JPEG 会得到一块块黑底。
+    return ext == '.png' || ext == '.webp' || ext == '.gif';
   }
 
   /// 把 `file://` 与正文里的相对路径（`images/xxx.jpg`）都归一成绝对路径。
@@ -613,6 +629,12 @@ class ThumbCache {
     _encoder = encoder;
   }
 
+  /// 仅测试用：换掉原生解码器。测试环境没有平台通道，默认实现会返回 null。
+  @visibleForTesting
+  void debugSetNativeDecoder(NativeThumbDecoder decoder) {
+    _nativeDecoder = decoder;
+  }
+
   /// 仅测试用：关掉 lookup 未命中时的后台生成。
   @visibleForTesting
   void debugSetAutoGenerateOnMiss(bool enabled) {
@@ -641,11 +663,20 @@ class _EncodeSlot {
   final Completer<void> completer = Completer<void>();
 }
 
-/// 把原图字节压成缩略图字节。返回 null 表示这个格式解不了（比如 HEIC）。
+/// 把原图字节压成缩略图字节。返回 null 表示这个格式解不了。
 typedef ThumbEncoder = Future<Uint8List?> Function(
   Uint8List bytes,
   int width,
   bool lossless,
+);
+
+/// HEIC/HEIF 的原生解码器：给原图路径与目标宽度，返回 JPEG 字节。
+///
+/// 返回 null 表示这个平台解不了（桌面端、Android 8.1 及以下、文件损坏），
+/// 调用方按「没有缩略图」处理并退回原图。
+typedef NativeThumbDecoder = Future<Uint8List?> Function(
+  String path,
+  int width,
 );
 
 Future<Uint8List?> _computeEncode(
@@ -674,9 +705,14 @@ class _ThumbTask {
 
 /// 顶层函数：`compute` 只能调顶层/静态方法，且参数要能跨 isolate 传递。
 Uint8List? _encodeThumbTask(_ThumbTask task) {
-  final decoded = img.decodeImage(task.bytes);
+  // frame: 0 是必须的。GifDecoder / WebPDecoder 在 frame == null 时会把**所有
+  // 帧**都解出来再合成（gif_decoder.dart:176、webp_decoder.dart:122），一个
+  // 几十帧的动图等于白解几十次，比直接读原图还慢。传 0 只解首帧；JPEG/PNG
+  // 的 decode 会忽略这个参数，不受影响。
+  final decoded = img.decodeImage(task.bytes, frame: 0);
   if (decoded == null) {
-    // HEIC 之类解不了的格式，交给原图路径处理。
+    // HEIC 已经在 ensure 里分流到原生解码，走不到这里；剩下的都是真正的
+    // 未知格式，交给原图路径处理。
     return null;
   }
   // 已经比目标窄的图不用放大，放大只会变糊且更占空间。

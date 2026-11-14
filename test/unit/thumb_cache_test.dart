@@ -14,6 +14,23 @@ Uint8List _makeImage(int width, int height) {
   return Uint8List.fromList(img.encodePng(image));
 }
 
+/// 造一张纯色 JPEG，模拟原生通道产出的字节。
+Uint8List _makeJpeg(int width, int height) {
+  final image = img.Image(width: width, height: height);
+  img.fill(image, color: img.ColorRgb8(36, 71, 61));
+  return Uint8List.fromList(img.encodeJpg(image));
+}
+
+/// 造一个两帧 GIF：首帧红、次帧蓝，用来验证缩略图只取首帧。
+Uint8List _makeAnimatedGif() {
+  final first = img.Image(width: 60, height: 40, numChannels: 4);
+  img.fill(first, color: img.ColorRgba8(200, 30, 30, 255));
+  final second = img.Image(width: 60, height: 40, numChannels: 4);
+  img.fill(second, color: img.ColorRgba8(30, 30, 200, 255));
+  first.addFrame(second);
+  return Uint8List.fromList(img.encodeGif(first));
+}
+
 void main() {
   late Directory root;
   late String imagesDir;
@@ -36,6 +53,9 @@ void main() {
     );
     // lookup 未命中时的后台生成会污染断言与 tearDown，这里关掉
     ThumbCache.instance.debugSetAutoGenerateOnMiss(false);
+    // 平台通道在测试环境不存在，默认给一个「解不出来」的实现，
+    // 需要验证 HEIC 的用例再各自注入假解码器
+    ThumbCache.instance.debugSetNativeDecoder((path, width) async => null);
   });
 
   tearDown(() {
@@ -55,12 +75,24 @@ void main() {
       expect(name, 'shot_${ThumbCache.defaultWidth}.png');
     });
 
-    test('TC-03 动图与 HEIC 不做缩略图', () {
-      for (final ext in ['.gif', '.heic', '.heif', '.mp4']) {
+    test('TC-03 视频不做缩略图，动图与 HEIC 现在都做', () {
+      for (final ext in ['.mp4', '.mov', '.m4v']) {
         expect(
           ThumbCache.instance.fileNameFor('/a/images/x$ext'),
           isNull,
-          reason: '$ext 应该回退原图',
+          reason: '$ext 是视频，应该回退原图',
+        );
+      }
+      // GIF 取首帧、HEIC 走原生解码：都必须有名字，否则根本进不了补齐队列
+      expect(
+        ThumbCache.instance.fileNameFor('/a/images/x.gif'),
+        'x_${ThumbCache.defaultWidth}.png',
+        reason: '动图首帧常带透明，要输出 PNG',
+      );
+      for (final ext in ['.heic', '.heif']) {
+        expect(
+          ThumbCache.instance.fileNameFor('/a/images/x$ext'),
+          'x_${ThumbCache.defaultWidth}.jpg',
         );
       }
     });
@@ -186,11 +218,48 @@ void main() {
       expect(count, 4);
     });
 
-    test('TC-15 backfill 不动目录外的东西，动图也不会生成', () async {
-      File(p.join(imagesDir, 'anim.gif')).writeAsBytesSync(_makeImage(120, 90));
+    test('TC-15 动图也补出首帧缩略图，输出单帧 PNG', () async {
+      File(p.join(imagesDir, 'anim.gif')).writeAsBytesSync(_makeAnimatedGif());
       final done = await ThumbCache.instance.backfill();
-      expect(done, 0);
-      expect(Directory(thumbsDir).listSync(), isEmpty);
+      expect(done, 1);
+      final files = Directory(thumbsDir).listSync().whereType<File>().toList();
+      expect(files.length, 1);
+      expect(p.extension(files.first.path), '.png');
+      final decoded = img.decodePng(files.first.readAsBytesSync());
+      expect(decoded, isNotNull);
+      expect(decoded!.numFrames, 1, reason: '缩略图只该保留首帧');
+    });
+
+    test('TC-20 HEIC 交给原生解码，不走 Dart 编码器', () async {
+      // 目录里放的是假 HEIC：Dart 侧根本解不出来，能出图就说明走了原生通道
+      final path = p.join(imagesDir, 'shot.HEIC');
+      File(path).writeAsBytesSync(Uint8List.fromList(<int>[0, 1, 2, 3]));
+      var calledPath = '';
+      ThumbCache.instance.debugSetNativeDecoder((filePath, width) async {
+        calledPath = filePath;
+        expect(width, ThumbCache.defaultWidth);
+        return _makeJpeg(width, 360);
+      });
+
+      final thumb = await ThumbCache.instance.ensure(path);
+      expect(calledPath, path);
+      expect(thumb, isNotNull);
+      expect(p.basename(thumb!.path), 'shot_${ThumbCache.defaultWidth}.jpg');
+      expect(thumb.lengthSync(), greaterThan(0));
+    });
+
+    test('TC-21 原生解码失败就退回原图，且本进程不再重试', () async {
+      final path = p.join(imagesDir, 'broken.heic');
+      File(path).writeAsBytesSync(Uint8List.fromList(<int>[9, 9, 9]));
+      var calls = 0;
+      ThumbCache.instance.debugSetNativeDecoder((filePath, width) async {
+        calls++;
+        return null;
+      });
+
+      expect(await ThumbCache.instance.ensure(path), isNull);
+      expect(await ThumbCache.instance.ensure(path), isNull);
+      expect(calls, 1, reason: '失败过的要进 _giveUp，补齐不能反复啃它');
     });
 
     test('TC-18 startBackfill 一直补到追平，重复调用复用同一个 Future', () async {

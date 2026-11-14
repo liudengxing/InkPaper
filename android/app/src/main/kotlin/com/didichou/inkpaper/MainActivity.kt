@@ -24,7 +24,11 @@ import java.util.concurrent.Executors
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.didichou.inkpaper/native_alarm"
+
+    /** HEIC/HEIF 缩略图解码通道，Dart 侧见 lib/utils/native_thumb_decoder.dart。 */
+    private val THUMB_CHANNEL = "com.didichou.inkpaper/thumbnail"
     private var methodChannel: MethodChannel? = null
+    private var thumbnailChannel: MethodChannel? = null
     private var pendingNoteId: Int? = null
     private var pendingSharedPayload: Map<String, Any>? = null
     private var pendingDeepLink: String? = null
@@ -45,6 +49,26 @@ class MainActivity: FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
+        // HEIC/HEIF 缩略图：Dart 侧的 image 包没有 HEVC 解码器，只能借平台。
+        // 解码在后台线程，result 必须回主线程回调。
+        thumbnailChannel =
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, THUMB_CHANNEL)
+        thumbnailChannel?.setMethodCallHandler { call, result ->
+            if (call.method == "decodeThumbnail") {
+                val path = call.argument<String>("path")
+                if (path.isNullOrEmpty()) {
+                    result.success(null)
+                } else {
+                    val width = call.argument<Int>("width") ?: 480
+                    ThumbnailDecoder.decode(path, width) { bytes ->
+                        mainHandler.post { result.success(bytes) }
+                    }
+                }
+            } else {
+                result.notImplemented()
+            }
+        }
+
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
         methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {

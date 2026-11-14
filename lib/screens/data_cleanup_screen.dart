@@ -37,8 +37,13 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
   double _thumbsSize = 0;
   int _thumbsCount = 0;
 
-  /// 目录里不做缩略图的张数（动图/HEIC），用来解释「缩略图数 < 图片数」
-  int _unsupportedCount = 0;
+  /// 目录里各类特殊图片的张数，用来解释「缩略图数 < 图片数」。
+  ///
+  /// 动图与 HEIC 现在都能出缩略图（首帧 / 原生解码），分开计数是为了
+  /// 一眼看出缺口落在哪一类 —— 比如「HEIC 0 个」就说明那批老图全是 GIF。
+  int _gifCount = 0;
+  int _heicCount = 0;
+  int _videoCount = 0;
 
   @override
   void initState() {
@@ -77,7 +82,7 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
       final thumbsCount = await _countFiles(
         Directory('${thumbsDir.path}/thumbs'),
       );
-      final unsupportedCount = await _countUnsupportedImages(
+      final specialImages = await _countSpecialImages(
         Directory('${appDocDir.path}/images'),
       );
 
@@ -91,7 +96,9 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
           _imagesSize = imagesSize;
           _thumbsSize = thumbsSize;
           _thumbsCount = thumbsCount;
-          _unsupportedCount = unsupportedCount;
+          _gifCount = specialImages.gifs;
+          _heicCount = specialImages.heics;
+          _videoCount = specialImages.videos;
         });
       }
     } on Object catch (e) {
@@ -143,26 +150,39 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
     }
   }
 
-  /// 数出「本来就不做缩略图」的图片（动图、HEIC 等）。
+  /// 按类别数出目录里的特殊图片：动图、HEIC/HEIF、视频。
   ///
-  /// 用户看到 151 张图只对应 108 个缩略图会以为补漏了，这里把两者对上。
-  Future<int> _countUnsupportedImages(Directory dir) async {
+  /// 用户看到 151 张图只对应 108 个缩略图会以为补漏了，这里把缺口对上。
+  /// 动图与 HEIC 现在都会生成缩略图（首帧 / 原生解码），只有视频不做，
+  /// 因此「缩略图数 + 视频数 < 图片数」才说明真的补漏了。
+  Future<({int gifs, int heics, int videos})> _countSpecialImages(
+    Directory dir,
+  ) async {
+    const empty = (gifs: 0, heics: 0, videos: 0);
     try {
       if (!await dir.exists()) {
-        return 0;
+        return empty;
       }
-      final skipped = ThumbCache.skippedExtensions;
-      var count = 0;
+      var gifs = 0;
+      var heics = 0;
+      var videos = 0;
       await for (final entity in dir.list()) {
-        if (entity is File &&
-            skipped.contains(p.extension(entity.path).toLowerCase())) {
-          count++;
+        if (entity is! File) {
+          continue;
+        }
+        final ext = p.extension(entity.path).toLowerCase();
+        if (ThumbCache.animatedExtensions.contains(ext)) {
+          gifs++;
+        } else if (ThumbCache.nativeDecodeExtensions.contains(ext)) {
+          heics++;
+        } else if (ThumbCache.skippedExtensions.contains(ext)) {
+          videos++;
         }
       }
-      return count;
+      return (gifs: gifs, heics: heics, videos: videos);
     } on Object catch (e) {
-      debugPrint('统计不支持缩略图的图片数失败: $e');
-      return 0;
+      debugPrint('统计特殊图片数失败: $e');
+      return empty;
     }
   }
 
@@ -693,12 +713,28 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
                 '缩略图占用',
                 '${_thumbsSize.toStringAsFixed(2)} MB · $_thumbsCount 个',
               ),
-              if (_unsupportedCount > 0) ...[
+              if (_gifCount > 0) ...[
+                const SizedBox(height: 8),
+                _buildStatItem(
+                  Icons.gif_box_outlined,
+                  '动图 · 取首帧',
+                  '$_gifCount 个',
+                ),
+              ],
+              if (_heicCount > 0) ...[
+                const SizedBox(height: 8),
+                _buildStatItem(
+                  Icons.photo_camera_back_outlined,
+                  'HEIC · 原生解码',
+                  '$_heicCount 个',
+                ),
+              ],
+              if (_videoCount > 0) ...[
                 const SizedBox(height: 8),
                 _buildStatItem(
                   Icons.movie_outlined,
-                  '不支持缩略图',
-                  '$_unsupportedCount 个（动图/HEIC）',
+                  '不做缩略图',
+                  '$_videoCount 个（视频）',
                 ),
               ],
               const SizedBox(height: 8),

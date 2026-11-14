@@ -11,9 +11,13 @@
     <!-- 桌面小部件玻璃质感：半透明底 + 垂直高光 + 双层描边（外暗边 + 内亮边）。
          RemoteViews 拿不到实时模糊（launcher 进程拿不到 Window，且 HyperOS
          拒绝第三方读壁纸，权限路径被商店政策堵死），玻璃感只能靠「壁纸透出来
-         + 边界光」模拟 —— 所以底色不透明度必须够低，否则就是一块白板。 -->
-    <color name="inkpaper_widget_background">#99FFFFFF</color>
-    <color name="inkpaper_widget_surface">#8CFFFFFF</color>
+         + 边界光」模拟。
+         不透明度的取舍（2026-11-15 真机定稿）：iOS 玻璃之所以能用低透明度，
+         是因为背后已经被模糊糊成色块，细节不进眼睛；我们没有模糊，深色壁纸上
+         60% 白会让深色正文陷进深灰底里糊成一片。所以底色抬到 85%，让字先立住，
+         「透」和「玻璃」改由边缘光（highlight / sheen / rim）承担。 -->
+    <color name="inkpaper_widget_background">#C7FFFFFF</color>
+    <color name="inkpaper_widget_surface">#B4FFFFFF</color>
     <color name="inkpaper_widget_text">#1F2A27</color>
     <color name="inkpaper_widget_muted">#4F5A55</color>
     <color name="inkpaper_widget_border">#38000000</color>
@@ -30,11 +34,11 @@
     <!-- 真玻璃背景（壁纸模糊位图）的叠色：按系统明暗在 Kotlin 里显式取用，
          不走 values-night 自动解析 —— 小部件位图在 App 进程烘焙，
          App 自身主题可能与系统不一致，必须以系统明暗为准 -->
-    <color name="inkpaper_widget_glass_tint">#A8FFFFFF</color>
+    <color name="inkpaper_widget_glass_tint">#C7FFFFFF</color>
     <color name="inkpaper_widget_glass_highlight_start">#66FFFFFF</color>
     <color name="inkpaper_widget_glass_highlight_end">#0DFFFFFF</color>
     <color name="inkpaper_widget_glass_border">#2E000000</color>
-    <color name="inkpaper_widget_glass_tint_night">#A8FFFFFF</color>
+    <color name="inkpaper_widget_glass_tint_night">#C7FFFFFF</color>
     <color name="inkpaper_widget_glass_highlight_start_night">#66FFFFFF</color>
     <color name="inkpaper_widget_glass_highlight_end_night">#0DFFFFFF</color>
     <color name="inkpaper_widget_glass_border_night">#2E000000</color>

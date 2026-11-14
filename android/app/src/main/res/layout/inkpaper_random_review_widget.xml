@@ -68,8 +68,11 @@
             android:layout_height="0dp"
             android:layout_marginTop="12dp"
             android:layout_weight="1"
+            android:cacheColorHint="@android:color/transparent"
             android:divider="@null"
             android:dividerHeight="0dp"
+            android:listSelector="@android:color/transparent"
+            android:requiresFadingEdge="none"
             android:scrollbars="none" />
 
         <TextView

@@ -5,6 +5,7 @@
     android:id="@+id/inkpaper_widget_review_row"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:background="@android:color/transparent"
     android:orientation="vertical">
 
     <TextView
@@ -12,6 +13,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:lineSpacingExtra="2dp"
+        android:shadowColor="@android:color/transparent"
+        android:shadowDx="0"
+        android:shadowDy="0"
+        android:shadowRadius="0"
         android:textColor="@color/inkpaper_widget_text"
         android:textSize="14sp" />
 </LinearLayout>

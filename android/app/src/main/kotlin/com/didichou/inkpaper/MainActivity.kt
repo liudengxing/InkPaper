@@ -251,7 +251,9 @@ class MainActivity: FlutterActivity() {
             ) {
                 handleSharedContent(it)
             } 
-            else if (it.data?.scheme == "InkPaper") {
+            // scheme 由 intent-filter 归一化成小写，必须按小写比较
+            // （旧代码写死 "InkPaper" 永远匹配不上，自有深链一直是死路）
+            else if (it.data?.scheme?.lowercase() == "inkpaper") {
                 handleDeepLink(it.data.toString())
             }
             else {

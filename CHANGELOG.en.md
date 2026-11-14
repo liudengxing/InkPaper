@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.95] - 2026-11-14
+
+### Improved
+
+- **Grey accent in the random review widget**: the widget's accent color is now grey, matching the frosted-glass background.
+
 ## [1.1.94] - 2026-11-14
 
 ### Improved

@@ -8,6 +8,7 @@ import 'package:inkpaper/config/app_config.dart' as Config;
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/services/random_review_selector_service.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
+import 'package:inkpaper/utils/tag_input_helper.dart';
 import 'package:inkpaper/utils/todo_parser.dart';
 
 abstract final class WidgetSnapshotService {
@@ -122,17 +123,10 @@ abstract final class WidgetSnapshotService {
     final todayNotes = visibleNotes
         .where((note) => note.displayTime.isAfter(todayStart))
         .toList();
-    final tagCounts = <String, int>{};
     var pendingTodos = 0;
     var todayWords = 0;
 
     for (final note in visibleNotes) {
-      for (final tag in note.tags) {
-        final cleanTag = tag.trim();
-        if (cleanTag.isNotEmpty) {
-          tagCounts[cleanTag] = (tagCounts[cleanTag] ?? 0) + 1;
-        }
-      }
       pendingTodos += TodoParser.countTodos(note.content)['pending'] ?? 0;
     }
 
@@ -141,11 +135,14 @@ abstract final class WidgetSnapshotService {
           _wordCount(MemosContentHelper.previewVisibleText(note.content));
     }
 
-    final quickTags = tagCounts.entries.toList()
-      ..sort((a, b) {
-        final byCount = b.value.compareTo(a.value);
-        return byCount != 0 ? byCount : a.key.compareTo(b.key);
-      });
+    // 快速记录小部件的标签排序与编辑器「#标签」补全同源：
+    // rankTagsByUsage（频次 × 新鲜度加权），用户常用标签浮到前面。
+    // 早先这里只按出现次数降序，和新打笔记的建议栏顺序对不上。
+    final quickTags = rankTagsByUsage(
+      notes: notes.map(
+        (note) => (tags: note.tags, updatedAt: note.updatedAt),
+      ),
+    );
 
     final reviewNotes = _pickReviewNotes(
       visibleNotes,
@@ -172,7 +169,7 @@ abstract final class WidgetSnapshotService {
         'message': syncMessage,
         'unsyncedCount': unsyncedCount,
       },
-      'quickTags': quickTags.take(5).map((entry) => entry.key).toList(),
+      'quickTags': quickTags.take(5).toList(),
       'reviewConfig': <String, Object?>{
         'refreshIntervalMinutes': reviewRefreshIntervalMinutes.clamp(15, 1440),
         'rangeDays': reviewRangeDays < 0 ? 0 : reviewRangeDays,

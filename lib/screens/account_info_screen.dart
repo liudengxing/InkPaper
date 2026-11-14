@@ -1797,6 +1797,47 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                           ],
                         ),
                       ),
+                      // 上次同步的冲突条数：本地改动被服务端版本覆盖过，
+                      // 属于数据丢失提示，必须让用户看得见（原服务器页的
+                      // 「连接日志」里有这条，并入账号页时漏了）。同步前
+                      // 清零、同步后落盘，所以这里显示的始终是最近一次同步。
+                      if (appProvider.lastSyncConflicts > 0) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFFFF9500,
+                            ).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.warning_amber_rounded,
+                                size: 16,
+                                color: Color(0xFFFF9500),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '上次同步有 ${appProvider.lastSyncConflicts} '
+                                  '条笔记存在冲突，本地改动已被服务端版本覆盖',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    height: 1.4,
+                                    color: Color(0xFFFF9500),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       Row(
                         children: [

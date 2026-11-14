@@ -22,6 +22,7 @@ import 'package:inkpaper/utils/note_preview_builder.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:inkpaper/utils/text_style_helper.dart';
+import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:inkpaper/utils/todo_parser.dart';
 import 'package:inkpaper/widgets/note_actions_ui.dart';
 import 'package:inkpaper/widgets/note_image_grid.dart';
@@ -560,11 +561,16 @@ class _NoteCardState extends State<NoteCard>
       // 数据维护里缓存过的服务端附件：直接读本地副本
       final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);
       if (cachedAttachment != null) {
+        final thumb = ThumbCache.instance.lookup(
+          cachedAttachment.path,
+          width: memWidth,
+        );
         return Image.file(
-          cachedAttachment,
-          key: ValueKey(cachedAttachment.path),
+          thumb ?? cachedAttachment,
+          key: ValueKey((thumb ?? cachedAttachment).path),
           fit: BoxFit.cover,
-          cacheWidth: memWidth,
+          // 缩略图已经是目标尺寸，不必再让引擎缩一次
+          cacheWidth: thumb == null ? memWidth : null,
           gaplessPlayback: true,
           // 缩略图不需要高质量重采样，low 档解码上屏更快
           filterQuality: FilterQuality.low,
@@ -708,6 +714,22 @@ class _NoteCardState extends State<NoteCard>
       } else if (imagePath.startsWith('file://')) {
         // 本地文件
         final filePath = imagePath.replaceFirst('file://', '');
+        // 有持久化缩略图就读小文件：480 宽 JPEG 解码 5~10ms，原图是 12MP、
+        // 单张 150~250ms。缩略图存在磁盘上，冷启动与进程被杀后同样命中，
+        // 这正是内存 ImageCache 给不了的。
+        final thumb = ThumbCache.instance.lookup(filePath, width: memWidth);
+        if (thumb != null) {
+          return Image.file(
+            thumb,
+            key: ValueKey(thumb.path),
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            filterQuality: FilterQuality.low,
+            errorBuilder: (context, error, stackTrace) => Center(
+              child: Icon(Icons.broken_image, color: Colors.grey[600]),
+            ),
+          );
+        }
         return Image.file(
           File(filePath),
           key: ValueKey(filePath), // 添加key强制刷新

@@ -9,6 +9,7 @@ import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/image_decode_width.dart';
+import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:provider/provider.dart';
 
 /// 笔记图片九宫格。
@@ -252,10 +253,15 @@ class _NoteImageGridState extends State<NoteImageGrid> {
     // 数据维护缓存过的服务端附件：直接读本地副本
     final cachedAttachment = AttachmentCache.instance.fileFor(path);
     if (cachedAttachment != null) {
+      final thumb = ThumbCache.instance.lookup(
+        cachedAttachment.path,
+        width: decodeWidth,
+      );
       return Image.file(
-        cachedAttachment,
+        thumb ?? cachedAttachment,
         fit: fit,
-        cacheWidth: decodeWidth,
+        // 缩略图已经是目标尺寸，不必再让引擎缩一次
+        cacheWidth: thumb == null ? decodeWidth : null,
         gaplessPlayback: true,
         // 缩略图不需要高质量重采样，low 档解码上屏更快
         filterQuality: FilterQuality.low,
@@ -264,10 +270,14 @@ class _NoteImageGridState extends State<NoteImageGrid> {
     }
 
     if (path.startsWith('file://')) {
+      final filePath = path.replaceFirst('file://', '');
+      // 命中持久化缩略图时直接读小文件，绕开 12MP 原图的解码开销
+      final thumb = ThumbCache.instance.lookup(filePath, width: decodeWidth);
       return Image.file(
-        File(path.replaceFirst('file://', '')),
+        thumb ?? File(filePath),
+        key: ValueKey(thumb?.path ?? filePath),
         fit: fit,
-        cacheWidth: decodeWidth,
+        cacheWidth: thumb == null ? decodeWidth : null,
         gaplessPlayback: true,
         filterQuality: FilterQuality.low,
         errorBuilder: (context, error, stackTrace) => _broken(context),

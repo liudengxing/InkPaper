@@ -1,3 +1,40 @@
+## 2026-11-14 · 图片缩略图持久化到磁盘（1.1.86+10186）· done
+
+- 触发：用户问「本体图片的缓存能持久化吗」，希望笔记访问过一次后，下次冷启动、
+  首页、详情都能直接命中，不用再解原图
+- 现状核对：
+  - 插入图片是**原字节落盘**（`note_editor.dart` 的 `_saveImageLocally`），4000×3000
+    手机照片 3~5MB 原样存进 `documents/images`
+  - 渲染靠 `Image.file` + `cacheWidth`，引擎实际做的是「解整张原图再缩到 480」，
+    单张 150~250ms（`4d186f0` 那次最差帧 1026ms / 5 张就是这么来的）
+  - `PaintingBinding.imageCache`（300 张 / 300MB）只在进程内有效，App 一关全没
+- 改动：
+  - 新增 `lib/utils/thumb_cache.dart`，`cacheDir/thumbs` 下存
+    `<stem>_<档位>.<jpg|png>`：
+    - 档位只有两档，`bucketWidth()` 把任意宽度归到 480（网格）/ 1080（单图满宽）
+    - PNG/WebP 源输出 PNG 保透明，避免压成黑底；GIF/HEIC/MP4 跳过、回退原图
+    - 源文件名带毫秒时间戳且插入后不改写，所以缩略图**不需要失效校验**
+    - `prepare()` 启动扫一遍目录建 `Set` 索引，`lookup()` 才能同步命中
+      （渲染发生在 build 里，不能做异步 IO）
+    - `lookup()` 未命中时 fire-and-forget `ensure()`：这次看原图，下次就命中
+    - `lookup()` 对命中项做一次 `existsSync()`：系统低存储清 cacheDir 后内存索引会
+      失效，靠这次 stat 自愈——踢掉条目、退回原图、触发重建，避免渲染成破图
+    - 编码走 `compute` 丢后台 isolate；`ThumbEncoder` 可注入，单测换同步实现
+    - `backfill()` 补齐存量，时间预算 8 秒，按 mtime 倒序优先最近改过的笔记
+  - 接入 3 处渲染：`note_card.dart`（AttachmentCache 分支 + `file://` 分支）、
+    `note_image_grid.dart`（同两处）、`note_editor.dart`（`_buildImageWidget` 与
+    `_getImageProvider` 的本地分支）
+  - 插入即生成：`_saveImageLocally` 落盘后 `unawaited(ensure())`，刚插的图首页也不慢
+  - 启动：`main._initializeApp` 里 `await prepare()`，`runApp` 之后 `backfill()`
+  - 清理：`data_cleanup_screen` 点「清理缓存」后补 `ThumbCache.clear()`，
+    否则索引会指向已被删掉的文件
+- 依赖：新增 `image: ^4.3.0`。选纯 Dart 方案是为了能在单测里跑；原生
+  `Bitmap.compress` 快 5~10 倍，但只能真机验证，等真机测出瓶颈再换
+- 测试：`test/unit/thumb_cache_test.dart` TC-01~TC-16（命名 / 档位收敛 / 同步命中 /
+  幂等不重复编码 / 小图不放大 / 相对路径解析 / backfill / clear）
+- 验证：`verify` 728 项全过、analyze 0 issue
+- 待办：真机确认首页滑动与首进详情手感、含 PNG 透明的图是否正常
+
 ## 2026-11-14 · 「那年今日」卡片去掉品牌绿（1.1.86+10186）· done
 
 - 触发：用户反馈首页顶部「那年今日」不要用绿色主题色，时间要跟下面正常笔记一个样式

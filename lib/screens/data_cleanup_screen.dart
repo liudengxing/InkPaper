@@ -11,6 +11,7 @@ import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/attachment_maintenance.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -212,6 +213,10 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
           }
         }
       }
+
+      // 缩略图目录也在 cacheDir 里，文件删了内存索引不能还留着，否则下次
+      // 渲染会拿到不存在的路径
+      await ThumbCache.instance.clear();
 
       // 重新加载数据信息
       await _loadDataInfo();

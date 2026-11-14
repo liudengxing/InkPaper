@@ -27,6 +27,7 @@ import 'package:inkpaper/utils/logger.dart';
 import 'package:inkpaper/utils/responsive_utils.dart';
 import 'package:inkpaper/utils/shared_payload_utils.dart';
 import 'package:inkpaper/utils/tag_path_utils.dart';
+import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -166,6 +167,10 @@ Future<void> _initializeApp() async {
 
   // 预热服务端附件的本地缓存目录（渲染时同步查本地副本）
   await AttachmentCache.instance.prepare();
+
+  // 扫一遍缩略图目录建索引：渲染发生在 build 里不能做异步 IO，索引建好后
+  // lookup 才是同步的。目录里只有文件名列表，几百个也只要几毫秒。
+  await ThumbCache.instance.prepare();
 
   // 🚀 大厂标准：记录初始化完成
   PerformanceMonitorService().trackAppLaunch('init_completed');
@@ -396,6 +401,10 @@ Future<void> _initializeApp() async {
 
   // 🚀 大厂标准：记录应用运行
   PerformanceMonitorService().trackAppLaunch('app_running');
+
+  // 存量图片的缩略图后台补齐。放在 runApp 之后是为了不拖首帧；内部有时间
+  // 预算，跑不完的下次启动接着补，不会一直占着 CPU。
+  unawaited(ThumbCache.instance.backfill());
 
   // 开屏检查更新：首帧之后自动拉一次 Release，有新版本直接在弹窗里下载安装。
   // 内部自己做了 6 小时节流与「稍后再说」记忆，失败一律静默。

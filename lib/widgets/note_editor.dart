@@ -22,6 +22,7 @@ import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:inkpaper/utils/note_image_anchor.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_input_helper.dart';
+import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:inkpaper/widgets/capsule_text_selection_toolbar.dart';
 import 'package:inkpaper/widgets/memo_editing_controller.dart';
 import 'package:inkpaper/widgets/note_reference_dialog.dart';
@@ -890,6 +891,9 @@ class _NoteEditorState extends State<NoteEditor>
     }
 
     await File(localImagePath).writeAsBytes(bytes);
+    // 插入这一刻顺手生成缩略图：之后每次进列表、详情、编辑器都省掉原图解码，
+    // 不用等后台补齐，也不会出现「刚插的图在首页还是慢」的落差。
+    unawaited(ThumbCache.instance.ensure(localImagePath));
     if (!mounted) {
       return;
     }
@@ -2730,10 +2734,12 @@ class _NoteEditorState extends State<NoteEditor>
     // 数据维护里缓存过的服务端附件：直接读本地副本
     final cachedAttachment = AttachmentCache.instance.fileFor(uriString);
     if (cachedAttachment != null) {
+      // 默认档位就是网格档（480），与 _imageDecodeWidth 是同一个值
+      final thumb = ThumbCache.instance.lookup(cachedAttachment.path);
       return Image.file(
-        cachedAttachment,
+        thumb ?? cachedAttachment,
         fit: BoxFit.cover,
-        cacheWidth: _imageDecodeWidth,
+        cacheWidth: thumb == null ? _imageDecodeWidth : null,
         errorBuilder: (context, error, stackTrace) => Container(
           color: Colors.grey[200],
           child: const Icon(Icons.broken_image, color: Colors.grey),
@@ -2846,9 +2852,10 @@ class _NoteEditorState extends State<NoteEditor>
         }
         return const AssetImage('assets/images/logo.png');
       } else if (uriString.startsWith('file://')) {
-        // 本地文件
+        // 本地文件：优先读持久化缩略图，绕开 12MP 原图的解码开销
         final filePath = uriString.replaceFirst('file://', '');
-        return FileImage(File(filePath));
+        final thumb = ThumbCache.instance.lookup(filePath);
+        return FileImage(thumb ?? File(filePath));
       } else if (uriString.startsWith('resource:')) {
         // 资源图片
         final assetPath = uriString.replaceFirst('resource:', '');
@@ -2856,7 +2863,8 @@ class _NoteEditorState extends State<NoteEditor>
       } else {
         // 尝试作为本地文件处理
         try {
-          return FileImage(File(uriString));
+          final thumb = ThumbCache.instance.lookup(uriString);
+          return FileImage(thumb ?? File(uriString));
         } on Object catch (e) {
           debugPrint('Error loading image: $e for $uriString');
           // 默认使用资源图片

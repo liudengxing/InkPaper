@@ -1796,61 +1796,12 @@ class AppLocalizationsSimple {
       ? '同步成功！已同步 $count 条笔记'
       : 'Sync successful! $count notes synced';
 
-  // 微信读书笔记导入
-  String get wereadImportTitle =>
-      locale.languageCode == 'zh' ? '微信读书笔记导入' : 'WeRead Notes Import';
-  String get wereadImportDescription => locale.languageCode == 'zh'
-      ? '支持从微信读书导出的笔记文本批量导入，自动识别书籍信息和标注内容'
-      : 'Import notes from WeRead with automatic book info and highlight recognition';
-
   // Obsidian 同步
   String get obsidianSync =>
       locale.languageCode == 'zh' ? 'Obsidian 数据同步' : 'Obsidian Sync';
   String get obsidianSyncDescription => locale.languageCode == 'zh'
       ? '通过第三方插件连接 Obsidian，具体同步方向、冲突处理和每日笔记能力以插件配置为准'
       : 'Connect Obsidian via a third-party plugin. Sync direction, conflict handling, and daily-note support depend on the plugin settings.';
-  String get wereadUsageInstructions =>
-      locale.languageCode == 'zh' ? '使用说明' : 'Usage Instructions';
-  String get wereadInstructions => locale.languageCode == 'zh'
-      ? '1. 在微信读书 App 中打开一本书\n2. 点击右上角"..."→"笔记"\n3. 点击"分享"→"复制为文本"\n4. 粘贴到下方输入框\n5. 点击"检查"验证格式\n6. 可选：展开"高级选项"自定义设置\n7. 点击右上角"导入"完成导入'
-      : '1. Open a book in WeRead App\n2. Tap "..." → "Notes" in top right\n3. Tap "Share" → "Copy as Text"\n4. Paste into the input box below\n5. Tap "Check" to verify format\n6. Optional: Expand "Advanced Options" to customize\n7. Tap "Import" in top right to complete';
-  String get wereadPasteHint => locale.languageCode == 'zh'
-      ? '粘贴微信读书笔记...\n\n例如：\n《书名》\n\n35个笔记\n点评\n\n第一章 标题\n\n笔记内容...'
-      : 'Paste WeRead notes here...\n\nExample:\n《Book Title》\n\n35 notes\nReview\n\nChapter 1 Title\n\nNote content...';
-  String wereadBookInfo(String title, int noteCount, int chapterCount) =>
-      locale.languageCode == 'zh'
-          ? '书名: $title\n笔记数: $noteCount 条\n章节数: $chapterCount 个'
-          : 'Book: $title\nNotes: $noteCount\nChapters: $chapterCount';
-  String get wereadAdvancedOptions =>
-      locale.languageCode == 'zh' ? '高级选项' : 'Advanced Options';
-  String get wereadShowBookTitle =>
-      locale.languageCode == 'zh' ? '显示书名来源' : 'Show Book Source';
-  String get wereadShowBookTitleDesc => locale.languageCode == 'zh'
-      ? '在笔记末尾显示"来自《书名》"'
-      : 'Show "From 《Book》" at note end';
-  String get wereadShowChapter =>
-      locale.languageCode == 'zh' ? '显示章节信息' : 'Show Chapter Info';
-  String get wereadShowChapterDesc =>
-      locale.languageCode == 'zh' ? '显示笔记所在章节' : 'Show note chapter';
-  String get wereadCustomTags =>
-      locale.languageCode == 'zh' ? '自定义标签' : 'Custom Tags';
-  String get wereadClear => locale.languageCode == 'zh' ? '清空' : 'Clear';
-  String get wereadCheck => locale.languageCode == 'zh' ? '检查' : 'Check';
-  String get wereadImport => locale.languageCode == 'zh' ? '导入' : 'Import';
-  String get wereadPleasePasteContent => locale.languageCode == 'zh'
-      ? '请粘贴微信读书笔记内容'
-      : 'Please paste WeRead notes content';
-  String wereadCheckSuccess(int count) => locale.languageCode == 'zh'
-      ? '✅ 检查通过！共 $count 条笔记'
-      : '✅ Check passed! $count notes found';
-  String get wereadParseFailed =>
-      locale.languageCode == 'zh' ? '解析失败' : 'Parse failed';
-  String get wereadPleaseCheckFirst =>
-      locale.languageCode == 'zh' ? '请先预览笔记' : 'Please check notes first';
-  String wereadImportSuccess(int count) => locale.languageCode == 'zh'
-      ? '成功导入 $count 条笔记！'
-      : 'Successfully imported $count notes!';
-
   // ===== 通用弹窗与操作 =====
   String get reset => _t('reset', fallback: '重置');
 

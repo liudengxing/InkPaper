@@ -739,7 +739,6 @@ docker run -d \
         zh: '''
 ### 当前入口
 - 本地备份与恢复
-- 微信读书笔记导入
 - Flomo 数据导入
 - WebDAV 备份与恢复
 
@@ -755,7 +754,6 @@ docker run -d \
         en: '''
 ### Current entry points
 - Local backup and restore
-- WeRead note import
 - Flomo data import
 - WebDAV backup and restore
 

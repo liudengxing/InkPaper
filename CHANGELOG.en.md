@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Colors matching the home screen**: cards and text use the same light-grey bordered style, no more brand green.
 - **Account and sync combined**: connection status, sync now and connection diagnosis moved into the account screen, one fewer settings entry.
 - **Sync toggles at hand**: auto sync, sync interval and auto login moved into the account screen, no more digging through preferences.
+- **Laboratory refreshed**: Notion sync and Obsidian sync moved into the Laboratory, leaving the import/export page purely about backup and import.
+
+### Removed
+
+- **WeRead import retired**: importing notes from WeRead text is no longer supported and its screen has been removed.
 
 ## [1.1.87] - 2026-11-14
 

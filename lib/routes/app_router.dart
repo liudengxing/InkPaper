@@ -38,7 +38,6 @@ import 'package:inkpaper/screens/tag_notes_screen.dart';
 import 'package:inkpaper/screens/tags_screen.dart';
 import 'package:inkpaper/screens/user_preferences_screen.dart'; // 🧠 用户偏好可视化
 import 'package:inkpaper/screens/webdav_settings_screen.dart';
-import 'package:inkpaper/screens/weread_import_screen.dart';
 import 'package:inkpaper/utils/tag_path_utils.dart';
 
 const bool _screenshotMode = bool.fromEnvironment('INKPAPER_SCREENSHOT_MODE');
@@ -687,17 +686,6 @@ class AppRouter {
               context: context,
               state: state,
               child: const FlomoImportScreen(),
-            ),
-          ),
-
-          // 微信读书笔记导入页面
-          GoRoute(
-            path: 'weread-import',
-            name: 'wereadImport',
-            pageBuilder: (context, state) => buildSlideTransition(
-              context: context,
-              state: state,
-              child: const WeReadImportScreen(),
             ),
           ),
 

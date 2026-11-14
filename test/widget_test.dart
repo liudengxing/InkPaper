@@ -4,7 +4,6 @@
 //
 // 第一档（Critical）— 纯逻辑单元测试：
 //   test/unit/note_model_test.dart       25 个用例
-//   test/unit/weread_parser_test.dart    20 个用例
 //   test/unit/todo_parser_test.dart      15 个用例
 //   test/unit/time_utils_test.dart       10 个用例
 //   test/unit/tag_utils_test.dart        10 个用例
@@ -28,7 +27,6 @@
 //
 //   # 只运行第一档（最快，约 5 秒）
 //   flutter test test/unit/note_model_test.dart \
-//              test/unit/weread_parser_test.dart \
 //              test/unit/todo_parser_test.dart \
 //              test/unit/time_utils_test.dart \
 //              test/unit/tag_utils_test.dart

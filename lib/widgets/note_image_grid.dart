@@ -78,6 +78,68 @@ class _NoteImageGridState extends State<NoteImageGrid> {
         setState(() => _imagesReady = true);
       }
     });
+
+    // 🚀 首帧后先查一遍缓存：点卡片时的预取如果全部命中，
+    // 图片随时可上屏，90ms 占位就是纯白等的，直接跳过。
+    // 检查失败或没全部命中都不影响 Timer 兜底。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_revealIfAllCached());
+    });
+  }
+
+  /// 首屏图片已全部在 ImageCache（预取命中）时立即揭开，跳过 90ms 占位。
+  ///
+  /// 解码宽度用与 `precacheNoteImages` 相同的估算口径（内容宽 = 屏宽 - 72），
+  /// 与预取的 key 保持一致；估不准时 `containsKey` 查不到就退回 Timer 兜底，
+  /// 最多慢 90ms，不会出错。
+  Future<void> _revealIfAllCached() async {
+    if (!mounted || _imagesReady) {
+      return;
+    }
+    try {
+      // 先同步把 provider 全部构造好（要用 context），再逐个查缓存；
+      // 这几类 provider 的 key 都不含 ImageConfiguration，用 empty 即可，
+      // 与渲染侧 resolve 出的 key 一致。
+      final dpr = MediaQuery.devicePixelRatioOf(context);
+      final contentWidth = _estimateDetailContentWidth(context);
+      final count = imagePaths.length;
+      final providers = <ImageProvider>[];
+      for (final path in imagePaths) {
+        final int decodeWidth;
+        if (count == 1) {
+          decodeWidth = bucketedDecodeWidth(contentWidth, dpr);
+        } else {
+          final columns = count <= 3 ? count : 3;
+          final tileWidth = (contentWidth - spacing * (columns - 1)) / columns;
+          decodeWidth = gridTileDecodeWidth(tileWidth, dpr);
+        }
+        final provider = _providerFor(
+          context,
+          path,
+          decodeWidth,
+          serverUrl: serverUrl,
+        );
+        if (provider == null) {
+          return; // 未知图片来源，走延迟兜底
+        }
+        providers.add(provider);
+      }
+
+      final cache = PaintingBinding.instance.imageCache;
+      for (final provider in providers) {
+        final key = await provider.obtainKey(ImageConfiguration.empty);
+        if (!cache.containsKey(key)) {
+          return; // 有没命中的，保持占位到 Timer 到点
+        }
+      }
+
+      if (mounted && !_imagesReady) {
+        _decodeTimer?.cancel();
+        setState(() => _imagesReady = true);
+      }
+    } on Object {
+      // 检查本身出错就什么都不做，Timer 兜底
+    }
   }
 
   @override
@@ -412,6 +474,11 @@ class _NoteImageGridState extends State<NoteImageGrid> {
   }
 
   /// 构造与网格渲染完全一致的 [ImageProvider]，保证 ImageCache key 命中。
+  ///
+  /// 分支与 [_buildImage] 一一对应：缩略图命中时返回 `FileImage(缩略图)`
+  /// （渲染侧 `Image.file(thumb)` 不传 cacheWidth，内部就是 FileImage），
+  /// 未命中才退回按宽度缩放的原图 —— 两边 key 对不上，预取就会白解一遍
+  /// 12MP 原图还帮不上渲染（1.1.90 前的实测卡顿根因）。
   static ImageProvider? _providerFor(
     BuildContext context,
     String path,
@@ -420,6 +487,13 @@ class _NoteImageGridState extends State<NoteImageGrid> {
   }) {
     final cachedAttachment = AttachmentCache.instance.fileFor(path);
     if (cachedAttachment != null) {
+      final thumb = ThumbCache.instance.lookup(
+        cachedAttachment.path,
+        width: decodeWidth,
+      );
+      if (thumb != null) {
+        return FileImage(thumb);
+      }
       return ResizeImage.resizeIfNeeded(
         decodeWidth,
         null,
@@ -428,10 +502,15 @@ class _NoteImageGridState extends State<NoteImageGrid> {
     }
 
     if (path.startsWith('file://')) {
+      final filePath = path.replaceFirst('file://', '');
+      final thumb = ThumbCache.instance.lookup(filePath, width: decodeWidth);
+      if (thumb != null) {
+        return FileImage(thumb);
+      }
       return ResizeImage.resizeIfNeeded(
         decodeWidth,
         null,
-        FileImage(File(path.replaceFirst('file://', ''))),
+        FileImage(File(filePath)),
       );
     }
 

@@ -36,6 +36,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   bool _obscureIflytekApiSecret = true;
   bool _speechInputEnabled = false;
 
+  // API 服务预设：DeepSeek 官方 / 自定义（兼容 OpenAI 格式的任意服务）
+  String _apiPreset = AppConfig.AI_PRESET_DEEPSEEK;
+  String _deepseekModel = AppConfig.DEEPSEEK_DEFAULT_MODEL;
+
   String _text(String zh, String en) =>
       Localizations.localeOf(context).languageCode == 'zh' ? zh : en;
 
@@ -60,6 +64,17 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _speechInputEnabled =
         appConfig.speechRecognitionMode == AppConfig.SPEECH_MODE_IFLYTEK &&
             appConfig.iflytekSpeechEnabled;
+
+    // API 服务预设：旧配置按地址/模型推断，新配置直接读字段
+    _apiPreset = appConfig.aiApiPreset;
+    _deepseekModel = AppConfig.DEEPSEEK_MODELS.contains(appConfig.aiModel)
+        ? appConfig.aiModel
+        : AppConfig.DEEPSEEK_DEFAULT_MODEL;
+    if (_apiPreset == AppConfig.AI_PRESET_DEEPSEEK) {
+      // 预设模式下地址固定为官方入口，模型用下拉选中值
+      _apiUrlController.text = AppConfig.DEEPSEEK_API_URL;
+      _modelController.text = _deepseekModel;
+    }
   }
 
   @override
@@ -240,7 +255,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               AppLocalizationsSimple.of(context)?.apiConfiguration ?? 'API配置',
             ),
 
-            // API地址
+            // API服务（预设选择）
+            _buildApiPresetCard(context),
+            const SizedBox(height: 12),
+
+            // API地址（DeepSeek 预设下锁定为官方地址）
             _buildInputCard(
               context,
               icon: Icons.cloud,
@@ -248,6 +267,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                   'API 地址',
               controller: _apiUrlController,
               hintText: 'https://api.deepseek.com/v1',
+              enabled: _apiPreset == AppConfig.AI_PRESET_CUSTOM,
             ),
 
             const SizedBox(height: 12),
@@ -286,6 +306,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
 
             const SizedBox(height: 24),
 
+            // 测试连接
+            _buildTestConnectionButton(context),
+            const SizedBox(height: 24),
+
             // 🎯 自定义Prompt
             _buildSectionHeader(
               context,
@@ -293,10 +317,6 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             ),
             _buildCustomPromptCard(context, appProvider, appConfig),
 
-            const SizedBox(height: 24),
-
-            // 测试连接
-            _buildTestConnectionButton(context),
             const SizedBox(height: 24),
 
             // 帮助信息
@@ -402,6 +422,147 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   }
 
   // 构建输入卡片
+  /// 切换 API 服务预设：DeepSeek 官方地址/模型自动带入，自定义则全部可编辑。
+  void _changeApiPreset(String preset) {
+    setState(() {
+      _apiPreset = preset;
+      if (preset == AppConfig.AI_PRESET_DEEPSEEK) {
+        _apiUrlController.text = AppConfig.DEEPSEEK_API_URL;
+        _modelController.text = _deepseekModel;
+      }
+      // 切回自定义时保留当前输入，由用户自行修改
+    });
+  }
+
+  /// 「API 服务」下拉卡片：DeepSeek（官方）/ 自定义。
+  Widget _buildApiPresetCard(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
+    final textColor =
+        isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
+    final iconColor =
+        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
+    final fillColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.grey.withValues(alpha: 0.05);
+    final borderColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.1);
+    final isDeepSeek = _apiPreset == AppConfig.AI_PRESET_DEEPSEEK;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDarkMode ? 0.3 : 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  isDeepSeek ? Icons.verified : Icons.tune,
+                  color: iconColor,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                _text('API 服务', 'API Service'),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: ValueKey('preset-$_apiPreset'),
+            initialValue: _apiPreset,
+            isExpanded: true,
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: borderColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: borderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: AppTheme.primaryColor,
+                  width: 2,
+                ),
+              ),
+              filled: true,
+              fillColor: fillColor,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+            ),
+            items: [
+              DropdownMenuItem(
+                value: AppConfig.AI_PRESET_DEEPSEEK,
+                child: Text(
+                  _text('DeepSeek（官方）', 'DeepSeek (Official)'),
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+              ),
+              DropdownMenuItem(
+                value: AppConfig.AI_PRESET_CUSTOM,
+                child: Text(
+                  _text('自定义（兼容 OpenAI 格式）', 'Custom (OpenAI-compatible)'),
+                  style: TextStyle(fontSize: 14, color: textColor),
+                ),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null && value != _apiPreset) {
+                _changeApiPreset(value);
+              }
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isDeepSeek
+                ? _text(
+                    '已选用 DeepSeek 官方服务：地址与模型已预设，只需填入 API 密钥。',
+                    'Using the official DeepSeek service: endpoint and models are preset, just add your API key.',
+                  )
+                : _text(
+                    '自定义模式：API 地址、模型名称均可自由填写，兼容任意 OpenAI 格式服务。',
+                    'Custom mode: freely edit the endpoint and model name for any OpenAI-compatible service.',
+                  ),
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: textColor.withValues(alpha: 0.55),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInputCard(
     BuildContext context, {
     required IconData icon,
@@ -733,73 +894,170 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                   ),
                 ),
                 const Spacer(),
-                TextButton(
-                  onPressed: appConfig.aiEnabled
-                      ? () => _showModelSelectorSheet(
-                            context,
-                          )
-                      : null,
-                  child: Text(_text('示例', 'Examples')),
-                ),
+                if (_apiPreset == AppConfig.AI_PRESET_CUSTOM)
+                  TextButton(
+                    onPressed: appConfig.aiEnabled
+                        ? () => _showModelSelectorSheet(
+                              context,
+                            )
+                        : null,
+                    child: Text(_text('示例', 'Examples')),
+                  ),
               ],
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _modelController,
-              enabled: appConfig.aiEnabled,
-              style: TextStyle(fontSize: 14, color: textColor),
-              decoration: InputDecoration(
-                hintText: 'deepseek-chat / gpt-4o / qwen-plus',
-                hintStyle: TextStyle(
-                  color: textColor.withValues(alpha: 0.4),
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: isDarkMode
-                        ? Colors.white.withValues(alpha: 0.1)
-                        : Colors.black.withValues(alpha: 0.1),
+            if (_apiPreset == AppConfig.AI_PRESET_DEEPSEEK) ...[
+              DropdownButtonFormField<String>(
+                key: ValueKey('ds-model-$_deepseekModel'),
+                initialValue: AppConfig.DEEPSEEK_MODELS.contains(_deepseekModel)
+                    ? _deepseekModel
+                    : AppConfig.DEEPSEEK_DEFAULT_MODEL,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: isDarkMode
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : Colors.black.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: isDarkMode
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : Colors.black.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(
+                      color: AppTheme.primaryColor,
+                      width: 2,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: isDarkMode
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.grey.withValues(alpha: 0.05),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
                   ),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: isDarkMode
-                        ? Colors.white.withValues(alpha: 0.1)
-                        : Colors.black.withValues(alpha: 0.1),
-                  ),
+                items: AppConfig.DEEPSEEK_MODELS
+                    .map(
+                      (model) => DropdownMenuItem(
+                        value: model,
+                        child: Text(
+                          model,
+                          style: TextStyle(fontSize: 14, color: textColor),
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: appConfig.aiEnabled
+                    ? (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() {
+                          _deepseekModel = value;
+                          _modelController.text = value;
+                        });
+                      }
+                    : null,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _deepseekModelDescription(_deepseekModel),
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: subTextColor,
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(
-                    color: AppTheme.primaryColor,
-                    width: 2,
+              ),
+            ] else ...[
+              TextField(
+                controller: _modelController,
+                enabled: appConfig.aiEnabled,
+                style: TextStyle(fontSize: 14, color: textColor),
+                decoration: InputDecoration(
+                  hintText: 'deepseek-chat / gpt-4o / qwen-plus',
+                  hintStyle: TextStyle(
+                    color: textColor.withValues(alpha: 0.4),
                   ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: isDarkMode
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : Colors.black.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: isDarkMode
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : Colors.black.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(
+                      color: AppTheme.primaryColor,
+                      width: 2,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: isDarkMode
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.grey.withValues(alpha: 0.05),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
-                filled: true,
-                fillColor: isDarkMode
-                    ? Colors.white.withValues(alpha: 0.05)
-                    : Colors.grey.withValues(alpha: 0.05),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _text(
-                '直接填写服务商文档里的模型名。AI 模型更新很快，这里不再强制限制固定列表。',
-                'Enter the model name from your provider documentation. Models change quickly, so this field is not locked to a fixed list.',
+              const SizedBox(height: 8),
+              Text(
+                _text(
+                  '直接填写服务商文档里的模型名。AI 模型更新很快，这里不再强制限制固定列表。',
+                  'Enter the model name from your provider documentation. Models change quickly, so this field is not locked to a fixed list.',
+                ),
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: subTextColor,
+                ),
               ),
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.4,
-                color: subTextColor,
-              ),
-            ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  /// DeepSeek 官方模型的说明文案（取自 api-docs.deepseek.com）。
+  String _deepseekModelDescription(String model) {
+    switch (model) {
+      case 'deepseek-v4-flash':
+        return _text(
+          '官方默认模型：响应快、价格低，适合日常记录、总结与提问。',
+          'Official default: fast and cheap, ideal for daily notes and summaries.',
+        );
+      case 'deepseek-v4-pro':
+        return _text(
+          '推理增强：适合复杂分析、长链路推理与数学/代码任务。',
+          'Reasoning-first: better for complex analysis, math and coding.',
+        );
+      case 'deepseek-v4-flash-vision-exp':
+        return _text(
+          '实验版：在 flash 基础上额外支持图像输入，稳定性可能变化。',
+          'Experimental: flash with image input support, subject to change.',
+        );
+    }
+    return '';
   }
 
   // 显示常用模型示例底部对话框
@@ -1221,12 +1479,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           const SizedBox(height: 10),
           Text(
             _text(
-              '• 示例模型只会填入输入框，最终以右上角保存为准\n'
-                  '• 可以直接输入服务商提供的任意模型名\n'
+              '• 选择 DeepSeek（官方）时，地址与模型已预设好，只需填入 API 密钥\n'
+                  '• 切换到自定义后，可直接输入服务商提供的任意模型名\n'
                   '• API 密钥已加密保存在本机安全区域（Android Keystore / iOS 钥匙串），不会上传\n'
                   '• 支持所有兼容 OpenAI 格式的 AI 服务',
-              '• Example models only fill the fields; use the top-right save button to apply\n'
-                  '• You can enter any model name provided by your AI service\n'
+              '• With DeepSeek (Official), the endpoint and models are preset — just add your API key\n'
+                  '• Switch to Custom to enter any model name from your AI service\n'
                   '• API keys are encrypted on-device (Android Keystore / iOS Keychain) and never uploaded\n'
                   '• OpenAI-compatible AI services are supported',
             ),
@@ -2061,6 +2319,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       aiApiUrl: apiUrl.isEmpty ? null : apiUrl,
       aiApiKey: apiKey.isEmpty ? null : apiKey,
       aiModel: model.isEmpty ? appProvider.appConfig.aiModel : model,
+      aiApiPreset: _apiPreset,
       updateAiApiUrl: true,
       updateAiApiKey: true,
       speechRecognitionMode: AppConfig.SPEECH_MODE_IFLYTEK,

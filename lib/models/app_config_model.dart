@@ -22,6 +22,7 @@ class AppConfig {
     this.aiApiUrl,
     this.aiApiKey,
     this.aiModel = AI_MODEL_DEEPSEEK, // 默认使用DeepSeek
+    this.aiApiPreset = AI_PRESET_DEEPSEEK, // API 服务预设
     this.aiEnabled = false, // 默认不启用AI
     this.autoShowEditorOnLaunch = false, // 默认不自动弹出编辑框
     this.widgetReviewRefreshIntervalMinutes = 60,
@@ -59,6 +60,11 @@ class AppConfig {
         aiApiUrl: json['aiApiUrl'],
         aiApiKey: _fixApiKeyEncoding(json['aiApiKey']), // 🔧 自动修复编码
         aiModel: json['aiModel'] ?? AI_MODEL_DEEPSEEK,
+        aiApiPreset: _inferAiApiPreset(
+          json['aiApiPreset'],
+          json['aiApiUrl'],
+          json['aiModel'],
+        ),
         aiEnabled: json['aiEnabled'] ?? false,
         autoShowEditorOnLaunch: json['autoShowEditorOnLaunch'] ?? false,
         widgetReviewRefreshIntervalMinutes:
@@ -160,6 +166,7 @@ class AppConfig {
   final String? aiApiUrl; // AI API地址
   final String? aiApiKey; // AI API密钥
   final String aiModel; // AI模型：deepseek-chat, gpt-3.5-turbo等
+  final String aiApiPreset; // API 服务预设：AI_PRESET_DEEPSEEK / AI_PRESET_CUSTOM
   final bool aiEnabled; // 是否启用AI功能
 
   // AI自定义Prompt配置
@@ -250,6 +257,41 @@ class AppConfig {
 
   // 官方API地址（兼容OpenAI格式）
   static const String DEEPSEEK_API_URL = 'https://api.deepseek.com/v1';
+
+  // API 服务预设
+  static const String AI_PRESET_DEEPSEEK = 'deepseek';
+  static const String AI_PRESET_CUSTOM = 'custom';
+
+  /// DeepSeek 官方在售模型（api-docs.deepseek.com，2026-11 取自官网）。
+  /// deepseek-chat / deepseek-reasoner 已于 2026-07 弃用，不再提供。
+  static const List<String> DEEPSEEK_MODELS = [
+    'deepseek-v4-flash',
+    'deepseek-v4-pro',
+    'deepseek-v4-flash-vision-exp',
+  ];
+
+  /// DeepSeek 官方默认模型（快速、便宜）。
+  static const String DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash';
+
+  /// 旧配置没有预设字段时推断：官方地址 + deepseek 系模型 → DeepSeek 预设。
+  static String _inferAiApiPreset(
+    Object? preset,
+    Object? apiUrl,
+    Object? model,
+  ) {
+    final presetValue = preset?.toString();
+    if (presetValue == AI_PRESET_DEEPSEEK || presetValue == AI_PRESET_CUSTOM) {
+      return presetValue!;
+    }
+    final url = apiUrl?.toString();
+    final modelValue = model?.toString() ?? '';
+    final isOfficialUrl = url == null || url.isEmpty || url == DEEPSEEK_API_URL;
+    final isDeepSeekModel = modelValue.startsWith('deepseek-v');
+    return isOfficialUrl && isDeepSeekModel
+        ? AI_PRESET_DEEPSEEK
+        : AI_PRESET_CUSTOM;
+  }
+
   static const String OPENAI_API_URL = 'https://api.openai.com/v1';
   static const String QWEN_API_URL =
       'https://dashscope.aliyuncs.com/compatible-mode/v1';
@@ -277,6 +319,7 @@ class AppConfig {
     String? aiApiUrl,
     String? aiApiKey,
     String? aiModel,
+    String? aiApiPreset,
     bool? aiEnabled,
     bool updateAiApiUrl = false,
     bool updateAiApiKey = false,
@@ -324,6 +367,7 @@ class AppConfig {
         aiApiUrl: updateAiApiUrl ? aiApiUrl : (aiApiUrl ?? this.aiApiUrl),
         aiApiKey: updateAiApiKey ? aiApiKey : (aiApiKey ?? this.aiApiKey),
         aiModel: aiModel ?? this.aiModel,
+        aiApiPreset: aiApiPreset ?? this.aiApiPreset,
         aiEnabled: aiEnabled ?? this.aiEnabled,
         autoShowEditorOnLaunch:
             autoShowEditorOnLaunch ?? this.autoShowEditorOnLaunch,
@@ -377,6 +421,7 @@ class AppConfig {
         'aiApiUrl': aiApiUrl,
         'aiApiKey': aiApiKey,
         'aiModel': aiModel,
+        'aiApiPreset': aiApiPreset,
         'aiEnabled': aiEnabled,
         'autoShowEditorOnLaunch': autoShowEditorOnLaunch,
         'widgetReviewRefreshIntervalMinutes':

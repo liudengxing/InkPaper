@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Improved
 
+- **Faster startup**: pre-first-frame preparations now run in parallel, so the first screen shows up sooner.
 - **Storage at a glance**: the data cleanup screen now shows how much space pictures and thumbnails take.
 - **A cleaner About screen**: the large icon banner is gone; the page starts right with the introduction.
 - **Colors matching the home screen**: cards and text use the same light-grey bordered style, no more brand green.

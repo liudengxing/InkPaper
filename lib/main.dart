@@ -149,14 +149,16 @@ Future<void> _initializeApp() async {
   );
 
   // 初始化中文日期格式支持
-  await initializeDateFormatting('zh_CN');
+  // ⚡ 首帧前的准备互不依赖，全部先并行跑起来；下面逐个 await 只是取结果，
+  // 总耗时 = 最慢的一个，不再是一串串行相加。
+  final dateFormattingFuture = initializeDateFormatting('zh_CN');
+  final imageCacheFuture = ImageCacheManager.initialize();
+  final attachmentCacheFuture = AttachmentCache.instance.prepare();
+  final thumbCacheFuture = ThumbCache.instance.prepare();
 
   // 初始化timeago库，添加中文支持
   timeago.setLocaleMessages('zh', timeago.ZhCnMessages());
   timeago.setDefaultLocale('zh');
-
-  // 初始化图片缓存管理器
-  await ImageCacheManager.initialize();
 
   // 图片纹理缓存上限：默认 100MB/1000 张，在「列表缩略图 → 详情多图 →
   // 查看器大图」之间来回切换时，刚解好的图很容易被挤掉，回到列表/详情又要
@@ -165,12 +167,11 @@ Future<void> _initializeApp() async {
     ..maximumSize = 300
     ..maximumSizeBytes = 300 << 20;
 
-  // 预热服务端附件的本地缓存目录（渲染时同步查本地副本）
-  await AttachmentCache.instance.prepare();
-
-  // 扫一遍缩略图目录建索引：渲染发生在 build 里不能做异步 IO，索引建好后
-  // lookup 才是同步的。目录里只有文件名列表，几百个也只要几毫秒。
-  await ThumbCache.instance.prepare();
+  // ⚡ 逐个取回并行准备的结果（这些都必须在首帧渲染前就绪）
+  await dateFormattingFuture;
+  await imageCacheFuture;
+  await attachmentCacheFuture;
+  await thumbCacheFuture;
 
   // 🚀 大厂标准：记录初始化完成
   PerformanceMonitorService().trackAppLaunch('init_completed');
@@ -194,12 +195,17 @@ Future<void> _initializeApp() async {
   );
 
   // 冷启动首帧先用上次的首屏快照渲染，避免先闪一条「欢迎笔记」再被真实数据顶掉
-  final cachedFeed = await FeedSnapshotService.instance.load();
+  // ⚡ 与上面四项准备并行
+  final cachedFeedFuture = FeedSnapshotService.instance.load();
 
   // 主题 / 语言在 runApp 之前就要定下来：MaterialApp 首帧若用默认配置
   // （themeSelection = system）渲染，系统是深色模式时用户会先看到一帧深色，
   // 等 initializeApp 读完配置再闪回自己选的浅色主题。
-  final initialConfig = await PreferencesService().loadAppConfig();
+  final initialConfigFuture = PreferencesService().loadAppConfig();
+
+  // ⚡ 首屏快照与主题/语言配置在提供器构造前取回
+  final cachedFeed = await cachedFeedFuture;
+  final initialConfig = await initialConfigFuture;
 
   // 创建主应用提供器
   final appProvider = AppProvider(
@@ -354,43 +360,47 @@ Future<void> _initializeApp() async {
   });
 
   // 🔥 关键：检查应用是否从通知点击冷启动（模仿Android的getInitialNoteId）
-  try {
-    final initialPayload = await platform.invokeMethod('getInitialPayload');
-    if (initialPayload != null && initialPayload is String) {
-      // 延迟跳转，确保应用完全初始化
-      Future.delayed(const Duration(seconds: 1), () {
-        appRouter.router.go('/note/$initialPayload');
-        appProvider.cancelNoteReminder(initialPayload).catchError((_) {});
-      });
+  // ⚡ 三个冷启动载荷探测挪到首帧之后：它们只是延迟导航，晚几百毫秒
+  // 完全无感，却能在首帧前省下三次 MethodChannel 往返。
+  Future<void> checkColdStartPayloads() async {
+    try {
+      final initialPayload = await platform.invokeMethod('getInitialPayload');
+      if (initialPayload != null && initialPayload is String) {
+        // 延迟跳转，确保应用完全初始化
+        Future.delayed(const Duration(seconds: 1), () {
+          appRouter.router.go('/note/$initialPayload');
+          appProvider.cancelNoteReminder(initialPayload).catchError((_) {});
+        });
+      }
+    } on Object catch (_) {
+      // Cold-start payload is optional and may be unavailable on some platforms.
     }
-  } on Object catch (_) {
-    // Cold-start payload is optional and may be unavailable on some platforms.
-  }
 
-  try {
-    final initialSharedPayload =
-        await platform.invokeMethod('getInitialSharedPayload');
-    final initialSharedContent = sharedPayloadToContent(initialSharedPayload);
-    if (initialSharedContent != null &&
-        initialSharedContent.trim().isNotEmpty) {
-      Future.delayed(const Duration(milliseconds: 700), () {
-        appRouter.router
-            .go('/', extra: {'sharedContent': initialSharedContent});
-      });
+    try {
+      final initialSharedPayload =
+          await platform.invokeMethod('getInitialSharedPayload');
+      final initialSharedContent = sharedPayloadToContent(initialSharedPayload);
+      if (initialSharedContent != null &&
+          initialSharedContent.trim().isNotEmpty) {
+        Future.delayed(const Duration(milliseconds: 700), () {
+          appRouter.router
+              .go('/', extra: {'sharedContent': initialSharedContent});
+        });
+      }
+    } on Object catch (_) {
+      // Cold-start share payload is optional and Android-only.
     }
-  } on Object catch (_) {
-    // Cold-start share payload is optional and Android-only.
-  }
 
-  try {
-    final initialDeepLink = await platform.invokeMethod('getInitialDeepLink');
-    if (initialDeepLink != null && initialDeepLink is String) {
-      Future.delayed(const Duration(milliseconds: 700), () {
-        _handleInkPaperDeepLink(appRouter, initialDeepLink);
-      });
+    try {
+      final initialDeepLink = await platform.invokeMethod('getInitialDeepLink');
+      if (initialDeepLink != null && initialDeepLink is String) {
+        Future.delayed(const Duration(milliseconds: 700), () {
+          _handleInkPaperDeepLink(appRouter, initialDeepLink);
+        });
+      }
+    } on Object catch (_) {
+      // Cold-start deep link is optional and may be unavailable on some platforms.
     }
-  } on Object catch (_) {
-    // Cold-start deep link is optional and may be unavailable on some platforms.
   }
 
   // 🚀 大厂标准：记录主应用创建
@@ -401,6 +411,9 @@ Future<void> _initializeApp() async {
 
   // 🚀 大厂标准：记录应用运行
   PerformanceMonitorService().trackAppLaunch('app_running');
+
+  // ⚡ 首帧之后才探测冷启动载荷
+  unawaited(checkColdStartPayloads());
 
   // 存量图片的缩略图后台补齐。延迟 3 秒再开跑：首屏这会儿正在解码图片，
   // 补缩略图不但帮不上忙，还会跟它抢 CPU 和内存带宽。内部有时间预算，跑不完

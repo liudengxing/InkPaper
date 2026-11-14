@@ -18,6 +18,7 @@ class Translations {
     // ===== 侧边栏 =====
     'allNotes': {'zh': '全部笔记', 'en': 'All Notes'},
     'randomReview': {'zh': '随机回顾', 'en': 'Random Review'},
+    'imageGallery': {'zh': '有图片', 'en': 'With Images'},
     'allTags': {'zh': '全部标签', 'en': 'All Tags'},
     'account': {'zh': '账户', 'en': 'Account'},
     'dataSync': {'zh': '数据同步', 'en': 'Data Sync'},

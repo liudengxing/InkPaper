@@ -12,6 +12,7 @@ import 'package:inkpaper/screens/feedback_screen.dart';
 import 'package:inkpaper/screens/flomo_import_screen.dart';
 import 'package:inkpaper/screens/help_screen.dart';
 import 'package:inkpaper/screens/home_screen.dart';
+import 'package:inkpaper/screens/image_gallery_screen.dart';
 import 'package:inkpaper/screens/import_export_main_screen.dart';
 import 'package:inkpaper/screens/knowledge_graph_screen_custom.dart';
 import 'package:inkpaper/screens/laboratory_screen.dart';
@@ -454,6 +455,19 @@ class AppRouter {
             state: state,
             begin: const Offset(-0.15, 0),
             child: const RandomReviewScreen(),
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/image-gallery',
+        name: 'imageGallery',
+        pageBuilder: (context, state) {
+          return buildSlideTransition(
+            context: context,
+            state: state,
+            begin: const Offset(-0.15, 0),
+            child: const ImageGalleryScreen(),
           );
         },
       ),

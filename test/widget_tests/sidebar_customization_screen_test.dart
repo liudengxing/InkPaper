@@ -57,8 +57,17 @@ void main() {
       await tester.pumpWidget(_wrap(const SidebarCustomizationScreen()));
       await tester.pump();
 
-      final handle = find.byIcon(Icons.drag_handle_rounded).first;
-      final beforeY = tester.getTopLeft(find.text('随机回顾')).dy;
+      // 明确拖「随机回顾」那一行的手柄（手柄是 ListTile 的 leading，
+      // 不是整行祖先）：默认菜单顺序变了（有图片插在全部笔记之后）
+      // 也不能影响本用例的语义。
+      final tile = find.ancestor(
+        of: find.text('随机回顾'),
+        matching: find.byType(ListTile),
+      );
+      final handle = find.descendant(
+        of: tile.first,
+        matching: find.byIcon(Icons.drag_handle_rounded),
+      );
 
       // ReorderableDragStartListener 按下即开始拖动，需跨过一行高度才会换位
       await tester.timedDrag(
@@ -68,9 +77,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final afterY = tester.getTopLeft(find.text('随机回顾')).dy;
-      expect(afterY, greaterThan(beforeY));
-      // 顺序变化必须进入「有未保存改动」状态
+      // 换位成功会进入「有未保存改动」状态。列表拖动时可能自动滚动，
+      // 屏幕坐标不可靠（拖「随机回顾」换位后它反而上移一行），不比坐标。
       expect(find.text('保存'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });

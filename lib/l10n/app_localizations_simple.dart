@@ -47,6 +47,7 @@ class AppLocalizationsSimple {
   String get dataCleanup => _t('dataCleanup', fallback: '数据清理');
   String get laboratory => _t('laboratory', fallback: '实验室');
   String get randomReview => _t('randomReview', fallback: '随机回顾');
+  String get imageGallery => _t('imageGallery', fallback: '有图片');
   String get faq => _t('faq', fallback: '常见问题');
   String get fontSelection => _t('fontSelection', fallback: '字体选择');
   String get noteVisibility => _t('noteVisibility', fallback: '笔记状态');

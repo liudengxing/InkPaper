@@ -4,6 +4,13 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 /// 侧边栏菜单项枚举
 enum SidebarMenuItem {
   allNotes('all_notes', '全部笔记', '/', Icons.grid_view_rounded, false), // 不可隐藏
+  imageGallery(
+    'image_gallery',
+    '有图片',
+    '/image-gallery',
+    Icons.photo_library_outlined,
+    true,
+  ),
   randomReview(
     'random_review',
     '随机回顾',
@@ -48,6 +55,8 @@ enum SidebarMenuItem {
     switch (id) {
       case 'all_notes':
         return l10n?.allNotes ?? label;
+      case 'image_gallery':
+        return l10n?.imageGallery ?? label;
       case 'random_review':
         return l10n?.randomReview ?? label;
       case 'all_tags':

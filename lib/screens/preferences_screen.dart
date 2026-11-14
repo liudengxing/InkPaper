@@ -81,25 +81,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
 
           const Divider(),
 
-          // 同步设置
-          _buildSectionHeader(context, l10n?.sync ?? '同步'),
-
-          // 自动同步设置
-          _buildSwitchItem(
-            context,
-            icon: Icons.sync,
-            title: l10n?.autoSync ?? '自动同步',
-            subtitle: l10n?.autoSyncDesc ?? '定期自动同步笔记',
-            value: appConfig.autoSyncEnabled,
-            onChanged: (value) => _updateAutoSync(appProvider, value),
-          ),
-
-          // 同步间隔设置 (仅当自动同步开启时显示)
-          if (appConfig.autoSyncEnabled)
-            _buildSyncIntervalSetting(context, appProvider, appConfig),
-
-          const Divider(),
-
           // 隐私设置
           _buildSectionHeader(context, l10n?.privacy ?? '隐私'),
 
@@ -129,16 +110,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
             subtitle: l10n?.rememberPasswordDesc ?? '保存账号和密码到本地',
             value: appConfig.rememberLogin,
             onChanged: (value) => _updateRememberLogin(appProvider, value),
-          ),
-
-          // 自动登录设置
-          _buildSwitchItem(
-            context,
-            icon: Icons.login,
-            title: l10n?.autoLogin ?? '自动登录',
-            subtitle: l10n?.autoLoginDesc ?? '启动应用时跳过登录页面直接进入',
-            value: appConfig.autoLogin,
-            onChanged: (value) => _updateAutoLogin(appProvider, value),
           ),
 
           // 启动自动弹出编辑框设置
@@ -657,75 +628,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
     );
   }
 
-  // 构建同步间隔设置
-  Widget _buildSyncIntervalSetting(
-    BuildContext context,
-    AppProvider appProvider,
-    AppConfig appConfig,
-  ) {
-    // 定义可选的同步间隔（分钟）
-    final syncIntervals = [5, 15, 30, 60, 120];
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final textColor =
-        isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
-    final primaryColor =
-        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      child: Row(
-        children: [
-          const SizedBox(width: 56), // 与图标对齐
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppLocalizationsSimple.of(context)?.syncInterval ?? '同步间隔',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: syncIntervals.map((interval) {
-                    final isSelected =
-                        appConfig.syncInterval == interval * 60; // 转换为秒
-                    return ChoiceChip(
-                      label: Text(
-                        AppLocalizationsSimple.of(context)
-                                ?.minutesFormat(interval) ??
-                            '$interval分钟',
-                      ),
-                      selected: isSelected,
-                      selectedColor: primaryColor.withValues(alpha: 0.2),
-                      labelStyle: TextStyle(
-                        color: isSelected
-                            ? primaryColor
-                            : (isDarkMode ? Colors.grey[300] : Colors.black),
-                      ),
-                      onSelected: (selected) {
-                        if (selected) {
-                          _updateSyncInterval(
-                            appProvider,
-                            interval * 60,
-                          ); // 转换为秒
-                        }
-                      },
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // 更新主题选择
   Future<void> _updateThemeSelection(
     AppProvider appProvider,
@@ -754,33 +656,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
     }
   }
 
-  // 更新自动同步设置
-  Future<void> _updateAutoSync(AppProvider appProvider, bool value) async {
-    final updatedConfig =
-        appProvider.appConfig.copyWith(autoSyncEnabled: value);
-    await appProvider.updateConfig(updatedConfig);
-    setState(() {});
-
-    // 根据设置启动或停止自动同步
-    if (value) {
-      appProvider.startAutoSync();
-    } else {
-      appProvider.stopAutoSync();
-    }
-  }
-
-  // 更新同步间隔
-  Future<void> _updateSyncInterval(AppProvider appProvider, int seconds) async {
-    final updatedConfig = appProvider.appConfig.copyWith(syncInterval: seconds);
-    await appProvider.updateConfig(updatedConfig);
-
-    // 重启自动同步
-    if (updatedConfig.autoSyncEnabled) {
-      appProvider.stopAutoSync();
-      appProvider.startAutoSync();
-    }
-  }
-
   // 更新记住登录设置
   Future<void> _updateRememberLogin(AppProvider appProvider, bool value) async {
     final updatedConfig = appProvider.appConfig.copyWith(rememberLogin: value);
@@ -794,32 +669,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
       );
       await appProvider.updateConfig(newConfig);
       await appProvider.clearLoginInfo();
-    }
-  }
-
-  // 更新自动登录设置
-  Future<void> _updateAutoLogin(AppProvider appProvider, bool value) async {
-    // 如果要开启自动登录，必须先开启记住密码
-    if (value && !appProvider.appConfig.rememberLogin) {
-      final newConfig = appProvider.appConfig.copyWith(
-        rememberLogin: true,
-        autoLogin: value,
-      );
-      await appProvider.updateConfig(newConfig);
-
-      // 显示提示信息
-      if (mounted) {
-        SnackBarUtils.showInfo(
-          context,
-          AppLocalizationsSimple.of(context)?.rememberPasswordEnabled ??
-              '已同时开启记住密码功能',
-        );
-      }
-    } else {
-      final newConfig = appProvider.appConfig.copyWith(
-        autoLogin: value,
-      );
-      await appProvider.updateConfig(newConfig);
     }
   }
 

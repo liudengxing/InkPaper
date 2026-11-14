@@ -463,6 +463,153 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     );
   }
 
+  // ---------- 自动同步 / 自动登录（原「偏好设置」并入） ----------
+
+  Widget _buildAutoSettingRow(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: theme.primaryColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: theme.primaryColor, size: 20),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: theme.textTheme.bodyMedium?.color?.withValues(
+                    alpha: 0.6,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Switch(value: value, onChanged: onChanged),
+      ],
+    );
+  }
+
+  Widget _buildSyncIntervalChips(AppProvider appProvider) {
+    final intervals = [5, 15, 30, 60, 120];
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, left: 56),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            AppLocalizationsSimple.of(context)?.syncInterval ?? '同步间隔',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.8),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: intervals.map((interval) {
+              final isSelected =
+                  appProvider.appConfig.syncInterval == interval * 60;
+              return ChoiceChip(
+                label: Text('$interval 分钟'),
+                selected: isSelected,
+                selectedColor: theme.primaryColor.withValues(alpha: 0.2),
+                labelStyle: TextStyle(
+                  color: isSelected
+                      ? theme.primaryColor
+                      : theme.textTheme.bodyMedium?.color,
+                ),
+                onSelected: (selected) {
+                  if (selected) {
+                    _updateSyncInterval(appProvider, interval * 60);
+                  }
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 更新自动同步设置
+  Future<void> _updateAutoSync(AppProvider appProvider, bool value) async {
+    final updatedConfig =
+        appProvider.appConfig.copyWith(autoSyncEnabled: value);
+    await appProvider.updateConfig(updatedConfig);
+    setState(() {});
+
+    // 根据设置启动或停止自动同步
+    if (value) {
+      appProvider.startAutoSync();
+    } else {
+      appProvider.stopAutoSync();
+    }
+  }
+
+  // 更新同步间隔
+  Future<void> _updateSyncInterval(AppProvider appProvider, int seconds) async {
+    final updatedConfig = appProvider.appConfig.copyWith(syncInterval: seconds);
+    await appProvider.updateConfig(updatedConfig);
+
+    // 重启自动同步
+    if (updatedConfig.autoSyncEnabled) {
+      appProvider.stopAutoSync();
+      appProvider.startAutoSync();
+    }
+  }
+
+  // 更新自动登录设置
+  Future<void> _updateAutoLogin(AppProvider appProvider, bool value) async {
+    // 如果要开启自动登录，必须先开启记住密码
+    if (value && !appProvider.appConfig.rememberLogin) {
+      final newConfig = appProvider.appConfig.copyWith(
+        rememberLogin: true,
+        autoLogin: value,
+      );
+      await appProvider.updateConfig(newConfig);
+
+      // 显示提示信息
+      if (mounted) {
+        SnackBarUtils.showInfo(
+          context,
+          AppLocalizationsSimple.of(context)?.rememberPasswordEnabled ??
+              '已同时开启记住密码功能',
+        );
+      }
+    } else {
+      final newConfig = appProvider.appConfig.copyWith(autoLogin: value);
+      await appProvider.updateConfig(newConfig);
+    }
+  }
+
   // 选择头像
   Future<void> _pickImage(User user) async {
     final l10n = AppLocalizationsSimple.of(context);
@@ -1698,6 +1845,58 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                         ],
                       ),
                     ],
+                  ],
+                ),
+              ),
+
+              // 自动同步 / 自动登录（原「偏好设置」同步区并入）
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    _buildAutoSettingRow(
+                      context,
+                      icon: Icons.sync,
+                      title: AppLocalizationsSimple.of(context)?.autoSync ??
+                          '自动同步',
+                      subtitle:
+                          AppLocalizationsSimple.of(context)?.autoSyncDesc ??
+                              '定期自动同步笔记',
+                      value: appProvider.appConfig.autoSyncEnabled,
+                      onChanged: (value) => _updateAutoSync(appProvider, value),
+                    ),
+                    if (appProvider.appConfig.autoSyncEnabled)
+                      _buildSyncIntervalChips(appProvider),
+                    const SizedBox(height: 8),
+                    Divider(
+                      height: 1,
+                      color: theme.dividerColor.withValues(alpha: 0.3),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildAutoSettingRow(
+                      context,
+                      icon: Icons.login,
+                      title: AppLocalizationsSimple.of(context)?.autoLogin ??
+                          '自动登录',
+                      subtitle:
+                          AppLocalizationsSimple.of(context)?.autoLoginDesc ??
+                              '启动应用时跳过登录页面直接进入',
+                      value: appProvider.appConfig.autoLogin,
+                      onChanged: (value) =>
+                          _updateAutoLogin(appProvider, value),
+                    ),
                   ],
                 ),
               ),

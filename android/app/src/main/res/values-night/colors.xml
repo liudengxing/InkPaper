@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 深色模式的桌面小部件玻璃色：墨绿调半透明底 + 亮边，
+     与启动图 inkpaper 的墨绿底呼应。只覆盖小部件相关与 primary，
+     图标底色/启动图色沿用浅色定义。 -->
+<resources>
+    <color name="inkpaper_primary">#5FC9A6</color>
+    <color name="inkpaper_widget_background">#C2243A33</color>
+    <color name="inkpaper_widget_surface">#26FFFFFF</color>
+    <color name="inkpaper_widget_text">#ECF1EF</color>
+    <color name="inkpaper_widget_muted">#9AA8A2</color>
+    <color name="inkpaper_widget_border">#33FFFFFF</color>
+    <color name="inkpaper_widget_highlight_start">#14FFFFFF</color>
+    <color name="inkpaper_widget_highlight_end">#00FFFFFF</color>
+</resources>

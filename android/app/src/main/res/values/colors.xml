@@ -8,9 +8,14 @@
     <color name="splash_color">#143B30</color>
     <color name="splash_color_dark">#143B30</color>
     <color name="inkpaper_primary">#2C9678</color>
-    <color name="inkpaper_widget_background">#FFFFFF</color>
-    <color name="inkpaper_widget_surface">#F5F7F6</color>
+    <!-- 桌面小部件玻璃质感（参考首页底部新增笔记栏的 LiquidGlass 参数）：
+         半透明底 + 斜向高光 + 暗边。RemoteViews 做不了实时模糊，
+         用手绘玻璃分层逼近。 -->
+    <color name="inkpaper_widget_background">#D1FFFFFF</color>
+    <color name="inkpaper_widget_surface">#99FFFFFF</color>
     <color name="inkpaper_widget_text">#1F2A27</color>
     <color name="inkpaper_widget_muted">#6C7874</color>
-    <color name="inkpaper_widget_border">#E3E9E6</color>
+    <color name="inkpaper_widget_border">#2E000000</color>
+    <color name="inkpaper_widget_highlight_start">#66FFFFFF</color>
+    <color name="inkpaper_widget_highlight_end">#0DFFFFFF</color>
 </resources>

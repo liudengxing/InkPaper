@@ -13,6 +13,7 @@ import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/image_utils.dart';
 import 'package:inkpaper/utils/live_photo_utils.dart';
+import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
@@ -35,11 +36,20 @@ class ImageViewerScreen extends StatefulWidget {
       return Future.value();
     }
 
+    // 自定义快速淡入转场：MaterialPageRoute 默认的缩放+淡入要 300ms+，
+    // 打开瞬间查看器只有约一半不透明度，半透明图片悬在原页面上观感很差。
+    // 这里改成 180ms 纯淡入 + 纯黑背景，转场短到读不出「半透明叠底」。
     return Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => ImageViewerScreen(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 180),
+        reverseTransitionDuration: const Duration(milliseconds: 150),
+        pageBuilder: (context, _, __) => ImageViewerScreen(
           imagePaths: imagePaths,
           initialIndex: initialIndex.clamp(0, imagePaths.length - 1),
+        ),
+        transitionsBuilder: (context, animation, _, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          child: child,
         ),
       ),
     );
@@ -930,6 +940,8 @@ class _PhotoPageState extends State<_PhotoPage> {
   ImageProvider? _previewProvider;
   ImageStream? _previewStream;
   ImageStreamListener? _previewListener;
+  // 原图解码的延迟启动定时器（等入场转场结束），路径变化/销毁时取消
+  Timer? _originalTimer;
   Size? _previewSize;
   Size? _imageSize;
   Object? _imageError;
@@ -1120,6 +1132,7 @@ class _PhotoPageState extends State<_PhotoPage> {
 
   @override
   void dispose() {
+    _originalTimer?.cancel();
     if (_imageStream != null && _imageStreamListener != null) {
       _imageStream!.removeListener(_imageStreamListener!);
     }
@@ -1138,6 +1151,36 @@ class _PhotoPageState extends State<_PhotoPage> {
     _detachPreview();
     _resolvedPath = widget.imagePath;
 
+    _imageSize = null;
+    _previewSize = null;
+    _imageError = null;
+
+    // 缩略图先上：磁盘缓存命中时几十毫秒就能出图，
+    // 原图解码完会由 _imageSize 到达时的 setState 自动替换。
+    _resolvePreview();
+
+    // 原图解码等入场转场结束后再启动：12MP 原图的 JPEG 全量扫描要
+    // 150-300ms，挤在转场里会把动画卡掉帧（打开查看器顿一下的根源）。
+    // 转场期间由缩略图顶上，解码完成后 gaplessPlayback 无缝换帧。
+    final routeAnimation = ModalRoute.of(context)?.animation;
+    final inTransition = routeAnimation != null &&
+        routeAnimation.status == AnimationStatus.forward;
+    _originalTimer?.cancel();
+    if (inTransition) {
+      _originalTimer = Timer(
+        const Duration(milliseconds: 260),
+        () {
+          if (mounted) {
+            _resolveOriginal();
+          }
+        },
+      );
+    } else {
+      _resolveOriginal();
+    }
+  }
+
+  void _resolveOriginal() {
     final provider = _ImageViewerScreenState.getImageProvider(
       widget.imagePath,
       context,
@@ -1150,13 +1193,6 @@ class _PhotoPageState extends State<_PhotoPage> {
     }
 
     _imageProvider = provider;
-    _imageSize = null;
-    _previewSize = null;
-    _imageError = null;
-
-    // 缩略图先上：磁盘缓存命中时几十毫秒就能出图，
-    // 原图解码完会由 _imageSize 到达时的 setState 自动替换。
-    _resolvePreview();
 
     _imageStreamListener = ImageStreamListener(
       (imageInfo, _) {
@@ -1189,13 +1225,25 @@ class _PhotoPageState extends State<_PhotoPage> {
   }
 
   /// 解析 480px 缩略图，只用于原图就绪前的临时展示。
+  ///
+  /// 优先复用 ThumbCache 的持久化缩略图文件：跟首页/详情页网格读的是同一个
+  /// 小文件（FileImage key 也一致），能直接命中 ImageCache，零解码秒出；
+  /// 没命中才退回 ResizeImage 方案 —— 那条路也要把原图文件全量扫一遍。
   void _resolvePreview() {
     try {
-      final provider = _ImageViewerScreenState.getImageProvider(
-        widget.imagePath,
-        context,
-        maxWidth: 480,
-      );
+      ImageProvider provider;
+      final previewFile = _previewLocalPath();
+      final thumb =
+          previewFile != null ? ThumbCache.instance.lookup(previewFile) : null;
+      if (thumb != null) {
+        provider = FileImage(thumb);
+      } else {
+        provider = _ImageViewerScreenState.getImageProvider(
+          widget.imagePath,
+          context,
+          maxWidth: 480,
+        );
+      }
       _previewProvider = provider;
       final stream = provider.resolve(createLocalImageConfiguration(context));
       final listener = ImageStreamListener(
@@ -1222,6 +1270,20 @@ class _PhotoPageState extends State<_PhotoPage> {
         debugPrint('ImageViewer: preview resolve failed: $e');
       }
     }
+  }
+
+  /// 预览缩略图能直接读本地文件时的路径；服务端未缓存图返回 null。
+  String? _previewLocalPath() {
+    final path = widget.imagePath;
+    if (path.startsWith('file://')) {
+      return path.replaceFirst('file://', '');
+    }
+    // 服务端附件已缓存到本地副本时，缩略图同样可用
+    final cached = AttachmentCache.instance.fileFor(path);
+    if (cached != null) {
+      return cached.path;
+    }
+    return null;
   }
 
   void _detachPreview() {

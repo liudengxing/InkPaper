@@ -1,721 +1,335 @@
 # Changelog
 
-All notable changes to InkPaper will be documented in this file.
+InkPaper release notes, written for the people using the app: what changed, not how it works.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## Writing rules
+
+1. **Write for users.** Only user-visible changes. No file names, class names, APIs, algorithms, dependency versions, CI config, test counts or lines of code.
+2. **One item, one change.** Start with the feature name and say what it gives the user, in a single line under ~120 characters; never repeat or split the same change.
+3. **Do not detail bug fixes.** Use the fixed sentence "Fixed known issues, improved stability and runtime efficiency." and list nothing specific.
+4. **List new features and improvements one by one.** Each item states the feature name and the value the user can feel, never the implementation.
+5. **Fixed sections and order**: `### Added`, `### Improved`, `### Fixed`, `### Removed`; omit empty sections.
+6. **Internal-only releases** (build, tests, dependencies, CI) say only: "Internal maintenance release with no change in the user experience."
+7. **Consistent wording**: items look like `- **Feature name**: what it gives you.`; release headings look like `## [1.1.87] - 2026-11-14` with no link references.
 
 ---
 
-## [1.1.86] - 2026-11-13
+## [1.1.87] - 2026-11-14
 
-### Changed
+### Added
 
-- **The built-in default prompt is now visible under each custom prompt field.** Previously
-  there was only a "leave empty to use the default" hint, so what that default actually said
-  was a guess. Each of the three fields (review, continuation, weekly/monthly recap) now has a
-  collapsible **View built-in default prompt** panel showing the exact text sent to the model —
-  selectable, so you can copy it, edit it and paste it back. The panel also spells out what a
-  custom prompt replaces: for review and recap your text replaces the body while the trailing
-  format requirements still apply; for continuation the whole instruction block is replaced.
-- **Icons are back to the dark-green paper sheet.** The afternoon change that turned the
-  launcher icon into a white-background two-tone block left the icon edge blending into
-  light wallpapers and drifting away from the paper mark used inside the app. Launcher,
-  round and notification icons are dark green with a white folded corner again, and the
-  adaptive-icon background is back to deep green; the dedicated `ic_launcher_round` set
-  stays, so round-mask launchers no longer crop the square asset. The mark on the splash
-  screen, the in-app logo (About / sign-in / onboarding) and the store asset
-  `marketing/real/google-play/icon-512x512.png` all follow the same paper shape.
-- **The About screen no longer claims iOS / macOS / Windows / Linux support.** The app ships
-  for Android only, so the technical-details paragraph now says so; the welcome note, help
-  intro and home onboarding copy switched from "cross-platform" to "Android" as well.
-- **Docs now match the single-platform reality.** The issue-template platform dropdown, the
-  PR checklist, the target-platform row in `ARCHITECTURE.md`, and the "screenshots must come
-  from the iOS simulator" rule in `marketing/README.md` were all corrected; the agreement and
-  privacy pages on the site dropped their iOS wording.
-- **Tapping the caret position again now opens the copy/paste toolbar.** Flutter only shows
-  the toolbar after a double-tap selection or a long-press drag. With a collapsed caret, a
-  second tap on the same character just puts the caret back where it was, so no selection
-  change fires and the menu never appears — copying surrounding text meant long-pressing.
-  The editor now watches pointer-up events and shows the system toolbar itself when the
-  tapped offset matches the caret. Tapping elsewhere still only moves the caret, and
-  double-tap word selection keeps working as before.
-- **Reordering images in the grid now shifts tiles live.** Dragging used to do nothing until
-  you dropped on a tile, and then the two swapped — no feedback during the gesture. Tiles
-  between the dragged one and the hovered cell now slide one slot over as you drag (diagonally
-  when crossing rows), and the order only commits on release. Dropping back where you started,
-  or cancelling, leaves everything untouched.
-- **Expanding to the grid no longer stutters.** Editor images were always decoded at their
-  original resolution: one 4000×3000 phone photo is a 45.8MB bitmap, so nine tiles meant
-  412MB and a GC storm on mid-range devices. Images are now decoded to the size actually
-  needed — 400px wide, 4.1MB for the same nine — and the strip and the grid share that one
-  size, so switching between them doesn't decode anything again.
-- **The "On this day" card no longer wears the brand green.** Its border, badge, year
-  label and carousel dots were green, which made the card read like a special alert sitting
-  above a column of white notes. The border now matches a normal note card, the badge and
-  dots use the secondary grey, and the green "2023, this day" line became the same full
-  date the feed shows (`2023-11-14`) in the same 10sp light grey, so scrolling past it no
-  longer feels like hitting a different UI.
+- **Update check record**: the About screen shows when the last check ran, which source answered and what it concluded, with the reason when it failed.
+- **Restore a skipped reminder**: a version dismissed with "Later" can be restored, and later releases prompt again.
+
+### Improved
+
+- **Check right after upgrading**: a freshly installed version is no longer blocked by the previous version's timing record.
+- **Less waiting when checking**: automatic checks run more often, prefer the domestic mirror and retry on the other source when it fails.
 
 ### Fixed
 
-- **The launch screen no longer turns black with the system theme.** With dark mode
-  enabled the app used to show a black splash first and then jump to the light interface
-  you had picked. Android draws that splash before the process even starts, so it cannot
-  be changed at runtime — the splash is now a dark green brand screen used in both light
-  and dark themes, which looks right either way.
+- Fixed known issues, improved stability and runtime efficiency.
 
-- **A cold start no longer flashes dark before turning light.** Theme, font scale and
-  language used to be read from local storage only after the first frame, and the first
-  frame used the default "follow system" value. On a device with dark mode enabled the app
-  painted one dark frame, then switched to the light theme you picked — it looked like the
-  app was blinking. The settings are now loaded before the UI is built, so the very first
-  frame already uses your theme.
-- **Drafts that contain images no longer get lost.** When editing an existing note, the
-  previous unsaved draft only showed a "found an unsaved draft" banner and waited for you to
-  tap Recover. That banner is easy to skim past, and the moment you started typing on the
-  original text, the 800ms autosave overwrote the whole draft with "original text + your new
-  input" — the images you had just added were gone. Notes now restore the draft automatically
-  on open, with an "unsaved draft restored" banner and an Undo action that reverts to the
-  original note.
-- The speech-recognition failure hint still listed "iOS: System version is too old". It now
-  only mentions missing Google speech services and network issues.
-- The WebDAV iCloud Drive example and the Flomo import step about saving to the Files app
-  were rewritten for Android.
-- Removed the unused `appStoreId` constant from `AppConfig`.
+## [1.1.86] - 2026-11-13
+
+### Added
+
+- **View built-in default prompt**: each custom prompt field can expand the default text, so you can copy it, edit it and paste it back.
+
+### Improved
+
+- **Faster images**: the home list, note detail and editor share one thumbnail, so cold starts and reopening notes are noticeably quicker.
+- **Grid by default in the editor**: images open as a three-column grid whose height follows the number of rows, with drag-to-reorder that makes room as you move.
+- **Lighter notes with images**: pictures load at display size, so long notes no longer stutter and use less memory.
+- **Better text toolbar**: selecting text brings up the system-style capsule bar, and tapping the caret again opens copy/paste.
+- **No dark flash on launch**: in light theme, and with the system in dark mode, the first frame already shows your chosen theme.
+- **Paper-sheet icon is back**: launcher, notification and in-app marks share one dark-green paper shape.
+- **Quieter "On this day" card**: it now uses the same thin grey border as ordinary notes instead of brand green.
+- **Clearer "More" button**: it uses body text colour in light mode and stays light grey in dark mode.
+
+### Removed
+
+- InkPaper no longer appears in the system text-selection menu of other apps.
+
+### Fixed
+
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.1.85] - 2026-11-13
 
-### Changed
+### Improved
 
-- **Release notes in the update dialog are rendered as Markdown.** They used to be dropped
-  into a plain `Text`, so users saw raw `### Fixed`, `- ...` and `| source | url |` markers.
-  Headings are now only bolded (not enlarged) and spacing is tightened.
-- **Notes are trimmed to "what changed this release".** The download table, APK link and
-  AAB note at the end of the web version are noise in a 400-wide dialog, and tables squeeze
-  into a sliver on narrow screens. They are dropped along with duplicate blank lines. The
-  trimming happens in the app, so notes of already-published releases get cleaner too.
-- **Download source moved to the bottom of the dialog**, with the mainland mirror selected
-  by default and marked green; GitHub sits on the right as a fallback. Both sources serve
-  the same package, the mirror is just an order of magnitude faster in mainland China.
+- **Readable release notes**: the update dialog renders the notes as body text, so headings and lists no longer show raw markup.
+- **Choose the download source**: the update dialog offers the domestic mirror or GitHub at the bottom, with the mirror selected by default.
 
 ## [1.1.84] - 2026-11-13
 
 ### Fixed
-- **Falls back to the GitHub asset when the Gitee one is missing.** Gitee uploads release
-  assets over a separate channel that occasionally fails - the Release gets created but
-  the APK never lands, as happened with 1.1.83 - and the direct link then returns 404, so
-  the only thing users saw was "Download failed (HTTP 404)". Downloads now retry once
-  against the same version on GitHub when the primary source answers 403 / 404 / 410.
-  Timeouts and 5xx do not switch sources, so a transient hiccup does not turn into a
-  ten-minute slow download.
+
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.1.83] - 2026-11-13
 
 ### Fixed
-- In-app "check for updates" works again. When the Gitee mirror was introduced in
-  1.1.76, the release API URL kept GitHub's owner/repo (`liudengxing/InkPaper`) while the
-  actual Gitee mirror is `liudengxing233/ink-paper`, so the request returned 404
-  "no published release yet" - update checks had been reading nothing since 1.1.76.
-  The URL is corrected, and a new test asserts the API URL against the mirror URL so
-  that changing only one of them fails immediately.
+
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.1.82] - 2026-11-13
 
 ### Fixed
-- Pinch-to-zoom and swipe-to-paginate in the image viewer no longer fight each other.
-  They used to be two independent recognizers with the same 18dp threshold, so whichever
-  crossed it first owned the whole gesture and the loser could not take over - zooming
-  could turn the page, and a zoomed-in image could refuse to pan sideways. A single
-  recognizer now owns the screen: two fingers enter zoom immediately, one finger pans or
-  pages depending on the current scale, a horizontal drag that gains a second finger
-  switches to zoom, and lifting one finger no longer snaps the scale back to 1.
 
-- A line of dashes directly under a paragraph no longer turns that paragraph into a
-  heading. Markdown treats `text` followed by a line of dashes as a setext heading, so a
-  hand-typed divider silently promoted the whole paragraph to an H2 - bigger and bolder,
-  which reads as random bolding. Such dash lines are now demoted to a divider; dashes
-  inside code fences and front matter at the top of a note are left untouched.
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.1.81] - 2026-11-13
 
 ### Fixed
-- Double-tapping the blank area below the text in the note editor now opens the system
-  copy/paste toolbar. The text field is only as tall as its text, so taps below the last
-  line landed outside it and did nothing; users had to long-press and drag a selection
-  to get the toolbar. A fallback gesture layer now sits behind the text: a single tap
-  places the caret, a double tap selects the nearest word and shows the same toolbar.
+
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.1.80] - 2026-11-12
 
-### Changed
-- The repository now ships Android only. The `windows/`, `macos/`, `linux/`, `ios/`, and `web/` platform
-  folders, their build targets, release jobs, and packaging scripts are removed.
-- All web/desktop/iOS branches in Dart code (`kIsWeb`, `Platform.is*`, desktop layout, iOS notification
-  categories and share extension, desktop database FFI) are gone, leaving a single-platform codebase.
-- The `all` build target now equals the release APK, and `scripts/ci.sh` only accepts Android targets.
-- Documentation and the public site describe the Android APK/AAB pipeline only.
+### Improved
+
+- **Android only**: the app ships for Android alone, which means a smaller package and a simpler update chain.
 
 ### Removed
-- iOS unsigned IPA, macOS DMG, Windows installer, and Linux tarball build and distribution paths.
+
+- The iOS, macOS, Windows and Linux builds, along with desktop-only layouts and share extensions.
 
 ## [1.1.13] - 2026-06-22
 
-### Fixed
-- Fixed a possible Android crash when sharing text or web pages from browsers and reading apps into InkPaper
-- Fixed Android share handling that could mistake web page URL ClipData for file attachments
-- Fixed iOS and Android random-review widgets showing "Open InkPaper to show random review" even when notes exist
-- Fixed random-review widget filtering based on updated time, which made restored or synced notes appear in the wrong review range
-- Added Development Team settings for the iOS main app, widget extension, and share extension to support Xcode device debugging
-
 ### Improved
-- Random-review widget snapshots now refresh immediately after settings changes
-- Share payload parsing is more tolerant of non-standard list types from platform channels
+
+- **Widget refreshes immediately**: settings changes take effect at once instead of at the next refresh.
+- **More reliable share parsing**: text and multi-image shares from browsers and readers are no longer mistaken for attachments.
+
+### Fixed
+
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.1.12] - 2026-06-22
 
-### Fixed
-- Fixed unsigned IPA packaging failure after adding the iOS share extension, where the extension inherited Runner Flutter linker configuration
+### Improved
+
+- Internal maintenance release with no change in the user experience.
 
 ## [1.1.11] - 2026-06-22
 
 ### Added
-- Added an iOS system share extension for sharing text, web pages, images, and files from browsers, reading apps, Photos, and Files into InkPaper
+
+- **iOS share extension**: send text, web pages and images from browsers, readers, Photos and the Files app.
+- **Unified Android share entry**: text, web pages, single or multiple images, single or multiple files and mixed attachments are all accepted.
 
 ### Improved
-- Improved Android system sharing to support browser and reader text, selected text, single and multiple gallery images, single and multiple file-manager files, and mixed attachments
-- Improved shared attachment handling by copying content URIs in the background, preserving filenames and common extensions, and reducing stalls when sharing large images or many files
-- Improved Memos 0.21.0 to 0.29.1 compatibility for server detection, login token fields, and current-user API fallback
+
+- **Smoother large shares**: attachments are copied in the background with their file names kept, which reduces stutter.
+- **Broader server support**: Memos 0.21 through 0.29 sign in and initialise more reliably.
 
 ### Fixed
-- Fixed blank content when sharing from some Android apps into InkPaper
-- Fixed login or sync initialization failures on some self-hosted Memos 0.26, 0.27, and 0.29 servers
+
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.1.10] - 2026-06-22
 
 ### Added
-- Added base Android and iOS home-widget support with separate quick-note and random-review widgets
-- Added random-review widget selection and refresh settings so widgets prefer real note content
-- Added configurable iFlytek speech recognition settings so users can enable their own speech service
+
+- **Home-screen widgets**: quick capture and random review as separate widgets, ready without opening the app.
+- **Configurable random review**: pick what the widget shows and how it refreshes, with real notes preferred.
+- **Bring your own speech service**: enter your own iFlytek credentials and pay the service cost yourself.
 
 ### Improved
-- Improved the knowledge graph visuals, zoom controls, node selection, and large-note rendering performance
-- Improved Windows, macOS, and Linux desktop scaling so the font-size preference scales the whole interface
-- Improved home and detail rendering for Markdown headings, blockquotes, links, underline, and related note references
-- Improved tag path parsing, sidebar tag navigation, and Chinese tag opening behavior
-- Improved AI settings, model input, custom prompts, and quick-start copy
-- Updated project structure, build documentation, and marketing asset folders to match the current project state
+
+- **Easier knowledge graph**: clearer visuals, better zoom and node taps, and smoother rendering of large graphs.
+- **Whole-interface scaling on desktop**: changing the font size now scales interface elements too.
+- **Fuller Markdown rendering**: headings, quotes, links and underline display correctly in both list and detail.
+- **Smoother tags**: path parsing, sidebar back navigation and Chinese tags all behave as expected.
 
 ### Fixed
-- Fixed single-note pull-to-refresh getting stuck in a loading state
-- Fixed random-review widgets not switching randomly and showing inaccurate empty states
-- Fixed desktop shrinking only affecting text while surrounding UI stayed unchanged
+
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.1.9] - 2026-06-16
 
-### Fixed
-- Fixed GitHub Actions iOS unsigned packaging failing when the `SDWebImage` Gitee mirror timed out
+### Improved
 
-### Maintenance
-- Moved the iOS Pod dependency back to the CocoaPods spec source and added `pod install` retries for unsigned IPA packaging
-
----
+- Internal maintenance release with no change in the user experience.
 
 ## [1.1.8] - 2026-06-16
 
-### Fixed
-- Fixed todo completion not applying from note cards
-- Fixed underline and bold rendering issues on the home feed
-- Fixed search results showing mismatched notes or blank note cards
-- Fixed related notes sometimes reporting no results while preserving the existing related-notes experience
-- Fixed tag-detail back navigation after entering from the sidebar or home feed
-- Restored the brand copy "Settle patiently, then speak with force" and removed generic wording from Settings and About
-
 ### Improved
-- Improved AI review, summary, continuation, tag recommendation, and insight output to reduce template-like responses
-- Updated About, Help, Settings, and legal copy to match the current product behavior and data flow
-- Improved image preview, note layout preservation, expand-state detection, WebDAV backup, and sync timestamp preservation
-- Hardened the CLI release flow around cloud verification, Android application ID, and release certificate checks
 
-### Verified
-- Verified Debug launch on the iOS simulator
-- `flutter analyze` passes
-- GitHub Actions Release continues to build Android APK/AAB, iOS unsigned, macOS, Windows, and Linux artifacts
+- **More natural AI output**: review, summary, continuation and recap read less like a template.
+- **Docs match the app**: About, Help, Settings and the legal pages now describe what the app actually does.
+- **More stable images and layout**: preview, expand detection and the timestamps kept during backup and sync all improved.
+- **Brand line restored**: "静待沉淀，蓄势而鸣" is back.
 
----
+### Fixed
+
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.1.7] - 2026-06-15
 
-### Fixed
-- Corrected Android AAB signing verification to use the JAR certificate fingerprint instead of checking for raw APK certificate bytes
+### Improved
 
----
+- Internal maintenance release with no change in the user experience.
 
 ## [1.1.6] - 2026-06-15
 
-### Fixed
-- Android Release builds now require complete signing configuration and fail when `android/key.properties` or the keystore is missing
-- The release workflow now checks both APK and AAB artifacts for the fixed release certificate before publishing
+### Improved
 
----
+- Internal maintenance release with no change in the user experience.
 
 ## [1.1.5] - 2026-06-15
 
-### Fixed
-- Fixed the official cloud verification AppID as a source default so Release packages cannot be built without the official cloud binding
-- Added an Android release certificate fingerprint gate so mismatched signing certificates fail before packaging and do not break upgrade installs
+### Improved
 
-### Maintenance
-- The cloud verification AppID and client AppKey now have source defaults so Release builds bind to the official cloud backend without a GitHub Secret; Android signing credentials still come from GitHub Secrets
-
----
+- Internal maintenance release with no change in the user experience.
 
 ## [1.1.4] - 2026-06-15
 
 ### Fixed
-- Fixed Release packages missing the cloud verification AppID / AppKey, which disabled official notices, cloud configuration, and update checks
 
-### Maintenance
-- Kept required-secret validation for Android signing credentials in the GitHub Actions Release workflow
-- Hardened the CLI so cloud verification uses the official default configuration while Android release builds still verify the package certificate
-
----
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.1.3] - 2026-06-15
 
-### Fixed
-- Fixed cloud Android CLI builds missing the required Flutter `applicationName` manifest placeholder
-- Fixed release build failures when Android native code requires generated `BuildConfig`
-- Fixed Android Gradle entrypoint issues that caused CI Android builds to fail
+### Improved
 
-### Maintenance
-- Added release-readiness checks for the Android manifest placeholder and BuildConfig generation
-- Verified main branch CI across Analyze + Test, Secret scan, Android, iOS simulator, macOS, Windows, and Linux
-- Kept the Android application ID and signing flow unchanged to preserve update compatibility
-
----
+- Internal maintenance release with no change in the user experience.
 
 ## [1.1.2] - 2026-06-15
 
+### Added
+
+- **Account and data deletion**: an in-app entry, plus a public page for requesting deletion.
+- **Updated privacy documents**: they now match how servers, sync, WebDAV, AI and feedback actually handle data.
+
+### Improved
+
+- **Broader sign-in support**: the app adapts to the account API and authentication used by different server versions.
+- **Clearer sign-in errors**: wrong password, bad token, network and server faults are reported separately.
+
 ### Fixed
-- Fixed account profile loading failures after a successful Memos login on some servers
-- User profile loading now falls back across v0.21, v0.22-v0.25, and v0.26+ account APIs instead of relying on a single detected version
-- Requests now send both Bearer Token and Memos Cookie credentials for better compatibility with official and self-hosted servers
-- Login errors now distinguish credential, token, network, TLS, and server response failures instead of showing one generic network message
-- Added account and data deletion entry points and a public deletion request page
-- Updated the privacy policy, user agreement, iOS privacy manifest, and iOS permission declarations to match the current official server, self-hosted sync, WebDAV, AI, and feedback data flow
 
-### Verified
-- Verified official server login on the iOS simulator and synced 279 notes successfully
-- `flutter analyze` passed
-- Memos API unit tests passed
-
----
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.1.1] - 2026-06-15
 
-### Fixed
-- Improved Memos login compatibility when servers hide version information before login
-- Fixed Flutter default icons still appearing on Windows desktop builds
-- Unified macOS and Windows desktop icon generation
+### Improved
 
-### Maintenance
-- Added `scripts/generate_desktop_icons.py` for desktop icon asset generation
-
----
+- **More reliable sign-in**: when a server hides its version, the app tries the other authentication protocol.
+- **Consistent desktop icons**: Windows and macOS icons come from the same generation flow.
 
 ## [1.1.0] - 2026-06-14
 
-### Maintenance and Release Workflow
-- Added the unified maintenance CLI: `dart tool/inkpaper.dart`
-- Upgraded GitHub Actions to validate and build Android, iOS simulator, macOS, Windows, and Linux
-- Added PR template, issue templates, Dependabot configuration, and Gitleaks secret scanning
-- Added `docs/MAINTENANCE.md` for versioning, CI, release, and security workflow
-- Added tag-driven release publishing through GitHub Actions
+### Improved
 
-### Quality
-- `flutter analyze` currently reports 0 issues
-- `flutter test` currently passes 300 tests
-- iOS simulator launch was verified
+- **One maintenance command**: versioning, builds, releases and checks run through a single command.
 
 ### Fixed
-- Cloud configuration failure responses with string `msg` no longer trigger Dart type errors
-- Added model tests for successful and failed cloud verification responses
+
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.0.9] - 2025-11-22 ~ 2025-11-24
 
-### ✨ Major Feature Updates
+### Added
 
-#### 🔄 **Notion Data Sync** - Real-time Sync with Notion Workspace (Added 2025-11-24)
-- **Bidirectional Sync Support**
-  - To Notion Only - Local Notes → Notion
-  - From Notion Only - Notion → Local Notes
-  - Bidirectional - Local Notes ↔ Notion
-  - Flexible sync direction for different use cases
+- **Notion sync**: two-way sync with a Notion workspace, one-way if you prefer, plus auto sync on create and edit.
+- **Obsidian integration**: two-way sync through a third-party plugin, with daily notes and incremental sync.
+- **WeRead import**: paste the exported text to import in bulk, with book, author and chapter detected automatically.
+- **Annotations**: five types — comment, question, idea, important and to-do — in a sidebar you can add, edit and delete from.
+- **Reference relations**: see outgoing and incoming links in a sidebar and jump straight to the linked note.
+- **Custom AI prompts**: rewrite the review, continuation and insight prompts, or leave them empty for the default.
 
-- **Auto Sync Feature**
-  - Auto sync when creating notes
-  - Auto sync when editing notes
-  - Pull-to-refresh triggers sync
-  - Smart duplicate sync prevention
+### Improved
 
-- **Notion Settings Page**
-  - Access token configuration and testing
-  - Database selection and field mapping
-  - Sync direction selection
-  - Auto sync toggle
-  - Manual sync button
+- **Clearer import and export copy**: every capability is described consistently, with a data-safety note.
+- **Complete bilingual text**: all new features ship with Chinese and English strings.
 
-- **Technical Implementation**
-  - Added `NotionApiService` - Notion API wrapper
-  - Added `NotionSyncService` - Notion sync logic
-  - Added `notion_settings_screen.dart` - Notion settings UI
-  - Integrated auto-sync logic in `AppProvider`
+### Fixed
 
-#### 📓 **Obsidian Integration** - Bidirectional Sync via Third-party Plugin (Added 2025-11-24)
-- **Plugin Compatibility**
-  - Fully compatible with [obsidian-memos-sync](https://github.com/RyoJerryYu/obsidian-memos-sync) plugin
-  - Supports Memos API v0.21.0 standard
-  - Supports daily notes auto-integration
-  - Supports incremental sync
-
-- **Import/Export Page Integration**
-  - Added Obsidian data sync entry
-  - Click to jump to plugin download page
-  - Professional feature descriptions
-  - Unified UI design style
-
-#### 📖 **WeRead Notes Import** - Batch Import Reading Notes (Added 2025-11-24)
-- **Smart Parsing**
-  - Auto-recognize book information (title, author)
-  - Auto-parse note count and chapters
-  - Smart extract note content
-  - Preserve original structure and format
-
-- **Import Settings**
-  - Custom tags (default: WeRead + book title)
-  - Chapter as secondary tag option
-  - Preview and check before import
-  - Batch import progress display
-
-- **User Experience**
-  - Detailed usage instructions
-  - Friendly paste area hints
-  - Format check and validation
-  - Import result statistics
-
-- **Technical Implementation**
-  - Added `WeReadParser` - WeRead notes parsing service
-  - Added `weread_import_screen.dart` - WeRead import page
-  - Smart text parsing algorithm
-  - Supports multiple note formats
-
-### 🎨 UI/UX Optimization
-
-#### Import/Export Page Text Refinement (Added 2025-11-24)
-- **Professional Expression**
-  - Local Backup & Restore: Export note data to local files, supports data recovery from backup files
-  - Flomo Notes Import: Supports batch import of note content from Flomo exported HTML files
-  - WeRead Notes Import: Supports batch import from WeRead exported notes text with automatic book info and highlight recognition
-  - Notion Data Sync: Real-time sync with Notion workspace, supports bidirectional and auto-sync
-  - Obsidian Data Sync: Bidirectional sync with Obsidian via third-party plugin, supports daily notes integration
-  - Memos Browser Extension: Third-party browser extension, supports Chrome/Edge, quickly collect web content to Memos
-
-- **Unified Terminology**
-  - "Plugin" → "Extension"
-  - "Save" → "Collect"
-  - "Colloquial" → "Professional"
-
-- **Data Security Tips**
-  - 💡 Data Security Tip: Regular backup of note data is recommended. Please confirm file format before import to avoid data loss.
-
-### 🌍 Internationalization Support
-
-#### New Translations
-- **Notion Sync** (30+ strings)
-  - All Notion settings UI text
-  - Sync direction options and descriptions
-  - Auto-sync related text
-  - Error messages and success notifications
-
-- **Obsidian Integration** (5+ strings)
-  - Obsidian sync title and description
-  - Plugin download guide text
-
-- **WeRead Import** (20+ strings)
-  - All import page text
-  - Usage instructions and hints
-  - Advanced options descriptions
-  - Import result messages
-
-- **Import/Export Page** (10+ strings)
-  - All feature card titles and descriptions
-  - Data security tip text
-
-### 🔧 Technical Improvements
-
-#### New Files
-- `lib/services/notion_api_service.dart` - Notion API service
-- `lib/services/notion_sync_service.dart` - Notion sync service
-- `lib/services/weread_parser.dart` - WeRead parsing service
-- `lib/screens/notion_settings_screen.dart` - Notion settings page
-- `lib/screens/weread_import_screen.dart` - WeRead import page
-
-#### Modified Files
-- `lib/providers/app_provider.dart` - Integrated Notion auto-sync
-- `lib/screens/home_screen.dart` - Pull-to-refresh triggers Notion sync
-- `lib/screens/import_export_main_screen.dart` - Added Notion/Obsidian/WeRead entries
-- `lib/l10n/app_localizations_simple.dart` - Added 80+ i18n strings
-
-#### Architecture Optimization
-- Notion sync uses async non-blocking design
-- Duplicate sync prevention mechanism
-- Smart error handling and logging
-- Modular service design
-
-### 📊 Statistics
-
-- New files: 5
-- Modified files: 15+
-- New code: ~3500 lines
-- New i18n strings: 80+ (Chinese & English)
-- New features: 3 major features (Notion/Obsidian/WeRead)
-
-### 🔗 Related Links
-
-- [Obsidian Memos Sync Plugin](https://github.com/RyoJerryYu/obsidian-memos-sync)
-- [Notion API Documentation](https://developers.notion.com/)
-- [Memos v0.21.0](https://github.com/usememos/memos/releases/tag/v0.21.0)
-
-#### 📝 **Annotation System** - Professional Note Annotation (2025-11-22)
-- **Annotation Sidebar** - Professional design aligned with mainstream note apps
-  - Bottom slide-out sidebar with draggable height adjustment
-  - Responsive layout, perfectly adapted for phones, tablets, and desktops
-  - Annotation type filtering (All/Comment/Question/Idea/Important/To-do)
-  - Annotation count statistics and real-time updates
-  - Friendly empty state prompts
-
-- **Multiple Annotation Types** - Meet different scenario needs
-  - 💬 Comment - General annotations
-  - ❓ Question - Record questions
-  - 💡 Idea - Inspiration recording
-  - ⭐ Important - Key marking
-  - ✅ To-do - Task reminders
-  - Each type with dedicated icon and color
-
-- **Annotation Management**
-  - Add annotation: Support type selection and content input
-  - Edit annotation: Modify content and type
-  - Delete annotation: Confirmation dialog prevents accidental deletion
-  - Mark as resolved: To-do type can mark completion status
-  - Time display: Smart relative time (just now/minutes ago/hours ago/days ago)
-
-- **Annotation Entry Optimization**
-  - Home note cards: Display annotation icon and count in bottom right
-  - Click annotation icon: Directly open annotation sidebar
-  - Note detail page: "View Annotations" option in more menu
-  - Detail page bottom: Annotation area display and quick add
-
-#### 🔗 **Reference Sidebar** - New Reference Management Experience (2025-11-22)
-- **Reference Sidebar Design** - Consistent with annotation sidebar
-  - Bottom slide-out design, draggable adjustment
-  - Responsive layout for multiple devices
-  - Reference type filtering (All/Referenced Notes/Referenced By)
-  - Reference count statistics
-
-- **Reference Relationship Visualization**
-  - ↗️ Referenced Notes (Forward references) - Blue indicator
-  - ↙️ Referenced By (Backlinks) - Green indicator
-  - Reference cards show note preview and creation time
-  - Click card to jump directly to corresponding note
-
-- **Reference Entry Optimization**
-  - Home note cards: Display reference arrow and count
-  - Click arrow: Directly open reference sidebar
-  - Note detail page: "Reference Details" option in more menu
-
-#### 🎨 **AI Settings Enhancement** - Custom AI Prompts (2025-11-22)
-- **Custom Prompt Support**
-  - Insight Prompt
-  - Review Prompt
-  - Continuation Prompt
-  - Tag Insight Prompt
-  - Tag Recommendation Prompt
-
-- **Prompt Management**
-  - Each prompt has clear description and scope
-  - Supports multi-line input for complex prompts
-  - Leave empty to use system default prompts
-  - Real-time save, immediate effect
-
-### 🌍 **Complete Internationalization** - Seamless Chinese/English Switching
-
-#### Annotation Feature Internationalization
-- Annotation sidebar: Title, filtering, empty state, time format
-- Annotation types: Comment/Question/Idea/Important/To-do
-- Annotation dialogs: Add, edit, delete
-- Success messages: Annotation added/updated/deleted/marked as resolved
-
-#### Reference Feature Internationalization
-- Reference sidebar: Title, filtering, empty state
-- Reference types: Referenced Notes/Referenced By
-- Reference cards: Type labels, time display
-
-#### AI Settings Internationalization
-- Custom prompts: All titles and descriptions
-- Input hints: All prompt text
-- Help information: Scope descriptions
-
-#### Note Detail Page Internationalization
-- Annotation area: Title, buttons, empty state prompts
-
-### 🎨 UI/UX Improvements
-
-- **Unified Sidebar Design** - Annotations and references use consistent design language
-  - Smooth bottom slide-out animation
-  - Supports draggable height adjustment (0.5-0.95 screen height)
-  - Modern rounded corners
-  - Perfect dark mode adaptation
-
-- **Responsive Layout** - Perfectly adapted for multiple devices
-  - Phone: Full screen display
-  - Tablet: 80% width
-  - Desktop: Fixed 400px width
-
-- **Interaction Optimization**
-  - Click annotation/reference icon to directly open sidebar
-  - Annotation type selection uses ChoiceChip, more intuitive
-  - Filter buttons support icon+text, clearer
-  - Friendly empty state prompts guide user operations
-
-### 🐛 Bug Fixes
-
-- Fixed annotation dialog displaying as boxes on home page
-- Fixed AI settings custom prompts displaying as boxes
-- Fixed reference arrow click not responding
-- Fixed annotation type text not using internationalization
-- Fixed time formatting method call errors
-- Fixed duplicate declaration compilation errors
-
-### 🔧 Technical Improvements
-
-- **Code Structure Optimization**
-  - Added `AnnotationsSidebar` component
-  - Added `ReferencesSidebar` component
-  - Optimized `NoteActionsService` service
-  - Enhanced `AppLocalizationsSimple` internationalization
-
-- **Performance Optimization**
-  - Annotation sidebar uses Provider listening, real-time updates
-  - Reference relationship calculation optimization, reduced duplicate queries
-  - Internationalization text caching, improved rendering performance
-
-### 📊 Statistics
-
-- New files: 2 (AnnotationsSidebar, ReferencesSidebar)
-- Modified files: 10+
-- New i18n strings: 50+
-- Lines of code: +2000
-- Supported languages: Chinese, English
-
----
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.0.8] - 2025-10-30
 
-### 🌍 Added
-- **Complete Internationalization Support** - Chinese/English bilingual switching
-- All UI and messages fully internationalized
-- Custom translation system using `translations.dart`
-- Dynamic language switching without app restart
+### Added
 
-### 🏷️ Enhanced Tag System
-- Multi-level tag support (`#parent/child`)
-- Tree-view display with collapse/expand
-- AI-powered related tag recommendations
-- Tag statistics and visualization
-- Custom tag colors
+- **Full Chinese and English UI**: editor, cards, settings, import and service messages all switch language.
+- **Nested tags**: separate levels with `/` and get a tree view, colours, statistics and search.
+- **Flomo import**: bring in an HTML export, keeping creation times, migrating images and removing duplicates.
 
-### 📥 Flomo Notes Import
-- Import notes from Flomo HTML files
-- Smart parsing of content and tags
-- Preserve original creation time
-- Auto image migration and compression
-- Smart deduplication (content match + exact match)
-- Use relative paths for images to avoid path invalidation
+### Improved
 
-### ⚡ Performance Optimization
-- AI API call efficiency improved by 50%
-- WebDAV sync performance optimization with incremental sync support
-- Image compression optimization (1200x1200, 85% quality)
-- Project size reduced by 400-600MB
+- **Steadier AI and sync**: fewer tokens, smarter retries and more dependable conflict handling.
+- **Images survive upgrades**: relative paths keep pictures visible after an update or reinstall.
 
-### 🐛 Critical Fixes
-- Fixed image path issues (images not displaying after iOS upgrade)
-- Changed to relative path storage, dynamic parsing to absolute paths
-- Fixed UI layout overflow issues
-- Fixed tag parsing exceptions
-- Optimized sync conflict handling
+### Fixed
 
----
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.0.7] - 2025-09-15
 
 ### Added
-- **Knowledge Graph** - Visualize note relationships
-- **Activity Heatmap** - Track note creation habits with month switching
-- **Note Pinning** - Pin important notes with cloud sync support
-- **Custom Fonts** - 4 font sizes + 6 selected fonts
+
+- **Knowledge graph**: a visual map of how your notes relate to each other.
+- **Activity heatmap**: track your writing habit month by month.
+- **Note pinning**: keep important notes on top, synced to the server as well.
+- **Custom fonts**: four sizes and six typefaces.
 
 ### Improved
-- Enhanced search functionality
-- Optimized sync performance
-- Improved UI/UX
+
+- **Better search**: results are more relevant.
+- **Faster sync**: syncing large libraries takes less time.
+- **Refined interface**: spacing and controls feel more consistent.
 
 ### Fixed
-- Various bug fixes and stability improvements
 
----
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.0.6] - 2025-08-01
 
 ### Added
-- **AI Smart Assistant** - DeepSeek AI integration
-- **Voice Recognition** - Real-time speech-to-text
-- **Smart Reminders** - Scheduled notifications
-- **Random Review** - Smart recommendation of historical notes
+
+- **AI assistant**: DeepSeek-powered writing help.
+- **Voice input**: speak instead of typing, transcribed as you talk.
+- **Scheduled reminders**: get notified about notes on a schedule.
+- **Random review**: resurface past notes worth a second look.
 
 ### Improved
-- Enhanced Markdown rendering
-- Optimized image handling
-- Improved performance
 
----
+- **Better Markdown rendering**: more syntax displays as intended.
+- **Smarter image handling**: images load and save more predictably.
+
+### Fixed
+
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.0.5] - 2025-07-01
 
 ### Added
-- **Local References** - Bidirectional note linking with `[[Note Title]]`
-- **Backlinks** - Auto-display which notes reference current note
-- **WebDAV Sync** - Multi-device sync support
+
+- **Local references**: link notes with `[[Note Title]]`.
+- **Backlinks**: see which notes point at the one you are reading.
+- **WebDAV sync**: keep several devices in step.
 
 ### Improved
-- Enhanced tag system
-- Optimized UI design
-- Improved stability
 
----
+- **Stronger tags**: faster lookup and cleaner handling of nested names.
+- **Cleaner interface**: tighter spacing and clearer hierarchy.
+
+### Fixed
+
+- Fixed known issues, improved stability and runtime efficiency.
 
 ## [1.0.0] - 2025-06-01
 
 ### Added
-- Initial release
-- Basic note-taking functionality
-- Markdown support
-- Tag system
-- Image management
-- Dark mode
-- Cloud sync with Memos server
-- Local mode support
+
+- First release: note taking with Markdown, tags, images and dark mode.
+- Sync with a Memos server, plus a local-only mode.
 
 ---
 

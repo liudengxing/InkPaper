@@ -224,6 +224,21 @@ lib/
 
 ## 📖 Style Guide
 
+### Changelog Entries
+
+`CHANGELOG.md` 与 `CHANGELOG.en.md` 面向使用者，不面向开发者。新增条目遵循以下规则：
+
+1. 只写用户能感知的变化，不出现文件名、类名、接口、算法、依赖版本、CI 配置、测试数量等技术信息。
+2. 一条一件事，形如 `- **功能名**：说明。`，中文单条不超过 40 字（英文 120 字符），句末加句号。
+3. 缺陷修复统一写「修复已知问题，提升软件稳定性，优化软件运行效率。」，不逐项展开。
+4. 新增与优化逐条列出功能名称与用户可感知的价值，不写实现方式。
+5. 分类固定为 `### 新增` / `### 优化` / `### 修复` / `### 移除`，顺序不变，没有内容的分类省略。
+6. 只动构建、测试、依赖、CI 的版本，正文只写「本次为内部维护更新，使用体验无变化。」
+
+English: entries describe only user-visible changes; bug fixes collapse into a single line
+("Fixed known issues, improved stability and runtime efficiency."), while new features and
+improvements are listed one per line with the value the user can feel.
+
 ### Git Commit Messages
 
 We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.

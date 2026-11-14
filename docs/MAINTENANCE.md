@@ -75,7 +75,9 @@ website pages and the in-app legal text aligned whenever the data flow changes.
 Release flow:
 
 1. Update `pubspec.yaml`.
-2. Update `CHANGELOG.md` and `CHANGELOG.en.md`.
+2. Update `CHANGELOG.md` and `CHANGELOG.en.md` as user-facing notes only — follow the
+   writing rules at the top of both files (no implementation detail, one change per line,
+   bug fixes collapse into a single sentence).
 3. Run `dart tool/inkpaper.dart store-check` and `dart tool/inkpaper.dart verify`.
 4. Commit and push the changes.
 5. Run `dart tool/inkpaper.dart release vX.Y.Z`.

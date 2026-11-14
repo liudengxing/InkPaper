@@ -30,7 +30,7 @@ void main() {
       );
 
       expect(find.text('那年今日'), findsOneWidget);
-      expect(find.text('2024-10-27'), findsOneWidget);
+      expect(find.text('2024-10-27 09:30'), findsOneWidget);
       expect(find.text('2024 年的记录'), findsOneWidget);
     });
 
@@ -63,13 +63,13 @@ void main() {
       );
 
       expect(find.text('1/2'), findsOneWidget);
-      expect(find.text('2025-10-27'), findsOneWidget);
+      expect(find.text('2025-10-27 09:30'), findsOneWidget);
 
       await tester.drag(find.byType(PageView), const Offset(-320, 0));
       await tester.pumpAndSettle();
 
       expect(find.text('2/2'), findsOneWidget);
-      expect(find.text('2024-10-27'), findsOneWidget);
+      expect(find.text('2024-10-27 09:30'), findsOneWidget);
     });
 
     testWidgets('OTD-04 点正文打开对应笔记', (tester) async {
@@ -100,7 +100,7 @@ void main() {
         ),
       );
 
-      final style = tester.widget<Text>(find.text('2024-10-27')).style!;
+      final style = tester.widget<Text>(find.text('2024-10-27 09:30')).style!;
       // 对齐 NoteCard 里的时间行：10sp、细字重、次级灰
       expect(style.fontSize, 10);
       expect(style.fontWeight, FontWeight.w300);

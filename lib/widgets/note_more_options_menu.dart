@@ -503,10 +503,11 @@ class NoteMoreOptionsMenu {
       );
 
   static String _formatMenuTime(DateTime time) {
-    final local = time.toLocal();
+    // 不 toLocal：Memos 同步来的时间是「本地挂钟值 + UTC 标记」，
+    // 字段值本身就是用户看到的那个时间（见 formatNoteTimestamp 的说明）。
     String two(int value) => value.toString().padLeft(2, '0');
-    return '${local.year}-${two(local.month)}-${two(local.day)} '
-        '${two(local.hour)}:${two(local.minute)}';
+    return '${time.year}-${two(time.month)}-${two(time.day)} '
+        '${two(time.hour)}:${two(time.minute)}';
   }
 
   /// 显示修改时间对话框

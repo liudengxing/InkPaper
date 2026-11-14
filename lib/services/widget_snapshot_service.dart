@@ -241,10 +241,12 @@ abstract final class WidgetSnapshotService {
 
   /// 小部件展示用的本地时间文案（yyyy-MM-dd HH:mm）。
   static String formatWidgetTime(DateTime time) {
-    final local = time.toLocal();
+    // 按字段值直接格式化，不 toLocal —— Memos 的 createdAt 是「本地挂钟时间
+    // 被标成 UTC」，字段值等于发布者的本地时间，再转一次时区只会多 8 小时。
+    // 口径与首页卡片、详情页的 formatNoteTimestamp 保持一致。
     String two(int value) => value.toString().padLeft(2, '0');
-    return '${local.year}-${two(local.month)}-${two(local.day)} '
-        '${two(local.hour)}:${two(local.minute)}';
+    return '${time.year}-${two(time.month)}-${two(time.day)} '
+        '${two(time.hour)}:${two(time.minute)}';
   }
 
   static String _trimPreview(String text, int maxLength) {

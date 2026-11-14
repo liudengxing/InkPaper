@@ -260,8 +260,12 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
         )
     }
 
-    /// 展示笔记创建时间。Dart 侧已按本地时区格式化好（createdAtLabel），
-    /// 直接用；老快照没有该字段时才退回裁剪 ISO 字符串。
+    /// 展示笔记创建时间。Dart 侧已格式化好（createdAtLabel），直接用；
+    /// 老快照没有该字段时才退回裁剪 ISO 字符串。
+    ///
+    /// ⚠️ 这里只裁字符串、不做时区换算，是刻意的：Memos 的 ISO 串是
+    /// 「本地挂钟时间 + Z 标记」，字符串里的日期分钟就是用户看到的时间。
+    /// 一旦交给 SimpleDateFormat/Calendar 按本地时区解析，就会平白多加 8 小时。
     private fun formatWidgetTime(note: JSONObject?): String? {
         if (note == null) return null
         val label = note.optString("createdAtLabel")

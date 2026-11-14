@@ -4,8 +4,8 @@ import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:intl/intl.dart';
 
-/// 卡片时间戳格式：与列表里的笔记卡片一致（往年显示完整日期）。
-final DateFormat _onThisDayDateFormat = DateFormat('yyyy-MM-dd');
+/// 卡片时间戳格式：与列表里的笔记卡片一致（往年显示完整日期与时间）。
+final DateFormat _onThisDayDateFormat = DateFormat('yyyy-MM-dd HH:mm');
 
 /// 「那年今日」卡片：首页列表顶部的可滑动回顾。
 ///
@@ -183,7 +183,8 @@ class _OnThisDayCardState extends State<OnThisDayCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _onThisDayDateFormat.format(note.createdAt.toLocal()),
+              // 不 toLocal：Memos 时间字段值是本地挂钟时间（详见 formatNoteTimestamp）
+              _onThisDayDateFormat.format(note.createdAt),
               style: TextStyle(
                 fontSize: 10,
                 height: 1.1,

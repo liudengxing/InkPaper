@@ -57,6 +57,18 @@
         android:textSize="14sp" />
 
     <TextView
+        android:id="@+id/inkpaper_widget_review_time"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:text="2026-11-14 08:30"
+        android:textColor="@color/inkpaper_widget_muted"
+        android:textSize="11sp" />
+
+    <TextView
         android:id="@+id/inkpaper_widget_status"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

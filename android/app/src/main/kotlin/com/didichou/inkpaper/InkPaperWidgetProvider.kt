@@ -165,6 +165,13 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
         val reviewId = review?.optString("id").orEmpty()
 
         views.setTextViewText(R.id.inkpaper_widget_review, reviewText)
+        val reviewTime = formatWidgetTime(review?.optString("createdAt"))
+        if (reviewTime == null) {
+            views.setViewVisibility(R.id.inkpaper_widget_review_time, View.GONE)
+        } else {
+            views.setViewVisibility(R.id.inkpaper_widget_review_time, View.VISIBLE)
+            views.setTextViewText(R.id.inkpaper_widget_review_time, reviewTime)
+        }
         views.setTextViewText(
             R.id.inkpaper_widget_status,
             "${formatRefresh(refreshMinutes)} · ${formatRange(rangeDays)}"
@@ -184,6 +191,13 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
         scheduleReviewUpdate(context, refreshMinutes)
+    }
+
+    /// ISO 本地时间（Dart DateTime.toIso8601String 无时区后缀）转
+    /// 「yyyy-MM-dd HH:mm」。解析只靠字符串裁剪，不引入时间库。
+    private fun formatWidgetTime(iso: String?): String? {
+        if (iso.isNullOrBlank() || iso.length < 16) return null
+        return iso.substring(0, 10) + " " + iso.substring(11, 16)
     }
 
     private fun formatRefresh(minutes: Int): String =

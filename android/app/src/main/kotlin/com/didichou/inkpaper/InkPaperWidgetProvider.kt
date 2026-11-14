@@ -200,7 +200,7 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
             R.id.inkpaper_widget_review_list,
             templatePendingIntent(context)
         )
-        val reviewTime = formatWidgetTime(review?.optString("createdAt"))
+        val reviewTime = formatWidgetTime(review)
         if (reviewTime == null) {
             views.setViewVisibility(R.id.inkpaper_widget_review_time, View.GONE)
         } else {
@@ -246,10 +246,14 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
         )
     }
 
-    /// ISO 本地时间（Dart DateTime.toIso8601String 无时区后缀）转
-    /// 「yyyy-MM-dd HH:mm」。解析只靠字符串裁剪，不引入时间库。
-    private fun formatWidgetTime(iso: String?): String? {
-        if (iso.isNullOrBlank() || iso.length < 16) return null
+    /// 展示笔记创建时间。Dart 侧已按本地时区格式化好（createdAtLabel），
+    /// 直接用；老快照没有该字段时才退回裁剪 ISO 字符串。
+    private fun formatWidgetTime(note: JSONObject?): String? {
+        if (note == null) return null
+        val label = note.optString("createdAtLabel")
+        if (label.isNotBlank()) return label
+        val iso = note.optString("createdAt")
+        if (iso.length < 16) return null
         return iso.substring(0, 10) + " " + iso.substring(11, 16)
     }
 

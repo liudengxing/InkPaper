@@ -211,6 +211,9 @@ abstract final class WidgetSnapshotService {
       'preview': preview,
       'tags': note.tags.take(3).toList(),
       'createdAt': note.createdAt.toIso8601String(),
+      // 桌面小部件直接展示这个本地时间文案。格式化放在 Dart 侧做：
+      // 原生只裁剪 ISO 字符串，一旦序列化成 UTC 就会显示错时区。
+      'createdAtLabel': formatWidgetTime(note.createdAt),
       'updatedAt': note.updatedAt.toIso8601String(),
       'displayTime': note.displayTime.toIso8601String(),
     };
@@ -234,6 +237,14 @@ abstract final class WidgetSnapshotService {
     final cjkCount = RegExp('[\u4e00-\u9fff]').allMatches(trimmed).length;
     final latinCount = RegExp('[A-Za-z0-9]+').allMatches(trimmed).length;
     return cjkCount + latinCount;
+  }
+
+  /// 小部件展示用的本地时间文案（yyyy-MM-dd HH:mm）。
+  static String formatWidgetTime(DateTime time) {
+    final local = time.toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} '
+        '${two(local.hour)}:${two(local.minute)}';
   }
 
   static String _trimPreview(String text, int maxLength) {

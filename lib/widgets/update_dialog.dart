@@ -439,16 +439,37 @@ class _UpdateDialogState extends State<_UpdateDialog>
     );
   }
 
+  /// 弹窗主色：跟随首页浅灰风格，不再使用品牌绿。
+  Color get _accentColor {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
+  }
+
+  /// 主色的浅底：深浅色模式分别用白 6% / 黑 4%。
+  Color get _accentFill {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.04);
+  }
+
+  /// 主色上的文字：浅色模式白字，深色模式深底字保证对比。
+  Color get _onAccentColor => Theme.of(context).brightness == Brightness.dark
+      ? const Color(0xFF1C1C1E)
+      : Colors.white;
+
   Widget _buildHeader(Color subtle) => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withValues(alpha: 0.12),
+              color: _accentFill,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(_headerIcon, color: AppTheme.primaryColor, size: 22),
+            child: Icon(_headerIcon, color: _accentColor, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -473,9 +494,6 @@ class _UpdateDialogState extends State<_UpdateDialog>
           ),
         ],
       );
-
-  /// 国内镜像的绿标。
-  static const Color _mirrorGreen = Color(0xFF2EA043);
 
   /// 至少有一个可用直链时才谈「选源」。
   bool get _hasSourceChoice => _giteeUrl != null || _githubUrl != null;
@@ -508,7 +526,7 @@ class _UpdateDialogState extends State<_UpdateDialog>
   }) {
     final isMirror = source == _DownloadSource.gitee;
     final selected = _source == source;
-    final accent = isMirror ? _mirrorGreen : AppTheme.primaryColor;
+    final accent = _accentColor;
     return InkWell(
       onTap: selectable ? () => setState(() => _source = source) : null,
       borderRadius: BorderRadius.circular(999),
@@ -530,8 +548,8 @@ class _UpdateDialogState extends State<_UpdateDialog>
               Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(
-                  color: _mirrorGreen,
+                decoration: BoxDecoration(
+                  color: accent,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -612,7 +630,7 @@ class _UpdateDialogState extends State<_UpdateDialog>
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                color: _accentFill,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: ConstrainedBox(
@@ -686,10 +704,8 @@ class _UpdateDialogState extends State<_UpdateDialog>
           child: LinearProgressIndicator(
             value: fraction,
             minHeight: 8,
-            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.12),
-            valueColor: const AlwaysStoppedAnimation<Color>(
-              AppTheme.primaryColor,
-            ),
+            backgroundColor: _accentFill,
+            valueColor: AlwaysStoppedAnimation<Color>(_accentColor),
           ),
         ),
         const SizedBox(height: 10),
@@ -704,10 +720,10 @@ class _UpdateDialogState extends State<_UpdateDialog>
             if (fraction != null)
               Text(
                 '${(fraction * 100).round()}%',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.primaryColor,
+                  color: _accentColor,
                 ),
               ),
           ],
@@ -730,8 +746,8 @@ class _UpdateDialogState extends State<_UpdateDialog>
             FilledButton(
               onPressed: _canInstallInApp ? _startDownload : _openInBrowser,
               style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
-                foregroundColor: Colors.white,
+                backgroundColor: _accentColor,
+                foregroundColor: _onAccentColor,
               ),
               child: Text(
                 _canInstallInApp ? '立即更新' : '前往发布页',
@@ -774,8 +790,8 @@ class _UpdateDialogState extends State<_UpdateDialog>
                 }
               },
               style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
-                foregroundColor: Colors.white,
+                backgroundColor: _accentColor,
+                foregroundColor: _onAccentColor,
               ),
               child: const Text('重新唤起安装器', style: TextStyle(fontSize: 14)),
             ),
@@ -800,8 +816,8 @@ class _UpdateDialogState extends State<_UpdateDialog>
               onPressed:
                   apk != null ? () => _installPackage(apk) : _startDownload,
               style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
-                foregroundColor: Colors.white,
+                backgroundColor: _accentColor,
+                foregroundColor: _onAccentColor,
               ),
               child: Text(
                 apk != null ? '再试一次' : '重新下载',

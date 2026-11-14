@@ -150,13 +150,13 @@ void main() {
   });
 
   group('更新弹窗 — 下载源', () {
-    testWidgets('UD-09 默认选中带绿标的国内镜像', (tester) async {
+    testWidgets('UD-09 默认选中带圆点标记的国内镜像', (tester) async {
       await _open(tester, _result());
 
       expect(_weightOf(tester, '国内镜像'), FontWeight.w600);
       expect(_weightOf(tester, 'GitHub'), FontWeight.w400);
 
-      // 绿标是一个 6x6 的绿点
+      // 镜像标是一个 6x6 的圆点（配色已并入浅灰体系，只验证形态）
       final dots = find.byWidgetPredicate((widget) {
         if (widget is! Container) {
           return false;
@@ -165,8 +165,7 @@ void main() {
         if (decoration is! BoxDecoration) {
           return false;
         }
-        return decoration.shape == BoxShape.circle &&
-            decoration.color == const Color(0xFF2EA043);
+        return decoration.shape == BoxShape.circle && decoration.color != null;
       });
       expect(dots, findsOneWidget);
     });

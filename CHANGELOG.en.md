@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.97] - 2026-11-15
+
+### Improved
+
+- **Animated images load faster**: GIFs in notes show their first frame right away instead of decoding one by one while scrolling.
+- **HEIC photos load faster**: HEIC photos from iPhone now get thumbnails too, so multi-photo notes no longer flash blank.
+- **Thumbnail breakdown**: the data page counts animated images, HEIC and videos separately, so coverage is visible at a glance.
+
+### Fixed
+
+- Fixed known issues, improved stability and runtime efficiency.
+
 ## [1.1.96] - 2026-11-15
 
 ### Added

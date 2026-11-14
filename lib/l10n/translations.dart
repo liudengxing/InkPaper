@@ -1128,6 +1128,17 @@ class Translations {
     'linkNote': {'zh': '链接', 'en': 'Link'},
     'referenceDetails': {'zh': '引用详情', 'en': 'Reference Details'},
     'detailedInfo': {'zh': '详细信息', 'en': 'Detailed Info'},
+    'localAiPreferences': {'zh': '本地 AI 学习偏好', 'en': 'Local AI Preferences'},
+    'localAiPreferencesDetail': {
+      'zh': '记录你在应用内的浏览习惯——点开了哪些笔记、停留多久、从哪里进入，'
+          '并据此调整「相关笔记」的推荐排序：你常看的标签和关系类型会被适当提前。'
+          '所有数据仅保存在本机，不上传、不参与同步，可随时一键清除。',
+      'en': 'Learns how you browse — which notes you open, how long you stay '
+          'and where you came from — then re-ranks related-note suggestions '
+          'toward your favorite tags and relation types. All data stays on '
+          'this device: nothing is uploaded or synced, and you can clear it '
+          'any time.',
+    },
     'noteHistory': {'zh': '历史版本', 'en': 'Version History'},
     'noHistory': {'zh': '暂无历史版本', 'en': 'No version history'},
     'noHistoryHint': {

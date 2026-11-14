@@ -48,6 +48,13 @@ class AppLocalizationsSimple {
   String get laboratory => _t('laboratory', fallback: '实验室');
   String get randomReview => _t('randomReview', fallback: '随机回顾');
   String get imageGallery => _t('imageGallery', fallback: '有图片');
+  String get localAiPreferences =>
+      _t('localAiPreferences', fallback: '本地 AI 学习偏好');
+  String get localAiPreferencesDetail => _t(
+        'localAiPreferencesDetail',
+        fallback: '记录你在应用内的浏览习惯，并据此调整「相关笔记」的推荐排序。'
+            '所有数据仅保存在本机，可随时一键清除。',
+      );
   String get noteHistory => _t('noteHistory', fallback: '历史版本');
   String get noHistory => _t('noHistory', fallback: '暂无历史版本');
   String get noHistoryHint => _t('noHistoryHint', fallback: '每次保存和编辑过程都会自动留档');

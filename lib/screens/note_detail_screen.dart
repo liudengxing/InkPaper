@@ -9,6 +9,7 @@ import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/ai_enhanced_service.dart';
 import 'package:inkpaper/services/ai_review_service.dart';
+import 'package:inkpaper/services/user_behavior_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/logger.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
@@ -34,6 +35,11 @@ class NoteDetailScreen extends StatefulWidget {
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
   Note? _note;
 
+  // 🧠 本地 AI 学习偏好：浏览时长埋点（覆盖所有进入详情页的入口）
+  final UserBehaviorService _behaviorService = UserBehaviorService();
+  final Stopwatch _viewStopwatch = Stopwatch()..start();
+  bool _viewRecorded = false;
+
   // AI 摘要
   final AIEnhancedService _aiEnhancedService = AIEnhancedService();
   final AiReviewService _aiReviewService = const AiReviewService();
@@ -50,6 +56,33 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   void initState() {
     super.initState();
     _loadNote();
+  }
+
+  @override
+  void dispose() {
+    // 🧠 离开详情页时回填本次浏览时长
+    _completeViewTracking();
+    super.dispose();
+  }
+
+  /// 把本次浏览的时长交给偏好服务；配不上对就由服务侧另落一条记录。
+  void _completeViewTracking() {
+    if (_viewRecorded) {
+      return;
+    }
+    _viewRecorded = true;
+    final note = _note;
+    if (note == null) {
+      return;
+    }
+    _viewStopwatch.stop();
+    unawaited(
+      _behaviorService.completeView(
+        noteId: note.id,
+        noteTags: note.tags,
+        viewDurationSeconds: _viewStopwatch.elapsed.inSeconds,
+      ),
+    );
   }
 
   /// 统一更新笔记，并同步正文/图片路径缓存。只能在 setState 内调用。

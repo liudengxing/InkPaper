@@ -85,7 +85,7 @@ class _UserPreferencesScreenState extends State<UserPreferencesScreen> {
     return Scaffold(
       backgroundColor: isDark ? AppTheme.darkBackgroundColor : Colors.grey[50],
       appBar: AppBar(
-        title: Text(l10n?.personalization ?? '个性化'),
+        title: Text(l10n?.localAiPreferences ?? '本地 AI 学习偏好'),
         backgroundColor: isDark ? AppTheme.darkCardColor : Colors.white,
         elevation: 0,
         actions: [
@@ -148,6 +148,21 @@ class _UserPreferencesScreenState extends State<UserPreferencesScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Text(
+                AppLocalizationsSimple.of(context)?.localAiPreferencesDetail ??
+                    '记录你在应用内的浏览习惯，并据此调整「相关笔记」的推荐排序。'
+                        '所有数据仅保存在本机，可随时一键清除。',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: isDark ? Colors.grey[600] : Colors.grey[500],
+                  height: 1.6,
+                  fontSize: 11,
+                ),
+              ),
+            ),
           ],
         ),
       );
@@ -156,6 +171,10 @@ class _UserPreferencesScreenState extends State<UserPreferencesScreen> {
   Widget _buildContent(bool isDark, ThemeData theme) => ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // 功能详情
+          _buildDescriptionCard(isDark, theme),
+          const SizedBox(height: 16),
+
           // 总体统计
           _buildStatisticsCard(isDark, theme),
           const SizedBox(height: 16),
@@ -171,6 +190,43 @@ class _UserPreferencesScreenState extends State<UserPreferencesScreen> {
           // 最近浏览
           _buildRecentClicksCard(isDark, theme),
         ],
+      );
+
+  /// 功能详情说明卡
+  Widget _buildDescriptionCard(bool isDark, ThemeData theme) => Card(
+        color: isDark ? AppTheme.darkCardColor : Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.lock_outline,
+                size: 18,
+                color: isDark
+                    ? AppTheme.darkTextSecondaryColor
+                    : AppTheme.textSecondaryColor,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  AppLocalizationsSimple.of(context)
+                          ?.localAiPreferencesDetail ??
+                      '记录你在应用内的浏览习惯，并据此调整「相关笔记」的推荐排序。'
+                          '所有数据仅保存在本机，可随时一键清除。',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isDark
+                        ? AppTheme.darkTextSecondaryColor
+                        : AppTheme.textSecondaryColor,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
 
   /// 统计卡片 - 🎨 精致设计
@@ -647,6 +703,10 @@ class _UserPreferencesScreenState extends State<UserPreferencesScreen> {
         return l10n?.relationQa ?? '❓ 问答';
       case 'PRACTICE':
         return l10n?.relationPractice ?? '🎯 实践';
+      case 'INSPIRE':
+        return '💡 启发';
+      case 'TEMPORAL':
+        return '🕒 时序';
       default:
         return type;
     }

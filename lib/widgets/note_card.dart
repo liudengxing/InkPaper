@@ -13,6 +13,7 @@ import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/screens/image_viewer_screen.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
+import 'package:inkpaper/services/user_behavior_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart'; // 🔥 添加长期缓存管理器
@@ -973,6 +974,14 @@ class _NoteCardState extends State<NoteCard>
       onTap: () {
         // 🎯 单击：跳转到笔记详情页（查看模式）
         _precacheDetailImages(context);
+        // 🧠 本地 AI 学习偏好：记录从卡片点开（时长由详情页关闭后回填）
+        unawaited(
+          UserBehaviorService().recordClick(
+            noteId: widget.id,
+            noteTags: widget.tags,
+            source: 'card',
+          ),
+        );
         context.push('/note/${widget.id}');
       },
       onLongPress: _copyNoteContent,

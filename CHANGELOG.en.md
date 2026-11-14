@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Local AI Preferences**: now a full browsing-habit profile — which notes you open, how long you stay and where you came from — that re-ranks related-note suggestions; data stays on-device, with a description on the feature page and one-tap clearing.
 - **Note version history**: versions are captured automatically while you edit, ready to review and restore with one tap.
 - **With Images gallery**: a new "With Images" entry in the sidebar browses all picture notes in a grid, tap to open the note.
 

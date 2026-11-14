@@ -7,7 +7,6 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/services/intelligent_related_notes_service.dart';
 import 'package:inkpaper/services/user_behavior_service.dart'; // 🧠 用户行为记录
 import 'package:inkpaper/themes/app_theme.dart';
-import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 
 /// 🧠 智能相关笔记底部抽屉
 ///
@@ -244,16 +243,13 @@ class _IntelligentRelatedNotesSheetState
   ) =>
       InkWell(
         onTap: () async {
-          // 🧠 记录用户点击行为
+          // 🧠 本地 AI 学习偏好：记录浏览（时长由详情页关闭后回填）
           final behaviorService = UserBehaviorService();
-          final noteTags =
-              tag_utils.extractTagsFromContent(nextNote.note.content).toList();
-
           await behaviorService.recordClick(
             noteId: nextNote.note.id,
-            noteTags: noteTags,
+            noteTags: nextNote.note.tags,
             relationType: nextNote.relationType,
-            viewDurationSeconds: 0,
+            source: 'related_sheet',
           );
 
           if (!mounted || !context.mounted) {
@@ -500,16 +496,13 @@ class _IntelligentRelatedNotesSheetState
 
     return InkWell(
       onTap: () async {
-        // 🧠 记录用户点击行为
+        // 🧠 本地 AI 学习偏好：记录浏览（时长由详情页关闭后回填）
         final behaviorService = UserBehaviorService();
-        final noteTags =
-            tag_utils.extractTagsFromContent(note.content).toList();
-
         await behaviorService.recordClick(
           noteId: note.id,
-          noteTags: noteTags,
+          noteTags: note.tags,
           relationType: relation.relationType,
-          viewDurationSeconds: 0, // 初始记录，实际浏览时长由详情页更新
+          source: 'related_sheet',
         );
 
         if (!mounted || !context.mounted) {

@@ -168,53 +168,73 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                   width: 1.5,
                 ),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.insights,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                       ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.insights,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _text('个性化', 'Personalization'),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                            letterSpacing: 0.3,
-                          ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _text('本地 AI 学习偏好', 'Local AI Preferences'),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: textColor,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _text(
+                                '查看浏览习惯画像与个性化推荐',
+                                'View your browsing profile and personalized ranking',
+                              ),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: secondaryTextColor,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _text('查看 AI 学习偏好', 'View AI learning preferences'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: secondaryTextColor,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: secondaryTextColor,
+                      ),
+                    ],
                   ),
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: secondaryTextColor,
+                  const SizedBox(height: 12),
+                  Text(
+                    AppLocalizationsSimple.of(context)
+                            ?.localAiPreferencesDetail ??
+                        '记录你在应用内的浏览习惯，并据此调整「相关笔记」的推荐排序。'
+                            '所有数据仅保存在本机，可随时一键清除。',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.6,
+                      color: secondaryTextColor,
+                    ),
                   ),
                 ],
               ),

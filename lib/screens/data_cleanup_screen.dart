@@ -542,28 +542,43 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
         centerTitle: true,
       ),
       backgroundColor: backgroundColor,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 数据统计卡片
-                  _buildStatisticsCard(cardColor, textColor),
+      // 加载/清理期间内容保持可见，只在上面叠加半透明遮罩 + 转圈：
+      // 之前是整页换成空转圈页，刷新时整页黑一下再弹回来，观感很差
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 数据统计卡片
+                _buildStatisticsCard(cardColor, textColor),
 
-                  const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-                  // 清理操作卡片
-                  _buildCleanupActionsCard(cardColor, textColor),
+                // 清理操作卡片
+                _buildCleanupActionsCard(cardColor, textColor),
 
-                  const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-                  // 高级操作卡片
-                  _buildAdvancedActionsCard(cardColor, textColor),
-                ],
+                // 高级操作卡片
+                _buildAdvancedActionsCard(cardColor, textColor),
+              ],
+            ),
+          ),
+          if (_isLoading)
+            Positioned.fill(
+              child: AbsorbPointer(
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  child: const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
               ),
             ),
+        ],
+      ),
     );
   }
 

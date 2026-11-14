@@ -193,6 +193,54 @@ void main() {
       expect(Directory(thumbsDir).listSync(), isEmpty);
     });
 
+    test('TC-18 startBackfill 一直补到追平，重复调用复用同一个 Future', () async {
+      for (var i = 0; i < 6; i++) {
+        File(p.join(imagesDir, 'image_5$i.jpg'))
+            .writeAsBytesSync(_makeImage(1200, 900));
+      }
+      // 解不出来的文件混在里面：补齐循环不能在它身上空转
+      File(p.join(imagesDir, 'broken.jpg')).writeAsBytesSync(
+        Uint8List.fromList(<int>[1, 2, 3, 4]),
+      );
+
+      final first = ThumbCache.instance.startBackfill();
+      expect(ThumbCache.instance.startBackfill(), same(first));
+      await first;
+      // whenComplete 里清状态，让出一拍再断言
+      await Future<void>.delayed(Duration.zero);
+
+      expect(ThumbCache.instance.backfilledCount, 6);
+      expect(ThumbCache.instance.isBackfilling, isFalse);
+      final count = Directory(thumbsDir)
+          .listSync()
+          .whereType<File>()
+          .where((f) => p.extension(f.path) == '.jpg')
+          .length;
+      expect(count, 6);
+    });
+
+    test('TC-19 pauseBackfill 停下，resumeBackfill 接着补到追平', () async {
+      for (var i = 0; i < 8; i++) {
+        File(p.join(imagesDir, 'image_6$i.jpg'))
+            .writeAsBytesSync(_makeImage(1200, 900));
+      }
+      final future = ThumbCache.instance.startBackfill();
+      ThumbCache.instance.pauseBackfill();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      // 让路节奏（张间 60ms）保证 200ms 内补不完 8 张
+      int thumbs() => Directory(thumbsDir)
+          .listSync()
+          .whereType<File>()
+          .where((f) => p.extension(f.path) == '.jpg')
+          .length;
+      expect(thumbs(), lessThan(8));
+
+      ThumbCache.instance.resumeBackfill();
+      await future;
+      expect(thumbs(), 8);
+    });
+
     test('TC-16 clear 后回到未命中状态，可重新生成', () async {
       final source = p.join(imagesDir, 'image_400.jpg');
       File(source).writeAsBytesSync(_makeImage(1200, 900));

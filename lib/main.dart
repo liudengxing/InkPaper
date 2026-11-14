@@ -416,11 +416,21 @@ Future<void> _initializeApp() async {
   unawaited(checkColdStartPayloads());
 
   // 存量图片的缩略图后台补齐。延迟 3 秒再开跑：首屏这会儿正在解码图片，
-  // 补缩略图不但帮不上忙，还会跟它抢 CPU 和内存带宽。内部有时间预算，跑不完
-  // 的下次启动接着补。
+  // 补缩略图不但帮不上忙，还会跟它抢 CPU 和内存带宽。
+  //
+  // 开跑后一直补到追平为止（旧实现只跑 8 秒，几百张老图要熬过很多次启动）。
+  // 不打扰前台靠两点：低优先级编码槽（正在看的图会插到补齐前面）+ 张间
+  // 让路；退到后台则暂停，避免锁屏后空耗电。
   Future<void>.delayed(
     const Duration(seconds: 3),
-    () => unawaited(ThumbCache.instance.backfill()),
+    () => unawaited(ThumbCache.instance.startBackfill()),
+  );
+  // 退到后台就暂停补齐，回前台接着补（避免锁屏后空耗电）。监听器构造时
+  // 会把自己注册进 WidgetsBinding 的观察者列表，引擎那边持有引用，所以
+  // 这里不需要再存变量。
+  AppLifecycleListener(
+    onPause: ThumbCache.instance.pauseBackfill,
+    onResume: ThumbCache.instance.resumeBackfill,
   );
 
   // 开屏检查更新：首帧之后自动拉一次 Release，有新版本直接在弹窗里下载安装。

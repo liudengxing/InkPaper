@@ -73,28 +73,62 @@ class ThumbCache {
   static const int _maxConcurrentEncodes = 2;
 
   int _activeEncodes = 0;
-  final List<Completer<void>> _encodeQueue = <Completer<void>>[];
+  final List<_EncodeSlot> _encodeQueue = <_EncodeSlot>[];
 
-  Future<void> _acquireEncodeSlot() async {
-    if (_activeEncodes < _maxConcurrentEncodes) {
+  /// 取一个编码名额。
+  ///
+  /// [lowPriority] 是后台补齐（[startBackfill]）专用的：它只会排在队尾，
+  /// 已有的低优先级任务之后；前台渲染触发的 [ensure] 直接插到所有低优先级
+  /// 前面。这样「用户正在看的那张图」永远不会被存量补齐挡在后面。
+  Future<void> _acquireEncodeSlot({bool lowPriority = false}) async {
+    // 低优先级任务不抢占空闲名额：只要队列里还有人在等，它就继续排着，
+    // 否则它会在前台任务的间隙里插队占满两个名额。
+    if (_activeEncodes < _maxConcurrentEncodes &&
+        (!lowPriority || _encodeQueue.isEmpty)) {
       _activeEncodes++;
       return;
     }
-    final waiter = Completer<void>();
-    _encodeQueue.add(waiter);
-    await waiter.future;
+    final waiter = _EncodeSlot(lowPriority: lowPriority);
+    if (lowPriority) {
+      _encodeQueue.add(waiter);
+    } else {
+      // 插到第一个低优先级任务之前，保证前台任务排在存量补齐前面
+      final index = _encodeQueue.indexWhere((slot) => slot.lowPriority);
+      if (index < 0) {
+        _encodeQueue.add(waiter);
+      } else {
+        _encodeQueue.insert(index, waiter);
+      }
+    }
+    await waiter.completer.future;
   }
 
   void _releaseEncodeSlot() {
     if (_encodeQueue.isNotEmpty) {
       // 把名额直接交给排队的下一个，_activeEncodes 保持不变
-      _encodeQueue.removeAt(0).complete();
+      _encodeQueue.removeAt(0).completer.complete();
       return;
     }
     if (_activeEncodes > 0) {
       _activeEncodes--;
     }
   }
+
+  /// 存量补齐的让路节奏：每张之间歇一下，每批之间再歇长一点。
+  ///
+  /// 编码本身在 `compute` 的 isolate 里，但读原图、写缩略图、GC 都在主
+  /// isolate。不留间隙的话补齐期间 CPU 会一直贴着 100%，前台的滚动与转场
+  /// 会明显掉帧。60ms 的间隙把占用压在六七成，几百张图的补齐也就是多花
+  /// 几十秒。
+  static const Duration _itemGap = Duration(milliseconds: 60);
+  static const Duration _batchGap = Duration(milliseconds: 240);
+  static const int _batchSize = 4;
+
+  Future<void>? _backfillFuture;
+  bool _backfillPaused = false;
+  bool _backfillStopped = false;
+  Completer<void>? _backfillResume;
+  int _backfilledCount = 0;
 
   /// 未命中时是否顺手触发后台生成。
   ///
@@ -199,7 +233,13 @@ class ThumbCache {
   }
 
   /// 生成缩略图（幂等）。已存在时直接返回，不重复编码。
-  Future<File?> ensure(String sourcePath, {int width = defaultWidth}) async {
+  ///
+  /// [lowPriority] 只给后台补齐用，见 [_acquireEncodeSlot]。
+  Future<File?> ensure(
+    String sourcePath, {
+    int width = defaultWidth,
+    bool lowPriority = false,
+  }) async {
     if (_dirPath == null) {
       await prepare();
     }
@@ -219,6 +259,11 @@ class ThumbCache {
     if (_known.contains(name)) {
       return target;
     }
+    // 本进程内已经失败过的（HEIC 之类）不再重试：补齐循环会反复扫到同一批
+    // 文件，没有这道闸门就会一直啃它们，永远追不平。
+    if (_giveUp.contains(name)) {
+      return null;
+    }
     final source = File(abs);
     if (!await source.exists()) {
       return null;
@@ -230,7 +275,7 @@ class ThumbCache {
     _inflight.add(name);
     var slot = false;
     try {
-      await _acquireEncodeSlot();
+      await _acquireEncodeSlot(lowPriority: lowPriority);
       slot = true;
       // 排队期间别的调用方可能已经把它生成好了，省掉一次重复解码
       if (_known.contains(name)) {
@@ -258,62 +303,40 @@ class ThumbCache {
     }
   }
 
-  /// 后台补齐存量图。
+  /// 后台补齐存量图（一次性扫完）。
   ///
   /// 图片进入系统的入口不止编辑器插入（还有 Flomo 导入、Memos 附件同步、
   /// WebDAV 同步），挨个挂钩子必然漏，所以以「扫目录补齐」兜底。
   ///
-  /// [budget] 是时间上限：只跑这么久就停，剩下的下次启动接着补，不能为了
-  /// 预热拖慢前台的滑动。
+  /// 生产环境走 [startBackfill]（一直补到追平）；这里是「扫一遍就返回」的
+  /// 版本，给测试与需要一次性补齐的场合用。[budget] 传了就限时。
   Future<int> backfill({
-    Duration budget = const Duration(seconds: 8),
+    Duration? budget,
     int width = defaultWidth,
   }) async {
     if (_dirPath == null) {
       await prepare();
     }
-    final imagesDirPath = _imagesDirPath;
-    if (_dirPath == null || imagesDirPath == null) {
+    if (_dirPath == null || _imagesDirPath == null) {
       return 0;
     }
-    final imagesDir = Directory(imagesDirPath);
-    if (!await imagesDir.exists()) {
-      return 0;
-    }
-    final candidates = <File>[];
-    await for (final entity in imagesDir.list()) {
-      if (entity is! File) {
-        continue;
-      }
-      final name = fileNameFor(entity.path, width: width);
-      if (name == null || _known.contains(name)) {
-        continue;
-      }
-      candidates.add(entity);
-    }
+    final candidates = await _pendingSources(width: width);
     if (candidates.isEmpty) {
       return 0;
     }
-    // 最近改过的笔记更容易被打开，优先处理它们。
-    candidates.sort((a, b) {
-      final aTime = a.statSync().modified;
-      final bTime = b.statSync().modified;
-      return bTime.compareTo(aTime);
-    });
-
     var done = 0;
     final startedAt = DateTime.now();
     for (final file in candidates) {
-      if (DateTime.now().difference(startedAt) > budget) {
+      if (budget != null && DateTime.now().difference(startedAt) > budget) {
         break;
       }
-      final result = await ensure(file.path, width: width);
+      final result = await ensure(file.path, width: width, lowPriority: true);
       if (result != null) {
         done++;
       }
       // 编码在 compute 里跑，但读文件与写文件仍在主 isolate 的事件循环上，
       // 让出一帧给 UI，避免启动后第一屏滑动发涩。
-      await Future<void>.delayed(const Duration(milliseconds: 1));
+      await Future<void>.delayed(_itemGap);
     }
     if (done > 0) {
       debugPrint('ThumbCache: 补齐 $done 张缩略图');
@@ -321,8 +344,164 @@ class ThumbCache {
     return done;
   }
 
+  /// 持续补齐存量图，直到追平为止（幂等，重复调用返回同一个 Future）。
+  ///
+  /// 旧实现是「启动后跑 8 秒就停」，几百张老图要熬过很多次启动才轮得到；
+  /// LANCZOS 那套体验等于「第一次滑动一直卡」。现在改成一直补，靠三件事
+  /// 保证不打扰前台：
+  ///
+  /// 1. **低优先级编码槽**：前台渲染触发的 [ensure] 会插到补齐任务前面，
+  ///    正在看的那张图不用排队等存量。
+  /// 2. **张间让路**：每张之间歇 [_itemGap]、每 [_batchSize] 张歇
+  ///    [_batchGap]，CPU 占用压在六七成，滚动不受影响。
+  /// 3. **退到后台就停**：[pauseBackfill] / [resumeBackfill] 由生命周期钩子
+  ///    驱动，避免锁屏后继续烘图白耗电。
+  Future<void> startBackfill({int width = defaultWidth}) {
+    final existing = _backfillFuture;
+    if (existing != null) {
+      return existing;
+    }
+    _backfillStopped = false;
+    final future = _runBackfillLoop(width: width);
+    _backfillFuture = future;
+    unawaited(
+      future.whenComplete(() {
+        if (identical(_backfillFuture, future)) {
+          _backfillFuture = null;
+        }
+      }),
+    );
+    return future;
+  }
+
+  /// 暂停补齐（App 退到后台时调用），[resumeBackfill] 之后接着补。
+  void pauseBackfill() {
+    _backfillPaused = true;
+  }
+
+  /// 恢复补齐。
+  void resumeBackfill() {
+    if (!_backfillPaused) {
+      return;
+    }
+    _backfillPaused = false;
+    _backfillResume?.complete();
+    _backfillResume = null;
+  }
+
+  /// 停止本轮补齐（清理缓存时调用，避免刚删完又被补回来）。
+  void stopBackfill() {
+    _backfillStopped = true;
+    resumeBackfill();
+  }
+
+  /// 累计补齐了多少张，调试与数据清理页展示用。
+  int get backfilledCount => _backfilledCount;
+
+  /// 本轮补齐是否还在跑。
+  bool get isBackfilling => _backfillFuture != null;
+
+  Future<void> _runBackfillLoop({required int width}) async {
+    if (_dirPath == null) {
+      await prepare();
+    }
+    if (_dirPath == null || _imagesDirPath == null) {
+      return;
+    }
+    var total = 0;
+    while (!_backfillStopped) {
+      await _waitWhilePaused();
+      if (_backfillStopped) {
+        break;
+      }
+      final pending = await _pendingSources(width: width);
+      if (pending.isEmpty) {
+        break;
+      }
+      var progressed = 0;
+      for (var i = 0; i < pending.length; i++) {
+        if (_backfillStopped || _backfillPaused) {
+          break;
+        }
+        final result = await ensure(
+          pending[i].path,
+          width: width,
+          lowPriority: true,
+        );
+        if (result != null) {
+          progressed++;
+          total++;
+        }
+        final endOfBatch = (i + 1) % _batchSize == 0;
+        await Future<void>.delayed(endOfBatch ? _batchGap : _itemGap);
+      }
+      _backfilledCount += progressed;
+      if (progressed > 0) {
+        debugPrint('ThumbCache: 本轮补齐 $progressed 张，累计 $total 张');
+      }
+      if (_backfillStopped) {
+        break;
+      }
+      if (_backfillPaused) {
+        // 这一轮是被暂停打断的（一张没干），不能当成「剩下的都补不动」，
+        // 否则 App 一退到后台补齐就永久停了，回来也不再继续。
+        continue;
+      }
+      if (progressed == 0) {
+        // 剩下的要么解不了、要么读失败，反正这一轮一张都没成功。
+        // 继续扫下去只会原地打转（补齐期间新插入的图会走渲染触发路径）。
+        break;
+      }
+    }
+    if (total > 0) {
+      debugPrint('ThumbCache: 补齐 $total 张缩略图（已追平）');
+    }
+  }
+
+  Future<void> _waitWhilePaused() async {
+    while (_backfillPaused) {
+      final signal = _backfillResume ??= Completer<void>();
+      await signal.future;
+      _backfillResume = null;
+    }
+  }
+
+  /// 扫出还没缩略图的源文件，最近改过的排在前面（更可能被打开）。
+  Future<List<File>> _pendingSources({required int width}) async {
+    final imagesDirPath = _imagesDirPath;
+    if (imagesDirPath == null) {
+      return const <File>[];
+    }
+    final imagesDir = Directory(imagesDirPath);
+    if (!await imagesDir.exists()) {
+      return const <File>[];
+    }
+    final candidates = <File>[];
+    await for (final entity in imagesDir.list()) {
+      if (entity is! File) {
+        continue;
+      }
+      final name = fileNameFor(entity.path, width: width);
+      // 不支持的格式（fileNameFor 返回 null）与已知失败的不进队列，
+      // 否则补齐会在同一批永远补不动的文件上空转。
+      if (name == null || _known.contains(name) || _giveUp.contains(name)) {
+        continue;
+      }
+      candidates.add(entity);
+    }
+    candidates.sort((a, b) {
+      final aTime = a.statSync().modified;
+      final bTime = b.statSync().modified;
+      return bTime.compareTo(aTime);
+    });
+    return candidates;
+  }
+
   /// 清空全部缩略图（设置里「清理缓存」用，删完会按需重建）。
   Future<void> clear() async {
+    // 正在补齐的话先停下来：否则删完立刻又被补回来，用户点了「清理缓存」
+    // 却看不到空间释放。下次启动会重新开始补齐。
+    stopBackfill();
     final dirPath = _dirPath;
     if (dirPath == null) {
       return;
@@ -429,6 +608,15 @@ class ThumbCache {
       _ThumbTask(bytes: bytes, width: width, lossless: lossless),
     );
   }
+}
+
+/// 编码名额的排队凭证。
+class _EncodeSlot {
+  _EncodeSlot({required this.lowPriority});
+
+  /// 后台补齐提交的任务只能排低优先级，前台渲染触发的任务会插到它前面。
+  final bool lowPriority;
+  final Completer<void> completer = Completer<void>();
 }
 
 /// 把原图字节压成缩略图字节。返回 null 表示这个格式解不了（比如 HEIC）。

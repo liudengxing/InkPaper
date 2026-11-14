@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="inkpaper_quick_note_widget_description">InkPaper quick note</string>
-    <string name="inkpaper_random_review_widget_description">InkPaper random review</string>
+    <!-- 小部件名称：显示在系统「小组件」选择器里（receiver 的 android:label） -->
+    <string name="inkpaper_quick_note_widget_name">快速记录</string>
+    <string name="inkpaper_random_review_widget_name">随机回顾笔记</string>
+    <!-- 小部件描述：选择器里名称下方的详情信息 -->
+    <string name="inkpaper_quick_note_widget_description">随手记一条笔记或待办，支持常用标签直达</string>
+    <string name="inkpaper_random_review_widget_description">定时随机抽一条旧笔记，帮你温故知新</string>
 </resources>

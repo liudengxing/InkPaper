@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 随机回顾 ListView 的唯一一行：高度由文本撑开（不设 maxLines），
+     文本比可视区高时 ListView 提供上下滚动 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/inkpaper_widget_review_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/inkpaper_widget_review_row_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:lineSpacingExtra="2dp"
+        android:textColor="@color/inkpaper_widget_text"
+        android:textSize="14sp" />
+</LinearLayout>

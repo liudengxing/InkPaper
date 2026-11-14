@@ -1,82 +1,99 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/inkpaper_widget_review_container"
+<!-- 真玻璃结构 + 可滚动预览：
+     - FrameLayout 兜底手绘玻璃，其上为壁纸模糊位图（WallpaperGlass）
+     - 预览文本用「单行长条目 ListView」实现：RemoteViews 不支持
+       ScrollView/TextView 滚动，集合视图是唯一能滚的容器，这是各家
+       小部件实现长文本滚动的通用做法 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/inkpaper_widget_glass_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/inkpaper_widget_background"
-    android:gravity="center_vertical"
-    android:orientation="vertical"
-    android:padding="14dp">
+    android:background="@drawable/inkpaper_widget_background">
+
+    <ImageView
+        android:id="@+id/inkpaper_widget_glass"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
 
     <LinearLayout
+        android:id="@+id/inkpaper_widget_review_container"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/inkpaper_widget_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="随机回顾"
+                android:textColor="@color/inkpaper_widget_text"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/inkpaper_widget_random"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:background="@drawable/inkpaper_widget_chip"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:minWidth="56dp"
+                android:paddingLeft="10dp"
+                android:paddingRight="10dp"
+                android:text="打开"
+                android:textColor="@color/inkpaper_primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 单行长条目：条目高度由文本撑开，超出小部件可视区时 ListView 可上下滚动 -->
+        <ListView
+            android:id="@+id/inkpaper_widget_review_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="12dp"
+            android:layout_weight="1"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:scrollbars="none" />
 
         <TextView
-            android:id="@+id/inkpaper_widget_title"
-            android:layout_width="0dp"
+            android:id="@+id/inkpaper_widget_review_time"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_marginTop="6dp"
             android:ellipsize="end"
             android:includeFontPadding="false"
             android:maxLines="1"
-            android:text="随机回顾"
-            android:textColor="@color/inkpaper_widget_text"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            android:text="2026-11-14 08:30"
+            android:textColor="@color/inkpaper_widget_muted"
+            android:textSize="11sp" />
 
         <TextView
-            android:id="@+id/inkpaper_widget_random"
-            android:layout_width="wrap_content"
-            android:layout_height="28dp"
-            android:background="@drawable/inkpaper_widget_chip"
-            android:gravity="center"
+            android:id="@+id/inkpaper_widget_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:ellipsize="end"
             android:includeFontPadding="false"
-            android:minWidth="56dp"
-            android:paddingLeft="10dp"
-            android:paddingRight="10dp"
-            android:text="打开"
-            android:textColor="@color/inkpaper_primary"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:maxLines="1"
+            android:text="1小时刷新 · 全部"
+            android:textColor="@color/inkpaper_widget_muted"
+            android:textSize="11sp" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/inkpaper_widget_review"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginTop="12dp"
-        android:layout_weight="1"
-        android:ellipsize="end"
-        android:lineSpacingExtra="2dp"
-        android:maxLines="5"
-        android:text="打开 InkPaper 后显示随机回顾"
-        android:textColor="@color/inkpaper_widget_text"
-        android:textSize="14sp" />
-
-    <TextView
-        android:id="@+id/inkpaper_widget_review_time"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:ellipsize="end"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:text="2026-11-14 08:30"
-        android:textColor="@color/inkpaper_widget_muted"
-        android:textSize="11sp" />
-
-    <TextView
-        android:id="@+id/inkpaper_widget_status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:ellipsize="end"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:text="1小时刷新 · 全部"
-        android:textColor="@color/inkpaper_widget_muted"
-        android:textSize="11sp" />
-</LinearLayout>
+</FrameLayout>

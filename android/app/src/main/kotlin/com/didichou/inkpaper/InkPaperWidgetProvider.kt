@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
+import android.widget.RemoteViewsService
 import org.json.JSONObject
 
 abstract class BaseInkPaperWidgetProvider : AppWidgetProvider() {
@@ -60,9 +61,35 @@ abstract class BaseInkPaperWidgetProvider : AppWidgetProvider() {
         return PendingIntent.getActivity(context, requestCode, intent, flags)
     }
 
+    /// 真玻璃背景：壁纸模糊位图可用则铺上（WallpaperGlass 烘焙，
+    /// 已含圆角/底色/高光/暗边），拿不到壁纸就保持手绘玻璃兜底。
+    protected fun applyGlassBackground(context: Context, views: RemoteViews) {
+        val glass = WallpaperGlass.glassBitmap(context)
+        if (glass != null) {
+            views.setViewVisibility(R.id.inkpaper_widget_glass, View.VISIBLE)
+            views.setImageViewBitmap(R.id.inkpaper_widget_glass, glass)
+        } else {
+            views.setViewVisibility(R.id.inkpaper_widget_glass, View.GONE)
+        }
+    }
+
     companion object {
         const val PREFS_NAME = "inkpaper_widget"
         const val SNAPSHOT_KEY = "inkpaper_widget_snapshot"
+
+        /// 按当前时间桶从快照里选出要展示的回顾笔记。Provider（时间行/调度）
+        /// 与 ListView 工厂（预览文本）共用同一套选择逻辑，保证两边同一条。
+        fun selectReviewNote(snapshot: JSONObject?): JSONObject? {
+            val reviewNotes = snapshot?.optJSONArray("reviewNotes") ?: return null
+            val reviewCount = reviewNotes.length()
+            if (reviewCount == 0) return null
+            val refreshMinutes =
+                snapshot?.optJSONObject("reviewConfig")?.optInt("refreshIntervalMinutes", 60)
+                    ?: 60
+            val intervalMillis = refreshMinutes.coerceIn(15, 1440) * 60_000L
+            val bucket = System.currentTimeMillis() / intervalMillis
+            return reviewNotes.optJSONObject((bucket % reviewCount.toLong()).toInt())
+        }
     }
 }
 
@@ -116,6 +143,8 @@ class InkPaperQuickNoteWidgetProvider : BaseInkPaperWidgetProvider() {
             }
         }
 
+        applyGlassBackground(context, views)
+
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 }
@@ -147,24 +176,26 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
     ) {
         val snapshot = snapshot(context)
         val views = RemoteViews(context.packageName, R.layout.inkpaper_random_review_widget)
-        val reviewNotes = snapshot?.optJSONArray("reviewNotes")
         val reviewConfig = snapshot?.optJSONObject("reviewConfig")
-        val hasSnapshot = snapshot != null && snapshot.optString("generatedAt").isNotBlank()
         val refreshMinutes = reviewConfig?.optInt("refreshIntervalMinutes", 60) ?: 60
         val rangeDays = reviewConfig?.optInt("rangeDays", 0) ?: 0
-        val reviewCount = reviewNotes?.length() ?: 0
-        val review = if (reviewCount > 0) {
-            val intervalMillis = refreshMinutes.coerceIn(15, 1440) * 60_000L
-            val bucket = System.currentTimeMillis() / intervalMillis
-            reviewNotes?.optJSONObject((bucket % reviewCount.toLong()).toInt())
-        } else {
-            null
-        }
-        val reviewText = review?.optString("preview")?.takeIf { it.isNotBlank() }
-            ?: if (hasSnapshot) "暂无可回顾笔记" else "打开 InkPaper 同步小组件"
-        val reviewId = review?.optString("id").orEmpty()
+        val review = selectReviewNote(snapshot)
 
-        views.setTextViewText(R.id.inkpaper_widget_review, reviewText)
+        // 预览文本改由 RemoteViewsFactory 提供：单行长条目 ListView，
+        // 文本超出小部件可视区时可以上下滚动（RemoteViews 里 ScrollView/
+        // TextView 都不支持滚动，集合视图是唯一解）
+        val adapterIntent =
+            Intent(context, InkPaperReviewListService::class.java).apply {
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
+            }
+        views.setRemoteAdapter(R.id.inkpaper_widget_review_list, adapterIntent)
+        // 行点击 → 打开对应笔记（fillInIntent 提供 URI）；没有笔记可看时
+        // 工厂会给兜底行填随机回顾页的 URI
+        views.setPendingIntentTemplate(
+            R.id.inkpaper_widget_review_list,
+            templatePendingIntent(context)
+        )
         val reviewTime = formatWidgetTime(review?.optString("createdAt"))
         if (reviewTime == null) {
             views.setViewVisibility(R.id.inkpaper_widget_review_time, View.GONE)
@@ -178,19 +209,37 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
         )
         views.setOnClickPendingIntent(
             R.id.inkpaper_widget_review_container,
-            deepLinkPendingIntent(
-                context,
-                if (reviewId.isNotBlank()) "inkpaper://note/$reviewId" else "inkpaper://random-review",
-                50
-            )
+            deepLinkPendingIntent(context, "inkpaper://random-review", 50)
         )
         views.setOnClickPendingIntent(
             R.id.inkpaper_widget_random,
             deepLinkPendingIntent(context, "inkpaper://random-review", 51)
         )
 
+        applyGlassBackground(context, views)
         appWidgetManager.updateAppWidget(appWidgetId, views)
         scheduleReviewUpdate(context, refreshMinutes)
+    }
+
+    /// PendingIntent 模板：本体不带 URI，行点击时由 fillInIntent 补上
+    /// （fillIn 只补空缺字段，模板带 URI 会把行内笔记链接压掉）。
+    private fun templatePendingIntent(context: Context): PendingIntent {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setPackage(context.packageName)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val immutableFlag =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_IMMUTABLE
+            } else {
+                0
+            }
+        return PendingIntent.getActivity(
+            context,
+            60,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or immutableFlag
+        )
     }
 
     /// ISO 本地时间（Dart DateTime.toIso8601String 无时区后缀）转
@@ -280,4 +329,68 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
         private const val ACTION_RANDOM_REVIEW_TICK =
             "com.didichou.inkpaper.action.RANDOM_REVIEW_WIDGET_TICK"
     }
+}
+
+/// 随机回顾预览文本的滚动数据源：RemoteViews 里只有集合视图
+/// （ListView/GridView/Stack）能滚动，「单行长条目」是各家小部件
+/// 实现长文本滚动的通用做法。
+class InkPaperReviewListService : RemoteViewsService() {
+    override fun onGetViewFactory(intent: Intent): RemoteViewsService.RemoteViewsFactory =
+        InkPaperReviewListFactory(this, intent)
+}
+
+class InkPaperReviewListFactory(
+    private val context: Context,
+    private val intent: Intent
+) : RemoteViewsService.RemoteViewsFactory {
+
+    private var review: JSONObject? = null
+    private var hasSnapshot = false
+
+    override fun onCreate() {}
+
+    override fun onDataSetChanged() {
+        val raw = context
+            .getSharedPreferences(BaseInkPaperWidgetProvider.PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(BaseInkPaperWidgetProvider.SNAPSHOT_KEY, null)
+        val snapshot = raw?.takeIf { it.isNotBlank() }?.let {
+            try {
+                JSONObject(it)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        hasSnapshot = snapshot != null && snapshot.optString("generatedAt").isNotBlank()
+        review = BaseInkPaperWidgetProvider.selectReviewNote(snapshot)
+    }
+
+    override fun onDestroy() {}
+
+    override fun getCount(): Int = 1
+
+    override fun getViewAt(position: Int): RemoteViews {
+        val views = RemoteViews(context.packageName, R.layout.inkpaper_widget_review_row)
+        val text = review?.optString("preview")?.takeIf { it.isNotBlank() }
+            ?: if (hasSnapshot) "暂无可回顾笔记" else "打开 InkPaper 同步小组件"
+        views.setTextViewText(R.id.inkpaper_widget_review_row_text, text)
+        // 有笔记 → 点行进笔记；空状态 → 进随机回顾页兜底
+        val reviewId = review?.optString("id").orEmpty()
+        views.setOnClickFillInIntent(
+            R.id.inkpaper_widget_review_row,
+            if (reviewId.isNotBlank()) {
+                Intent(Intent.ACTION_VIEW, Uri.parse("inkpaper://note/$reviewId"))
+            } else {
+                Intent(Intent.ACTION_VIEW, Uri.parse("inkpaper://random-review"))
+            }
+        )
+        return views
+    }
+
+    override fun getLoadingView(): RemoteViews? = null
+
+    override fun getViewTypeCount(): Int = 1
+
+    override fun getItemId(position: Int): Long = position.toLong()
+
+    override fun hasStableIds(): Boolean = false
 }

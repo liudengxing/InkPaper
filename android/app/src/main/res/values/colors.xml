@@ -18,4 +18,15 @@
     <color name="inkpaper_widget_border">#2E000000</color>
     <color name="inkpaper_widget_highlight_start">#66FFFFFF</color>
     <color name="inkpaper_widget_highlight_end">#0DFFFFFF</color>
+    <!-- 真玻璃背景（壁纸模糊位图）的叠色：按系统明暗在 Kotlin 里显式取用，
+         不走 values-night 自动解析 —— 小部件位图在 App 进程烘焙，
+         App 自身主题可能与系统不一致，必须以系统明暗为准 -->
+    <color name="inkpaper_widget_glass_tint">#A8FFFFFF</color>
+    <color name="inkpaper_widget_glass_highlight_start">#66FFFFFF</color>
+    <color name="inkpaper_widget_glass_highlight_end">#0DFFFFFF</color>
+    <color name="inkpaper_widget_glass_border">#2E000000</color>
+    <color name="inkpaper_widget_glass_tint_night">#A8161C19</color>
+    <color name="inkpaper_widget_glass_highlight_start_night">#14FFFFFF</color>
+    <color name="inkpaper_widget_glass_highlight_end_night">#00FFFFFF</color>
+    <color name="inkpaper_widget_glass_border_night">#33FFFFFF</color>
 </resources>

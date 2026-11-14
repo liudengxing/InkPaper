@@ -137,10 +137,11 @@
             android:enabled="true"
             android:exported="false" />
 
-        <!-- 🧩 桌面小组件：快速记录 -->
+        <!-- 🧩 桌面小组件：快速记录（label 显示在系统小组件选择器里） -->
         <receiver
             android:name=".InkPaperQuickNoteWidgetProvider"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/inkpaper_quick_note_widget_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -149,10 +150,11 @@
                 android:resource="@xml/inkpaper_quick_note_widget_info" />
         </receiver>
 
-        <!-- 🧩 桌面小组件：随机回顾 -->
+        <!-- 🧩 桌面小组件：随机回顾（label 显示在系统小组件选择器里） -->
         <receiver
             android:name=".InkPaperRandomReviewWidgetProvider"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/inkpaper_random_review_widget_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -160,6 +162,12 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/inkpaper_random_review_widget_info" />
         </receiver>
+
+        <!-- 🧩 随机回顾预览文本的滚动数据源（RemoteViews 集合视图） -->
+        <service
+            android:name=".InkPaperReviewListService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

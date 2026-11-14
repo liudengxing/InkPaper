@@ -15,7 +15,6 @@ import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/responsive_utils.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
-import 'package:inkpaper/widgets/deepseek_whale.dart';
 import 'package:inkpaper/widgets/note_card.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:inkpaper/widgets/on_this_day_card.dart';
@@ -1326,11 +1325,13 @@ class _HomeScreenState extends State<HomeScreen>
                 padding: EdgeInsets.all(
                   ResponsiveUtils.fontScaledSpacing(context, 8),
                 ),
-                child: DeepSeekWhale(
-                  size: 20,
-                  color: isDarkMode
-                      ? DeepSeekWhale.brandBlueLight
-                      : DeepSeekWhale.brandBlue,
+                // 官方 DeepSeek logo 资产（与设置页同一份），替换自绘鲸鱼剪影；
+                // 资产自带留边，24px 实际鲸鱼宽度与旧 20px 自绘版相当
+                child: Image.asset(
+                  'assets/images/deepseek_logo.png',
+                  width: 24,
+                  height: 24,
+                  fit: BoxFit.contain,
                 ),
               ),
               tooltip: AppLocalizationsSimple.of(context)?.askNotes ?? '问笔记',

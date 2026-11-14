@@ -1223,11 +1223,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             _text(
               '• 示例模型只会填入输入框，最终以右上角保存为准\n'
                   '• 可以直接输入服务商提供的任意模型名\n'
-                  '• API 密钥仅存储在本地，不会上传\n'
+                  '• API 密钥已加密保存在本机安全区域（Android Keystore / iOS 钥匙串），不会上传\n'
                   '• 支持所有兼容 OpenAI 格式的 AI 服务',
               '• Example models only fill the fields; use the top-right save button to apply\n'
                   '• You can enter any model name provided by your AI service\n'
-                  '• API keys are stored locally and are not uploaded\n'
+                  '• API keys are encrypted on-device (Android Keystore / iOS Keychain) and never uploaded\n'
                   '• OpenAI-compatible AI services are supported',
             ),
             style: TextStyle(
@@ -1514,7 +1514,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                       _buildFAQItem(
                         context,
                         question: '🔒 安全说明',
-                        answer: 'API 密钥仅存储在本地设备，不会上传到任何服务器。\n'
+                        answer:
+                            'API 密钥已加密保存在本机安全区域（Android Keystore / iOS 钥匙串），不会上传到任何服务器。\n'
                             'AI 功能仅在你主动点击时调用，不会自动运行。',
                       ),
                       const SizedBox(height: 12),

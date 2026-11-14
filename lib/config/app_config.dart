@@ -404,13 +404,6 @@ class AppConfig {
 
   // ==================== 法律文档 ====================
 
-  /// 账号与数据删除说明/申请地址
-  static const String accountDeletionUrl =
-      '${officialWebsite}account-deletion.html';
-
-  /// 账号与数据删除 Uri
-  static Uri get accountDeletionUri => Uri.parse(accountDeletionUrl);
-
   /// 开源协议地址
   static const String licenseUrl = '$githubRepo/blob/main/LICENSE';
 

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/screens/about_screen.dart';
-import 'package:inkpaper/screens/account_deletion_screen.dart';
 import 'package:inkpaper/screens/account_info_screen.dart';
 import 'package:inkpaper/screens/ai_settings_screen.dart';
 import 'package:inkpaper/screens/data_cleanup_screen.dart';
@@ -242,16 +241,6 @@ class AppRouter {
       // ),
 
       GoRoute(
-        path: '/account-deletion',
-        name: 'accountDeletion',
-        pageBuilder: (context, state) => buildSlideTransition(
-          context: context,
-          state: state,
-          child: const AccountDeletionScreen(),
-        ),
-      ),
-
-      GoRoute(
         path: '/onboarding',
         name: 'onboarding',
         pageBuilder: (context, state) => buildSlideTransition(
@@ -307,16 +296,6 @@ class AppRouter {
               context: context,
               state: state,
               child: const AccountInfoScreen(),
-            ),
-          ),
-
-          GoRoute(
-            path: 'account-deletion',
-            name: 'homeAccountDeletion',
-            pageBuilder: (context, state) => buildSlideTransition(
-              context: context,
-              state: state,
-              child: const AccountDeletionScreen(),
             ),
           ),
 

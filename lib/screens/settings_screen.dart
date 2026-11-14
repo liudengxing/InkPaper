@@ -100,12 +100,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: _isZh(context) ? '账号与同步' : 'Account & Sync',
                 onTap: () => context.push('/account-info'),
               ),
-              _buildSettingsItem(
-                context,
-                icon: Icons.delete_forever_outlined,
-                title: _isZh(context) ? '账号与数据删除' : 'Account deletion',
-                onTap: () => context.push('/account-deletion'),
-              ),
 
               // 通用设置
               _buildSectionHeader(

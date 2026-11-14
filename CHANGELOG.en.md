@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - **WeRead import retired**: importing notes from WeRead text is no longer supported and its screen has been removed.
+- **Account deletion page removed**: it duplicated the data cleanup feature and no longer shows in settings.
 
 ## [1.1.87] - 2026-11-14
 

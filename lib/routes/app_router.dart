@@ -16,11 +16,11 @@ import 'package:inkpaper/screens/image_gallery_screen.dart';
 import 'package:inkpaper/screens/import_export_main_screen.dart';
 import 'package:inkpaper/screens/knowledge_graph_screen_custom.dart';
 import 'package:inkpaper/screens/laboratory_screen.dart';
-
 import 'package:inkpaper/screens/local_backup_restore_screen.dart';
 import 'package:inkpaper/screens/login_screen.dart';
 import 'package:inkpaper/screens/note_chat_screen.dart';
 import 'package:inkpaper/screens/note_detail_screen.dart';
+import 'package:inkpaper/screens/note_edit_history_screen.dart';
 import 'package:inkpaper/screens/notifications_screen.dart';
 import 'package:inkpaper/screens/notion_settings_screen.dart';
 import 'package:inkpaper/screens/onboarding_screen.dart';
@@ -468,6 +468,21 @@ class AppRouter {
             state: state,
             begin: const Offset(-0.15, 0),
             child: const ImageGalleryScreen(),
+          );
+        },
+      ),
+
+      // 🕘 笔记历史版本
+      GoRoute(
+        path: '/note-history/:noteId',
+        name: 'noteHistory',
+        pageBuilder: (context, state) {
+          final noteId = state.pathParameters['noteId'] ?? '';
+          return buildSlideTransition(
+            context: context,
+            state: state,
+            begin: const Offset(0, 0.06),
+            child: NoteEditHistoryScreen(noteId: noteId),
           );
         },
       ),

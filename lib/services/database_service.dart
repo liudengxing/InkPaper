@@ -136,6 +136,9 @@ class DatabaseService {
 
     // 待同步的远端操作队列（v11）
     await db.execute(createPendingOperationsSql);
+
+    // 编辑历史版本（v13）
+    await db.execute(createEditHistorySql);
   }
 
   static const String createPendingOperationsSql = '''
@@ -147,6 +150,25 @@ class DatabaseService {
       last_error TEXT,
       PRIMARY KEY (note_id, operation)
     )
+  ''';
+
+  /// 编辑历史版本（v13）：编辑过程中自动快照，供「历史版本」回看与恢复。
+  /// 只存正文 markdown（图片在快照里是路径，原图还在即可恢复）；
+  /// 不进同步，纯本地。
+  static const String tableEditHistory = 'note_edit_history';
+
+  static const String createEditHistorySql = '''
+    CREATE TABLE IF NOT EXISTS $tableEditHistory(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      note_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  ''';
+
+  static const String createEditHistoryIndexSql = '''
+    CREATE INDEX IF NOT EXISTS idx_edit_history_note
+    ON $tableEditHistory(note_id, created_at DESC)
   ''';
 
   /// 按标签精确匹配的 SQL 片段：tags 列存成逗号拼接串，
@@ -259,6 +281,11 @@ class DatabaseService {
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_notes_remote_id ON notes(remote_id)',
       );
+    }
+    if (oldVersion < 13) {
+      // v13: 编辑历史版本
+      await db.execute(createEditHistorySql);
+      await db.execute(createEditHistoryIndexSql);
     }
   }
 

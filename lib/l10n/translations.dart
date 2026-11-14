@@ -1128,6 +1128,15 @@ class Translations {
     'linkNote': {'zh': '链接', 'en': 'Link'},
     'referenceDetails': {'zh': '引用详情', 'en': 'Reference Details'},
     'detailedInfo': {'zh': '详细信息', 'en': 'Detailed Info'},
+    'noteHistory': {'zh': '历史版本', 'en': 'Version History'},
+    'noHistory': {'zh': '暂无历史版本', 'en': 'No version history'},
+    'noHistoryHint': {
+      'zh': '每次保存和编辑过程都会自动留档，\n最多保留 20 份、30 天内的版本',
+      'en':
+          'Snapshots are taken on save and while editing.\nUp to 20 versions within 30 days are kept.',
+    },
+    'restoreVersion': {'zh': '恢复此版本', 'en': 'Restore This Version'},
+    'versionRestored': {'zh': '已恢复该版本', 'en': 'Version restored'},
     'createdTime': {'zh': '创建时间', 'en': 'Created Time'},
     'characterCount': {'zh': '字符数量', 'en': 'Character Count'},
     'characters': {'zh': '字符', 'en': 'characters'},

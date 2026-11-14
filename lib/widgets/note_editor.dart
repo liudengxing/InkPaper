@@ -14,6 +14,7 @@ import 'package:inkpaper/services/ai_enhanced_service.dart';
 import 'package:inkpaper/services/draft_service.dart';
 import 'package:inkpaper/services/local_reference_service.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
+import 'package:inkpaper/services/note_edit_history_service.dart';
 import 'package:inkpaper/services/speech_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
@@ -110,6 +111,13 @@ class _NoteEditorState extends State<NoteEditor>
   // 误触空白、系统返回、切后台都可能让编辑器消失，内容靠草稿兜住。
   final DraftService _draftService = DraftService();
   Timer? _draftDebounce;
+
+  // ── 编辑历史快照 ─────────────────────────────────────────────────────
+  // 保存前存「保存前的内容」，编辑中每 5 分钟存一次改动，防崩溃丢版本。
+  Timer? _snapshotTimer;
+
+  /// 上一份快照的内容，用来在编辑器侧挡掉重复快照（DB 侧也有一层去重）。
+  String? _lastSnapshotContent;
 
   /// 编辑已有笔记时自动恢复了草稿，这里存恢复前的笔记原文，供「撤销」回退。
   /// 非空也代表草稿槽位里压着一条不该被随手清掉的草稿。
@@ -464,6 +472,14 @@ class _NoteEditorState extends State<NoteEditor>
     _lastTextForImageAnchors = _textController.text;
     _initialSavedContent = _prepareFinalContent();
 
+    // 编辑已有笔记时挂一个定时快照（新笔记没有 id，存了也没法挂靠）
+    if (widget.currentNoteId != null && widget.currentNoteId!.isNotEmpty) {
+      _snapshotTimer = Timer.periodic(
+        NoteEditHistoryService.midEditInterval,
+        (_) => _snapshotMidEdit(),
+      );
+    }
+
     // 🚀 判断是否是新建笔记（initialContent为空）
     _isNewNote =
         widget.initialContent == null || widget.initialContent!.isEmpty;
@@ -556,6 +572,7 @@ class _NoteEditorState extends State<NoteEditor>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _keyboardResizeReset?.cancel();
+    _snapshotTimer?.cancel();
     // 编辑器被关掉时兜底再存一次草稿（成功保存过、或本来就没改动的不存）
     _draftDebounce?.cancel();
     if (!_hasSuccessfullySaved && _hasUnsavedChanges) {
@@ -984,6 +1001,31 @@ class _NoteEditorState extends State<NoteEditor>
     return finalContent.trim().isEmpty ? '' : finalContent;
   }
 
+  /// 把内容写入编辑历史；空内容或与上一份快照相同则跳过。
+  Future<void> _snapshotHistory(String content) async {
+    final noteId = widget.currentNoteId;
+    if (noteId == null || noteId.isEmpty) {
+      return;
+    }
+    if (content.isEmpty || content == _lastSnapshotContent) {
+      return;
+    }
+    _lastSnapshotContent = content;
+    await NoteEditHistoryService.instance
+        .addSnapshot(noteId: noteId, content: content);
+  }
+
+  /// 编辑中的定时快照：只在有未保存改动时落一份。
+  void _snapshotMidEdit() {
+    if (!_hasUnsavedChanges) {
+      return;
+    }
+    final content = _prepareFinalContent();
+    if (content.isNotEmpty) {
+      unawaited(_snapshotHistory(content));
+    }
+  }
+
   Future<void> _saveNote() async {
     if (_isSaving) {
       return;
@@ -1001,6 +1043,9 @@ class _NoteEditorState extends State<NoteEditor>
       if (finalContent.isEmpty && _imageList.isEmpty) {
         return;
       }
+
+      // 版本分界线：这次保存成功后编辑器就关闭，把保存前的内容留档
+      await _snapshotHistory(_initialSavedContent);
 
       await widget.onSave(finalContent);
       await _clearDraft();

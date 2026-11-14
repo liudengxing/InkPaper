@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:inkpaper/config/app_config.dart' as Config;
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
@@ -212,6 +214,11 @@ class NoteMoreOptionsMenu {
             note: currentNote,
           );
           break;
+        case 'history':
+          await context.push('/note-history/${currentNote.id}');
+          unawaited(reloadNote());
+          onNoteUpdated?.call();
+          break;
         case 'delete':
           {
             // 示例笔记等特殊场景由调用方接管删除行为
@@ -357,6 +364,12 @@ class NoteMoreOptionsMenu {
                     label: localizations?.detailedInfo ?? '详细信息',
                     isDarkMode: isDarkMode,
                     onTap: () => select('info'),
+                  ),
+                  _buildSheetAction(
+                    icon: Icons.history_rounded,
+                    label: localizations?.noteHistory ?? '历史版本',
+                    isDarkMode: isDarkMode,
+                    onTap: () => select('history'),
                   ),
                   _buildSheetAction(
                     icon: Icons.delete_rounded,

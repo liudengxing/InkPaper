@@ -29,6 +29,7 @@ import 'package:inkpaper/services/feed_snapshot_service.dart';
 import 'package:inkpaper/services/local_reference_service.dart';
 import 'package:inkpaper/services/memos_api_service_fixed.dart'; // 使用修复版API服务
 import 'package:inkpaper/services/memos_resource_service.dart'; // 图片上传服务
+import 'package:inkpaper/services/note_edit_history_service.dart';
 import 'package:inkpaper/services/notification_service.dart';
 import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/services/reminder_notification_service.dart';
@@ -1606,6 +1607,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         }
       }
       await _databaseService.deleteNote(id);
+      unawaited(NoteEditHistoryService.instance.clearForNote(id));
     }
 
     await loadNotesFromLocal();
@@ -3206,6 +3208,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   Future<bool> purgeRecentlyDeletedNote(String id) async {
     try {
       await _databaseService.purgeDeletedNote(id);
+      // 笔记行没了，历史版本也一并清掉
+      unawaited(NoteEditHistoryService.instance.clearForNote(id));
       return true;
     } on Object catch (e) {
       debugPrint('AppProvider: 彻底删除笔记失败: $e');
@@ -3216,7 +3220,14 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   /// 清空「最近删除」，返回彻底删除的条数。
   Future<int> purgeAllRecentlyDeletedNotes() async {
     try {
-      return await _databaseService.purgeAllDeletedNotes();
+      final ids = (await _databaseService.getDeletedNotes())
+          .map((note) => note.id)
+          .toList();
+      final count = await _databaseService.purgeAllDeletedNotes();
+      for (final id in ids) {
+        unawaited(NoteEditHistoryService.instance.clearForNote(id));
+      }
+      return count;
     } on Object catch (e) {
       debugPrint('AppProvider: 清空最近删除失败: $e');
       return 0;

@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.88] - 2026-11-14
+
+### Improved
+
+- **A cleaner About screen**: the large icon banner is gone; the page starts right with the introduction.
+- **Colors matching the home screen**: cards and text use the same light-grey bordered style, no more brand green.
+- **Account and sync combined**: connection status, sync now and connection diagnosis moved into the account screen, one fewer settings entry.
+
 ## [1.1.87] - 2026-11-14
 
 ### Added

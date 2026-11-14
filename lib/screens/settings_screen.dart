@@ -97,7 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildSettingsItem(
                 context,
                 icon: Icons.account_circle,
-                title: l10n?.accountInfo ?? '账户信息',
+                title: _isZh(context) ? '账号与同步' : 'Account & Sync',
                 onTap: () => context.push('/account-info'),
               ),
               _buildSettingsItem(
@@ -105,12 +105,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: Icons.delete_forever_outlined,
                 title: _isZh(context) ? '账号与数据删除' : 'Account deletion',
                 onTap: () => context.push('/account-deletion'),
-              ),
-              _buildSettingsItem(
-                context,
-                icon: Icons.cloud,
-                title: l10n?.serverUrl ?? '服务器连接',
-                onTap: () => context.push('/server-info'),
               ),
 
               // 通用设置

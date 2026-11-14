@@ -3,10 +3,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/user_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/services/memos_api_service_fixed.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
@@ -30,6 +32,16 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
   bool _isUpdatingAvatar = false;
   File? _selectedImage;
 
+  // Memos 连接状态（原「服务器连接」页并入）
+  bool _isSyncing = false;
+  bool _isDiagnosing = false;
+  bool _isConnectionHealthy = false;
+  bool _hasServerUrl = false;
+  String _serverHost = '';
+  String _latency = '';
+  String _lastSyncLabel = '';
+  Timer? _statusCheckTimer;
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +53,9 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
 
     // 页面加载后自动同步一次用户信息
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
       // 如果上次同步时间超过15分钟，或者没有头像，自动同步
       if (user != null &&
           (user.lastSyncTime == null ||
@@ -49,11 +64,26 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
               user.avatarUrl!.isEmpty)) {
         _syncUserInfo(showSuccessMessage: false);
       }
+      // 初始化 Memos 连接状态
+      _refreshConnectionInfo();
+      final appProvider = Provider.of<AppProvider>(context, listen: false);
+      if (appProvider.isLoggedIn && appProvider.appConfig.memosApiUrl != null) {
+        _updateConnectionStatus();
+        _statusCheckTimer = Timer.periodic(
+          const Duration(seconds: 30),
+          (_) {
+            if (mounted) {
+              _updateConnectionStatus();
+            }
+          },
+        );
+      }
     });
   }
 
   @override
   void dispose() {
+    _statusCheckTimer?.cancel();
     _nicknameController.dispose();
     _emailController.dispose();
     _bioController.dispose();
@@ -141,6 +171,296 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
         });
       }
     }
+  }
+
+  // ---------- Memos 连接（原「服务器连接」页并入） ----------
+
+  String get _l10nServer =>
+      AppLocalizationsSimple.of(context)?.serverUrl ?? '服务器连接';
+
+  /// 刷新连接信息（地址、上次同步时间）
+  void _refreshConnectionInfo() {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final url = appProvider.appConfig.memosApiUrl;
+    var host = '';
+    if (url != null && url.isNotEmpty) {
+      try {
+        final uri = Uri.parse(url);
+        host = '${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';
+      } on Object {
+        host = url;
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _hasServerUrl = url != null && url.isNotEmpty;
+      _serverHost = host;
+      _lastSyncLabel = _formatLastSync(appProvider.user?.lastSyncTime);
+    });
+  }
+
+  String _formatLastSync(DateTime? lastSync) {
+    final l10n = AppLocalizationsSimple.of(context);
+    if (lastSync == null) {
+      return l10n?.notSynced ?? '未同步';
+    }
+    final diff = DateTime.now().difference(lastSync);
+    if (diff.inMinutes < 1) {
+      return l10n?.justNow ?? '刚刚';
+    } else if (diff.inMinutes < 60) {
+      return l10n?.minutesAgo(diff.inMinutes) ?? '${diff.inMinutes}分钟前';
+    } else if (diff.inHours < 24) {
+      return l10n?.hoursAgo(diff.inHours) ?? '${diff.inHours}小时前';
+    }
+    return l10n?.daysAgo(diff.inDays) ?? '${diff.inDays}天前';
+  }
+
+  Future<http.Response?> _pingMemosApi(AppProvider appProvider) async {
+    final baseUrl = appProvider.appConfig.memosApiUrl;
+    if (baseUrl == null || baseUrl.isEmpty) {
+      return null;
+    }
+    final headers = {
+      'Accept': 'application/json',
+      if (appProvider.appConfig.lastToken != null)
+        'Authorization': 'Bearer ${appProvider.appConfig.lastToken}',
+    };
+    http.Response? lastResponse;
+    for (final path in ['/api/v1/workspace/profile', '/api/v1/status']) {
+      final response = await http
+          .get(Uri.parse('$baseUrl$path'), headers: headers)
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        return response;
+      }
+      lastResponse = response;
+    }
+    return lastResponse;
+  }
+
+  Future<void> _updateConnectionStatus() async {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    if (!appProvider.isLoggedIn) {
+      return;
+    }
+    try {
+      final response = await _pingMemosApi(appProvider);
+      if (response != null && response.statusCode == 200) {
+        final start = DateTime.now();
+        await _pingMemosApi(appProvider);
+        final latency = DateTime.now().difference(start).inMilliseconds;
+        if (mounted) {
+          setState(() {
+            _isConnectionHealthy = true;
+            _latency = '$latency ms';
+          });
+        }
+      } else {
+        throw Exception('HTTP ${response?.statusCode}');
+      }
+    } on Object {
+      if (mounted) {
+        setState(() {
+          _isConnectionHealthy = false;
+          _latency = AppLocalizationsSimple.of(context)?.timeout ?? '超时';
+        });
+      }
+    }
+  }
+
+  Future<void> _syncData() async {
+    if (_isSyncing) {
+      return;
+    }
+    setState(() {
+      _isSyncing = true;
+    });
+    try {
+      final appProvider = Provider.of<AppProvider>(context, listen: false);
+      if (!appProvider.isLoggedIn) {
+        SnackBarUtils.showError(context, '同步失败: 请先登录');
+        return;
+      }
+      final syncResult = await appProvider.syncLocalDataToServer();
+      await appProvider.fetchNotesFromServer();
+      if (!mounted) {
+        return;
+      }
+      if (syncResult) {
+        SnackBarUtils.showSuccess(context, '同步成功');
+        setState(() {
+          _lastSyncLabel = AppLocalizationsSimple.of(context)?.justNow ?? '刚刚';
+        });
+        if (appProvider.user != null) {
+          final updatedUser =
+              appProvider.user!.copyWith(lastSyncTime: DateTime.now());
+          await appProvider.setUser(updatedUser);
+        }
+      } else {
+        SnackBarUtils.showError(context, '同步失败');
+      }
+    } on Object catch (e) {
+      if (mounted) {
+        SnackBarUtils.showError(context, '同步失败: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _diagnoseConnection() async {
+    if (_isDiagnosing) {
+      return;
+    }
+    setState(() {
+      _isDiagnosing = true;
+    });
+    final steps = <_ConnLog>[];
+    void addStep(String message, _ConnLogType type) {
+      steps.add(_ConnLog(message, type));
+    }
+
+    try {
+      final appProvider = Provider.of<AppProvider>(context, listen: false);
+      final url = appProvider.appConfig.memosApiUrl;
+      if (url == null || url.isEmpty) {
+        addStep('未配置服务器地址', _ConnLogType.error);
+        _showDiagResult(steps);
+        return;
+      }
+      Uri uri;
+      try {
+        uri = Uri.parse(url);
+        addStep('服务器地址: ${uri.host}', _ConnLogType.success);
+        addStep('协议: ${uri.scheme.toUpperCase()}', _ConnLogType.success);
+      } on Object catch (e) {
+        addStep('解析服务器地址失败: $e', _ConnLogType.error);
+        _showDiagResult(steps);
+        return;
+      }
+
+      try {
+        final start = DateTime.now();
+        await http
+            .head(Uri.parse('${uri.scheme}://${uri.host}:${uri.port}'))
+            .timeout(const Duration(seconds: 5));
+        addStep(
+          '连通性检查通过，耗时 '
+          '${DateTime.now().difference(start).inMilliseconds}ms',
+          _ConnLogType.success,
+        );
+      } on Object catch (e) {
+        addStep('连通性检查失败: $e', _ConnLogType.error);
+      }
+
+      var apiHealthy = false;
+      try {
+        final start = DateTime.now();
+        final response = await _pingMemosApi(appProvider);
+        final duration = DateTime.now().difference(start).inMilliseconds;
+        if (response != null && response.statusCode == 200) {
+          apiHealthy = true;
+          addStep('API 连接成功，响应时间: ${duration}ms', _ConnLogType.success);
+        } else {
+          addStep('API 连接失败: HTTP ${response?.statusCode}', _ConnLogType.error);
+        }
+      } on Object catch (e) {
+        addStep('API 连接失败: $e', _ConnLogType.error);
+      }
+
+      if (appProvider.appConfig.lastToken != null) {
+        try {
+          final tokenService = MemosApiServiceFixed(
+            baseUrl: url,
+            token: appProvider.appConfig.lastToken,
+          );
+          await tokenService.getUserInfo().timeout(const Duration(seconds: 5));
+          addStep('登录凭证验证成功', _ConnLogType.success);
+        } on Object catch (e) {
+          addStep('登录凭证验证失败: $e', _ConnLogType.error);
+        }
+      }
+
+      addStep(
+        apiHealthy ? '诊断结果: 连接正常' : '诊断结果: 连接异常',
+        apiHealthy ? _ConnLogType.success : _ConnLogType.error,
+      );
+      setState(() {
+        _isConnectionHealthy = apiHealthy;
+      });
+      _showDiagResult(steps);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDiagnosing = false;
+        });
+      }
+    }
+  }
+
+  void _showDiagResult(List<_ConnLog> steps) {
+    if (!mounted) {
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('连接诊断'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 280),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final step in steps)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          switch (step.type) {
+                            _ConnLogType.success => Icons.check_circle_outline,
+                            _ConnLogType.error => Icons.error_outline,
+                            _ConnLogType.warning =>
+                              Icons.warning_amber_outlined,
+                          },
+                          size: 16,
+                          color: switch (step.type) {
+                            _ConnLogType.success => const Color(0xFF34C759),
+                            _ConnLogType.error => const Color(0xFFFF3B30),
+                            _ConnLogType.warning => const Color(0xFFFF9500),
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            step.message,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppLocalizationsSimple.of(context)?.confirm ?? '确定'),
+          ),
+        ],
+      ),
+    );
   }
 
   // 选择头像
@@ -1221,6 +1541,167 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                 ),
               ),
 
+              // Memos 连接状态（原「服务器连接」页并入）
+              Container(
+                margin:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: !_hasServerUrl
+                                ? Colors.grey.withValues(alpha: 0.15)
+                                : (_isConnectionHealthy
+                                    ? const Color(0xFF34C759)
+                                        .withValues(alpha: 0.15)
+                                    : const Color(0xFFFF3B30)
+                                        .withValues(alpha: 0.15)),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            !_hasServerUrl
+                                ? Icons.cloud_off_outlined
+                                : (_isConnectionHealthy
+                                    ? Icons.cloud_done_outlined
+                                    : Icons.cloud_off_outlined),
+                            color: !_hasServerUrl
+                                ? Colors.grey
+                                : (_isConnectionHealthy
+                                    ? const Color(0xFF34C759)
+                                    : const Color(0xFFFF3B30)),
+                            size: 26,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _l10nServer,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                !_hasServerUrl
+                                    ? '未配置 Memos 服务器'
+                                    : (_isConnectionHealthy ? '连接正常' : '连接异常'),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: theme.textTheme.bodyMedium?.color
+                                      ?.withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_hasServerUrl) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: theme.dividerColor.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          children: [
+                            _buildServerDetail('服务器', _serverHost),
+                            const SizedBox(height: 8),
+                            _buildServerDetail('延迟', _latency),
+                            const SizedBox(height: 8),
+                            _buildServerDetail('上次同步', _lastSyncLabel),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: !_isSyncing ? _syncData : null,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.primaryColor,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: _isSyncing
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          Colors.white,
+                                        ),
+                                      ),
+                                    )
+                                  : const Text('立即同步'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextButton(
+                              onPressed:
+                                  !_isDiagnosing ? _diagnoseConnection : null,
+                              style: TextButton.styleFrom(
+                                backgroundColor:
+                                    theme.dividerColor.withValues(alpha: 0.05),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: _isDiagnosing
+                                  ? SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          theme.primaryColor,
+                                        ),
+                                      ),
+                                    )
+                                  : const Text('连接诊断'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
               // 基本信息设置
               Container(
                 margin:
@@ -1405,4 +1886,48 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
       ),
     );
   }
+
+  Widget _buildServerDetail(String label, String value) => Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.color
+                    ?.withValues(alpha: 0.7),
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
+      );
+}
+
+/// 连接诊断步骤（弹窗展示用）
+enum _ConnLogType { success, error, warning }
+
+class _ConnLog {
+  _ConnLog(this.message, this.type);
+  final String message;
+  final _ConnLogType type;
 }

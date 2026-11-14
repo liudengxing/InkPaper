@@ -31,7 +31,6 @@ import 'package:inkpaper/screens/preferences_screen.dart';
 import 'package:inkpaper/screens/random_review_screen.dart';
 import 'package:inkpaper/screens/recently_deleted_screen.dart';
 import 'package:inkpaper/screens/register_screen.dart';
-import 'package:inkpaper/screens/server_info_screen.dart';
 import 'package:inkpaper/screens/settings_screen.dart';
 import 'package:inkpaper/screens/sidebar_customization_screen.dart';
 import 'package:inkpaper/screens/tag_notes_screen.dart';
@@ -319,16 +318,6 @@ class AppRouter {
               context: context,
               state: state,
               child: const AccountDeletionScreen(),
-            ),
-          ),
-
-          GoRoute(
-            path: 'server-info',
-            name: 'serverInfo',
-            pageBuilder: (context, state) => buildSlideTransition(
-              context: context,
-              state: state,
-              child: const ServerInfoScreen(),
             ),
           ),
 

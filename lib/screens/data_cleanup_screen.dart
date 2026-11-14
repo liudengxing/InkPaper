@@ -32,6 +32,8 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
   double _databaseSize = 0;
   double _cacheSize = 0;
   int _imagesCount = 0;
+  double _imagesSize = 0;
+  double _thumbsSize = 0;
 
   @override
   void initState() {
@@ -57,8 +59,16 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
       // 获取缓存大小
       final cacheSize = await _calculateCacheSize();
 
-      // 获取图片数量
+      // 获取图片数量与占用（原图目录 + 缩略图目录）
       final imagesCount = await _getImagesCount();
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final imagesSize = await _directorySizeMb(
+        Directory('${appDocDir.path}/images'),
+      );
+      final thumbsDir = await getTemporaryDirectory();
+      final thumbsSize = await _directorySizeMb(
+        Directory('${thumbsDir.path}/thumbs'),
+      );
 
       if (mounted) {
         setState(() {
@@ -67,6 +77,8 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
           _databaseSize = dbSizeInMB;
           _cacheSize = cacheSize;
           _imagesCount = imagesCount;
+          _imagesSize = imagesSize;
+          _thumbsSize = thumbsSize;
         });
       }
     } on Object catch (e) {
@@ -80,22 +92,30 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
     }
   }
 
+  // 计算目录占用（MB），目录不存在返回 0
+  Future<double> _directorySizeMb(Directory dir) async {
+    try {
+      if (!await dir.exists()) {
+        return 0;
+      }
+      var totalSize = 0;
+      await for (final entity in dir.list(recursive: true)) {
+        if (entity is File) {
+          totalSize += await entity.length();
+        }
+      }
+      return totalSize / (1024 * 1024);
+    } on Object catch (e) {
+      debugPrint('计算目录占用失败: $e');
+      return 0;
+    }
+  }
+
   // 计算缓存大小
   Future<double> _calculateCacheSize() async {
     try {
       final cacheDir = await getTemporaryDirectory();
-      var totalSize = 0;
-
-      if (await cacheDir.exists()) {
-        // 递归获取目录内所有文件大小
-        await for (final entity in cacheDir.list(recursive: true)) {
-          if (entity is File) {
-            totalSize += await entity.length();
-          }
-        }
-      }
-
-      return totalSize / (1024 * 1024); // 转换为MB
+      return await _directorySizeMb(cacheDir);
     } on Object catch (e) {
       debugPrint('计算缓存大小失败: $e');
       return 0;
@@ -590,6 +610,18 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
                 Icons.image,
                 AppLocalizationsSimple.of(context)?.imagesCount ?? '图片数量',
                 '$_imagesCount ${AppLocalizationsSimple.of(context)?.imagesItem ?? '张图片'}',
+              ),
+              const SizedBox(height: 8),
+              _buildStatItem(
+                Icons.photo_size_select_actual_outlined,
+                '图片占用',
+                '${_imagesSize.toStringAsFixed(2)} MB',
+              ),
+              const SizedBox(height: 8),
+              _buildStatItem(
+                Icons.picture_in_picture_alt_outlined,
+                '缩略图占用',
+                '${_thumbsSize.toStringAsFixed(2)} MB',
               ),
               const SizedBox(height: 12),
               Center(

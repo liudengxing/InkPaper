@@ -116,7 +116,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildSettingsItem(
                 context,
-                icon: Icons.psychology,
+                customIcon: Image.asset(
+                  'assets/images/deepseek_logo.png',
+                  width: ResponsiveUtils.responsiveIconSize(context, 24),
+                  height: ResponsiveUtils.responsiveIconSize(context, 24),
+                  fit: BoxFit.contain,
+                ),
                 title: l10n?.aiSettings ?? 'AI 助手',
                 onTap: () => context.push('/ai-settings'),
               ),
@@ -221,10 +226,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildSettingsItem(
     BuildContext context, {
-    required IconData icon,
     required String title,
     required VoidCallback onTap,
     String? subtitle,
+    IconData? icon,
+    Widget? customIcon,
   }) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final iconColor =
@@ -233,11 +239,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final arrowColor = isDarkMode ? Colors.grey[400] : Colors.grey;
     final content = Row(
       children: [
-        Icon(
-          icon,
-          size: ResponsiveUtils.responsiveIconSize(context, 24),
-          color: iconColor,
-        ),
+        customIcon ??
+            Icon(
+              icon ?? Icons.circle_outlined,
+              size: ResponsiveUtils.responsiveIconSize(context, 24),
+              color: iconColor,
+            ),
         SizedBox(width: ResponsiveUtils.responsiveSpacing(context, 16)),
         Expanded(
           child: Column(

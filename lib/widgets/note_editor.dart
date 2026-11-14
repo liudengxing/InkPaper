@@ -80,16 +80,6 @@ class _NoteEditorState extends State<NoteEditor>
   // 关闭流程防重入：点空白和点关闭按钮可能同时触发，避免连 pop 两次
   bool _isClosingEditor = false;
 
-  // 图片区是否展开成九宫格（默认单行横滑，上滑或点按钮展开）
-  bool _imageGridExpanded = false;
-
-  /// 图片区展开进度：0 = 单行横滑，1 = 九宫格。
-  ///
-  /// 卡片高度和图片区高度都由它逐帧插值。分成两个 implicit animation
-  /// （AnimatedContainer / AnimatedSize）时曲线再一致也差一帧起步，中间帧里
-  /// 多出来的空间会先灌进文字区再被收回去，看起来就是「变两次」。
-  late AnimationController _imageExpandController;
-
   // 是否显示更多选项
   bool _showingMoreOptions = false;
 
@@ -123,7 +113,6 @@ class _NoteEditorState extends State<NoteEditor>
   List<_ImageItem> _imageList = [];
   List<String> _mdCodes = [];
   List<int?> _imageAnchors = [];
-  final ScrollController _imageScrollController = ScrollController();
 
   /// 九宫格自己的滚动控制器：拖动时要把指针的全局坐标换算回网格内容坐标，
   /// 换算里得把已滚动的距离加回去。
@@ -502,13 +491,6 @@ class _NoteEditorState extends State<NoteEditor>
       duration: const Duration(milliseconds: 1500),
     ); // 不自动重复，根据音量控制
 
-    // 图片区展开动画：初值对齐当前状态，避免首帧从 0 跳一下
-    _imageExpandController = AnimationController(
-      vsync: this,
-      duration: _imageExpandDuration,
-      value: _imageGridExpanded ? 1 : 0,
-    );
-
     // 初始化内容行数
     _updateLineCount();
 
@@ -562,10 +544,8 @@ class _NoteEditorState extends State<NoteEditor>
     _lineCountNotifier.dispose();
     _textFocusNode.dispose();
     _scrollController.dispose();
-    _imageScrollController.dispose();
     _imageGridScrollController.dispose();
     _speechAnimationController.dispose();
-    _imageExpandController.dispose();
     super.dispose();
   }
 
@@ -1195,12 +1175,7 @@ class _NoteEditorState extends State<NoteEditor>
       },
       child: ValueListenableBuilder<int>(
         valueListenable: _lineCountNotifier,
-        // 展开进度每帧都要重算卡片高度与图片区高度，所以包一层 AnimatedBuilder；
-        // 只有这 200ms 会走高频重建，静止时不产生额外开销。
-        builder: (context, lineCount, _) => AnimatedBuilder(
-          animation: _imageExpandController,
-          builder: (context, _) => _buildEditor(context, lineCount),
-        ),
+        builder: (context, lineCount, _) => _buildEditor(context, lineCount),
       ),
     );
   }
@@ -1226,11 +1201,9 @@ class _NoteEditorState extends State<NoteEditor>
     // 顶部指示器和内边距高度
     const topElementsHeight = 20.0;
 
-    // 图片预览区域的目标高度：由展开进度插值，0 对应单行横滑、1 对应九宫格
-    final expandT = Curves.easeOutCubic.transform(_imageExpandController.value);
-    final imageTargetHeight = _imageList.isEmpty
-        ? 0.0
-        : _imageStripHeight + (_imageGridHeight - _imageStripHeight) * expandT;
+    // 图片预览区域的目标高度：九宫格按行数自适应，屏幕放不下时内部滚动。
+    // 卡片是全宽的（外层 Container 撑满），所以直接用屏宽换算格子边长。
+    final imageTargetHeight = _imageGridContentHeight(screenSize.width);
 
     // 图片区是文字区的兄弟节点，卡片总高不变时它只能从 Expanded 的文字区里抢
     // 空间（选 1 张图就少 110），表现为「输入框变窄、多行文字被挡住」。所以有图
@@ -1250,14 +1223,17 @@ class _NoteEditorState extends State<NoteEditor>
     final availableHeight = screenSize.height - keyboardInset;
     final editorHeight = math.min(desiredEditorHeight, availableHeight * 0.92);
 
-    // 卡片高度被上面一句钳住时（展开九宫格 + 键盘弹出几乎必然发生），图片区不能
-    // 还按 330 长：卡片已经不再变高，多出来的空间只能从文字区抢，展开动画就变成
-    // 「卡片不动、文字被挤扁再弹回」的抽搐。这里让图片区主动让步，文字区保持恒定。
+    // 卡片高度被上面一句钳住时（图片多 + 键盘弹出几乎必然发生），图片区不能
+    // 还按满格九宫格的高度长：卡片已经不再变高，多出来的空间只能从文字区抢，
+    // 文字会被挤扁。这里让图片区主动让步，至少留一行可见，其余靠内部滚动。
     final imageSectionHeight = _imageList.isEmpty
         ? 0.0
         : math.min(
             imageTargetHeight,
-            math.max(_imageStripHeight, editorHeight - baseEditorHeight),
+            math.max(
+              _imageGridMinVisibleHeight(screenSize.width),
+              editorHeight - baseEditorHeight,
+            ),
           );
 
     // 获取当前主题模式
@@ -1659,7 +1635,7 @@ class _NoteEditorState extends State<NoteEditor>
                                 ),
                               ),
 
-                              // 图片预览区域：默认单行横滑，可展开九宫格
+                              // 图片预览区域：九宫格（长按拖动排序）
                               if (_imageList.isNotEmpty)
                                 _buildImageSection(
                                   dividerColor,
@@ -2042,200 +2018,99 @@ class _NoteEditorState extends State<NoteEditor>
     );
   }
 
-  /// 展开 / 收起九宫格。
-  ///
-  /// 目标态（决定渲染哪份内容）和动画进度一起改，卡片高度、图片区高度、内容切换
-  /// 全部由同一个进度驱动；中途反向点击时 controller 从当前值折返，不会跳一帧。
-  void _setImageGridExpanded(bool expanded) {
-    if (_imageGridExpanded == expanded) {
-      return;
-    }
-    setState(() => _imageGridExpanded = expanded);
-    if (expanded) {
-      _imageExpandController.forward();
-    } else {
-      _imageExpandController.reverse();
-    }
-  }
-
-  // 图片区高度：单行横滑条 / 展开后的九宫格
-  static const double _imageStripHeight = 110;
-  static const double _imageGridHeight = 330;
-
   // 九宫格布局参数（拖动排序的坐标反算依赖这几个值，别只改 GridView）
   static const int _imageGridColumns = 3;
   static const double _imageGridSpacing = 8;
   static const double _imageGridHPadding = 16;
   static const double _imageGridTopPadding = 4;
+  static const double _imageGridBottomPadding = 16;
 
-  /// 让位动画时长。比展开动画短，拖动时读起来是「跟着手走」而不是「慢半拍」。
-  static const Duration _imageGridSwapDuration = Duration(milliseconds: 130);
-  static const Duration _imageExpandDuration = Duration(milliseconds: 220);
-
-  /// 内容交叉淡化比高度动画短：切换在高度还在变化的前段就完成，中间不会出现
-  /// 「区域已经不动、内容还在淡」的第二段动作，也缩短了两态叠影的可见时间。
-  static const Duration _imageSwapDuration = Duration(milliseconds: 140);
-
-  /// 图片区：默认单行横滑（长按拖动排序），上滑或点按钮展开九宫格。
+  /// 标题行（「N 张图片 · 长按拖动排序」）的高度。
   ///
-  /// 高度由 [_imageExpandController] 逐帧插值（调用方传进来的 [height]），内容则
-  /// 始终按**目标态**高度布局，再靠顶部对齐 + 外层裁剪露出下沿——读起来就是抽屉
-  /// 被拉开，图片不会被压扁、也不会在中间帧里被重新排版一遍。
-  Widget _buildImageSection(Color dividerColor, double height) => ClipRect(
-        child: SizedBox(
-          key: const ValueKey('note-editor-image-section'),
-          // 宽度必须显式给满：Column 默认 center，容器宽度一旦退回「由内容决定」，
-          // 展开瞬间内容从横滑条换成九宫格会让宽度重算，视觉上像整块在抽。
-          width: double.infinity,
-          height: height,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(color: dividerColor, width: 0.5),
-              ),
-            ),
-            child: OverflowBox(
-              alignment: Alignment.topCenter,
-              minHeight:
-                  _imageGridExpanded ? _imageGridHeight : _imageStripHeight,
-              maxHeight:
-                  _imageGridExpanded ? _imageGridHeight : _imageStripHeight,
-              child: AnimatedSwitcher(
-                duration: _imageSwapDuration,
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeIn,
-                // 默认的 layoutBuilder 会把新旧内容居中对齐，两者高度不同时会互相顶动；
-                // 统一顶部对齐 + 外层裁剪，切换读起来像同一块区域在变形。
-                layoutBuilder: (currentChild, previousChildren) => Stack(
-                  alignment: Alignment.topCenter,
-                  children: [
-                    ...previousChildren,
-                    if (currentChild != null) currentChild,
-                  ],
-                ),
-                child: _imageGridExpanded
-                    ? KeyedSubtree(
-                        key: const ValueKey('image-grid'),
-                        child: _buildImageGrid(),
-                      )
-                    : KeyedSubtree(
-                        key: const ValueKey('image-strip'),
-                        child: _buildImageStrip(),
-                      ),
-              ),
-            ),
-          ),
-        ),
-      );
+  /// 写死是为了让图片区总高能在 build 里先算出来——这个高度同时决定卡片高度，
+  /// 不能等布局完成再回填（回填会让首帧高度跳一下）。
+  static const double _imageGridHeaderHeight = 22;
 
-  Widget _buildImageStrip() => GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        // 单行条上向上滑 → 展开九宫格
-        onVerticalDragEnd: (details) {
-          if ((details.primaryVelocity ?? 0) < -220) {
-            _setImageGridExpanded(true);
-          }
-        },
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: ReorderableListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  scrollController: _imageScrollController,
-                  padding: const EdgeInsets.only(left: 16, right: 44),
-                  buildDefaultDragHandles: false,
-                  itemCount: _imageList.length,
-                  onReorderItem: _reorderImage,
-                  proxyDecorator: (child, index, animation) => Material(
-                    color: Colors.transparent,
-                    elevation: 6,
-                    borderRadius: BorderRadius.circular(8),
-                    child: child,
-                  ),
-                  itemBuilder: (context, index) =>
-                      ReorderableDelayedDragStartListener(
-                    key: ObjectKey(_imageList[index]),
-                    index: index,
-                    child: _buildImagePreviewItem(
-                      _imageList[index],
-                      index,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              right: 8,
-              top: 8,
-              child: _buildGridToggleButton(),
-            ),
-          ],
-        ),
-      );
+  /// 单格边长。网格撑满屏宽，左右各留 [_imageGridHPadding]，格间留
+  /// [_imageGridSpacing]；高度预估与拖动坐标反算必须共用这一个式子。
+  static double _imageGridTileSize(double width) =>
+      (width -
+          _imageGridHPadding * 2 -
+          _imageGridSpacing * (_imageGridColumns - 1)) /
+      _imageGridColumns;
 
-  Widget _buildGridToggleButton() {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: () => _setImageGridExpanded(true),
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: (isDarkMode ? Colors.black : Colors.white)
-              .withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: (isDarkMode ? Colors.white : Colors.black)
-                .withValues(alpha: 0.12),
-          ),
-        ),
-        child: Icon(
-          Icons.grid_view_rounded,
-          size: 15,
-          color: isDarkMode ? Colors.white70 : Colors.black54,
-        ),
-      ),
-    );
+  /// 九宫格内容总高：标题行 + 行数 × 格子 + 行间距 + 底部留白。
+  ///
+  /// 图片越多越高，屏幕放不下时由图片区高度与卡片高度上限共同收口，
+  /// 溢出的部分在格子里滚动，不再留一条固定的空高度。
+  double _imageGridContentHeight(double width) {
+    if (_imageList.isEmpty) {
+      return 0;
+    }
+    final rows =
+        (_imageList.length + _imageGridColumns - 1) ~/ _imageGridColumns;
+    return _imageGridHeaderHeight +
+        _imageGridTopPadding +
+        rows * _imageGridTileSize(width) +
+        (rows - 1) * _imageGridSpacing +
+        _imageGridBottomPadding;
   }
+
+  /// 卡片高度被屏幕钳住时，图片区至少留一行完整可见，其余靠内部滚动。
+  static double _imageGridMinVisibleHeight(double width) =>
+      _imageGridHeaderHeight +
+      _imageGridTopPadding +
+      _imageGridTileSize(width) +
+      _imageGridBottomPadding;
+
+  /// 让位动画时长。拖动时读起来是「跟着手走」而不是「慢半拍」。
+  static const Duration _imageGridSwapDuration = Duration(milliseconds: 130);
+
+  /// 图片区：九宫格，长按格子拖动排序。
+  ///
+  /// 高度由调用方按行数算好后传入；不足时裁掉下沿（滚动交给内层 GridView），
+  /// 所以这里只需要一个裁剪壳，不再有两态切换。
+  Widget _buildImageSection(Color dividerColor, double height) => SizedBox(
+        key: const ValueKey('note-editor-image-section'),
+        // 宽度必须显式给满：Column 默认 center，容器宽度一旦退回「由内容决定」，
+        // 格子边长就会跟着内容重算。
+        width: double.infinity,
+        height: height,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: dividerColor, width: 0.5),
+            ),
+          ),
+          child: ClipRect(child: _buildImageGrid()),
+        ),
+      );
 
   Widget _buildImageGrid() {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final secondaryTextColor = isDarkMode ? Colors.grey[400] : Colors.grey[700];
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
-          child: Row(
-            children: [
-              Text(
+        // 高度必须固定：它已经算进图片区总高，这里若随字号/字体缩放变高，卡片
+        // 就会比预算的矮一截，九宫格底部被裁。
+        SizedBox(
+          height: _imageGridHeaderHeight,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
                 '${_imageList.length} 张图片 · 长按拖动排序',
                 style: TextStyle(fontSize: 12, color: secondaryTextColor),
               ),
-              const Spacer(),
-              IconButton(
-                onPressed: () => _setImageGridExpanded(false),
-                tooltip: '收起',
-                icon: Icon(
-                  Icons.expand_more_rounded,
-                  size: 20,
-                  color: secondaryTextColor,
-                ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              ),
-            ],
+            ),
           ),
         ),
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
               // 格子是正方形，间距两个方向一致，所以横竖位移都用同一个步长。
-              final available = constraints.maxWidth -
-                  _imageGridHPadding * 2 -
-                  _imageGridSpacing * (_imageGridColumns - 1);
-              final tileSize = available / _imageGridColumns;
+              final tileSize = _imageGridTileSize(constraints.maxWidth);
               final stride = tileSize + _imageGridSpacing;
               return GridView.builder(
                 key: _imageGridKey,
@@ -2244,7 +2119,7 @@ class _NoteEditorState extends State<NoteEditor>
                   _imageGridHPadding,
                   _imageGridTopPadding,
                   _imageGridHPadding,
-                  16,
+                  _imageGridBottomPadding,
                 ),
                 // 拖动排序时每帧都会重建，省掉 keep-alive 的额外开销。
                 addAutomaticKeepAlives: false,
@@ -2353,10 +2228,7 @@ class _NoteEditorState extends State<NoteEditor>
       return;
     }
     final local = box.globalToLocal(globalPosition);
-    final contentWidth = box.size.width -
-        _imageGridHPadding * 2 -
-        _imageGridSpacing * (_imageGridColumns - 1);
-    final tileSize = contentWidth / _imageGridColumns;
+    final tileSize = _imageGridTileSize(box.size.width);
     final stride = tileSize + _imageGridSpacing;
     final scrolled = _imageGridScrollController.hasClients
         ? _imageGridScrollController.offset
@@ -2450,72 +2322,11 @@ class _NoteEditorState extends State<NoteEditor>
         ),
       );
 
-  // 构建单个图片预览项
-  Widget _buildImagePreviewItem(_ImageItem image, int index) => Container(
-        width: 90,
-        height: 90,
-        margin: const EdgeInsets.only(right: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Colors.grey.withValues(alpha: 0.3),
-          ),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // 图片
-            ClipRRect(
-              borderRadius: BorderRadius.circular(7),
-              child: _buildImageWidget(image.path),
-            ),
-
-            // 上传状态指示器
-            Positioned(
-              top: 2,
-              left: 2,
-              child: _buildUploadStatusIcon(image.uploadStatus),
-            ),
-
-            // 删除按钮
-            Positioned(
-              top: 2,
-              right: 2,
-              child: GestureDetector(
-                onTap: () => _removeImage(index),
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.close,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-
-  /// 长按拖动重排图片。
+  /// 把第 [from] 张图片移动到第 [to] 个位置。
   ///
   /// `_mdCodes` 跟着图片一起走；`_imageAnchors` 视为正文里的「插槽」保持不动，
   /// 拖动只是让图片换到别的插槽。这样保存后的 Markdown 顺序与列表一致，
   /// 也不会把原本插在正文中间的图片整体挪到文末。
-  void _reorderImage(int oldIndex, int newIndex) {
-    if (oldIndex == newIndex) {
-      return;
-    }
-    // onReorderItem 传入的 newIndex 已按「先移除再插入」调整过
-    _moveImage(oldIndex, newIndex.clamp(0, _imageList.length - 1));
-  }
-
-  /// 把第 [from] 张图片移动到第 [to] 个位置（单行拖动与九宫格拖动共用）。
   void _moveImage(int from, int to) {
     if (from == to || from < 0 || from >= _imageList.length) {
       return;
@@ -2544,13 +2355,6 @@ class _NoteEditorState extends State<NoteEditor>
         }
         if (index < _imageAnchors.length) {
           _imageAnchors.removeAt(index);
-        }
-
-        // 图片被删空时展开状态一起复位，否则下次加图会直接以九宫格展开（图片区
-        // 隐藏期间 controller 还停在 1）
-        if (_imageList.isEmpty && _imageGridExpanded) {
-          _imageGridExpanded = false;
-          _imageExpandController.value = 0;
         }
       }
     });

@@ -6,9 +6,9 @@ import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 编辑器的图片区有两种排布：单行横滑和九宫格。九宫格原来用 `DragTarget` 做
-/// 「放下才交换」，拖的过程中没有任何反馈，只有松手瞬间位置突变。这里锁定改后的
-/// 行为：拖动时被越过的格子实时让开，松手才落定顺序。
+/// 编辑器的图片区是九宫格，原来用 `DragTarget` 做「放下才交换」，拖的过程中没有
+/// 任何反馈，只有松手瞬间位置突变。这里锁定改后的行为：拖动时被越过的格子实时
+/// 让开，松手才落定顺序。
 ///
 /// 另外盯住图片解码尺寸——九宫格同时挂九张图，按原图尺寸解码会直接把中端机拖垮。
 
@@ -49,10 +49,6 @@ List<Key?> _slideKeys(WidgetTester tester) => tester
 Future<void> _openGridEditor(WidgetTester tester, int imageCount) async {
   await tester.pumpWidget(_app(_imageMarkdown(imageCount)));
   await tester.tap(find.text('open'));
-  await tester.pumpAndSettle();
-
-  // 单行条右上角的九宫格按钮
-  await tester.tap(find.byIcon(Icons.grid_view_rounded));
   await tester.pumpAndSettle();
 }
 

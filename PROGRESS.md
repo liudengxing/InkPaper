@@ -1,3 +1,30 @@
+## 2026-11-14 · 编辑器图片区默认九宫格（1.1.86+10186）· done
+
+- 触发：用户「编辑页面的图片列表就不要一横排了，直接默认展示九宫格的样子」
+- 改动（`lib/widgets/note_editor.dart`）：
+  - 删掉「单行横滑 / 九宫格」两态：`_imageGridExpanded`、`_imageExpandController`、
+    `_imageStripHeight`、`_imageExpandDuration`、`_imageSwapDuration`、
+    `_buildImageStrip`、`_buildGridToggleButton`、`_buildImagePreviewItem`、
+    `_reorderImage`、`_imageScrollController` 全部移除；`_buildImageSection`
+    只剩 SizedBox + 顶部分隔线 + ClipRect
+  - 高度不再固定 330，改为按行数算：
+    `_imageGridContentHeight(width) = header 22 + top 4 + rows×tile + (rows-1)×8 + bottom 16`，
+    `tile = (width - 2×16 - 2×8) / 3`
+  - 新增 `_imageGridTileSize(width)` 统一格子边长，GridView 布局与拖动坐标反算
+    （`_updateGridDragHover`）共用，避免两处各写一遍后漂移
+  - 卡片高度上限（`availableHeight × 0.92`）钳住时，图片区用
+    `_imageGridMinVisibleHeight(width)` 保底一行，其余交给 GridView 内部滚动
+  - 标题行用 `SizedBox(height: 22)` 固定：它已算进图片区总高，若随字号变高，
+    九宫格底部会被裁
+- 测试：`note_editor_image_expand_test.dart` 重命名为
+  `note_editor_image_grid_layout_test.dart` 并重写为 3 项（默认九宫格 / 高度随行数
+  增长且不挤正文 / 超屏后区高封顶并内部滚动）；`note_editor_grid_reorder_test.dart`
+  去掉「先点九宫格按钮」的前置操作
+- 验证：`verify` 730 项全过、analyze 0 issue
+- 踩坑：测试画布默认 800×600 是横屏比例，图片区会被高度上限一路钳制，量不出行数
+  差异，必须改成 411×914 的手机比例；图片 markdown 也要挤在同一行，否则正文行数
+  变化会带偏「文字框高度不变」的断言
+
 ## 2026-11-14 · 图片缩略图持久化到磁盘（1.1.86+10186）· done
 
 - 触发：用户问「本体图片的缓存能持久化吗」，希望笔记访问过一次后，下次冷启动、

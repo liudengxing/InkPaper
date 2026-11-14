@@ -20,6 +20,7 @@ import 'package:inkpaper/utils/image_cache_manager.dart'; // 🔥 添加长期�
 import 'package:inkpaper/utils/image_decode_width.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:inkpaper/utils/note_preview_builder.dart';
+import 'package:inkpaper/utils/note_timestamp_format.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:inkpaper/utils/text_style_helper.dart';
@@ -30,28 +31,11 @@ import 'package:inkpaper/widgets/note_image_grid.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
 import 'package:inkpaper/widgets/note_preview_text.dart';
 import 'package:inkpaper/widgets/saveable_image.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 /// 卡片时间戳格式。
 ///
-/// `DateFormat` 的构造会解析 pattern 并查 locale，放在 build 里等于每张卡片
-/// 每次重建都重新解析一遍。
-final DateFormat _cardYearFormat = DateFormat('yyyy-MM-dd');
-final DateFormat _cardMonthDayFormat = DateFormat('MM-dd HH:mm');
-final DateFormat _cardTimeOnlyFormat = DateFormat('HH:mm');
-
-/// flomo 风格的缩减时间：今天只留时间，今年省掉年份，往年才显示完整日期。
-String _formatCardTimestamp(DateTime ts) {
-  final now = DateTime.now();
-  if (ts.year != now.year) {
-    return _cardYearFormat.format(ts);
-  }
-  if (ts.month == now.month && ts.day == now.day) {
-    return _cardTimeOnlyFormat.format(ts);
-  }
-  return _cardMonthDayFormat.format(ts);
-}
+/// 格式化器与缩减规则抽到 `utils/note_timestamp_format.dart`，与详情页共用。
 
 class NoteCard extends StatefulWidget {
   const NoteCard({
@@ -1013,7 +997,7 @@ class _NoteCardState extends State<NoteCard>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      _formatCardTimestamp(widget.timestamp),
+                      formatNoteTimestamp(widget.timestamp),
                       style: TextStyle(
                         // 对齐 flomo：fontTiny 10sp + textSubtle(#949494)，比正文更小更细
                         fontSize: 10,

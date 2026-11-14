@@ -36,6 +36,18 @@ class PreviewCheckbox {
   final bool checked;
 }
 
+/// 预览文本里的一处链接，半开区间 [start, end)。
+///
+/// [href] 可能是外部 URL，也可能是站内引用的 `ref:<encodedId>`
+/// （预处理阶段已把 `[[id]]` 转成 markdown 链接，见 [_prepare]）。
+class PreviewLink {
+  const PreviewLink(this.start, this.end, this.href);
+
+  final int start;
+  final int end;
+  final String href;
+}
+
 /// Markdown 降维后的预览文档：一段纯文本 + 若干样式区间。
 ///
 /// 渲染侧只需要一个 `Text.rich`，不需要构建 widget 树。
@@ -44,6 +56,7 @@ class NotePreview {
     required this.text,
     required this.ranges,
     required this.checkboxes,
+    this.links = const <PreviewLink>[],
     this.spacerOffsets = const <int>[],
   });
 
@@ -56,6 +69,9 @@ class NotePreview {
   final String text;
   final List<PreviewRange> ranges;
   final List<PreviewCheckbox> checkboxes;
+
+  /// 链接区间（外部 URL 与站内引用 `ref:`）。
+  final List<PreviewLink> links;
 
   /// 段落空行里第二个换行符的位置。
   ///
@@ -112,6 +128,7 @@ NotePreview buildNotePreview(
     text: walker.text,
     ranges: walker.ranges,
     checkboxes: walker.checkboxes,
+    links: walker.links,
     spacerOffsets: walker.spacerOffsets,
   );
 }
@@ -163,6 +180,8 @@ String _prepare(String source) {
 
   // 站内引用 [[id]] / [[id?text=xxx]]：预览不查标题表（那是 O(n) 查找，
   // 详情页仍会解析成真实标题），只保留自定义文字或一个可读占位。
+  // 转成 `ref:` 协议的 markdown 链接，与详情页 SimpleMemoContent 同一约定，
+  // 解析后进 walker 的链接区间，渲染侧才知道哪里可以点。
   text = text.replaceAllMapped(_referencePattern, (match) {
     final raw = match.group(1)!;
     final custom = _referenceTextPattern.firstMatch(raw);
@@ -177,19 +196,27 @@ String _prepare(String source) {
       }
       final cleaned = decoded.replaceAll(_markdownEscapePattern, '').trim();
       if (cleaned.isNotEmpty) {
-        return cleaned;
+        return _referenceMarkdownLink(raw, cleaned);
       }
     }
-    return '↗ 引用笔记';
+    return _referenceMarkdownLink(raw, '↗ 引用笔记');
   });
 
   return text;
+}
+
+/// 把一条站内引用转成 `ref:` 协议的 markdown 链接。
+String _referenceMarkdownLink(String rawReference, String label) {
+  final id = rawReference.split('?').first.trim();
+  final encodedId = Uri.encodeComponent(id);
+  return '[$label](ref:$encodedId "note")';
 }
 
 class _PreviewWalker {
   final StringBuffer _buffer = StringBuffer();
   final List<PreviewRange> _ranges = <PreviewRange>[];
   final List<PreviewCheckbox> _checkboxes = <PreviewCheckbox>[];
+  final List<PreviewLink> _links = <PreviewLink>[];
   final List<int> _spacerOffsets = <int>[];
 
   int _length = 0;
@@ -203,6 +230,8 @@ class _PreviewWalker {
   List<PreviewRange> get ranges => _ranges;
 
   List<PreviewCheckbox> get checkboxes => _checkboxes;
+
+  List<PreviewLink> get links => _links;
 
   List<int> get spacerOffsets => _spacerOffsets;
 
@@ -255,7 +284,19 @@ class _PreviewWalker {
       case 'u':
         _walkChildren(children, _plus(styles, PreviewInlineStyle.underline));
       case 'a':
-        _walkChildren(children, _plus(styles, PreviewInlineStyle.link));
+        // 链接：记录区间供渲染侧绑定点击；站内引用也是 'a'（href=ref:...）
+        {
+          final linkStart = _length;
+          _walkChildren(children, _plus(styles, PreviewInlineStyle.link));
+          final linkEnd = _length;
+          final href = node.attributes['href'];
+          if (href != null &&
+              href.isNotEmpty &&
+              linkEnd > linkStart &&
+              linkEnd <= _length) {
+            _links.add(PreviewLink(linkStart, linkEnd, href));
+          }
+        }
       case 'code':
         // 行内代码：等宽 + 主色文字，不加底色盒子（底色会盖住行距）。
         _walkChildren(children, _plus(styles, PreviewInlineStyle.code));

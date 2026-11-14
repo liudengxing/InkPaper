@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Improved
 
+- **Detail screen matches the home feed**: time and note styling now match the home cards — compact timestamps and lightweight text rendering, with links, references and the image grid still working.
 - **Faster startup**: pre-first-frame preparations now run in parallel, so the first screen shows up sooner.
 - **Storage at a glance**: the data cleanup screen now shows how much space pictures and thumbnails take.
 - **A cleaner About screen**: the large icon banner is gone; the page starts right with the introduction.

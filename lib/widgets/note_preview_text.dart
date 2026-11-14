@@ -9,7 +9,9 @@ import 'package:inkpaper/utils/tag_utils.dart';
 /// 整段正文只产出一个 [Text.rich]。加粗、斜体、行内代码、删除线、链接、
 /// 引用、待办勾选框都保留，块级结构被拍平成纯文本。
 ///
-/// 详情页请继续使用 `MemosMarkdownRenderer`（保真度优先）。
+/// 详情页也用这个组件了（样式一致性优先）：传 [onLinkTap] 后外部链接
+/// 与站内引用（`ref:` 协议）可点击；[selectable] 开启后用 SelectableText
+/// 保留长按选择能力。
 class NotePreviewText extends StatefulWidget {
   const NotePreviewText({
     required this.content,
@@ -18,7 +20,9 @@ class NotePreviewText extends StatefulWidget {
     this.highlightQuery,
     this.onCheckboxTap,
     this.onTagTap,
+    this.onLinkTap,
     this.accentColor,
+    this.selectable = false,
     super.key,
   });
 
@@ -39,8 +43,14 @@ class NotePreviewText extends StatefulWidget {
   /// 点击正文里的 `#标签` 时回调，参数是不带 `#` 的标签路径。
   final ValueChanged<String>? onTagTap;
 
+  /// 点击链接时回调，参数是原始 href：外部 URL 或站内引用的 `ref:<id>`。
+  final ValueChanged<String>? onLinkTap;
+
   /// 链接、行内代码的强调色。
   final Color? accentColor;
+
+  /// 用 SelectableText 渲染，保留长按选择/复制能力。
+  final bool selectable;
 
   @override
   State<NotePreviewText> createState() => _NotePreviewTextState();
@@ -101,6 +111,15 @@ class _NotePreviewTextState extends State<NotePreviewText> {
     final accent = widget.accentColor ?? Theme.of(context).colorScheme.primary;
     final spans = _buildSpans(accent, Theme.of(context).brightness);
 
+    if (widget.selectable) {
+      // SelectableText 不支持 overflow，选择模式下不做省略号截断
+      return SelectableText.rich(
+        TextSpan(children: spans),
+        maxLines: widget.maxLines,
+        style: widget.style,
+      );
+    }
+
     return Text.rich(
       TextSpan(children: spans),
       maxLines: widget.maxLines,
@@ -116,6 +135,7 @@ class _NotePreviewTextState extends State<NotePreviewText> {
     final query = widget.highlightQuery?.trim() ?? '';
     final highlights = _findHighlightRanges(text, query);
     final tags = _findTagRanges(text);
+    final links = _preview.links;
 
     // 所有需要切断文本的边界：样式区间 + 高亮区间 + 勾选框字符 + 标签
     final cuts = <int>{0, text.length};
@@ -130,6 +150,10 @@ class _NotePreviewTextState extends State<NotePreviewText> {
     for (final range in tags) {
       cuts.add(range.$1);
       cuts.add(range.$2);
+    }
+    for (final link in links) {
+      cuts.add(link.start.clamp(0, text.length));
+      cuts.add(link.end.clamp(0, text.length));
     }
     for (final checkbox in _preview.checkboxes) {
       cuts.add(checkbox.offset);
@@ -176,6 +200,15 @@ class _NotePreviewTextState extends State<NotePreviewText> {
         }
       }
 
+      // 落在某个链接区间内的片段：可点击（外部 URL / 站内引用 ref:）
+      String? linkHref;
+      for (final link in links) {
+        if (link.start <= start && link.end >= end) {
+          linkHref = link.href;
+          break;
+        }
+      }
+
       final checkbox = checkboxByOffset[start];
       final isCheckboxSegment = checkbox != null && end == start + 1;
       // 段落空行：4px 字号 × 2.0 行高 = 8px，与详情页 blockSpacing 对齐
@@ -197,7 +230,9 @@ class _NotePreviewTextState extends State<NotePreviewText> {
               ? _recognizerFor(checkbox.index)
               : (tagPath != null && widget.onTagTap != null)
                   ? _tagRecognizerFor(tagPath)
-                  : null,
+                  : (linkHref != null && widget.onLinkTap != null)
+                      ? _linkRecognizerFor(linkHref)
+                      : null,
         ),
       );
     }
@@ -215,6 +250,13 @@ class _NotePreviewTextState extends State<NotePreviewText> {
   TapGestureRecognizer _tagRecognizerFor(String tagPath) {
     final recognizer = TapGestureRecognizer()
       ..onTap = () => widget.onTagTap?.call(tagPath);
+    _recognizers.add(recognizer);
+    return recognizer;
+  }
+
+  TapGestureRecognizer _linkRecognizerFor(String href) {
+    final recognizer = TapGestureRecognizer()
+      ..onTap = () => widget.onLinkTap?.call(href);
     _recognizers.add(recognizer);
     return recognizer;
   }

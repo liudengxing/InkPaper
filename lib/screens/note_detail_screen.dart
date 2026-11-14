@@ -9,17 +9,22 @@ import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/ai_enhanced_service.dart';
 import 'package:inkpaper/services/ai_review_service.dart';
+import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/services/user_behavior_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/image_utils.dart';
 import 'package:inkpaper/utils/logger.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
+import 'package:inkpaper/utils/note_timestamp_format.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_path_utils.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
+import 'package:inkpaper/utils/text_style_helper.dart';
 import 'package:inkpaper/utils/todo_parser.dart';
-import 'package:inkpaper/widgets/memos_markdown_renderer.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
+import 'package:inkpaper/widgets/note_image_grid.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
+import 'package:inkpaper/widgets/note_preview_text.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -47,9 +52,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   bool _isGeneratingSummary = false;
   bool _showSummary = false;
 
-  /// 正文（含资源图片拼接结果）与图片路径只在笔记数据变化时算一次。
-  /// 放在 build 里的话，每次 setState 都要重跑好几遍全文正则。
-  String? _renderContent;
+  /// 图片路径只在笔记数据变化时算一次。放在 build 里的话，
+  /// 每次 setState 都要重跑一遍全文正则。
   List<String> _renderImagePaths = const <String>[];
 
   @override
@@ -85,15 +89,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     );
   }
 
-  /// 统一更新笔记，并同步正文/图片路径缓存。只能在 setState 内调用。
+  /// 统一更新笔记，并同步图片路径缓存。只能在 setState 内调用。
   void _setNote(Note? note) {
     _note = note;
     if (note == null) {
-      _renderContent = null;
       _renderImagePaths = const <String>[];
       return;
     }
-    _renderContent = MemosContentHelper.contentWithResourceImages(note);
     _renderImagePaths = MemosContentHelper.extractNoteImagePaths(note);
   }
 
@@ -109,6 +111,28 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     });
   }
 
+  /// 九宫格长按：服务端资源要补全 URL 和鉴权头再交给保存流程。
+  void _showGridImageSaveDialog(String path) {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    if (MemosResourceService.isServerResourcePath(path)) {
+      final service = appProvider.resourceService;
+      final baseUrl = appProvider.appConfig.memosApiUrl ??
+          appProvider.appConfig.lastServerUrl ??
+          '';
+      final fullUrl = service != null
+          ? service.buildImageUrl(path)
+          : (baseUrl.isEmpty ? path : '$baseUrl$path');
+      final token = appProvider.user?.token;
+      ImageUtils.showImageSaveDialog(
+        context,
+        fullUrl,
+        headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+      );
+      return;
+    }
+    ImageUtils.showImageSaveDialog(context, path);
+  }
+
   // 🔥 处理链接点击
   Future<void> _handleLinkTap(String? href) async {
     if (href == null || href.isEmpty) {
@@ -116,10 +140,35 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
 
     try {
-      // 处理笔记内部引用 [[noteId]]
-      if (href.startsWith('[[') && href.endsWith(']]')) {
-        final noteId = href.substring(2, href.length - 2);
-        if (mounted) {
+      // 处理笔记内部引用：NotePreviewText 传来的 ref:<encodedId>，
+      // 兼容旧的 [[noteId]] 形式
+      if (href.startsWith('ref:') || href.startsWith('[[')) {
+        final encoded = href.startsWith('ref:')
+            ? href.substring(4)
+            : href.substring(2, href.length - 2);
+        var noteId = Uri.decodeComponent(encoded);
+        // memos/ 前缀（Memos 引用约定）与查询参数一并剥掉
+        if (noteId.startsWith('memos/')) {
+          noteId = noteId.substring(6);
+        }
+        noteId = noteId.split('?').first.trim();
+        if (noteId.isNotEmpty && mounted) {
+          final appProvider = Provider.of<AppProvider>(context, listen: false);
+          final exists = appProvider.getNoteById(noteId) != null ||
+              await appProvider.databaseService.getNoteById(noteId) != null;
+          if (!mounted) {
+            return;
+          }
+          if (!exists) {
+            SnackBarUtils.showError(
+              context,
+              AppLocalizationsSimple.of(context)?.referenceNoteMissing(
+                    noteId,
+                  ) ??
+                  '引用的笔记不存在或已被删除 (ID: $noteId)',
+            );
+            return;
+          }
           unawaited(
             Navigator.of(context).push(
               MaterialPageRoute(
@@ -745,12 +794,17 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                         children: [
                           // 详情页展示创建时间：最后编辑时间会随待办等
                           // 操作不断变化，不便于定位这条笔记是什么时候记下的。
+                          // 样式对齐首页卡片：flomo 缩减式 + 10sp 浅灰细字。
                           Text(
-                            DateFormat('yyyy-MM-dd HH:mm:ss')
-                                .format(_note!.createdAt),
+                            formatNoteTimestamp(_note!.createdAt),
                             style: TextStyle(
-                              fontSize: 14,
-                              color: secondaryTextColor,
+                              fontSize: 10,
+                              height: 1.1,
+                              fontWeight: FontWeight.w300,
+                              letterSpacing: 0.2,
+                              color: isDarkMode
+                                  ? const Color(0xFF8E8E93)
+                                  : const Color(0xFF949494),
                             ),
                           ),
                           if (_note!.reminderTime != null) ...[
@@ -924,7 +978,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                 ),
                               ),
 
-                            // 原有的笔记内容
+                            // 原有的笔记内容：与首页卡片同源（NotePreviewText
+                            // 轻量渲染），图片单独走九宫格
                             Builder(
                               builder: (context) {
                                 final serverUrl = Provider.of<AppProvider>(
@@ -932,37 +987,55 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                   listen: false,
                                 ).appConfig.memosApiUrl;
 
-                                // 正文与图片路径由 _setNote 预计算，重建时不再重跑正则
-                                return MemosMarkdownRenderer(
-                                  content: _renderContent ?? _note!.content,
-                                  note: _note,
-                                  imagePaths: _renderImagePaths,
-                                  serverUrl: serverUrl,
-                                  // 图片统一走九宫格，不再逐张插进正文
-                                  gridImages: true,
-                                  onCheckboxTap:
-                                      _toggleTodoInNote, // 🎯 复选框点击回调（传递索引）
-                                  onTagTap: (tagName) {
-                                    try {
-                                      final tagPath =
-                                          normalizeIncomingTagPath(tagName);
-                                      if (tagPath == null) {
-                                        return;
-                                      }
-                                      context.pushNamed(
-                                        'tag-notes',
-                                        queryParameters: {'tag': tagPath},
-                                      );
-                                    } on Object catch (e, stackTrace) {
-                                      Log.ui.error(
-                                        'Failed to navigate from note detail tag',
-                                        error: e,
-                                        stackTrace: stackTrace,
-                                        data: {'tagName': tagName},
-                                      );
-                                    }
-                                  },
-                                  onLinkTap: _handleLinkTap,
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    NotePreviewText(
+                                      content: _note!.content,
+                                      style: AppTextStyles.bodyLarge(
+                                        context,
+                                        height: 1.6,
+                                        color: textColor,
+                                      ),
+                                      accentColor: isDarkMode
+                                          ? AppTheme.primaryLightColor
+                                          : AppTheme.primaryColor,
+                                      selectable: true,
+                                      onCheckboxTap: _toggleTodoInNote,
+                                      onTagTap: (tagName) {
+                                        try {
+                                          final tagPath =
+                                              normalizeIncomingTagPath(tagName);
+                                          if (tagPath == null) {
+                                            return;
+                                          }
+                                          context.pushNamed(
+                                            'tag-notes',
+                                            queryParameters: {
+                                              'tag': tagPath,
+                                            },
+                                          );
+                                        } on Object catch (e, stackTrace) {
+                                          Log.ui.error(
+                                            'Failed to navigate from note detail tag',
+                                            error: e,
+                                            stackTrace: stackTrace,
+                                            data: {'tagName': tagName},
+                                          );
+                                        }
+                                      },
+                                      onLinkTap: _handleLinkTap,
+                                    ),
+                                    // 图片统一走九宫格，长按弹保存菜单
+                                    if (_renderImagePaths.isNotEmpty) ...[
+                                      const SizedBox(height: 10),
+                                      NoteImageGrid(
+                                        imagePaths: _renderImagePaths,
+                                        serverUrl: serverUrl,
+                                        onLongPress: _showGridImageSaveDialog,
+                                      ),
+                                    ],
+                                  ],
                                 );
                               },
                             ),

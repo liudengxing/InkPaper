@@ -61,6 +61,10 @@ class ThumbCache {
   /// 正在生成的，避免同一张图被列表里多个格子同时触发编码。
   final Set<String> _inflight = <String>{};
 
+  /// 已经尝试生成失败的（HEIC 之类）。留着它，免得列表每次 build 都为一个
+  /// 永远生成不出来的图重新起一次异步任务。
+  final Set<String> _giveUp = <String>{};
+
   /// 未命中时是否顺手触发后台生成。
   ///
   /// 生产环境开着：用户这次看到的是原图，下次进来就是缩略图。单测里关掉，
@@ -116,6 +120,7 @@ class ThumbCache {
       }
       _dirPath = dirPath;
       _known.clear();
+      _giveUp.clear();
       await for (final entity in dir.list()) {
         if (entity is File) {
           _known.add(p.basename(entity.path));
@@ -154,7 +159,9 @@ class ThumbCache {
       }
       _known.remove(name);
     }
-    if (_autoGenerateOnMiss) {
+    if (_autoGenerateOnMiss &&
+        !_inflight.contains(name) &&
+        !_giveUp.contains(name)) {
       unawaited(ensure(sourcePath, width: width));
     }
     return null;
@@ -194,13 +201,16 @@ class ThumbCache {
       final bytes = await source.readAsBytes();
       final encoded = await _encoder(bytes, bucket, _wantsLossless(abs));
       if (encoded == null || encoded.isEmpty) {
+        _giveUp.add(name);
         return null;
       }
       await target.writeAsBytes(encoded, flush: true);
       _known.add(name);
+      _giveUp.remove(name);
       return target;
     } on Object catch (e) {
       debugPrint('ThumbCache 生成失败 $abs: $e');
+      _giveUp.add(name);
       return null;
     } finally {
       _inflight.remove(name);
@@ -286,6 +296,7 @@ class ThumbCache {
       debugPrint('ThumbCache 清空失败: $e');
     } finally {
       _known.clear();
+      _giveUp.clear();
     }
   }
 
@@ -350,6 +361,7 @@ class ThumbCache {
     _known
       ..clear()
       ..addAll(known);
+    _giveUp.clear();
     _prepareFuture = null;
   }
 

@@ -25,15 +25,23 @@
     `note_image_grid.dart`（同两处）、`note_editor.dart`（`_buildImageWidget` 与
     `_getImageProvider` 的本地分支）
   - 插入即生成：`_saveImageLocally` 落盘后 `unawaited(ensure())`，刚插的图首页也不慢
-  - 启动：`main._initializeApp` 里 `await prepare()`，`runApp` 之后 `backfill()`
+  - 启动：`main._initializeApp` 里 `await prepare()`；`backfill()` 延迟 3 秒再跑——
+    首屏这会儿正在解码图片，补缩略图只会在 CPU 和内存带宽上跟它抢
+  - 失败的不重试：`_giveUp` 记住解不出来的文件（HEIC、损坏文件），否则列表每次
+    build 都会为一个永远生成不出来的图重起一次异步任务
   - 清理：`data_cleanup_screen` 点「清理缓存」后补 `ThumbCache.clear()`，
     否则索引会指向已被删掉的文件
 - 依赖：新增 `image: ^4.3.0`。选纯 Dart 方案是为了能在单测里跑；原生
   `Bitmap.compress` 快 5~10 倍，但只能真机验证，等真机测出瓶颈再换
-- 测试：`test/unit/thumb_cache_test.dart` TC-01~TC-16（命名 / 档位收敛 / 同步命中 /
-  幂等不重复编码 / 小图不放大 / 相对路径解析 / backfill / clear）
-- 验证：`verify` 728 项全过、analyze 0 issue
-- 待办：真机确认首页滑动与首进详情手感、含 PNG 透明的图是否正常
+- 测试：`test/unit/thumb_cache_test.dart` TC-01~TC-17（命名 / 档位收敛 / 同步命中 /
+  幂等不重复编码 / 小图不放大 / 相对路径解析 / backfill / clear / 失败不重试）
+- 验证：`verify` 全过、analyze 0 issue；真机 Xiaomi 14 装 release 包，
+  首页卡片、详情九宫格、全屏查看器、编辑器九宫格四处图片都正常，无破图；
+  冷启动逐帧采样，图片在 2.4~3.2 秒之间出齐
+- 未验证：release 包不可 `run-as`、机器无 root，读不到 `cacheDir/thumbs` 里的实际
+  文件数，所以「缩略图写盘成功」只有单测（真实编解码 + 写文件）背书，没有真机目录
+  级证据。要拿硬证据得装 debug 包或加应用内诊断页
+- 待办：真机对比「清缓存前后」的冷启动出图时间，量化收益
 
 ## 2026-11-14 · 「那年今日」卡片去掉品牌绿（1.1.86+10186）· done
 

@@ -402,9 +402,13 @@ Future<void> _initializeApp() async {
   // 🚀 大厂标准：记录应用运行
   PerformanceMonitorService().trackAppLaunch('app_running');
 
-  // 存量图片的缩略图后台补齐。放在 runApp 之后是为了不拖首帧；内部有时间
-  // 预算，跑不完的下次启动接着补，不会一直占着 CPU。
-  unawaited(ThumbCache.instance.backfill());
+  // 存量图片的缩略图后台补齐。延迟 3 秒再开跑：首屏这会儿正在解码图片，
+  // 补缩略图不但帮不上忙，还会跟它抢 CPU 和内存带宽。内部有时间预算，跑不完
+  // 的下次启动接着补。
+  Future<void>.delayed(
+    const Duration(seconds: 3),
+    () => unawaited(ThumbCache.instance.backfill()),
+  );
 
   // 开屏检查更新：首帧之后自动拉一次 Release，有新版本直接在弹窗里下载安装。
   // 内部自己做了 6 小时节流与「稍后再说」记忆，失败一律静默。

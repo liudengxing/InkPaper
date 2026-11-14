@@ -205,5 +205,25 @@ void main() {
       await ThumbCache.instance.ensure(source);
       expect(ThumbCache.instance.lookup(source), isNotNull);
     });
+
+    test('TC-17 解不出来的文件只试一次，不会每次 build 都重来', () async {
+      var encodes = 0;
+      ThumbCache.instance.debugSetEncoder((bytes, width, lossless) async {
+        encodes++;
+        return ThumbCache.debugEncode(bytes, width, lossless: lossless);
+      });
+      final source = p.join(imagesDir, 'broken.jpg');
+      // 不是合法图像，image 包解码会返回 null
+      File(source).writeAsBytesSync(Uint8List.fromList(<int>[1, 2, 3, 4, 5]));
+
+      expect(await ThumbCache.instance.ensure(source), isNull);
+      expect(encodes, 1);
+
+      // 打开「未命中就生成」后，同一张图不该再被尝试第二次
+      ThumbCache.instance.debugSetAutoGenerateOnMiss(true);
+      expect(ThumbCache.instance.lookup(source), isNull);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(encodes, 1);
+    });
   });
 }

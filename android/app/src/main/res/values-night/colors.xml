@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 深色模式的桌面小部件玻璃色：墨绿调半透明底 + 亮边，
-     与启动图 inkpaper 的墨绿底呼应。只覆盖小部件相关与 primary，
-     图标底色/启动图色沿用浅色定义。 -->
+<!-- 深色模式的桌面小部件色：用户 2026-11-14 反馈墨绿底观感差
+     （且 HyperOS 拒绝第三方读壁纸，真玻璃不可用），改为与日间
+     一致的「白底半透明雾玻璃 + 深色文字」，在深色壁纸上呈现白雾观感。 -->
 <resources>
     <color name="inkpaper_primary">#5FC9A6</color>
-    <color name="inkpaper_widget_background">#C2243A33</color>
-    <color name="inkpaper_widget_surface">#26FFFFFF</color>
-    <color name="inkpaper_widget_text">#ECF1EF</color>
-    <color name="inkpaper_widget_muted">#9AA8A2</color>
-    <color name="inkpaper_widget_border">#33FFFFFF</color>
-    <color name="inkpaper_widget_highlight_start">#14FFFFFF</color>
-    <color name="inkpaper_widget_highlight_end">#00FFFFFF</color>
+    <color name="inkpaper_widget_background">#D1FFFFFF</color>
+    <color name="inkpaper_widget_surface">#99FFFFFF</color>
+    <color name="inkpaper_widget_text">#1F2A27</color>
+    <color name="inkpaper_widget_muted">#6C7874</color>
+    <color name="inkpaper_widget_border">#2E000000</color>
+    <color name="inkpaper_widget_highlight_start">#66FFFFFF</color>
+    <color name="inkpaper_widget_highlight_end">#0DFFFFFF</color>
 </resources>

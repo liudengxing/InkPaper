@@ -25,8 +25,8 @@
     <color name="inkpaper_widget_glass_highlight_start">#66FFFFFF</color>
     <color name="inkpaper_widget_glass_highlight_end">#0DFFFFFF</color>
     <color name="inkpaper_widget_glass_border">#2E000000</color>
-    <color name="inkpaper_widget_glass_tint_night">#A8161C19</color>
-    <color name="inkpaper_widget_glass_highlight_start_night">#14FFFFFF</color>
-    <color name="inkpaper_widget_glass_highlight_end_night">#00FFFFFF</color>
-    <color name="inkpaper_widget_glass_border_night">#33FFFFFF</color>
+    <color name="inkpaper_widget_glass_tint_night">#A8FFFFFF</color>
+    <color name="inkpaper_widget_glass_highlight_start_night">#66FFFFFF</color>
+    <color name="inkpaper_widget_glass_highlight_end_night">#0DFFFFFF</color>
+    <color name="inkpaper_widget_glass_border_night">#2E000000</color>
 </resources>

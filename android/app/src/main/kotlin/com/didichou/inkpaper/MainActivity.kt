@@ -116,6 +116,11 @@ class MainActivity: FlutterActivity() {
         
         // 🔥 处理从通知点击进入的情况
         handleIntent(intent)
+
+        // 🧩 前台预热小部件玻璃背景：部分系统（如 HyperOS）只允许前台
+        // 尝试读壁纸。预热成功则烘焙缓存落盘，widget 更新时直接读缓存；
+        // 系统拒绝（如 HyperOS 静默返回 null）时小部件保持手绘玻璃兜底。
+        Thread { WallpaperGlass.warmUp(this) }.start()
     }
     
     override fun onNewIntent(intent: Intent) {

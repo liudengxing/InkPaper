@@ -65,6 +65,10 @@ abstract class BaseInkPaperWidgetProvider : AppWidgetProvider() {
     /// 已含圆角/底色/高光/暗边），拿不到壁纸就保持手绘玻璃兜底。
     protected fun applyGlassBackground(context: Context, views: RemoteViews) {
         val glass = WallpaperGlass.glassBitmap(context)
+        android.util.Log.i(
+            "WidgetGlass",
+            "applyGlassBackground: glass=${if (glass != null) "${glass.width}x${glass.height}" else "null"}"
+        )
         if (glass != null) {
             views.setViewVisibility(R.id.inkpaper_widget_glass, View.VISIBLE)
             views.setImageViewBitmap(R.id.inkpaper_widget_glass, glass)

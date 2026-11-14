@@ -16,6 +16,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.drawable.BitmapDrawable
 import android.os.Build
+import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.max
@@ -43,6 +44,29 @@ object WallpaperGlass {
 
     private const val BASE_WIDTH_DP = 320f
 
+    private const val TAG = "WidgetGlass"
+
+    /// 前台预热：App 启动时在主线程外的线程调用。
+    ///
+    /// Android 12+ 读壁纸需要用户通过系统对话框授权，而这个对话框
+    /// 只能在前台 Activity 上下文里弹出 —— widget 的 onUpdate 在后台
+    /// 进程跑，永远拿不到授权，直接 getDrawable 只会 null。
+    /// 所以由前台 Activity 预热：触发授权 + 烘焙落盘，之后 widget
+    /// 更新时直接读缓存。
+    /// 返回诊断描述。
+    fun warmUp(context: Context): String {
+        return try {
+            val bitmap = glassBitmap(context)
+            if (bitmap != null) {
+                "ok ${bitmap.width}x${bitmap.height}"
+            } else {
+                "null: drawable unavailable"
+            }
+        } catch (e: Exception) {
+            "threw: ${e.javaClass.simpleName}: ${e.message}"
+        }
+    }
+
     fun glassBitmap(context: Context): Bitmap? {
         val wallpaperManager = WallpaperManager.getInstance(context)
         // 壁纸 id 从 API 24 开始提供；拿不到就当作「未知」，跳过缓存直接重算
@@ -59,10 +83,14 @@ object WallpaperGlass {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val cacheFile = File(context.cacheDir, CACHE_FILE)
         val cachedId = prefs.getInt(KEY_WALLPAPER_ID, Int.MIN_VALUE)
-        if (cachedId == wallpaperId && cacheFile.exists()) {
+        // 缓存命中：壁纸没换（id 一致）或当前进程拿不到 id（后台受限）。
+        // widget 更新跑在后台，getWallpaperId 可能拿不到 —— 此时只要
+        // 前台预热过的缓存文件还在就直接用，不再尝试读壁纸。
+        if (cacheFile.exists() && (cachedId == wallpaperId || wallpaperId == Int.MIN_VALUE)) {
             try {
                 BitmapFactory.decodeFile(cacheFile.absolutePath)?.let { return it }
             } catch (e: Exception) {
+                Log.i(TAG, "cache decode failed, rebake: ${e.message}")
                 // 缓存损坏就重算
             }
         }
@@ -70,10 +98,19 @@ object WallpaperGlass {
         val wallpaper = try {
             wallpaperManager.drawable
         } catch (e: Exception) {
+            Log.i(TAG, "wallpaper drawable threw: $e")
             null
-        } ?: return null
+        }
+        if (wallpaper == null) {
+            Log.i(TAG, "wallpaper drawable is null -> fallback to painted glass")
+            return null
+        }
         var ownsSource = false
-        val source = decodeWallpaper(wallpaper) { ownsSource = true } ?: return null
+        val source = decodeWallpaper(wallpaper) { ownsSource = true }
+        if (source == null) {
+            Log.i(TAG, "decodeWallpaper failed (dynamic wallpaper?) -> fallback")
+            return null
+        }
 
         val result = try {
             bakeGlass(context, source)
@@ -90,8 +127,10 @@ object WallpaperGlass {
             }
             prefs.edit().putInt(KEY_WALLPAPER_ID, wallpaperId).apply()
         } catch (e: Exception) {
+            Log.i(TAG, "cache write failed: ${e.message}")
             // 缓存写失败不影响本次显示
         }
+        Log.i(TAG, "glass baked ok (${result.width}x${result.height})")
         return result
     }
 

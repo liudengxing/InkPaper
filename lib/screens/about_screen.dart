@@ -7,6 +7,7 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/services/app_info_service.dart';
 import 'package:inkpaper/services/update_check_diagnostics.dart';
 import 'package:inkpaper/services/update_check_service.dart';
+import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/widgets/update_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -23,6 +24,19 @@ class AboutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // 卡片与文字对齐首页列表：白底细灰描边 + 次级灰，不再出现品牌绿
+    final isDarkMode = theme.brightness == Brightness.dark;
+    final secondaryTextColor = isDarkMode
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
+    final borderColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.05);
+    final cardDecoration = BoxDecoration(
+      color: theme.cardColor,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: borderColor, width: 0.5),
+    );
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
@@ -40,124 +54,11 @@ class AboutScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 应用信息
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              padding: const EdgeInsets.all(30),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF2C9678), Color(0xFF46B696)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF2C9678).withValues(alpha: 0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  // 背景装饰
-                  Positioned(
-                    top: -20,
-                    right: -20,
-                    child: Opacity(
-                      opacity: 0.1,
-                      child: Container(
-                        width: 120,
-                        height: 120,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // 内容
-                  Column(
-                    children: [
-                      // Logo
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Image.asset(
-                            'assets/images/logo.png',
-                            // A-14：按显示尺寸解码，避免整图进内存
-                            cacheWidth:
-                                (96 * MediaQuery.devicePixelRatioOf(context))
-                                    .round(),
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        AppConfig.appName,
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${AppLocalizationsSimple.of(context)?.version ?? '版本'} ${AppConfig.appVersion}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        AppLocalizationsSimple.of(context)?.appTagline ??
-                            '记录是为了成为更好的自己',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: Colors.white,
-                          height: 1.6,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
             // 应用介绍
             Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              margin: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
+              decoration: cardDecoration,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -165,7 +66,7 @@ class AboutScreen extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.info_outline,
-                        color: theme.primaryColor,
+                        color: secondaryTextColor,
                         size: 20,
                       ),
                       const SizedBox(width: 10),
@@ -175,7 +76,7 @@ class AboutScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: theme.primaryColor,
+                          color: secondaryTextColor,
                         ),
                       ),
                     ],
@@ -218,17 +119,7 @@ class AboutScreen extends StatelessWidget {
             Container(
               margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
+              decoration: cardDecoration,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -236,7 +127,7 @@ class AboutScreen extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.star_outline,
-                        color: theme.primaryColor,
+                        color: secondaryTextColor,
                         size: 20,
                       ),
                       const SizedBox(width: 10),
@@ -246,7 +137,7 @@ class AboutScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: theme.primaryColor,
+                          color: secondaryTextColor,
                         ),
                       ),
                     ],
@@ -367,17 +258,7 @@ class AboutScreen extends StatelessWidget {
             Container(
               margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
+              decoration: cardDecoration,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -385,7 +266,7 @@ class AboutScreen extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.phone_outlined,
-                        color: theme.primaryColor,
+                        color: secondaryTextColor,
                         size: 20,
                       ),
                       const SizedBox(width: 10),
@@ -394,7 +275,7 @@ class AboutScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: theme.primaryColor,
+                          color: secondaryTextColor,
                         ),
                       ),
                     ],
@@ -439,33 +320,41 @@ class AboutScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFeatureTag(BuildContext context, String label, IconData icon) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 14,
-              color: Theme.of(context).primaryColor,
+  Widget _buildFeatureTag(BuildContext context, String label, IconData icon) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final fill = isDarkMode
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.04);
+    final textColor = isDarkMode
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 14,
+            color: textColor,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: textColor,
             ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Theme.of(context).primaryColor,
-              ),
-            ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildContactItem(
     BuildContext context, {
@@ -473,54 +362,57 @@ class AboutScreen extends StatelessWidget {
     required String label,
     required String value,
     required VoidCallback onTap,
-  }) =>
-      InkWell(
-        onTap: onTap,
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                icon,
-                size: 20,
-                color: Theme.of(context).primaryColor,
-              ),
+  }) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDarkMode
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
+    return InkWell(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: isDarkMode
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
+            child: Icon(icon, size: 20, color: iconColor),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.color
-                          ?.withValues(alpha: 0.7),
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.color
+                        ?.withValues(alpha: 0.7),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// 关于页底部：本地版本号 + 「检查更新」+ 上次检查结论。
@@ -623,7 +515,9 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).primaryColor;
+    final accentColor = Theme.of(context).brightness == Brightness.dark
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
     final skippedHint = _diagnostics.skippedHint;
     return Container(
       margin: const EdgeInsets.only(bottom: 32),
@@ -636,19 +530,20 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
           ),
           TextButton.icon(
             onPressed: _checking ? null : _checkForUpdates,
+            style: TextButton.styleFrom(foregroundColor: accentColor),
             icon: _checking
                 ? SizedBox(
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: primaryColor,
+                      color: accentColor,
                     ),
                   )
                 : const Icon(Icons.system_update_alt, size: 16),
             label: Text(
               _checking ? '检查中…' : '检查更新',
-              style: const TextStyle(fontSize: 13),
+              style: TextStyle(fontSize: 13, color: accentColor),
             ),
           ),
           Padding(

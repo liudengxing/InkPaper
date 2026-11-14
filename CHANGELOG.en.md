@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.94] - 2026-11-14
+
+### Improved
+
+- **Frosted-glass widgets**: widgets now use the same white translucent glass with dark text in dark mode, no more dark-green background.
+
 ## [1.1.93] - 2026-11-14
 
 ### Improved

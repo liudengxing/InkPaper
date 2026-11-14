@@ -1004,7 +1004,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                 enabled: appConfig.aiEnabled,
                 style: TextStyle(fontSize: 14, color: textColor),
                 decoration: InputDecoration(
-                  hintText: 'deepseek-chat / gpt-4o / qwen-plus',
+                  hintText: 'deepseek-flash / gpt-4o / qwen-plus',
                   hintStyle: TextStyle(
                     color: textColor.withValues(alpha: 0.4),
                   ),
@@ -1061,20 +1061,19 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   /// DeepSeek 官方模型的说明文案（取自 api-docs.deepseek.com）。
   String _deepseekModelDescription(String model) {
     switch (model) {
-      case 'deepseek-v4-flash':
+      case 'deepseek-flash':
         return _text(
-          '官方默认模型：响应快、价格低，适合日常记录、总结与提问。',
-          'Official default: fast and cheap, ideal for daily notes and summaries.',
+          '官方默认模型（V4.1-Flash）：响应快、价格低，支持图像输入，'
+              '适合日常记录、总结与提问。',
+          'Official default (V4.1-Flash): fast, cheap and supports image '
+              'input. Ideal for daily notes and summaries.',
         );
       case 'deepseek-v4-pro':
         return _text(
-          '推理增强：适合复杂分析、长链路推理与数学/代码任务。',
-          'Reasoning-first: better for complex analysis, math and coding.',
-        );
-      case 'deepseek-v4-flash-vision-exp':
-        return _text(
-          '实验版：在 flash 基础上额外支持图像输入，稳定性可能变化。',
-          'Experimental: flash with image input support, subject to change.',
+          '推理增强（V4-Pro）：适合复杂分析、长链路推理与数学/代码任务，'
+              '不支持图像输入。',
+          'Reasoning-first (V4-Pro): better for complex analysis, math and '
+              'coding. No image input.',
         );
     }
     return '';
@@ -1160,10 +1159,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                           _buildModelSheetOption(
                             context,
                             icon: Icons.flash_on,
-                            title: 'DeepSeek V3',
+                            title: 'DeepSeek Flash',
                             subtitle: _text(
-                              '通用对话模型示例',
-                              'General chat model example',
+                              '官方默认，快且便宜',
+                              'Official default, fast and cheap',
                             ),
                             model: AppConfig.AI_MODEL_DEEPSEEK,
                             apiUrl: AppConfig.DEEPSEEK_API_URL,
@@ -1172,9 +1171,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                           _buildModelSheetOption(
                             context,
                             icon: Icons.psychology,
-                            title: 'DeepSeek Reasoner',
-                            subtitle:
-                                _text('推理模型示例', 'Reasoning model example'),
+                            title: 'DeepSeek V4 Pro',
+                            subtitle: _text('推理增强', 'Reasoning-first'),
                             model: AppConfig.AI_MODEL_DEEPSEEK_REASONER,
                             apiUrl: AppConfig.DEEPSEEK_API_URL,
                           ),
@@ -1769,7 +1767,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                         context,
                         question: '🧩 模型名称怎么填？',
                         answer:
-                            '模型名称直接填写服务商文档中的 model 字段，例如 deepseek-chat、gpt-4o、qwen-plus。\n\n'
+                            '模型名称直接填写服务商文档中的 model 字段，例如 deepseek-flash、gpt-4o、qwen-plus。\n\n'
                             '“示例”按钮只负责快速填入常见模型和 API 地址，不限制你输入新模型。',
                       ),
                       _buildFAQItem(

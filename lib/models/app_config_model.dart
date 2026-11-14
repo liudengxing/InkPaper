@@ -59,7 +59,8 @@ class AppConfig {
         locale: json['locale'], // null表示跟随系统
         aiApiUrl: json['aiApiUrl'],
         aiApiKey: _fixApiKeyEncoding(json['aiApiKey']), // 🔧 自动修复编码
-        aiModel: json['aiModel'] ?? AI_MODEL_DEEPSEEK,
+        aiModel:
+            normalizeAiModel(json['aiModel']?.toString() ?? AI_MODEL_DEEPSEEK),
         aiApiPreset: _inferAiApiPreset(
           json['aiApiPreset'],
           json['aiApiUrl'],
@@ -230,10 +231,10 @@ class AppConfig {
   /// 已废弃：系统识别移除后只剩讯飞；老配置里的 `'system'` 仍可被读入，但不再参与判断。
   static const String SPEECH_MODE_IFLYTEK = 'iflytek';
 
-  // AI模型选项（2025年最新版本，仅保留兼容OpenAI格式的模型）
-  // DeepSeek 系列（2025）
-  static const String AI_MODEL_DEEPSEEK = 'deepseek-chat'; // V3版本
-  static const String AI_MODEL_DEEPSEEK_REASONER = 'deepseek-reasoner';
+  // AI模型选项（仅保留兼容 OpenAI 格式的模型）
+  // DeepSeek 系列：官方正式名见 api-docs.deepseek.com（2026-11）
+  static const String AI_MODEL_DEEPSEEK = 'deepseek-flash'; // V4.1-Flash，支持视觉
+  static const String AI_MODEL_DEEPSEEK_REASONER = 'deepseek-v4-pro'; // V4-Pro
 
   // OpenAI 系列（2025）
   static const String AI_MODEL_O1 = 'o1'; // 推理模型
@@ -263,15 +264,32 @@ class AppConfig {
   static const String AI_PRESET_CUSTOM = 'custom';
 
   /// DeepSeek 官方在售模型（api-docs.deepseek.com，2026-11 取自官网）。
-  /// deepseek-chat / deepseek-reasoner 已于 2026-07 弃用，不再提供。
+  /// deepseek-chat / deepseek-reasoner 已弃用；deepseek-v4-flash 与
+  /// deepseek-v4-flash-vision-exp 是 legacy 别名，对应模型已退役，
+  /// 请求会被路由到 V4.1-Flash，因此只保留两个正式名。
   static const List<String> DEEPSEEK_MODELS = [
-    'deepseek-v4-flash',
-    'deepseek-v4-pro',
-    'deepseek-v4-flash-vision-exp',
+    AI_MODEL_DEEPSEEK,
+    AI_MODEL_DEEPSEEK_REASONER,
   ];
 
   /// DeepSeek 官方默认模型（快速、便宜）。
-  static const String DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash';
+  static const String DEEPSEEK_DEFAULT_MODEL = AI_MODEL_DEEPSEEK;
+
+  /// DeepSeek 旧模型名归一化成官方正式名。
+  ///
+  /// 老配置里可能存着已退役的名字：不转换的话「模型」下拉找不到匹配项，
+  /// 会显示成自定义值，用户改无可改。
+  static String normalizeAiModel(String model) {
+    switch (model) {
+      case 'deepseek-chat': // V3 时代
+      case 'deepseek-v4-flash':
+      case 'deepseek-v4-flash-vision-exp':
+        return AI_MODEL_DEEPSEEK;
+      case 'deepseek-reasoner':
+        return AI_MODEL_DEEPSEEK_REASONER;
+    }
+    return model;
+  }
 
   /// 旧配置没有预设字段时推断：官方地址 + deepseek 系模型 → DeepSeek 预设。
   static String _inferAiApiPreset(
@@ -286,7 +304,8 @@ class AppConfig {
     final url = apiUrl?.toString();
     final modelValue = model?.toString() ?? '';
     final isOfficialUrl = url == null || url.isEmpty || url == DEEPSEEK_API_URL;
-    final isDeepSeekModel = modelValue.startsWith('deepseek-v');
+    // 兼容所有 deepseek 系名字（flash/pro/chat/reasoner 及 legacy 别名）
+    final isDeepSeekModel = modelValue.startsWith('deepseek');
     return isOfficialUrl && isDeepSeekModel
         ? AI_PRESET_DEEPSEEK
         : AI_PRESET_CUSTOM;

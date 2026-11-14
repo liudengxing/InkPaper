@@ -124,8 +124,8 @@ class AppConfig {
 
   // ==================== 🚀 AI配置 ====================
 
-  /// AI模型常量
-  static const String aiModelDeepSeek = 'deepseek-chat';
+  /// AI模型常量（DeepSeek 正式名见 api-docs.deepseek.com；deepseek-chat 已弃用）
+  static const String aiModelDeepSeek = 'deepseek-flash';
   static const String aiModelGPT35 = 'gpt-3.5-turbo';
   static const String aiModelGPT4 = 'gpt-4';
 

@@ -932,7 +932,10 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
                     },
                     selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
                     labelStyle: TextStyle(
-                      color: isSelected ? AppTheme.primaryColor : Colors.black,
+                      // 未选中态不能用写死的黑色：暗夜模式下的暗底 chip 会看不清
+                      color: isSelected
+                          ? AppTheme.primaryColor
+                          : Theme.of(context).colorScheme.onSurface,
                       fontWeight:
                           isSelected ? FontWeight.bold : FontWeight.normal,
                     ),

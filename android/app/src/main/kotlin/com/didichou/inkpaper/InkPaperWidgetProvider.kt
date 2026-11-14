@@ -238,14 +238,17 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
 
     /// PendingIntent 模板：本体不带 URI，行点击时由 fillInIntent 补上
     /// （fillIn 只补空缺字段，模板带 URI 会把行内笔记链接压掉）。
+    /// ⚠️ 这里必须是 FLAG_MUTABLE：系统要往模板里填 fillInIntent，immutable
+    /// 的 PendingIntent 会拒绝填充 —— 表现就是点正文毫无反应（点标题却正常，
+    /// 因为容器用的是自带完整 URI 的 immutable PendingIntent）。
     private fun templatePendingIntent(context: Context): PendingIntent {
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setPackage(context.packageName)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
-        val immutableFlag =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                PendingIntent.FLAG_IMMUTABLE
+        val mutableFlag =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                PendingIntent.FLAG_MUTABLE
             } else {
                 0
             }
@@ -253,7 +256,7 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
             context,
             60,
             intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or immutableFlag
+            PendingIntent.FLAG_UPDATE_CURRENT or mutableFlag
         )
     }
 

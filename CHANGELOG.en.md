@@ -17,6 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.93] - 2026-11-14
+
+### Improved
+
+- **Snappier image viewer**: full-size pictures no longer flash half-transparent; a thumbnail appears instantly and blends into the sharp image.
+- **Scrollable widget text**: long previews in the random review widget scroll up and down instead of being cut off.
+- **Widget names in the picker**: the widget picker now shows "Quick Note" and "Random Review" with descriptions.
+- **Wallpaper-frosted widgets**: widget backgrounds are blurred from the current wallpaper for a true glass feel.
+- **Official DeepSeek mark on home**: the ask-notes entry in the top bar now uses the official whale logo.
+
+### Fixed
+
+- Fixed known issues, improved stability and runtime efficiency.
+
 ## [1.1.88] - 2026-11-14
 
 ### Added

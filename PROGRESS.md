@@ -1,3 +1,24 @@
+## 2026-11-14 · 键盘收放时卡片高度与位移同步（1.1.86+10186）· done
+
+- 触发：用户「编辑页面打开和关闭键盘图片的位置都会跳一下，有个拉伸的过程」
+- 根因：卡片底边由 `AnimatedPadding` 用 180ms 平滑推动，但卡片高度（`editorHeight`）
+  和图片区高度是每帧重算的**瞬变值**。键盘弹起那一刻，图片区先一步缩掉半屏（2 行
+  → 1 行，-145dp），卡片高度同帧缩水、顶部跳一下，之后底边才慢慢追上来 —— 读起来
+  就是「先跳再拉伸」
+- 改动（`lib/widgets/note_editor.dart`）：
+  - 卡片容器 `Container` → `AnimatedContainer`，图片区 `SizedBox` → `AnimatedContainer`，
+    duration 取 `_heightTransitionDuration`，曲线与 `AnimatedPadding` 同为
+    `easeOutCubic`
+  - 新增 `didChangeMetrics()`：键盘 metric 变化时把 `_heightTransitionDuration` 打开
+    成 180ms，260ms 后复位为 `Duration.zero`。**只在键盘窗口期动画**——打字引起的
+    行数变化必须保持瞬变，否则每次按键重启动画，高度永远追不上内容
+  - `_keyboardResizeReset` Timer 在 dispose 里取消
+- 测试：布局测试新增第 4 项「键盘弹起/收起时图片区逐帧收缩」，用
+  `tester.view.viewInsets` 模拟键盘，逐帧采样图片区高度，断言相邻帧变化 <60px 且
+  方向单调；顺手反向验证过测试有效性（把动画关掉后同一测试立刻报单帧跳 163px）
+- 验证：`verify` 全过、analyze 0 issue；真机 Xiaomi 14 装 release 包，收键盘后 5 张图
+  两行完整、无半行残图
+
 ## 2026-11-14 · 编辑器图片区默认九宫格（1.1.86+10186）· done
 
 - 触发：用户「编辑页面的图片列表就不要一横排了，直接默认展示九宫格的样子」

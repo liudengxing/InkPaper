@@ -167,4 +167,67 @@ void main() {
       reason: '被裁掉的行必须能滚出来，否则最后几张图永远看不到',
     );
   });
+
+  testWidgets('键盘弹起/收起时图片区逐帧收缩，不与卡片位移脱节', (tester) async {
+    usePhoneCanvas(tester);
+    await openEditor(tester, 5);
+
+    final expanded = tester.getRect(imageSection).height;
+
+    /// 逐帧采样图片区高度：相邻两帧的变化幅度必须小，且方向单调。
+    /// 瞬变时会出现一帧掉掉整段高度，视觉上就是「跳一下再拉伸」。
+    Future<List<double>> sample(String stage) async {
+      final samples = <double>[];
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        samples.add(tester.getRect(imageSection).height);
+      }
+      for (var i = 1; i < samples.length; i++) {
+        expect(
+          (samples[i] - samples[i - 1]).abs(),
+          lessThan(60),
+          reason: '$stage 第 $i 帧高度跳了 '
+              '${(samples[i] - samples[i - 1]).toStringAsFixed(1)}px',
+        );
+      }
+      return samples;
+    }
+
+    // 键盘弹起：图片区应当一帧一帧地缩短，不是一步到位
+    tester.view.viewInsets = const FakeViewPadding(bottom: 900);
+    // 不先 pump 一次：那样第一帧的跳变会被采样漏掉，测试永远是绿的
+    final shrinking = await sample('键盘弹起');
+    await tester.pumpAndSettle();
+
+    expect(
+      shrinking.last,
+      lessThan(shrinking.first - 60),
+      reason: '键盘占掉屏幕后图片区必须让位',
+    );
+    for (var i = 1; i < shrinking.length; i++) {
+      expect(
+        shrinking[i],
+        lessThanOrEqualTo(shrinking[i - 1] + 0.01),
+        reason: '键盘弹起时图片区高度不允许回弹（说明有两段动画）',
+      );
+    }
+
+    // 键盘收起：反向同理
+    tester.view.viewInsets = FakeViewPadding.zero;
+    final growing = await sample('键盘收起');
+    await tester.pumpAndSettle();
+
+    for (var i = 1; i < growing.length; i++) {
+      expect(
+        growing[i],
+        greaterThanOrEqualTo(growing[i - 1] - 0.01),
+        reason: '键盘收起时图片区高度不允许回退',
+      );
+    }
+    expect(
+      tester.getRect(imageSection).height,
+      closeTo(expanded, 1.0),
+      reason: '键盘收起后要回到原来的行数高度',
+    );
+  });
 }

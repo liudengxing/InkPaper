@@ -80,6 +80,17 @@ class _NoteEditorState extends State<NoteEditor>
   // 关闭流程防重入：点空白和点关闭按钮可能同时触发，避免连 pop 两次
   bool _isClosingEditor = false;
 
+  /// 键盘弹出 / 收起时的高度过渡时长，与卡片位移的 AnimatedPadding 保持一致。
+  static const Duration _keyboardResizeDuration = Duration(milliseconds: 180);
+
+  /// 当前卡片高度的动画时长。
+  ///
+  /// 只在键盘弹起 / 收起的窗口期给 180ms：这段时间里卡片底边在平滑移动，高度
+  /// 必须跟着一起过渡，否则顶部先瞬跳一下。其余时刻保持 0——打字时行数变化很密，
+  /// 每次都重启动画的话高度永远追不上内容，文字会被裁。
+  Duration _heightTransitionDuration = Duration.zero;
+  Timer? _keyboardResizeReset;
+
   // 是否显示更多选项
   bool _showingMoreOptions = false;
 
@@ -519,9 +530,32 @@ class _NoteEditorState extends State<NoteEditor>
     });
   }
 
+  /// 键盘高度变化时，让卡片高度与位移同步过渡一程。
+  ///
+  /// 只在 metrics 变化后的窗口期打开动画：这段时间里卡片底边正被
+  /// AnimatedPadding 平滑推着走，高度若还是瞬变，顶部会先跳一下、图片区像被
+  /// 扯了一把。窗口过了就恢复瞬变，打字时的行数变化才不会拖后腿。
+  @override
+  void didChangeMetrics() {
+    if (!mounted) {
+      return;
+    }
+    _keyboardResizeReset?.cancel();
+    setState(() => _heightTransitionDuration = _keyboardResizeDuration);
+    _keyboardResizeReset = Timer(
+      _keyboardResizeDuration + const Duration(milliseconds: 80),
+      () {
+        if (mounted) {
+          setState(() => _heightTransitionDuration = Duration.zero);
+        }
+      },
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _keyboardResizeReset?.cancel();
     // 编辑器被关掉时兜底再存一次草稿（成功保存过、或本来就没改动的不存）
     _draftDebounce?.cancel();
     if (!_hasSuccessfullySaved && _hasUnsavedChanges) {
@@ -1276,13 +1310,15 @@ class _NoteEditorState extends State<NoteEditor>
               GestureDetector(
                 onTap: () {}, // 空的onTap阻止点击事件冒泡
                 child: AnimatedPadding(
-                  duration: const Duration(milliseconds: 180),
+                  duration: _keyboardResizeDuration,
                   curve: Curves.easeOutCubic,
                   padding: EdgeInsets.only(bottom: keyboardInset),
-                  // 高度不做动画：卡片和图片区各有各的动画曲线就无法逐帧对齐，
-                  // 中间帧会先把多出来的空间灌进文字区再收回去（抽搐）。切换九宫格
-                  // 时高度瞬变、图片区内容交叉淡化，文字区位置全程不动。
-                  child: Container(
+                  // 高度要和位移用同一条时长：卡片底边是 180ms 平滑上移的，高度
+                  // 若瞬变，顶部会在第一帧就跳一下、图片区像被扯了一把。打字引起
+                  // 的行数变化仍然瞬变，见 _heightTransitionDuration 的说明。
+                  child: AnimatedContainer(
+                    duration: _heightTransitionDuration,
+                    curve: Curves.easeOutCubic,
                     height: editorHeight,
                     decoration: BoxDecoration(
                       // 颜色交给内层 ColoredBox（半透明），这里只留圆角与投影
@@ -2093,9 +2129,14 @@ class _NoteEditorState extends State<NoteEditor>
   /// 图片区：九宫格，长按格子拖动排序。
   ///
   /// 高度由调用方按行数算好后传入；不足时裁掉下沿（滚动交给内层 GridView），
-  /// 所以这里只需要一个裁剪壳，不再有两态切换。
-  Widget _buildImageSection(Color dividerColor, double height) => SizedBox(
+  /// 所以这里只需要一个裁剪壳，不再有两态切换。高度用 [AnimatedContainer]：
+  /// 键盘弹起 / 收起时它要和卡片位移同一条曲线一起收，否则图片区先缩、卡片后缩，
+  /// 读起来就是「拉一下再跳一下」。
+  Widget _buildImageSection(Color dividerColor, double height) =>
+      AnimatedContainer(
         key: const ValueKey('note-editor-image-section'),
+        duration: _heightTransitionDuration,
+        curve: Curves.easeOutCubic,
         // 宽度必须显式给满：Column 默认 center，容器宽度一旦退回「由内容决定」，
         // 格子边长就会跟着内容重算。
         width: double.infinity,

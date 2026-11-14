@@ -1,15 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 深色模式的桌面小部件色：用户 2026-11-14 反馈墨绿底观感差
-     （且 HyperOS 拒绝第三方读壁纸，真玻璃不可用），改为与日间
-     一致的「白底半透明雾玻璃 + 深色文字」，在深色壁纸上呈现白雾观感。 -->
+<!-- 深色模式下的小部件配色：只有品牌色需要换。
+     小部件本身用「半透明白玻璃 + 深色文字」（用户 2026-11-14 定：墨绿
+     底观感差，且 HyperOS 拒绝第三方读壁纸，真玻璃不可用）。白玻璃在
+     深色壁纸上呈现白雾观感，文字始终是深色，所以底色/文字/边框全部
+     沿用 values/colors.xml，不在这里覆盖 —— 免得日夜两套半透明度
+     各调一遍还容易漏（曾经就漏了 accent，浅灰配白底几乎看不见）。 -->
 <resources>
     <color name="inkpaper_primary">#5FC9A6</color>
-    <color name="inkpaper_widget_background">#D1FFFFFF</color>
-    <color name="inkpaper_widget_surface">#99FFFFFF</color>
-    <color name="inkpaper_widget_text">#1F2A27</color>
-    <color name="inkpaper_widget_muted">#6C7874</color>
-    <color name="inkpaper_widget_border">#2E000000</color>
-    <color name="inkpaper_widget_highlight_start">#66FFFFFF</color>
-    <color name="inkpaper_widget_highlight_end">#0DFFFFFF</color>
-    <color name="inkpaper_widget_accent">#A9B3AE</color>
 </resources>

@@ -1,34 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 玻璃质感小部件背景（参考首页底部新增笔记栏）：
-     RemoteViews 不支持实时模糊（Android 12 的 window blur 只对
-     Activity/Dialog 窗口生效，widget 运行在 launcher 进程拿不到 Window），
-     用「半透明底 + 斜向高光渐变 + 暗边」三层手绘逼近 LiquidGlass 的
-     tint / glint / 暗边观感。明暗色值由 values / values-night 提供。 -->
+<!-- 玻璃质感小部件背景。
+     模糊这一层拿不到：RemoteViews 不支持实时模糊（Android 12 的 window blur 只对
+     Activity/Dialog 窗口生效，widget 跑在 launcher 进程拿不到 Window），HyperOS
+     又拒绝第三方读壁纸，走权限的路也被商店政策堵死（不许申请 READ_MEDIA_IMAGES）。
+     所以玻璃感靠四层手绘逼近：
+       1. 半透明底 —— 壁纸颜色透过来，这是「透」的来源。不透明度必须低，
+          曾经用 82% 白几乎不透壁纸，观感就是一块白板
+       2. 全高柔光渐变 —— 整体受光方向（上亮下暗）
+       3. 顶部边缘光泽 —— 叠一层更强的上缘反光，同时底部留微量提亮，
+          形成玻璃厚度感。iOS 毛玻璃最强的视觉线索就是这道边缘光
+       4. 双层描边 —— 外暗边界定边界（半透明白在浅色壁纸上会糊掉），
+          内亮边模拟玻璃断面的高光
+     色值只在 values/colors.xml 定义，深色模式沿用同一套（白玻璃 + 深字）。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 玻璃底色：半透明，让壁纸颜色微微透过来 -->
+    <!-- 1. 玻璃底色：半透明，让壁纸透过来 -->
     <item>
         <shape android:shape="rectangle">
             <solid android:color="@color/inkpaper_widget_background" />
             <corners android:radius="22dp" />
         </shape>
     </item>
-    <!-- 高光：左上到右下的斜向反光，模拟玻璃 glint -->
+    <!-- 2. 整体柔光：上亮下暗 -->
     <item>
         <shape android:shape="rectangle">
             <gradient
-                android:angle="315"
-                android:startColor="@color/inkpaper_widget_highlight_start"
-                android:endColor="@color/inkpaper_widget_highlight_end" />
+                android:angle="270"
+                android:endColor="@color/inkpaper_widget_highlight_end"
+                android:startColor="@color/inkpaper_widget_highlight_start" />
             <corners android:radius="22dp" />
         </shape>
     </item>
-    <!-- 暗边：LiquidGlass 的 darkened rim -->
+    <!-- 3. 顶部边缘光泽：更强的上缘反光 + 底部微量提亮 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:endColor="@color/inkpaper_widget_sheen_end"
+                android:startColor="@color/inkpaper_widget_sheen_start" />
+            <corners android:radius="22dp" />
+        </shape>
+    </item>
+    <!-- 4. 外暗边：界定边界 -->
     <item>
         <shape android:shape="rectangle">
             <stroke
                 android:width="1dp"
                 android:color="@color/inkpaper_widget_border" />
             <corners android:radius="22dp" />
+        </shape>
+    </item>
+    <!-- 5. 内亮边：内缩 1dp 的白色细线，玻璃断面的高光 -->
+    <item
+        android:bottom="1dp"
+        android:left="1dp"
+        android:right="1dp"
+        android:top="1dp">
+        <shape android:shape="rectangle">
+            <stroke
+                android:width="1dp"
+                android:color="@color/inkpaper_widget_rim" />
+            <corners android:radius="21dp" />
         </shape>
     </item>
 </layer-list>

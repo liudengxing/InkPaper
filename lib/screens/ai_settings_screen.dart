@@ -755,8 +755,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           const SizedBox(height: 12),
           Text(
             _text(
-              '仅支持讯飞云识别：语音会发送到讯飞接口转写，费用由你的讯飞账号承担。系统自带识别已移除。',
-              'iFlytek cloud recognition only: audio is sent to iFlytek and billed to your iFlytek account. On-device recognition has been removed.',
+              '仅支持讯飞云识别：语音会发送到讯飞接口转写，费用由你的讯飞账号承担。',
+              'iFlytek cloud recognition only: audio is sent to iFlytek and billed to your iFlytek account.',
             ),
             style: TextStyle(fontSize: 12, height: 1.5, color: subTextColor),
           ),

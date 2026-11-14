@@ -1225,15 +1225,13 @@ class _NoteEditorState extends State<NoteEditor>
 
     // 卡片高度被上面一句钳住时（图片多 + 键盘弹出几乎必然发生），图片区不能
     // 还按满格九宫格的高度长：卡片已经不再变高，多出来的空间只能从文字区抢，
-    // 文字会被挤扁。这里让图片区主动让步，至少留一行可见，其余靠内部滚动。
+    // 文字会被挤扁。这里让图片区主动让步——只显示能放下的**完整行**，其余靠
+    // 内部滚动；给到 1.3 行会让第二行被裁掉一截，看起来像图片没加载完。
     final imageSectionHeight = _imageList.isEmpty
         ? 0.0
-        : math.min(
-            imageTargetHeight,
-            math.max(
-              _imageGridMinVisibleHeight(screenSize.width),
-              editorHeight - baseEditorHeight,
-            ),
+        : _imageGridFitHeight(
+            editorHeight - baseEditorHeight,
+            screenSize.width,
           );
 
     // 获取当前主题模式
@@ -2039,7 +2037,15 @@ class _NoteEditorState extends State<NoteEditor>
           _imageGridSpacing * (_imageGridColumns - 1)) /
       _imageGridColumns;
 
+  /// 九宫格行数（图片按 3 列铺开）。
+  int get _imageRows =>
+      (_imageList.length + _imageGridColumns - 1) ~/ _imageGridColumns;
+
   /// 九宫格内容总高：标题行 + 行数 × 格子 + 行间距 + 底部留白。
+  ///
+  /// 底部留白由 Column 末尾的 SizedBox 提供，**不在 GridView 的 padding 里**：
+  /// 放进滚动视图的话第一屏视口会多出这段高度，第一行下面就会露出第二行的上沿，
+  /// 看起来像图片被裁了一半。
   ///
   /// 图片越多越高，屏幕放不下时由图片区高度与卡片高度上限共同收口，
   /// 溢出的部分在格子里滚动，不再留一条固定的空高度。
@@ -2047,8 +2053,7 @@ class _NoteEditorState extends State<NoteEditor>
     if (_imageList.isEmpty) {
       return 0;
     }
-    final rows =
-        (_imageList.length + _imageGridColumns - 1) ~/ _imageGridColumns;
+    final rows = _imageRows;
     return _imageGridHeaderHeight +
         _imageGridTopPadding +
         rows * _imageGridTileSize(width) +
@@ -2056,12 +2061,31 @@ class _NoteEditorState extends State<NoteEditor>
         _imageGridBottomPadding;
   }
 
-  /// 卡片高度被屏幕钳住时，图片区至少留一行完整可见，其余靠内部滚动。
-  static double _imageGridMinVisibleHeight(double width) =>
-      _imageGridHeaderHeight +
-      _imageGridTopPadding +
-      _imageGridTileSize(width) +
-      _imageGridBottomPadding;
+  /// 在 [budget] 里能放下的完整行数对应的高度（至少一行，至多全部）。
+  ///
+  /// 只给整数行：卡片被屏幕钳住时，图片区拿到的预算往往不是整行高度，照着
+  /// 预算给就会露出半行残图，读起来像加载失败。
+  double _imageGridFitHeight(double budget, double width) {
+    final target = _imageGridContentHeight(width);
+    if (budget >= target) {
+      return target;
+    }
+    final tile = _imageGridTileSize(width);
+    // 首行不含行间距，所以先把固定部分减掉、再补一个 spacing 才能按步长取整。
+    final fit = ((budget -
+                _imageGridHeaderHeight -
+                _imageGridTopPadding -
+                _imageGridBottomPadding +
+                _imageGridSpacing) /
+            (tile + _imageGridSpacing))
+        .floor()
+        .clamp(1, _imageRows);
+    return _imageGridHeaderHeight +
+        _imageGridTopPadding +
+        fit * tile +
+        (fit - 1) * _imageGridSpacing +
+        _imageGridBottomPadding;
+  }
 
   /// 让位动画时长。拖动时读起来是「跟着手走」而不是「慢半拍」。
   static const Duration _imageGridSwapDuration = Duration(milliseconds: 130);
@@ -2119,7 +2143,7 @@ class _NoteEditorState extends State<NoteEditor>
                   _imageGridHPadding,
                   _imageGridTopPadding,
                   _imageGridHPadding,
-                  _imageGridBottomPadding,
+                  0,
                 ),
                 // 拖动排序时每帧都会重建，省掉 keep-alive 的额外开销。
                 addAutomaticKeepAlives: false,
@@ -2135,6 +2159,9 @@ class _NoteEditorState extends State<NoteEditor>
             },
           ),
         ),
+        // 底部留白放在滚动视图**外面**：放进去第一屏视口就多出一段，第一行下面
+        // 会露出第二行的上沿。
+        const SizedBox(height: _imageGridBottomPadding),
       ],
     );
   }

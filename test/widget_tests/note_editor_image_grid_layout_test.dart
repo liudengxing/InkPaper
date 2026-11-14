@@ -133,6 +133,18 @@ void main() {
     // 10 张 = 4 行、16 张 = 6 行：都超过卡片能长的高度，区高应当停在同一个值
     await openEditor(tester, 10);
     final capped = tester.getRect(imageSection).height;
+
+    // 区高必须落在整行边界上：给半行的话第二行只露一条上沿，看着像图片没加载完。
+    final tile = tester.getRect(find.byType(AnimatedSlide).first).height;
+    const headerAndTop = 22.0 + 4.0 + 16.0;
+    const spacing = 8.0;
+    final visibleRows = (capped - headerAndTop + spacing) / (tile + spacing);
+    expect(
+      visibleRows,
+      closeTo(visibleRows.roundToDouble(), 0.01),
+      reason: '图片区高度 $capped 不是整数行（一行 $tile），会露出半行残图',
+    );
+
     await openEditor(tester, 16);
     final taller = tester.getRect(imageSection).height;
 

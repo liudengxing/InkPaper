@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sync toggles at hand**: auto sync, sync interval and auto login moved into the account screen, no more digging through preferences.
 - **Laboratory refreshed**: Notion sync and Obsidian sync moved into the Laboratory, leaving the import/export page purely about backup and import.
 - **Less brand green**: the help screen and the home-screen top bar icons now use the same light-grey style as the home cards.
+- **Page while zoomed**: drag a zoomed photo to its edge and keep going to flip to the next picture, no need to zoom out first.
 
 ### Removed
 

@@ -130,11 +130,42 @@ void main() {
     expect(find.text('2/3'), findsOneWidget);
   });
 
-  testWidgets('IVG-05 放大后单指横滑只平移，不翻页', (tester) async {
+  testWidgets('IVG-05 放大后界内平移不翻页', (tester) async {
     await _pumpViewer(tester);
     await _pinchOut(tester);
 
-    await _steppedDrag(tester, const Offset(700, 300), -480);
+    // 小幅横滑，图片还在平移空间内：只平移，不翻页。
+    await _steppedDrag(tester, const Offset(700, 300), -60);
+
+    expect(find.text('2/3'), findsOneWidget);
+    expect(_photoScale(tester), greaterThan(1.2));
+  });
+
+  testWidgets('IVG-10 放大后拖到边缘继续拖，翻到下一张', (tester) async {
+    await _pumpViewer(tester);
+    await _pinchOut(tester);
+
+    // pinch 结束后图片被收敛到一侧边缘，先拖完剩余平移空间，
+    // 越过边缘的量再接给翻页 —— 拖动量要盖过两段之和。
+    await _steppedDrag(tester, const Offset(700, 300), -1200, steps: 16);
+
+    expect(find.text('3/3'), findsOneWidget);
+    // 翻页后新页从「完整显示」开始。
+    expect(_photoScale(tester), lessThan(1.05));
+  });
+
+  testWidgets('IVG-11 放大态边缘拖一点点就松手，弹回原页且保持放大', (tester) async {
+    await _pumpViewer(tester);
+    await _pinchOut(tester);
+
+    // 慢速小幅拖动：距离与速度都不够，页面弹回，图片保持放大。
+    await _steppedDrag(
+      tester,
+      const Offset(700, 300),
+      -90,
+      steps: 12,
+      intervalMs: 40,
+    );
 
     expect(find.text('2/3'), findsOneWidget);
     expect(_photoScale(tester), greaterThan(1.2));

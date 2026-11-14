@@ -105,6 +105,13 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   int _lastPointerCount = 0;
   Offset? _doubleTapPosition;
 
+  // 放大态单指平移的「边缘接翻页」状态：以重锚那一刻为基准，
+  // 图片平移到边界后，剩余的横向拖动量直接驱动 PageView。
+  double? _zoomPanBaseFocalDx;
+  double _zoomPanBaseTx = 0;
+  double? _zoomPanStartPage;
+  bool _pageDragActive = false;
+
   String get _currentImagePath => widget.imagePaths[_currentIndex];
 
   double get _currentScale => _transformationController.value
@@ -347,6 +354,11 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   }
 
   void _handlePageChanged(int index) {
+    // 放大态边缘翻页的拖动中，PageView 跨过 0.5 页触发的通知不算数：
+    // 此时矩阵还带着放大状态，重置会让图片突然缩回原尺寸；等松手结算。
+    if (_pageDragActive) {
+      return;
+    }
     // 换页后新的一页要从「完整显示」开始，否则会带着上一张的缩放和偏移。
     _transformationController.value = Matrix4.identity();
     setState(() {
@@ -388,6 +400,10 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
 
     if (details.pointerCount >= 2 || _gestureStartScale > 1.01) {
       _mode = _ViewerGestureMode.zoom;
+      // 单指且已放大：立刻建立平移基准，之后拖到边缘就接翻页。
+      if (details.pointerCount == 1) {
+        _beginZoomPan(details.localFocalPoint.dx);
+      }
       return;
     }
     // 单图没什么可翻的，单指拖动直接不响应，省得图片被拖着晃。
@@ -396,18 +412,33 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
         : _ViewerGestureMode.none;
   }
 
+  /// 建立放大态单指平移的基准：横向拖动量先吃进图片平移，
+  /// 超出边界后剩余部分转给翻页。捏合后抬手指、边缘拖动中补手指
+  /// 等基准变化都要重调一次。
+  void _beginZoomPan(double focalDx) {
+    _zoomPanBaseFocalDx = focalDx;
+    _zoomPanBaseTx = _transformationController.value.getTranslation().x;
+    _zoomPanStartPage =
+        _pageController.hasClients ? _pageController.page : null;
+    _pageDragActive = false;
+  }
+
   void _handleScaleUpdate(ScaleUpdateDetails details) {
     final pointerCountChanged = details.pointerCount != _lastPointerCount;
     _lastPointerCount = details.pointerCount;
 
     // 先横拖了一段再补上第二根手指：把页面归位并转成缩放。
     // 否则会带着半页偏移去缩放，看着像整块画面在漂。
-    if (details.pointerCount >= 2 && _mode != _ViewerGestureMode.zoom) {
+    // 放大态边缘翻页拖到一半再补手指，同样要先把页面拉回来。
+    if (details.pointerCount >= 2 &&
+        (_mode != _ViewerGestureMode.zoom || _pageDragActive)) {
       _snapToCurrentPage();
       _mode = _ViewerGestureMode.zoom;
       _gestureStartScale = _currentScale;
       _gestureFocalScene =
           _transformationController.toScene(details.localFocalPoint);
+      _zoomPanBaseFocalDx = null;
+      _pageDragActive = false;
       return;
     }
 
@@ -418,6 +449,10 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
       _gestureStartScale = _currentScale;
       _gestureFocalScene =
           _transformationController.toScene(details.localFocalPoint);
+      // 重新变成单指平移：重建边缘翻页的基准。
+      if (_mode == _ViewerGestureMode.zoom && details.pointerCount == 1) {
+        _beginZoomPan(details.localFocalPoint.dx);
+      }
     }
 
     switch (_mode) {
@@ -435,7 +470,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
       case _ViewerGestureMode.page:
         _settlePageDrag(details);
       case _ViewerGestureMode.zoom:
-        _settlePhotoTransform();
+        _settleZoomGesture(details);
       case _ViewerGestureMode.none:
         break;
     }
@@ -443,15 +478,73 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
     _gestureStartFocal = null;
     _gestureFocalScene = null;
     _pagesAtGestureStart = null;
+    _zoomPanBaseFocalDx = null;
+    _zoomPanStartPage = null;
+    _pageDragActive = false;
+  }
+
+  /// 放大态松手结算：边缘翻页拖动过就走翻页规则，否则把图片收敛回视口。
+  void _settleZoomGesture(ScaleEndDetails details) {
+    if (!_pageDragActive ||
+        !_pageController.hasClients ||
+        _zoomPanStartPage == null) {
+      _settlePhotoTransform();
+      return;
+    }
+
+    final startPages = _zoomPanStartPage!;
+    final page = _pageController.page ?? startPages;
+    final delta = page - startPages;
+    final velocity = details.velocity.pixelsPerSecond.dx;
+
+    var direction = 0;
+    if (delta.abs() > _pageDistanceFraction) {
+      direction = delta > 0 ? 1 : -1;
+    } else if (velocity.abs() > _pageVelocityThreshold) {
+      direction = velocity < 0 ? 1 : -1;
+    }
+
+    final target = (startPages.round() + direction).clamp(
+      0,
+      widget.imagePaths.length - 1,
+    );
+    if (target == startPages.round()) {
+      // 弹回当前页：先把图片收敛回视口（纵轴可能还停在越界位置）。
+      _settlePhotoTransform();
+    }
+    // 拖动中途跨过半页触发的 onPageChanged 被屏蔽了，而 PageView 内部
+    // 已把「上次报告页」推进到 target，结算动画到达后不会再通知 ——
+    // 所以动画结束后要手动对齐索引、重置矩阵、预取。
+    unawaited(
+      _pageController
+          .animateToPage(
+        target,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      )
+          .then((_) {
+        if (mounted && _currentIndex != target) {
+          _handlePageChanged(target);
+        }
+      }),
+    );
   }
 
   /// 缩放：全程锚定手势起点，双指外扩时手指底下的像素不会滑走。
-  /// 单指平移复用同一套公式 —— 此时 scale 恒为 1，公式退化成纯平移。
+  /// 单指平移走 [_applyZoomPan]：图片先平移到边缘，剩余拖动接翻页。
   void _applyZoom(ScaleUpdateDetails details) {
     final focalScene = _gestureFocalScene;
     if (focalScene == null) {
       return;
     }
+
+    if (details.pointerCount == 1 &&
+        _gestureStartScale > 1.01 &&
+        _zoomPanBaseFocalDx != null) {
+      _applyZoomPan(details, focalScene);
+      return;
+    }
+
     final nextScale =
         (_gestureStartScale * details.scale).clamp(1.0, _maxPhotoScale);
     final focal = details.localFocalPoint;
@@ -463,6 +556,65 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
         1,
       )
       ..scaleByDouble(nextScale, nextScale, 1, 1);
+  }
+
+  /// 放大态单指平移：纵轴照旧平移图片；横轴图片到边界后，
+  /// 剩余拖动量 1:1 转给 PageView —— 放大了也能一直拖到翻页。
+  void _applyZoomPan(
+    ScaleUpdateDetails details,
+    Offset focalScene,
+  ) {
+    final viewport = _viewportSize;
+    final display = _displaySize;
+    if (viewport == null || display == null) {
+      return;
+    }
+
+    final scale = _currentScale;
+    final rect = _containedImageRect(viewport, display);
+    final scaledStart = rect.left * scale;
+    final scaledExtent = rect.width * scale;
+
+    final dx = details.localFocalPoint.dx - _zoomPanBaseFocalDx!;
+    final desiredTx = _zoomPanBaseTx + dx;
+    // 纵轴与原公式一致：锚定手势起点，scale 恒定下是纯平移。
+    final ty = details.localFocalPoint.dy - focalScene.dy * scale;
+
+    double tx;
+    double pageDelta = 0;
+    if (scaledExtent <= viewport.width) {
+      // 横向装得下（竖图放大）：没有平移空间，横向拖动全部转给翻页。
+      tx = (viewport.width - scaledExtent) / 2 - scaledStart;
+      pageDelta = -dx;
+    } else {
+      final minX = viewport.width - scaledStart - scaledExtent;
+      final maxX = -scaledStart;
+      tx = desiredTx.clamp(minX, maxX);
+      // 拖出边界的部分给页面：左拖越过左边界 → 下一张，右拖 → 上一张。
+      pageDelta = -(desiredTx - tx);
+    }
+
+    _transformationController.value = Matrix4.identity()
+      ..translateByDouble(tx, ty, 0, 1)
+      ..scaleByDouble(scale, scale, 1, 1);
+
+    if (pageDelta.abs() < 0.5 ||
+        _zoomPanStartPage == null ||
+        !_pageController.hasClients) {
+      return;
+    }
+    _pageDragActive = true;
+    final position = _pageController.position;
+    final width = position.viewportDimension;
+    if (width <= 0) {
+      return;
+    }
+    position.jumpTo(
+      ((_zoomPanStartPage! * width) + pageDelta).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      ),
+    );
   }
 
   /// 单指横拖翻页：直接把 PageView 拖到对应位置，跟手 1:1。

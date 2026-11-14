@@ -41,7 +41,7 @@
             android:paddingLeft="10dp"
             android:paddingRight="10dp"
             android:text="打开"
-            android:textColor="@color/inkpaper_primary"
+            android:textColor="@color/inkpaper_widget_accent"
             android:textSize="12sp"
             android:textStyle="bold" />
     </LinearLayout>

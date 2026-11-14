@@ -18,6 +18,9 @@
     <color name="inkpaper_widget_border">#2E000000</color>
     <color name="inkpaper_widget_highlight_start">#66FFFFFF</color>
     <color name="inkpaper_widget_highlight_end">#0DFFFFFF</color>
+    <!-- 小部件强调色（按钮文字等）：中性灰，用户 2026-11-14 要求
+         随机回顾小部件的主题色从品牌绿改成灰 -->
+    <color name="inkpaper_widget_accent">#66716C</color>
     <!-- 真玻璃背景（壁纸模糊位图）的叠色：按系统明暗在 Kotlin 里显式取用，
          不走 values-night 自动解析 —— 小部件位图在 App 进程烘焙，
          App 自身主题可能与系统不一致，必须以系统明暗为准 -->

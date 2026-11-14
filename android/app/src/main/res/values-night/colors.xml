@@ -11,4 +11,5 @@
     <color name="inkpaper_widget_border">#2E000000</color>
     <color name="inkpaper_widget_highlight_start">#66FFFFFF</color>
     <color name="inkpaper_widget_highlight_end">#0DFFFFFF</color>
+    <color name="inkpaper_widget_accent">#A9B3AE</color>
 </resources>

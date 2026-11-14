@@ -6,7 +6,7 @@ InkPaper is an Android note-taking app for personal knowledge capture. Local not
 
 ## Current Version
 
-`1.1.95`
+`1.1.96`
 
 Official build (Android APK / AAB)
 

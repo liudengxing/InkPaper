@@ -17,6 +17,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.96] - 2026-11-15
+
+### Added
+
+- **Sync conflict notice**: the account page now shows how many conflicts the last sync produced, so mismatches surface right away.
+
+### Improved
+
+- **Widget glass finish**: reworked the widget's base tint and light layers for a frosted-glass look closer to the system.
+- **AI model names**: model options now use the official current names, and existing settings carry over automatically.
+
+### Fixed
+
+- Fixed known issues, improved stability and runtime efficiency.
+
 ## [1.1.95] - 2026-11-14
 
 ### Improved

@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/services/app_info_service.dart';
+import 'package:inkpaper/services/update_check_diagnostics.dart';
 import 'package:inkpaper/services/update_check_service.dart';
 import 'package:inkpaper/widgets/update_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -519,11 +523,15 @@ class AboutScreen extends StatelessWidget {
       );
 }
 
-/// 关于页底部：本地版本号 + 「检查更新」。
+/// 关于页底部：本地版本号 + 「检查更新」+ 上次检查结论。
 ///
 /// 检查走 Gitee 优先、GitHub 兜底的 `releases/latest`，拿到 tag 与本机版本比
 /// 大小；有新版本时弹出统一的更新弹窗 —— 下载进度、取消、重试、拉起系统安装
 /// 器都在那个弹窗里完成，不再把用户丢给浏览器。
+///
+/// 最下面那行是诊断：开屏检查有五道闸（首启、节流、网络失败、版本没变、
+/// 点过稍后再说），命中任何一道都静默跳过，用户只会觉得「怎么不提示我」。
+/// 把上次结论摆出来，这类问题就不用再靠猜。
 class _UpdateCheckFooter extends StatefulWidget {
   const _UpdateCheckFooter();
 
@@ -534,11 +542,26 @@ class _UpdateCheckFooter extends StatefulWidget {
 class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
   final UpdateCheckService _service = UpdateCheckService();
   bool _checking = false;
+  UpdateCheckDiagnostics _diagnostics = const UpdateCheckDiagnostics();
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_refreshDiagnostics());
+  }
 
   @override
   void dispose() {
     _service.dispose();
     super.dispose();
+  }
+
+  Future<void> _refreshDiagnostics() async {
+    final snapshot = await UpdateCheckDiagnostics.load();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _diagnostics = snapshot);
   }
 
   void _showMessage(String text) {
@@ -554,15 +577,30 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
     setState(() => _checking = true);
     try {
       final result = await _service.check();
+      // 手动点的这一轮也要留痕，否则诊断里会一直显示上一条旧结论。
+      await UpdateCheckDiagnostics.recordSuccess(result, auto: false);
+      await _refreshDiagnostics();
       if (!mounted) {
         return;
       }
       if (result.hasUpdate) {
-        await showUpdateDialog(context, result);
+        await showUpdateDialog(
+          context,
+          result,
+          onPostpone: () => unawaited(
+            UpdateCheckDiagnostics.recordSkipped(result.latestVersion),
+          ),
+        );
       } else {
         _showMessage('已是最新版本 v${result.currentVersion}');
       }
     } on UpdateCheckException catch (e) {
+      await UpdateCheckDiagnostics.recordFailure(
+        e.message,
+        auto: false,
+        currentVersion: AppInfoService.version,
+      );
+      await _refreshDiagnostics();
       if (!mounted) {
         return;
       }
@@ -574,9 +612,19 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
     }
   }
 
+  Future<void> _clearSkipped() async {
+    await UpdateCheckDiagnostics.clearSkipped();
+    await _refreshDiagnostics();
+    if (!mounted) {
+      return;
+    }
+    _showMessage('已恢复提醒，下次检查会重新提示这个版本');
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).primaryColor;
+    final skippedHint = _diagnostics.skippedHint;
     return Container(
       margin: const EdgeInsets.only(bottom: 32),
       child: Column(
@@ -603,6 +651,28 @@ class _UpdateCheckFooterState extends State<_UpdateCheckFooter> {
               style: const TextStyle(fontSize: 13),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              _diagnostics.describe(currentVersion: AppInfoService.version),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, color: Color(0xFF9E9E9E)),
+            ),
+          ),
+          if (skippedHint != null)
+            TextButton(
+              onPressed: _clearSkipped,
+              style: TextButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                '$skippedHint · 恢复提醒',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF9E9E9E)),
+              ),
+            ),
         ],
       ),
     );

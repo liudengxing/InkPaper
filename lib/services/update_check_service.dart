@@ -45,13 +45,15 @@ class UpdateSource {
   Uri? apkUrlFor(String tag) =>
       Uri.tryParse(apkUrlTemplate.replaceAll('{tag}', tag));
 
-  /// 默认数据源：只走国内镜像。
+  /// 默认数据源：国内镜像优先，GitHub 兜底。
   ///
-  /// GitHub 在国内直连很慢（50MB 的包实测 5 分钟只下来 8MB），把它当兜底等于
-  /// 「Gitee 一抖动就多等好几分钟」，用户看到的还是「检查更新卡住」。所以默认
-  /// 列表里只放 Gitee；真需要回落 GitHub 时显式传
-  /// `sources: [UpdateSource.gitee, UpdateSource.github]`。
-  static const List<UpdateSource> all = [gitee];
+  /// 只放 Gitee 时，Gitee 一抖动整轮检查就作废 —— 用户看到的现象是「明明发版
+  /// 了却一直不提示」，而且没有任何痕迹。加上 GitHub 之后，只有 Gitee 明确
+  /// 失败（超时 / 非 200）才会多花一次请求；正常情况第一个源就返回了。
+  ///
+  /// 两个源都失败才会抛错。请求是开屏后台发起的，最长多等一个
+  /// [AppConfig.updateCheckTimeout]，不会拖慢启动。
+  static const List<UpdateSource> all = [gitee, github];
 
   static const UpdateSource gitee = UpdateSource(
     id: 'gitee',

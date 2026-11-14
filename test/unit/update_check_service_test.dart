@@ -228,7 +228,29 @@ void main() {
       expect(result.hasUpdate, isTrue);
     });
 
-    test('默认只走 Gitee，挂了也不会去碰 GitHub', () async {
+    test('默认 Gitee 挂了会回落 GitHub', () async {
+      final requested = <String>[];
+      final client = MockClient((request) async {
+        requested.add(request.url.host);
+        if (request.url.host == 'gitee.com') {
+          return http.Response('{"message":"404 Not Found"}', 404);
+        }
+        return http.Response.bytes(
+          utf8.encode(jsonEncode(_releasePayload())),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+      final service = UpdateCheckService(client: client);
+      addTearDown(service.dispose);
+
+      final result = await service.check();
+
+      expect(requested, ['gitee.com', 'api.github.com']);
+      expect(result.sourceId, 'github');
+    });
+
+    test('两个源都失败才抛错', () async {
       final requested = <String>[];
       final client = MockClient((request) async {
         requested.add(request.url.host);
@@ -239,7 +261,7 @@ void main() {
 
       await expectLater(service.check(), throwsA(isA<UpdateCheckException>()));
 
-      expect(requested, ['gitee.com']);
+      expect(requested, ['gitee.com', 'api.github.com']);
     });
 
     test('显式指定时才回落 GitHub', () async {

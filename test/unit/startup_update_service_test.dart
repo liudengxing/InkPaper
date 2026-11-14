@@ -59,6 +59,11 @@ void main() {
   group('StartupUpdateService.shouldCheckNow', () {
     final now = DateTime(2026, 11, 12, 18);
 
+    test('节流窗口是 2 小时', () {
+      // 原来是 6 小时，「上午开过 App、下午发版」要等到晚上才提示。
+      expect(StartupUpdateService.minInterval, const Duration(hours: 2));
+    });
+
     test('从未检查过就查', () {
       expect(StartupUpdateService.shouldCheckNow(now: now), isTrue);
     });
@@ -91,6 +96,44 @@ void main() {
         StartupUpdateService.shouldCheckNow(
           now: now,
           lastCheckAt: now.add(const Duration(days: 1)),
+        ),
+        isFalse,
+      );
+    });
+
+    test('刚升级过，节流窗口里也要查一次', () {
+      // 上一版的记录挡着，就等于「刚装好却什么都看不到」
+      expect(
+        StartupUpdateService.shouldCheckNow(
+          now: now,
+          lastCheckAt: now.subtract(const Duration(minutes: 10)),
+          lastCheckVersion: '1.1.86',
+          currentVersion: '1.1.87',
+        ),
+        isTrue,
+      );
+    });
+
+    test('版本没变时仍按节流窗口', () {
+      expect(
+        StartupUpdateService.shouldCheckNow(
+          now: now,
+          lastCheckAt: now.subtract(const Duration(minutes: 10)),
+          lastCheckVersion: '1.1.87',
+          currentVersion: '1.1.87',
+        ),
+        isFalse,
+      );
+    });
+
+    test('版本号没拿到时不触发「刚升级」分支', () {
+      // AppInfoService 未初始化时会返回 0.0.0，不能让节流失效变成每次冷启动都查
+      expect(
+        StartupUpdateService.shouldCheckNow(
+          now: now,
+          lastCheckAt: now.subtract(const Duration(minutes: 10)),
+          lastCheckVersion: '1.1.86',
+          currentVersion: '0.0.0',
         ),
         isFalse,
       );

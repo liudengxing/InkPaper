@@ -1,3 +1,37 @@
+## 2026-11-14 · 更新检查可观测性 + 节流放宽（1.1.87+10187）· done
+
+用户反馈「1.1.85 启动时没自动提示更新」，查下来**不是 bug**：
+
+- 更新检查只查 Gitee 的 `releases/latest`（`UpdateSource.all = [gitee]`），而 v1.1.86 的
+  Gitee Release 是 2026-11-14 15:24 才建好的。在那之前 1.1.85 查到的最新就是 v1.1.85，
+  `compareVersions` 返回 0 → 不弹窗，当时确实没有新版本。
+- 次因是 `minInterval = 6h`，且 `update_last_check_at` 每次**成功**检查都写（不论有没有
+  新版本）。「发版前几小时开过 App」就会静默错过，最长 6 小时。
+- 排查困难有两个结构性问题：release 包 `Logger._minLevel = kReleaseMode ? none : debug`，
+  日志全关；真机 prefs 读不了（`run-as: package not debuggable`，`cat` Permission denied）。
+  所以「到底查没查、查到什么」在设备上没有任何痕迹。
+
+改动：
+
+- 新增 `lib/services/update_check_diagnostics.dart`：把每次检查的结论落到 prefs（时间 /
+  远端版本 / 数据源 / 失败原因 / 自动还是手动），`describe()` 直接产出关于页那一行文案。
+  键名沿用 `update_last_check_at` 与 `update_skipped_version`，旧数据照样能读；旧版本只写过
+  时间戳的情况显示「当时未记录结果」，不装作查到了。
+- `StartupUpdateService`：`minInterval` 6h → 2h；成功/失败都记入 diagnostics，失败也写
+  时间戳（避免弱网下每次冷启动都重超时两轮，每轮 10s）。`shouldCheckNow` 增加版本判断：
+  记录的 `update_last_check_version` 与当前版本不一致（即刚升级）时不看节流窗口，直接查
+  一次；`AppInfoService` 未初始化返回 `0.0.0` 时不参与判断，避免节流失效。
+- `UpdateCheckService.all` → `[gitee, github]`：Gitee 明确失败（超时 / 非 200）才回落
+  GitHub，正常情况第一个源就返回，不多等。
+- 关于页 footer：版本号下面加一行诊断；有跳过记录时多一行「已忽略 vX.Y.Z · 恢复提醒」，
+  点一下清记录、下个窗口重新提示。手动检查同样记录，标 `auto: false`。
+
+测试：新增 `test/unit/update_check_diagnostics_test.dart`（DIAG-01~14，覆盖记录/还原、
+成功清失败、失败清版本号、旧数据兼容、错误截断、跨年时间格式、记录检查时的应用版本）；
+`update_check_service_test.dart` 把「默认只走 Gitee」改成「默认回落 GitHub」+
+「两源都失败才抛错」；`startup_update_service_test.dart` 补节流 2 小时、升级绕过窗口、
+版本号缺失三条断言。
+
 ## 2026-11-14 · 1.1.86 发版前真机复验 · done
 
 把这一批里「只在单测/构建层面验过」的改动逐项上机过一遍（Xiaomi 14，release 包，

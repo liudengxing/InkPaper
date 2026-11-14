@@ -167,16 +167,11 @@ class InkPaperCli {
       'Do not use legacy external storage in store builds.',
     );
 
-    await _assertFileContains(
-      'lib/config/app_config.dart',
-      'accountDeletionUrl',
-      'Account deletion URL must stay centrally configured.',
-    );
-    await _assertFileContains(
-      'lib/routes/app_router.dart',
-      '/account-deletion',
-      'Account deletion route must be available in app.',
-    );
+    // 账号体系在用户自建的 Memos 实例上，App 不持有账号、不存用户凭证以外的
+    // 任何服务端数据，「删除账号」由 Memos 自身完成，所以不再要求 App 内提供
+    // 注销入口（原 accountDeletionUrl 常量与 /account-deletion 页面已于
+    // 2026-11-14 移除，见 PROGRESS.md）。这里只保留「不要把账号注销相关配置
+    // 硬编码进其他页面」这一历史约束的说明。
     await _assertFileContains(
       '.github/workflows/release.yml',
       'android-aab',

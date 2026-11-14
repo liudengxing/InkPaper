@@ -474,19 +474,6 @@ class Translations {
     'dataImported': {'zh': '数据已成功导入', 'en': 'Data imported successfully'},
 
     // ===== 服务器信息页面 =====
-    'serverInfoReadOnlyNotice': {
-      'zh': '此页面仅用于查看服务器连接状态和同步日志\n服务器设置请在登录页面配置',
-      'en':
-          'This page is for viewing server connection status and sync logs only\nPlease configure server settings on the login page',
-    },
-    'connectionInfoReadOnly': {
-      'zh': '连接信息（只读）',
-      'en': 'Connection Info (Read-only)',
-    },
-    'notConfigured': {
-      'zh': '未配置',
-      'en': 'Not Configured',
-    },
     'enabled': {
       'zh': '已启用',
       'en': 'Enabled',
@@ -494,19 +481,6 @@ class Translations {
     'disabled': {
       'zh': '未启用',
       'en': 'Disabled',
-    },
-    'modifyServerSettingsHint': {
-      'zh': '要修改服务器设置，请退出登录后在登录页面配置',
-      'en':
-          'To modify server settings, please logout and configure on the login page',
-    },
-    'connectionLog': {
-      'zh': '连接日志',
-      'en': 'Connection Log',
-    },
-    'noLogRecords': {
-      'zh': '暂无日志记录',
-      'en': 'No log records',
     },
 
     // ===== 通知页面 =====

@@ -524,18 +524,8 @@ class AppLocalizationsSimple {
   String get startExportButton => _t('startExportButton', fallback: '导出备份');
 
   // ===== 服务器信息页面 =====
-  String get serverInfoReadOnlyNotice => _t(
-        'serverInfoReadOnlyNotice',
-        fallback: '此页面仅用于查看服务器连接状态和同步日志\n服务器设置请在登录页面配置',
-      );
-  String get connectionInfoReadOnly =>
-      _t('connectionInfoReadOnly', fallback: '连接信息（只读）');
-  String get notConfigured => _t('notConfigured', fallback: '未配置');
   String get enabled => _t('enabled', fallback: '已启用');
   String get disabled => _t('disabled', fallback: '未启用');
-  String get modifyServerSettingsHint =>
-      _t('modifyServerSettingsHint', fallback: '要修改服务器设置，请退出登录后在登录页面配置');
-  String get noLogRecords => _t('noLogRecords', fallback: '暂无日志记录');
 
   // ===== AI设置 =====
   String get enableAIAssistant => _t('enableAIAssistant', fallback: '启用AI助手');

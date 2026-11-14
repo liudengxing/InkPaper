@@ -1128,8 +1128,9 @@ class _HomeScreenState extends State<HomeScreen>
     final secondaryTextColor = isDarkMode
         ? AppTheme.darkTextSecondaryColor
         : AppTheme.textSecondaryColor;
-    final iconColor =
-        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
+    final iconColor = isDarkMode
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
     final hintColor = isDarkMode ? Colors.grey[500] : Colors.grey[400];
 
     // 🎯 允许直接返回（最小化应用）

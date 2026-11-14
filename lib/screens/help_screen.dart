@@ -56,8 +56,9 @@ class _HelpScreenState extends State<HelpScreen> {
         isDarkMode ? AppTheme.darkSurfaceColor : const Color(0xFFF5F5F5);
     final textColor =
         isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
-    final iconColor =
-        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
+    final iconColor = isDarkMode
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
     final categories = _getCategories(context);
 
     String? currentPath;
@@ -962,9 +963,12 @@ docker run -d \
     final textColor =
         isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
     final secondaryTextColor = isDarkMode ? Colors.grey[400] : Colors.grey[700];
-    final iconColor =
-        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
-    final iconBgColor = AppTheme.primaryColor.withValues(alpha: 0.1);
+    final iconColor = isDarkMode
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
+    final iconBgColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.04);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -1025,9 +1029,12 @@ docker run -d \
     final cardColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
     final textColor =
         isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
-    final headerBgColor = AppTheme.primaryColor.withValues(alpha: 0.1);
-    final iconColor =
-        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
+    final headerBgColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.04);
+    final iconColor = isDarkMode
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
     final codeBgColor =
         isDarkMode ? const Color(0xFF2C2C2C) : const Color(0xFFF5F5F5);
     final codeBlockBgColor = isDarkMode ? Colors.grey[900] : Colors.grey[200];

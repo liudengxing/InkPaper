@@ -8,6 +8,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:inkpaper/config/app_config.dart' as Config;
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/app_config_model.dart';
+import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/routes/app_router.dart';
 import 'package:inkpaper/services/app_info_service.dart';
@@ -24,6 +25,7 @@ import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/error_handler.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/logger.dart';
+import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:inkpaper/utils/responsive_utils.dart';
 import 'package:inkpaper/utils/shared_payload_utils.dart';
 import 'package:inkpaper/utils/tag_path_utils.dart';
@@ -35,6 +37,67 @@ import 'package:timeago/timeago.dart' as timeago;
 
 // 🔥 全局NavigatorKey，用于通知点击跳转
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+/// 首屏缩略图提前解码。
+///
+/// 只预热命中持久化缩略图的图：未命中的要读 12MP 原图，提前触发只会把内存
+/// 和 CPU 抢在启动最忙的时候。整体 fire-and-forget，不拖启动时间。
+void _prewarmFeedThumbnails(List<Note> notes) {
+  if (notes.isEmpty) {
+    return;
+  }
+  var budget = 12;
+  for (final note in notes.take(3)) {
+    for (final path in MemosContentHelper.extractNoteImagePaths(note)) {
+      if (budget <= 0) {
+        return;
+      }
+      final thumb = _thumbnailFileFor(path);
+      if (thumb == null) {
+        continue;
+      }
+      budget--;
+      unawaited(_resolveImageOnce(FileImage(thumb)));
+    }
+  }
+}
+
+/// 与 NoteCard 里一致的缩略图查找口径（服务端附件先映射到本地副本）。
+File? _thumbnailFileFor(String imagePath) {
+  final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);
+  if (cachedAttachment != null) {
+    return ThumbCache.instance.lookup(cachedAttachment.path);
+  }
+  if (imagePath.startsWith('file://')) {
+    return ThumbCache.instance.lookup(
+      imagePath.replaceFirst('file://', ''),
+    );
+  }
+  return null;
+}
+
+/// 触发一次解码，结果留在 ImageCache 里供卡片复用。
+Future<void> _resolveImageOnce(ImageProvider provider) {
+  final completer = Completer<void>();
+  final stream = provider.resolve(ImageConfiguration.empty);
+  late final ImageStreamListener listener;
+  listener = ImageStreamListener(
+    (ImageInfo info, bool synchronousCall) {
+      stream.removeListener(listener);
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    },
+    onError: (Object error, StackTrace? stackTrace) {
+      stream.removeListener(listener);
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    },
+  );
+  stream.addListener(listener);
+  return completer.future;
+}
 
 void main() async {
   // 需要在任何平台通道调用前初始化（package_info_plus 等）
@@ -206,6 +269,12 @@ Future<void> _initializeApp() async {
   // ⚡ 首屏快照与主题/语言配置在提供器构造前取回
   final cachedFeed = await cachedFeedFuture;
   final initialConfig = await initialConfigFuture;
+
+  // 首屏缩略图提前起解码（不 await）：卡片要到自己 build 时才发起请求，而
+  // 「runApp → 首帧」之间这几百毫秒布局时间是白流的。提前 resolve 一次，
+  // 解码与首帧并行，卡片随后请求同一个 provider（同一个 ImageCache key），
+  // 首帧就能直接拿到位图，不再先白一块。
+  _prewarmFeedThumbnails(cachedFeed);
 
   // 创建主应用提供器
   final appProvider = AppProvider(

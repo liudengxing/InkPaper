@@ -54,6 +54,11 @@ class ThumbCache {
     '.m4v',
   };
 
+  /// 不做缩略图的扩展名。数据清理页用它区分「没补上」和「本来就不做」：
+  /// 目录里 151 张图只有 108 个缩略图是正常的（动图/HEIC 占一部分），
+  /// 不看这一项会误判成补齐失败。
+  static Set<String> get skippedExtensions => _skipExtensions;
+
   /// 已生成的缩略图文件名。渲染发生在 build 里，不能做异步 IO，
   /// 所以启动时扫一遍目录把名字读进内存，`lookup` 只查这个 Set。
   final Set<String> _known = <String>{};

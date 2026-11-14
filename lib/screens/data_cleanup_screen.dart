@@ -12,6 +12,7 @@ import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/attachment_maintenance.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -35,6 +36,9 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
   double _imagesSize = 0;
   double _thumbsSize = 0;
   int _thumbsCount = 0;
+
+  /// 目录里不做缩略图的张数（动图/HEIC），用来解释「缩略图数 < 图片数」
+  int _unsupportedCount = 0;
 
   @override
   void initState() {
@@ -73,6 +77,9 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
       final thumbsCount = await _countFiles(
         Directory('${thumbsDir.path}/thumbs'),
       );
+      final unsupportedCount = await _countUnsupportedImages(
+        Directory('${appDocDir.path}/images'),
+      );
 
       if (mounted) {
         setState(() {
@@ -84,6 +91,7 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
           _imagesSize = imagesSize;
           _thumbsSize = thumbsSize;
           _thumbsCount = thumbsCount;
+          _unsupportedCount = unsupportedCount;
         });
       }
     } on Object catch (e) {
@@ -131,6 +139,29 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
       return count;
     } on Object catch (e) {
       debugPrint('统计文件数失败: $e');
+      return 0;
+    }
+  }
+
+  /// 数出「本来就不做缩略图」的图片（动图、HEIC 等）。
+  ///
+  /// 用户看到 151 张图只对应 108 个缩略图会以为补漏了，这里把两者对上。
+  Future<int> _countUnsupportedImages(Directory dir) async {
+    try {
+      if (!await dir.exists()) {
+        return 0;
+      }
+      final skipped = ThumbCache.skippedExtensions;
+      var count = 0;
+      await for (final entity in dir.list()) {
+        if (entity is File &&
+            skipped.contains(p.extension(entity.path).toLowerCase())) {
+          count++;
+        }
+      }
+      return count;
+    } on Object catch (e) {
+      debugPrint('统计不支持缩略图的图片数失败: $e');
       return 0;
     }
   }
@@ -662,6 +693,14 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
                 '缩略图占用',
                 '${_thumbsSize.toStringAsFixed(2)} MB · $_thumbsCount 个',
               ),
+              if (_unsupportedCount > 0) ...[
+                const SizedBox(height: 8),
+                _buildStatItem(
+                  Icons.movie_outlined,
+                  '不支持缩略图',
+                  '$_unsupportedCount 个（动图/HEIC）',
+                ),
+              ],
               const SizedBox(height: 8),
               _buildStatItem(
                 Icons.bolt_outlined,

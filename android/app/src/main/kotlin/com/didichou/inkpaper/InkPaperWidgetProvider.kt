@@ -187,10 +187,13 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
 
         // 预览文本改由 RemoteViewsFactory 提供：单行长条目 ListView，
         // 文本超出小部件可视区时可以上下滚动（RemoteViews 里 ScrollView/
-        // TextView 都不支持滚动，集合视图是唯一解）
+        // TextView 都不支持滚动，集合视图是唯一解）。
+        // 选中的笔记 id 随 Intent 一起交给工厂：两边各自按时间桶算的话，
+        // 跨桶瞬间会出现「时间行是 A、正文是 B」。
         val adapterIntent =
             Intent(context, InkPaperReviewListService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(InkPaperReviewListService.EXTRA_REVIEW_ID, review?.optString("id").orEmpty())
                 data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
             }
         views.setRemoteAdapter(R.id.inkpaper_widget_review_list, adapterIntent)
@@ -211,13 +214,21 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
             R.id.inkpaper_widget_status,
             "${formatRefresh(refreshMinutes)} · ${formatRange(rangeDays)}"
         )
+        // 整块点击 → 直接打开「小部件上正在显示的这条笔记」。
+        // 不再跳随机回顾列表页：那个页面进来会重新抽一批，跟这里显示的对不上，
+        // 用户看到的和点开的必须是同一条。没有笔记时才退回列表页兜底。
+        val reviewId = review?.optString("id").orEmpty()
         views.setOnClickPendingIntent(
             R.id.inkpaper_widget_review_container,
-            deepLinkPendingIntent(context, "inkpaper://random-review", 50)
-        )
-        views.setOnClickPendingIntent(
-            R.id.inkpaper_widget_random,
-            deepLinkPendingIntent(context, "inkpaper://random-review", 51)
+            deepLinkPendingIntent(
+                context,
+                if (reviewId.isNotBlank()) {
+                    "inkpaper://note/$reviewId"
+                } else {
+                    "inkpaper://random-review"
+                },
+                50
+            )
         )
 
         applyGlassBackground(context, views)
@@ -345,6 +356,11 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
 class InkPaperReviewListService : RemoteViewsService() {
     override fun onGetViewFactory(intent: Intent): RemoteViewsService.RemoteViewsFactory =
         InkPaperReviewListFactory(this, intent)
+
+    companion object {
+        /// Provider 已选定的笔记 id：正文、时间行、点击跳转必须同一条
+        const val EXTRA_REVIEW_ID = "inkpaper.reviewId"
+    }
 }
 
 class InkPaperReviewListFactory(
@@ -369,7 +385,21 @@ class InkPaperReviewListFactory(
             }
         }
         hasSnapshot = snapshot != null && snapshot.optString("generatedAt").isNotBlank()
-        review = BaseInkPaperWidgetProvider.selectReviewNote(snapshot)
+        // 优先用 Provider 传进来的 id（保证与时间行、点击目标同一条），
+        // 老版本传不进来时才按时间桶自己算一次
+        val wantedId = intent.getStringExtra(InkPaperReviewListService.EXTRA_REVIEW_ID).orEmpty()
+        review = findReviewById(snapshot, wantedId)
+            ?: BaseInkPaperWidgetProvider.selectReviewNote(snapshot)
+    }
+
+    private fun findReviewById(snapshot: JSONObject?, id: String): JSONObject? {
+        if (id.isBlank()) return null
+        val notes = snapshot?.optJSONArray("reviewNotes") ?: return null
+        for (index in 0 until notes.length()) {
+            val note = notes.optJSONObject(index) ?: continue
+            if (note.optString("id") == id) return note
+        }
+        return null
     }
 
     override fun onDestroy() {}

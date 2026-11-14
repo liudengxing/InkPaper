@@ -26,40 +26,20 @@
         android:orientation="vertical"
         android:padding="14dp">
 
-        <LinearLayout
+        <!-- 整块可点（container 的 PendingIntent 在 Provider 里按当前显
+             示的笔记设置），所以不再单设「打开」按钮：按钮跳的是随机回顾
+             列表页，那里会重新抽一批，跟小部件上这条对不上 -->
+        <TextView
+            android:id="@+id/inkpaper_widget_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/inkpaper_widget_title"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:ellipsize="end"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:text="随机回顾"
-                android:textColor="@color/inkpaper_widget_text"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/inkpaper_widget_random"
-                android:layout_width="wrap_content"
-                android:layout_height="28dp"
-                android:background="@drawable/inkpaper_widget_chip"
-                android:gravity="center"
-                android:includeFontPadding="false"
-                android:minWidth="56dp"
-                android:paddingLeft="10dp"
-                android:paddingRight="10dp"
-                android:text="打开"
-                android:textColor="@color/inkpaper_widget_accent"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-        </LinearLayout>
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="随机回顾"
+            android:textColor="@color/inkpaper_widget_text"
+            android:textSize="15sp"
+            android:textStyle="bold" />
 
         <!-- 单行长条目：条目高度由文本撑开，超出小部件可视区时 ListView 可上下滚动 -->
         <ListView

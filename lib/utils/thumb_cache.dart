@@ -65,6 +65,37 @@ class ThumbCache {
   /// 永远生成不出来的图重新起一次异步任务。
   final Set<String> _giveUp = <String>{};
 
+  /// 同时进行的编码任务上限。
+  ///
+  /// 一张 12MP 照片解码后约 48MB 位图，9 图笔记若同时编码，内存峰值接近
+  /// 400MB —— GC 抖动会把滚动直接拖卡，`compute` 虽在别的 isolate 跑，
+  /// 但内存和 CPU 是共用的。两路并行足够吃满编码吞吐，又压得住峰值。
+  static const int _maxConcurrentEncodes = 2;
+
+  int _activeEncodes = 0;
+  final List<Completer<void>> _encodeQueue = <Completer<void>>[];
+
+  Future<void> _acquireEncodeSlot() async {
+    if (_activeEncodes < _maxConcurrentEncodes) {
+      _activeEncodes++;
+      return;
+    }
+    final waiter = Completer<void>();
+    _encodeQueue.add(waiter);
+    await waiter.future;
+  }
+
+  void _releaseEncodeSlot() {
+    if (_encodeQueue.isNotEmpty) {
+      // 把名额直接交给排队的下一个，_activeEncodes 保持不变
+      _encodeQueue.removeAt(0).complete();
+      return;
+    }
+    if (_activeEncodes > 0) {
+      _activeEncodes--;
+    }
+  }
+
   /// 未命中时是否顺手触发后台生成。
   ///
   /// 生产环境开着：用户这次看到的是原图，下次进来就是缩略图。单测里关掉，
@@ -197,7 +228,14 @@ class ThumbCache {
     }
     final bucket = bucketWidth(width);
     _inflight.add(name);
+    var slot = false;
     try {
+      await _acquireEncodeSlot();
+      slot = true;
+      // 排队期间别的调用方可能已经把它生成好了，省掉一次重复解码
+      if (_known.contains(name)) {
+        return target;
+      }
       final bytes = await source.readAsBytes();
       final encoded = await _encoder(bytes, bucket, _wantsLossless(abs));
       if (encoded == null || encoded.isEmpty) {
@@ -213,6 +251,9 @@ class ThumbCache {
       _giveUp.add(name);
       return null;
     } finally {
+      if (slot) {
+        _releaseEncodeSlot();
+      }
       _inflight.remove(name);
     }
   }

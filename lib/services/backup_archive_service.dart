@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -533,6 +535,8 @@ class BackupArchiveService {
         archivedFile.content as List<int>,
         flush: true,
       );
+      // 还原出来的图也要进缩略图缓存，否则恢复后第一次浏览信息流全是原图解码
+      unawaited(ThumbCache.instance.ensure(localFile.path));
       restored[originalPath] = 'file://${localFile.path}';
     }
 

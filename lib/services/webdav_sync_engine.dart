@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -10,6 +11,7 @@ import 'package:inkpaper/services/webdav_service.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/attachment_maintenance.dart';
 import 'package:inkpaper/utils/note_dedupe.dart';
+import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// 同步状态
@@ -732,6 +734,7 @@ class WebDavSyncEngine {
       );
       if (!await file.exists()) {
         await file.writeAsBytes(bytes, flush: true);
+        unawaited(ThumbCache.instance.ensure(file.path));
         AttachmentCache.instance.invalidate();
         _localImageNameIndex = null;
       }
@@ -935,6 +938,7 @@ class WebDavSyncEngine {
             final bytes =
                 await _webdavService.downloadBinaryFile(record.webdavPath);
             await cacheFile.writeAsBytes(bytes, flush: true);
+            unawaited(ThumbCache.instance.ensure(cacheFile.path));
           }
         } else {
           final bytes =
@@ -942,6 +946,7 @@ class WebDavSyncEngine {
           final localName = _restoredLocalFileName(record, i);
           final localFile = File('${imagesDir.path}/$localName');
           await localFile.writeAsBytes(bytes, flush: true);
+          unawaited(ThumbCache.instance.ensure(localFile.path));
           restoredPathMap[record.originalPath] = 'file://${localFile.path}';
         }
       } on Object {

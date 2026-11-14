@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/attachment_maintenance.dart';
+import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// 附件离线缓存的结果。
@@ -132,6 +133,8 @@ class AttachmentMaintenanceService {
 
       if (await target.exists()) {
         alreadyLocal++;
+        // 早期版本下载的副本可能还没有缩略图，顺手补上（幂等）
+        unawaited(ThumbCache.instance.ensure(target.path));
         continue;
       }
       final error = await _download(remote, target);
@@ -175,6 +178,10 @@ class AttachmentMaintenanceService {
         return '空响应';
       }
       await target.writeAsBytes(response.bodyBytes, flush: true);
+      // 下载完立刻烘一份缩略图：这条路径进来的图（Memos 同步、恢复备份）
+      // 不经过编辑器插入那一步，以前要等首次渲染才补，多图笔记第一眼必然
+      // 走原图解码。ensure 有并发闸门，批量下载不会同时压满解码。
+      unawaited(ThumbCache.instance.ensure(target.path));
       return null;
     } on TimeoutException {
       return '请求超时';

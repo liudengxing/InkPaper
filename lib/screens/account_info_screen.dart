@@ -586,6 +586,22 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     }
   }
 
+  // 更新记住密码设置
+  Future<void> _updateRememberLogin(AppProvider appProvider, bool value) async {
+    final updatedConfig = appProvider.appConfig.copyWith(rememberLogin: value);
+    await appProvider.updateConfig(updatedConfig);
+
+    // 如果关闭记住密码，清除保存的登录信息，并关闭自动登录
+    if (!value) {
+      final newConfig = appProvider.appConfig.copyWith(
+        rememberLogin: false,
+        autoLogin: false,
+      );
+      await appProvider.updateConfig(newConfig);
+      await appProvider.clearLoginInfo();
+    }
+  }
+
   // 更新自动登录设置
   Future<void> _updateAutoLogin(AppProvider appProvider, bool value) async {
     // 如果要开启自动登录，必须先开启记住密码
@@ -1879,6 +1895,25 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                     ),
                     if (appProvider.appConfig.autoSyncEnabled)
                       _buildSyncIntervalChips(appProvider),
+                    const SizedBox(height: 8),
+                    Divider(
+                      height: 1,
+                      color: theme.dividerColor.withValues(alpha: 0.3),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildAutoSettingRow(
+                      context,
+                      icon: Icons.key,
+                      title: AppLocalizationsSimple.of(context)
+                              ?.rememberPassword ??
+                          '记住密码',
+                      subtitle: AppLocalizationsSimple.of(context)
+                              ?.rememberPasswordDesc ??
+                          '保存账号和密码到本地，下次登录自动填充',
+                      value: appProvider.appConfig.rememberLogin,
+                      onChanged: (value) =>
+                          _updateRememberLogin(appProvider, value),
+                    ),
                     const SizedBox(height: 8),
                     Divider(
                       height: 1,

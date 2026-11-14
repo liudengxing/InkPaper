@@ -94,16 +94,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
           // 其他设置
           _buildSectionHeader(context, l10n?.other ?? '其他'),
 
-          // 记住密码设置
-          _buildSwitchItem(
-            context,
-            icon: Icons.save_alt,
-            title: l10n?.rememberPassword ?? '记住密码',
-            subtitle: l10n?.rememberPasswordDesc ?? '保存账号和密码到本地',
-            value: appConfig.rememberLogin,
-            onChanged: (value) => _updateRememberLogin(appProvider, value),
-          ),
-
           // 启动自动弹出编辑框设置
           _buildSwitchItem(
             context,
@@ -645,22 +635,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
       }
 
       SnackBarUtils.showSuccess(context, '主题已切换为$themeName');
-    }
-  }
-
-  // 更新记住登录设置
-  Future<void> _updateRememberLogin(AppProvider appProvider, bool value) async {
-    final updatedConfig = appProvider.appConfig.copyWith(rememberLogin: value);
-    await appProvider.updateConfig(updatedConfig);
-
-    // 如果关闭记住密码，清除保存的登录信息，并关闭自动登录
-    if (!value) {
-      final newConfig = appProvider.appConfig.copyWith(
-        rememberLogin: false,
-        autoLogin: false,
-      );
-      await appProvider.updateConfig(newConfig);
-      await appProvider.clearLoginInfo();
     }
   }
 

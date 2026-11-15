@@ -19,9 +19,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.98] - 2026-11-15
 
+This release consolidates everything since 1.1.88 (the previous release notes listed only three of them).
+
+### Added
+
+- **Edit history**: every note keeps its older versions, ready to restore.
+- **Photos view**: a dedicated page for every note with images, in time order.
+- **Widget deep link**: tap anywhere on the widget to open the note it shows.
+- **Continuous paging**: after zooming in, keep dragging past the edge to reach the next image.
+- **AI service presets**: switch between DeepSeek official and a custom endpoint from a dropdown.
+- **Sync conflict notice**: the account page flags the last sync that hit a conflict.
+- **Note time on widget**: the random review widget shows when the note was written.
+- **Storage breakdown**: data cleanup separates image and thumbnail usage.
+- **Lab integrations**: Notion and Obsidian sync now live in the lab.
+
 ### Improved
 
-- **Cleaner sidebar**: the profile card stays hidden until you connect to a server, so the sidebar opens straight into your activity.
+- **Glass widget**: a frosted translucent background keeps text legible on dark wallpapers.
+- **No more blank photos**: GIFs use their first frame, and iPhone HEIC photos get thumbnails too.
+- **Faster startup**: first-screen work runs in parallel and thumbnails are preloaded.
+- **Instant full image**: the thumbnail holds the frame until the original is ready.
+- **Cleaner sidebar**: the profile card stays hidden until you connect to a server.
+- **Tidier settings**: server connection, auto sync and the saved password sit together on the account page.
+- **Consistent visuals**: top bars, help, about and update dialogs share one light-grey style.
+- **Detail page match**: timestamps and cards now look like the home feed.
+- **Clearer old dates**: notes older than a year show hours and minutes, not just the date.
+
+### Fixed
+
+- Fixed known issues, improved stability and runtime efficiency.
+
+### Removed
+
+- Removed WeChat Reading import.
+- Removed the "default note status" setting.
+- Removed the account deletion entry that duplicated data cleanup.
 
 ## [1.1.97] - 2026-11-15
 

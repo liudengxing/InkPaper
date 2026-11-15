@@ -1594,6 +1594,9 @@ class _SidebarState extends State<Sidebar> {
     }
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
+    // 顶部个人中心卡片只在登录了 Memos 服务器后出现：本地模式下没有账号，
+    // 这张卡只会常驻一个「登录」按钮占位，白占一块地方。
+    final showProfileCard = sidebarConfig.showProfile && isLoggedIn;
 
     return Drawer(
       // 🔥 大厂标准：侧边栏宽度
@@ -1618,8 +1621,8 @@ class _SidebarState extends State<Sidebar> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 用户信息区域 - 与热力图同样的宽度和样式
-                    // 🎯 个人中心组件 - 整体受 showProfile 控制
-                    if (sidebarConfig.showProfile)
+                    // 🎯 个人中心组件 - 受 showProfile 与登录状态共同控制
+                    if (showProfileCard)
                       AnimatedMenuWidget(
                         index: 0,
                         child: Container(
@@ -1634,222 +1637,158 @@ class _SidebarState extends State<Sidebar> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              // 左侧：登录按钮或用户名
-                              if (!isLoggedIn)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.primaryColor
-                                        .withValues(alpha: 0.1),
+                              Expanded(
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: AppTheme.primaryColor
-                                          .withValues(alpha: 0.3),
-                                    ),
-                                  ),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(12),
-                                      onTap: () {
-                                        // 使用统一的丝滑导航方法
-                                        _navigateWithSmoothTransition(
-                                          context: context,
-                                          path: '/login',
-                                        );
-                                      },
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(
-                                              Icons.login_rounded,
-                                              color: AppTheme.primaryColor,
-                                              size: 18,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              AppLocalizationsSimple.of(context)
-                                                      ?.login ??
-                                                  '登录',
-                                              style: AppTextStyles.labelLarge(
-                                                context,
-                                                color: AppTheme.primaryColor,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              else
-                                Expanded(
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(12),
-                                      splashColor: (isDarkMode
-                                              ? AppTheme.primaryLightColor
-                                              : AppTheme.primaryColor)
-                                          .withValues(alpha: 0.1),
-                                      highlightColor: (isDarkMode
-                                              ? AppTheme.primaryLightColor
-                                              : AppTheme.primaryColor)
-                                          .withValues(alpha: 0.05),
-                                      onTap: () {
-                                        // 点击个人信息栏跳转到账户信息页面
-                                        if (widget.isDrawer) {
-                                          Navigator.pop(context); // 移动端关闭侧边栏
+                                    splashColor: (isDarkMode
+                                            ? AppTheme.primaryLightColor
+                                            : AppTheme.primaryColor)
+                                        .withValues(alpha: 0.1),
+                                    highlightColor: (isDarkMode
+                                            ? AppTheme.primaryLightColor
+                                            : AppTheme.primaryColor)
+                                        .withValues(alpha: 0.05),
+                                    onTap: () {
+                                      // 点击个人信息栏跳转到账户信息页面
+                                      if (widget.isDrawer) {
+                                        Navigator.pop(context); // 移动端关闭侧边栏
+                                      }
+                                      // 添加短暂延迟避免Navigator锁定
+                                      Future.delayed(
+                                          Duration(
+                                            milliseconds:
+                                                widget.isDrawer ? 300 : 50,
+                                          ), () {
+                                        if (context.mounted) {
+                                          context.go('/account-info');
                                         }
-                                        // 添加短暂延迟避免Navigator锁定
-                                        Future.delayed(
-                                            Duration(
-                                              milliseconds:
-                                                  widget.isDrawer ? 300 : 50,
-                                            ), () {
-                                          if (context.mounted) {
-                                            context.go('/account-info');
-                                          }
-                                        });
-                                      },
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 4,
-                                          horizontal: 4,
-                                        ),
-                                        child: Consumer<AppProvider>(
-                                          builder:
-                                              (context, appProvider, child) {
-                                            final currentUser =
-                                                appProvider.user;
-                                            return Row(
-                                              children: [
-                                                // 用户头像 - 支持真实头像显示
-                                                Container(
-                                                  width: 40,
-                                                  height: 40,
-                                                  decoration: BoxDecoration(
-                                                    shape: BoxShape.circle,
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 4,
+                                        horizontal: 4,
+                                      ),
+                                      child: Consumer<AppProvider>(
+                                        builder: (context, appProvider, child) {
+                                          final currentUser = appProvider.user;
+                                          return Row(
+                                            children: [
+                                              // 用户头像 - 支持真实头像显示
+                                              Container(
+                                                width: 40,
+                                                height: 40,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  color: AppTheme.primaryColor
+                                                      .withValues(alpha: 0.1),
+                                                  border: Border.all(
                                                     color: AppTheme.primaryColor
-                                                        .withValues(alpha: 0.1),
-                                                    border: Border.all(
-                                                      color: AppTheme
-                                                          .primaryColor
-                                                          .withValues(
-                                                        alpha: 0.2,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  child: ClipOval(
-                                                    child: _buildSidebarAvatar(
-                                                      user!,
-                                                      context,
+                                                        .withValues(
+                                                      alpha: 0.2,
                                                     ),
                                                   ),
                                                 ),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Text(
-                                                        currentUser?.nickname
-                                                                    ?.isNotEmpty ??
-                                                                false
-                                                            ? currentUser!
-                                                                .nickname!
-                                                            : (currentUser
-                                                                    ?.username ??
-                                                                ''),
-                                                        style: AppTextStyles
-                                                            .titleMedium(
-                                                          context,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: isDarkMode
-                                                              ? AppTheme
-                                                                  .darkTextPrimaryColor
-                                                              : AppTheme
-                                                                  .textPrimaryColor,
-                                                        ),
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
+                                                child: ClipOval(
+                                                  child: _buildSidebarAvatar(
+                                                    user!,
+                                                    context,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      currentUser?.nickname
+                                                                  ?.isNotEmpty ??
+                                                              false
+                                                          ? currentUser!
+                                                              .nickname!
+                                                          : (currentUser
+                                                                  ?.username ??
+                                                              ''),
+                                                      style: AppTextStyles
+                                                          .titleMedium(
+                                                        context,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: isDarkMode
+                                                            ? AppTheme
+                                                                .darkTextPrimaryColor
+                                                            : AppTheme
+                                                                .textPrimaryColor,
                                                       ),
-                                                      Row(
-                                                        children: [
-                                                          Container(
-                                                            width: 8,
-                                                            height: 8,
-                                                            decoration:
-                                                                BoxDecoration(
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                              color: appProvider
-                                                                      .isLoggedIn
-                                                                  ? Colors.green
-                                                                  : Colors.red,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 4,
-                                                          ),
-                                                          Text(
-                                                            appProvider
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                    Row(
+                                                      children: [
+                                                        Container(
+                                                          width: 8,
+                                                          height: 8,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            shape:
+                                                                BoxShape.circle,
+                                                            color: appProvider
                                                                     .isLoggedIn
-                                                                ? (AppLocalizationsSimple
-                                                                        .of(
-                                                                      context,
-                                                                    )?.online ??
-                                                                    '在线')
-                                                                : (AppLocalizationsSimple
-                                                                        .of(
-                                                                      context,
-                                                                    )?.offline ??
-                                                                    '离线'),
-                                                            style: AppTextStyles
-                                                                .bodySmall(
-                                                              context,
-                                                              color: appProvider
-                                                                      .isLoggedIn
-                                                                  ? Colors.green
-                                                                  : Colors.red,
-                                                            ),
+                                                                ? Colors.green
+                                                                : Colors.red,
                                                           ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 4,
+                                                        ),
+                                                        Text(
+                                                          appProvider.isLoggedIn
+                                                              ? (AppLocalizationsSimple
+                                                                      .of(
+                                                                    context,
+                                                                  )?.online ??
+                                                                  '在线')
+                                                              : (AppLocalizationsSimple
+                                                                      .of(
+                                                                    context,
+                                                                  )?.offline ??
+                                                                  '离线'),
+                                                          style: AppTextStyles
+                                                              .bodySmall(
+                                                            context,
+                                                            color: appProvider
+                                                                    .isLoggedIn
+                                                                ? Colors.green
+                                                                : Colors.red,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
                                                 ),
-                                                // 箭头图标提示
-                                                Icon(
-                                                  Icons
-                                                      .arrow_forward_ios_rounded,
-                                                  size: 14,
-                                                  color: isDarkMode
-                                                      ? AppTheme
-                                                          .darkTextSecondaryColor
-                                                      : AppTheme
-                                                          .textSecondaryColor,
-                                                ),
-                                              ],
-                                            );
-                                          },
-                                        ),
+                                              ),
+                                              // 箭头图标提示
+                                              Icon(
+                                                Icons.arrow_forward_ios_rounded,
+                                                size: 14,
+                                                color: isDarkMode
+                                                    ? AppTheme
+                                                        .darkTextSecondaryColor
+                                                    : AppTheme
+                                                        .textSecondaryColor,
+                                              ),
+                                            ],
+                                          );
+                                        },
                                       ),
                                     ),
                                   ),
                                 ),
+                              ),
 
                               // 右侧：通知和设置图标
                               Row(
@@ -1961,7 +1900,13 @@ class _SidebarState extends State<Sidebar> {
                         index: 1,
                         child: Padding(
                           // flomo 风格：热力图不再套卡片方框，直接铺在抽屉背景上
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                          // 没有个人中心卡片时顶部留一点呼吸空间，否则贴着状态栏
+                          padding: EdgeInsets.fromLTRB(
+                            20,
+                            showProfileCard ? 0 : 12,
+                            20,
+                            8,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [

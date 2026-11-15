@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.98] - 2026-11-15
+
+### Improved
+
+- **Cleaner sidebar**: the profile card stays hidden until you connect to a server, so the sidebar opens straight into your activity.
+
 ## [1.1.97] - 2026-11-15
 
 ### Improved

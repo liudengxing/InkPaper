@@ -33,7 +33,7 @@ void main() {
     await _pump(tester, _multiple);
 
     final screen = tester.getSize(find.byType(Scaffold).first);
-    final share = tester.getRect(find.byIcon(Icons.share_rounded));
+    final share = tester.getRect(find.byIcon(Icons.north_east_rounded));
     final save = tester.getRect(find.byIcon(Icons.download_rounded));
 
     // 都在右半屏、靠下

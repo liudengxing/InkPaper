@@ -15,6 +15,7 @@ import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/image_utils.dart';
 import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
@@ -374,25 +375,36 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
                   ),
                 ),
               ),
-            // 右下角两个操作：分享、保存
+            // 右下角两个操作：分享、保存 —— 玻璃圆钮，微信看图同款布局
             Positioned(
               right: 16,
               bottom: mediaPadding.bottom + 20,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildViewerAction(
-                    icon: Icons.share_rounded,
-                    tooltip: l10n?.share ?? '分享',
-                    onTap: _handleShare,
-                  ),
-                  const SizedBox(width: 12),
-                  _buildViewerAction(
-                    icon: Icons.download_rounded,
-                    tooltip: l10n?.saveImage ?? '保存图片',
-                    onTap: _handleSave,
-                  ),
-                ],
+              child: LiquidGlassLayer(
+                // 照片上背景不可控，用深色玻璃口径：白 tint 提可读性，
+                // 参数与撤销玻璃提示同一套（refraction 14/40）
+                settings: LiquidGlassSettings.ios27Regular(
+                  brightness: Brightness.dark,
+                  tintAmount: 0.35,
+                ).copyWith(refractionHeight: 14, refractionAmount: 40),
+                defaultAppearance: LiquidGlassAppearance.ios27Regular(
+                  brightness: Brightness.dark,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildGlassAction(
+                      icon: Icons.north_east_rounded,
+                      tooltip: l10n?.share ?? '分享',
+                      onTap: _handleShare,
+                    ),
+                    const SizedBox(width: 12),
+                    _buildGlassAction(
+                      icon: Icons.download_rounded,
+                      tooltip: l10n?.saveImage ?? '保存图片',
+                      onTap: _handleSave,
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -419,6 +431,38 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
             width: 44,
             height: 44,
             child: Icon(icon, color: Colors.white, size: 22),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 右下角的玻璃圆钮：与撤销玻璃提示同一套材质，图标压在照片上保持白色。
+  Widget _buildGlassAction({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: LiquidGlass(
+        shape: const LiquidRoundedSuperellipse(borderRadius: 24),
+        shadows: const [
+          BoxShadow(
+            color: Color(0x80000000),
+            blurRadius: 20,
+            offset: Offset(0, 6),
+          ),
+        ],
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
           ),
         ),
       ),

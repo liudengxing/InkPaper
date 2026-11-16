@@ -332,6 +332,62 @@ void main() {
       expect(tester.getRect(imageSection).height, closeTo(collapsed, 1.0));
     });
 
+    testWidgets('FSG-05 拖动横条实时跟手，松手按位置吸附', (tester) async {
+      usePhoneCanvas(tester);
+      await openFullscreenEditor(tester, 7);
+
+      final collapsed = tester.getRect(imageSection).height;
+
+      // 逐段上拖 100px：高度应实时跟随（横条在图片区顶部，高度一动就跟着走）
+      final gesture = await tester.startGesture(tester.getCenter(imageSection));
+      // 第一段只过手势判定门槛（slop），触发 onStart，不期待高度变化
+      await gesture.moveBy(const Offset(0, -40));
+      await tester.pump();
+      await gesture.moveBy(const Offset(0, -40));
+      await tester.pump();
+      final step1 = tester.getRect(imageSection).height;
+      await gesture.moveBy(const Offset(0, -30));
+      await tester.pump();
+      final step2 = tester.getRect(imageSection).height;
+      await gesture.moveBy(const Offset(0, -30));
+      await tester.pump();
+      final step3 = tester.getRect(imageSection).height;
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(step1, greaterThan(collapsed + 1), reason: '上拖时高度实时跟手');
+      expect(step2, greaterThan(step1), reason: '继续上拖继续变高');
+      expect(step3, greaterThan(step2));
+      // 共拖 100px，没到展开区间一半（约 130），松手吸附回收起
+      expect(
+        tester.getRect(imageSection).height,
+        closeTo(collapsed, 1.0),
+        reason: '没过半就松手应回弹到收起',
+      );
+
+      // 拖过半（240px）再松手：吸附到展开
+      final gesture2 =
+          await tester.startGesture(tester.getCenter(imageSection));
+      await gesture2.moveBy(const Offset(0, -40));
+      await tester.pump();
+      await gesture2.moveBy(const Offset(0, -70));
+      await tester.pump();
+      await gesture2.moveBy(const Offset(0, -70));
+      await tester.pump();
+      await gesture2.moveBy(const Offset(0, -70));
+      await tester.pump();
+      final held = tester.getRect(imageSection).height;
+      await gesture2.up();
+      await tester.pumpAndSettle();
+
+      expect(held, greaterThan(collapsed + 100));
+      expect(
+        tester.getRect(imageSection).height,
+        greaterThan(collapsed + 100),
+        reason: '过半松手应停在展开',
+      );
+    });
+
     testWidgets('FSG-03 每格右上角有删除按钮，点击移除图片', (tester) async {
       usePhoneCanvas(tester);
       // 4 张 = 2 行：收起时只渲染第一行的 3 个删除钮

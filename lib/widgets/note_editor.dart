@@ -1537,8 +1537,13 @@ class _NoteEditorState extends State<NoteEditor>
     // 只让键盘 inset 就够。
     final safeTop = widget.fullScreen ? mediaQuery.padding.top : 0.0;
     final safeBottom = widget.fullScreen ? mediaQuery.padding.bottom : 0.0;
-    final availableHeight =
-        screenSize.height - keyboardInset - safeTop - safeBottom;
+    // 与拖拽手势回调共用同一口径（_fullscreenAvailableHeight），
+    // 保证跟手高度与 build 算出的边界永远一致。
+    final availableHeight = _fullscreenAvailableHeight(
+      screenSize,
+      widget.fullScreen ? mediaQuery.padding : EdgeInsets.zero,
+      keyboardInset,
+    );
     final editorHeight = widget.fullScreen
         ? availableHeight
         : math.min(desiredEditorHeight, availableHeight * 0.92);
@@ -2479,7 +2484,11 @@ class _NoteEditorState extends State<NoteEditor>
     }
     Widget section = AnimatedContainer(
       key: const ValueKey('note-editor-image-section'),
-      duration: _heightTransitionDuration,
+      // 拖动中高度逐帧跟手：动画时长必须归零，否则 AnimatedContainer 会
+      // 追着目标高度跑，横条明显滞后于手指。松手吸附时才临时开 240ms。
+      duration: _imageSectionDragHeight != null
+          ? Duration.zero
+          : _heightTransitionDuration,
       curve: Curves.easeOutCubic,
       // 展开收起动画收尾时把时长归零：平时键盘高度调整走 Duration.zero，
       // 只有展开/收起那一刻临时给了 240ms。
@@ -2509,8 +2518,10 @@ class _NoteEditorState extends State<NoteEditor>
 
     // 可展开时整个图片区吃上滑/下滑手势：收起状态九宫格不滚，
     // 纵向拖动全归这里；展开后格子自己滚，收起手势走标题行。
+    // 拖动中高度实时跟手（Duration.zero 直改），松手才吸附回边界。
     if (expandable) {
       section = GestureDetector(
+        onVerticalDragStart: _handleImageSectionDragStart,
         onVerticalDragUpdate: _handleImageSectionDragUpdate,
         onVerticalDragEnd: _handleImageSectionDragEnd,
         child: section,
@@ -2519,32 +2530,76 @@ class _NoteEditorState extends State<NoteEditor>
     return section;
   }
 
-  /// 累计本次纵向拖动的位移（手势判定同时看位移和速度）。
+  /// 拖动中图片区的实时高度（null = 不在拖动）。
+  /// 横条与标题行都在图片区顶部，高度一动它们就跟着走。
+  double? _imageSectionDragHeight;
+
+  /// 拖动起点的高度与累计位移：高度 = 起点 - 位移，钳在收起/展开边界。
+  double _imageSectionDragBaseHeight = 0;
   double _imageSectionDragDelta = 0;
 
-  void _handleImageSectionDragUpdate(DragUpdateDetails details) {
-    _imageSectionDragDelta += details.delta.dy;
+  void _handleImageSectionDragStart(DragStartDetails details) {
+    final bounds = _currentImageSectionBounds();
+    if (bounds == null) {
+      return;
+    }
+    _imageSectionDragBaseHeight = _imageSectionDragHeight ??
+        (_imageSectionExpanded ? bounds.$2 : bounds.$1);
+    _imageSectionDragDelta = 0;
+    // 拖动首帧就从当前高度开始跟随；duration 置零确保不追赶动画
+    setState(() => _imageSectionDragHeight = _imageSectionDragBaseHeight);
   }
 
-  /// 图片区的上滑/下滑手势：上滑展开、下滑收起。切换时给高度动画临时
-  /// 开 240ms，结束后由 AnimatedContainer.onEnd 归零。
+  void _handleImageSectionDragUpdate(DragUpdateDetails details) {
+    if (_imageSectionDragHeight == null) {
+      return;
+    }
+    _imageSectionDragDelta += details.delta.dy;
+    final bounds = _currentImageSectionBounds();
+    if (bounds == null) {
+      return;
+    }
+    final next = (_imageSectionDragBaseHeight - _imageSectionDragDelta)
+        .clamp(bounds.$1, bounds.$2);
+    if ((next - _imageSectionDragHeight!).abs() > 0.01) {
+      setState(() => _imageSectionDragHeight = next);
+    }
+  }
+
+  /// 松手：按位置（过半）或甩动速度吸附到收起/展开态，吸附带 240ms 动画。
+  /// 高度已经停在目标边界上时不开动画（没有变化，开了也不触发 onEnd 归零）。
   void _handleImageSectionDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
-    final moved = _imageSectionDragDelta;
+    final bounds = _currentImageSectionBounds();
+    final dragHeight = _imageSectionDragHeight;
+    _imageSectionDragHeight = null;
+    _imageSectionDragBaseHeight = 0;
     _imageSectionDragDelta = 0;
-    final swipeUp = velocity < -120 || moved < -24;
-    final swipeDown = velocity > 120 || moved > 24;
-    if (swipeUp && !_imageSectionExpanded) {
-      setState(() {
-        _imageSectionExpanded = true;
-        _heightTransitionDuration = const Duration(milliseconds: 240);
-      });
-    } else if (swipeDown && _imageSectionExpanded) {
-      setState(() {
-        _imageSectionExpanded = false;
-        _heightTransitionDuration = const Duration(milliseconds: 240);
-      });
+    if (bounds == null || dragHeight == null) {
+      return;
     }
+    final (collapsed, expanded) = bounds;
+    final range = expanded - collapsed;
+    final progress = range > 0 ? (dragHeight - collapsed) / range : 0.0;
+    final bool expand;
+    if (velocity < -120) {
+      expand = true;
+    } else if (velocity > 120) {
+      expand = false;
+    } else {
+      expand = progress >= 0.5;
+    }
+    final targetHeight = expand ? expanded : collapsed;
+    final needAnimate = (dragHeight - targetHeight).abs() > 0.5;
+    if (expand == _imageSectionExpanded && !needAnimate) {
+      return;
+    }
+    setState(() {
+      _imageSectionExpanded = expand;
+      if (needAnimate) {
+        _heightTransitionDuration = const Duration(milliseconds: 240);
+      }
+    });
   }
 
   /// 视频卡片高度。视频只放一个，不做九宫格，所以高度是定值。
@@ -2560,10 +2615,10 @@ class _NoteEditorState extends State<NoteEditor>
   /// 图片再多正文也不被挤没。
   static const double _minTextAreaHeight = 120;
 
-  /// 全屏编辑的图片区高度：默认一行九宫格；展开时最多吃到
-  /// 「可用高度 - 顶栏 - 工具栏 - 正文最低高度」，收在整行边界，
-  /// 剩下的行交给九宫格内部滚动。
-  double _fullscreenImageSectionHeight(
+  /// 全屏图片区的两个高度边界：(收起高 = 一行，展开高)。
+  /// 展开高最多吃到「可用高度 - 顶栏 - 工具栏 - 正文最低高度」，
+  /// 收在整行边界，剩下的行交给九宫格内部滚动。
+  (double, double) _fullscreenImageSectionBounds(
     double width,
     double availableHeight,
     double toolbarHeight,
@@ -2576,10 +2631,7 @@ class _NoteEditorState extends State<NoteEditor>
         _imageGridBottomPadding;
     final target = _imageGridContentHeight(width) + _imageDragHandleHeight;
     if (target <= oneRow) {
-      return target;
-    }
-    if (!_imageSectionExpanded) {
-      return oneRow;
+      return (target, target);
     }
     final maxAllowed = availableHeight -
         _fullScreenHeaderHeight -
@@ -2600,7 +2652,49 @@ class _NoteEditorState extends State<NoteEditor>
         fitRows * tile +
         (fitRows - 1) * _imageGridSpacing +
         _imageGridBottomPadding;
-    return math.min(target, math.max(oneRow, capped));
+    return (oneRow, math.min(target, math.max(oneRow, capped)));
+  }
+
+  /// 全屏编辑的可用高度口径：屏幕 - 键盘 - 状态栏/手势条，与 build 里
+  /// availableHeight 同一公式；拖拽跟随要在手势回调里重复用到。
+  double _fullscreenAvailableHeight(
+    Size screenSize,
+    EdgeInsets padding,
+    double keyboardInset,
+  ) =>
+      screenSize.height - keyboardInset - padding.top - padding.bottom;
+
+  /// 手势回调里取当前图片区的两个高度边界；不可展开时返回 null。
+  (double, double)? _currentImageSectionBounds() {
+    if (!widget.fullScreen || _hasVideo || _imageList.isEmpty) {
+      return null;
+    }
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight = _fullscreenAvailableHeight(
+      mediaQuery.size,
+      mediaQuery.padding,
+      mediaQuery.viewInsets.bottom,
+    );
+    return _fullscreenImageSectionBounds(
+      mediaQuery.size.width,
+      availableHeight,
+      _editorToolbarHeight,
+    );
+  }
+
+  /// 全屏编辑的图片区高度：收起一行 / 展开到上限；拖动中实时跟随手指
+  /// （钳在两个边界之间），松手后按目标态回边界。
+  double _fullscreenImageSectionHeight(
+    double width,
+    double availableHeight,
+    double toolbarHeight,
+  ) {
+    final (collapsed, expanded) =
+        _fullscreenImageSectionBounds(width, availableHeight, toolbarHeight);
+    if (_imageSectionDragHeight != null) {
+      return _imageSectionDragHeight!.clamp(collapsed, expanded);
+    }
+    return _imageSectionExpanded ? expanded : collapsed;
   }
 
   /// 视频区总高：标题行 + 上内边距 + 卡片 + 底部留白，与九宫格同一套算法口径。
@@ -2677,6 +2771,7 @@ class _NoteEditorState extends State<NoteEditor>
           SizedBox(
             height: _imageDragHandleHeight,
             child: GestureDetector(
+              onVerticalDragStart: _handleImageSectionDragStart,
               onVerticalDragUpdate: _handleImageSectionDragUpdate,
               onVerticalDragEnd: _handleImageSectionDragEnd,
               child: Center(
@@ -2700,6 +2795,8 @@ class _NoteEditorState extends State<NoteEditor>
           height: _imageGridHeaderHeight,
           child: GestureDetector(
             // 展开后格子自己吃纵向滚动手势，收起只能从标题行拖
+            onVerticalDragStart:
+                expandable ? _handleImageSectionDragStart : null,
             onVerticalDragUpdate:
                 expandable ? _handleImageSectionDragUpdate : null,
             onVerticalDragEnd: expandable ? _handleImageSectionDragEnd : null,

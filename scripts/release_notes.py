@@ -123,7 +123,7 @@ def merged_body(
         key=lambda name: (order.get(name, len(CATEGORY_ORDER)), name),
     )
 
-    lines: list[str] = [f"本次发版合并了 {since} 之后的全部改动。", ""]
+    lines: list[str] = []
     for name in names:
         lines.append(f"### {name}")
         lines.append("")

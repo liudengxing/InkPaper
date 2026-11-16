@@ -1422,11 +1422,11 @@ class AppLocalizationsSimple {
   String get confirmRestore =>
       locale.languageCode == 'zh' ? '确认恢复' : 'Confirm Restore';
   String get confirmRestoreMessage => locale.languageCode == 'zh'
-      ? '此操作将从 WebDAV 下载所有笔记到本地。\n\n如果本地和远程有相同的笔记，将保留远程版本（覆盖本地）。\n\n是否继续？'
-      : 'This will download all notes from WebDAV to this device.\n\nIf the same note exists locally and remotely, the remote version will be kept and overwrite the local version.\n\nContinue?';
+      ? '此操作将从 WebDAV 下载云备份并与本地合并：\n\n· 本地独有的笔记会保留\n· 两边都有的笔记取更新时间较新的版本\n· 恢复前会先把本地数据应急备份到 WebDAV\n\n是否继续？'
+      : 'This downloads the cloud backup from WebDAV and merges it into local notes:\n\n· Notes that exist only locally are kept\n· Notes on both sides keep the newer version\n· A safety snapshot of local data is uploaded to WebDAV first\n\nContinue?';
   String get webdavHelpText => locale.languageCode == 'zh'
-      ? '• 推荐使用坚果云等专业 WebDAV 服务\n• 坚果云需要使用"应用专用密码"而不是登录密码\n• 立即测试：测试 WebDAV 服务器连接\n• 立即备份：单向上传，完整备份所有数据到云端\n• 从 WebDAV 恢复：下载云端数据到本地（覆盖本地）\n• 定时备份：可选择每次启动或定时自动备份'
-      : '• Recommend using professional WebDAV services like Nutstore\n• Nutstore requires using "App-specific password" instead of login password\n• Test Now: Test WebDAV server connection\n• Backup Now: One-way upload, full backup of all data to cloud\n• Restore from WebDAV: Download cloud data to local (overwrite local)\n• Timed Backup: Choose to auto backup on every startup or timed intervals';
+      ? '• 推荐使用坚果云等专业 WebDAV 服务\n• 坚果云需要使用"应用专用密码"而不是登录密码\n• 立即测试：测试 WebDAV 服务器连接\n• 立即备份：单向上传，完整备份所有数据到云端\n• 从 WebDAV 恢复：下载云备份并与本地合并，本地独有的笔记保留\n• 定时备份：可选择每次启动或定时自动备份'
+      : '• Recommend using professional WebDAV services like Nutstore\n• Nutstore requires using "App-specific password" instead of login password\n• Test Now: Test WebDAV server connection\n• Backup Now: One-way upload, full backup of all data to cloud\n• Restore from WebDAV: Download cloud backup and merge into local notes, local-only notes are kept\n• Timed Backup: Choose to auto backup on every startup or timed intervals';
 
   // ===== 新增缺失的国际化字符串 =====
   String get undoDelete => _t('undoDelete', fallback: '已撤销删除');

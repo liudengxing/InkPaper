@@ -41,12 +41,13 @@ Note _makeNote({
   String rowStatus = 'NORMAL',
   String visibility = 'PRIVATE',
   List<String> tags = const [],
+  DateTime? updatedAt,
 }) =>
     Note(
       id: id,
       content: content,
       createdAt: DateTime(2024),
-      updatedAt: DateTime(2024),
+      updatedAt: updatedAt ?? DateTime(2024),
       isSynced: isSynced,
       isPinned: isPinned,
       rowStatus: rowStatus,
@@ -573,6 +574,97 @@ void main() {
       final pending =
           await DatabaseService().getPendingDeleteNoteIds(executor: db);
       expect(pending, ['b', 'a', 'c']);
+    });
+  });
+
+  group('DatabaseService — WebDAV 恢复合并', () {
+    test('DB-33 本地独有的笔记不会被删掉', () async {
+      await _saveNote(db, _makeNote(id: 'local-1', content: '只在本地'));
+
+      final (inserted, updated, keptLocal) = await DatabaseService().mergeNotes(
+        [_makeNote(id: 'remote-1', content: '来自云备份')],
+        executor: db,
+      );
+
+      expect((inserted, updated, keptLocal), (1, 0, 0));
+      final all = await _getAllNotes(db);
+      expect(all.map((n) => n.id), containsAll(['local-1', 'remote-1']));
+      expect(all, hasLength(2));
+    });
+
+    test('DB-34 两边都有时取 updatedAt 较新的版本', () async {
+      await _saveNote(
+        db,
+        _makeNote(
+          id: 'n1',
+          content: '本地新改的',
+          updatedAt: DateTime(2024, 1, 2),
+        ),
+      );
+      await _saveNote(
+        db,
+        _makeNote(
+          id: 'n2',
+          content: '本地旧版',
+          updatedAt: DateTime(2024, 1, 1, 12),
+        ),
+      );
+
+      final (_, updated, keptLocal) = await DatabaseService().mergeNotes(
+        [
+          _makeNote(
+            id: 'n1',
+            content: '云端旧版',
+            updatedAt: DateTime(2024, 1, 1, 12),
+          ),
+          _makeNote(
+            id: 'n2',
+            content: '云端新改的',
+            updatedAt: DateTime(2024, 1, 3),
+          ),
+        ],
+        executor: db,
+      );
+
+      expect((updated, keptLocal), (1, 1));
+      expect((await _getNoteById(db, 'n1'))!.content, '本地新改的');
+      expect((await _getNoteById(db, 'n2'))!.content, '云端新改的');
+    });
+
+    test('DB-35 本地软删且晚于备份版本时不复活', () async {
+      await _saveNote(
+        db,
+        _makeNote(
+          id: 'n1',
+          content: '已被本地删除',
+          rowStatus: 'DELETED',
+          updatedAt: DateTime(2024, 1, 5),
+        ),
+      );
+
+      final (inserted, updated, keptLocal) = await DatabaseService().mergeNotes(
+        [
+          _makeNote(
+            id: 'n1',
+            content: '云备份里还在',
+            updatedAt: DateTime(2024, 1, 1, 12),
+          ),
+        ],
+        executor: db,
+      );
+
+      expect((inserted, updated, keptLocal), (0, 0, 1));
+      expect((await _getNoteById(db, 'n1'))!.rowStatus, 'DELETED');
+    });
+
+    test('DB-36 时间相同保留本地，不产生多余写入', () async {
+      await _saveNote(db, _makeNote(id: 'n1', content: '本地版本'));
+
+      final (inserted, updated, keptLocal) = await DatabaseService()
+          .mergeNotes([_makeNote(id: 'n1', content: '云端版本')], executor: db);
+
+      expect((inserted, updated, keptLocal), (0, 0, 1));
+      expect((await _getNoteById(db, 'n1'))!.content, '本地版本');
     });
   });
 }

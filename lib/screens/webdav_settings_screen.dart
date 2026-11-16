@@ -873,7 +873,7 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
                     '• 点击右上角"?"查看详细配置步骤\n'
                     '• 立即测试：验证服务器连接是否正常\n'
                     '• 立即备份：单向上传，备份笔记；开启图片附件后会同时备份可读取的图片\n'
-                    '• 从 WebDAV 恢复：下载云端数据到本地（会覆盖本地）\n'
+                    '• 从 WebDAV 恢复：下载云备份并与本地合并，本地独有的笔记保留\n'
                     '• 定时备份：可选择每次启动或定时自动备份',
             style: TextStyle(
               fontSize: 13,
@@ -1288,10 +1288,11 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
                       _buildFAQItem(
                         context,
                         question: '📥 "从 WebDAV 恢复"会怎样？',
-                        answer: '从 WebDAV 恢复会下载云端所有笔记到本地。\n\n⚠️ 注意：\n'
-                            '• 如果本地和云端有相同笔记，会保留云端版本\n'
-                            '• 建议操作前先做一次备份\n'
-                            '• 适合更换设备或数据丢失时使用',
+                        answer: '从 WebDAV 恢复会下载云备份并与本地合并。\n\n合并规则：\n'
+                            '• 本地独有的笔记会保留，不会被删除\n'
+                            '• 两边都有的笔记取更新时间较新的版本\n'
+                            '• 恢复前会先把本地数据应急备份到 WebDAV emergency 目录\n'
+                            '• 适合找回数据或在新旧两台设备间合拢笔记',
                       ),
                       _buildFAQItem(
                         context,

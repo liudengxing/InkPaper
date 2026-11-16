@@ -719,19 +719,19 @@ docker run -d \
 
 ### 注意
 - WebDAV 是备份/恢复，不是实时双向协作
-- 恢复会覆盖本地笔记，应用会先在 WebDAV emergency 目录保存一份本地应急快照
+- 恢复是合并而不是替换：本地独有的笔记保留，两边都有的笔记取较新版本；恢复前应用会先在 WebDAV emergency 目录保存一份本地应急快照
 - 视频和无法访问的远程图片不会被备份
         ''',
         en: '''
 ### What it does
 - **Backup now**: one-way upload of local notes to WebDAV
-- **Restore from WebDAV**: one-way download that replaces local notes
+- **Restore from WebDAV**: downloads the cloud backup and merges it into local notes
 - **Image attachments**: optionally backs up readable local and Memos images
 - **Automatic backup**: run on app launch or at scheduled intervals
 
 ### Notes
 - WebDAV is backup/restore, not real-time two-way collaboration
-- Restore overwrites local notes; the app first saves a local emergency snapshot under the WebDAV emergency folder
+- Restore merges into local notes instead of replacing them: local-only notes are kept and notes on both sides keep the newer version; the app first saves a local emergency snapshot under the WebDAV emergency folder
 - Videos and inaccessible remote images are not backed up
         ''',
       );

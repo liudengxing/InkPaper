@@ -1425,20 +1425,25 @@ class WebDavSyncEngine {
       onProgress?.call(0.73, '保存本地应急备份...');
       await _uploadRestoreSafetyBackup();
 
-      // 4. 保存所有远程笔记到本地（覆盖）(75% ~ 100%)
-      _syncMessage = '恢复笔记到本地...';
-      final totalNotes = remoteNotes.length;
+      // 4. 合并远程笔记到本地（75% ~ 100%）
+      //
+      // 按 id 合并而不是整库替换：本地独有的笔记保留，两边都有的取较新版本。
+      // 整库替换会把「备份之后在本地新建/编辑的笔记」直接抹掉。
+      _syncMessage = '合并云备份笔记...';
       onProgress?.call(0.75, '写入本地数据库...');
-      await _databaseService.replaceAllNotes(remoteNotes);
+      final (inserted, updated, keptLocal) =
+          await _databaseService.mergeNotes(remoteNotes);
       // 附件缓存刚被写入/替换，让渲染层的查表重新落盘一次
       AttachmentCache.instance.invalidate();
-      onProgress?.call(1, '恢复完成，共 $totalNotes 条笔记');
-
-      _stats = _stats.copyWith(downloaded: remoteNotes.length);
+      _stats = _stats.copyWith(downloaded: inserted + updated);
+      onProgress?.call(
+        1,
+        '合并完成：新增 $inserted · 更新 $updated · 本地保留 $keptLocal',
+      );
 
       _status = SyncStatus.success;
-      _syncMessage = '恢复完成';
-      onProgress?.call(1, '恢复完成');
+      _syncMessage = '合并完成：新增 $inserted 条 · 更新 $updated 条 · 本地保留 $keptLocal 条';
+      onProgress?.call(1, '合并完成');
 
       return _stats;
     } on Object catch (e) {

@@ -825,6 +825,66 @@ class DatabaseService {
     });
   }
 
+  /// 把云备份的笔记合并进本地库（不清空现有数据）。
+  ///
+  /// WebDAV 备份本身就是本地库的快照，id 与本地同源，所以按 id 直接对齐：
+  /// - 本地没有这条 → 插入；
+  /// - 两边都有 → `updatedAt` 较新的赢，时间相同保留本地（本地编辑不丢）；
+  /// - 本地这条已软删、且删除动作（updatedAt）不早于备份版本 → 不复活。
+  ///
+  /// 与 [replaceAllNotes] 不同：提醒表与待同步队列原样保留——合并场景里
+  /// 本地的删除/改动仍然有效，清掉队列反而会把未补交的同步动作弄丢。
+  /// 返回 (新增数, 更新数, 保留本地数)。
+  Future<(int, int, int)> mergeNotes(
+    List<Note> notes, {
+    DatabaseExecutor? executor,
+  }) async {
+    Future<(int, int, int)> runMerge(DatabaseExecutor txn) async {
+      var inserted = 0;
+      var updated = 0;
+      var keptLocal = 0;
+      for (final note in notes) {
+        final rows = await txn.query(
+          'notes',
+          where: 'id = ?',
+          whereArgs: [note.id],
+          limit: 1,
+        );
+        if (rows.isEmpty) {
+          await txn.insert('notes', note.toMap());
+          inserted++;
+          continue;
+        }
+        final local = Note.fromMap(rows.first);
+        final isLocalDeleted = local.rowStatus == 'DELETED';
+        if (isLocalDeleted && !local.updatedAt.isBefore(note.updatedAt)) {
+          // 本地删过、且删除发生在备份之后 → 尊重删除，不复活
+          keptLocal++;
+          continue;
+        }
+        if (note.updatedAt.isAfter(local.updatedAt)) {
+          await txn.update(
+            'notes',
+            note.toMap(),
+            where: 'id = ?',
+            whereArgs: [note.id],
+          );
+          updated++;
+        } else {
+          keptLocal++;
+        }
+      }
+      return (inserted, updated, keptLocal);
+    }
+
+    final db = executor ?? await database;
+    if (executor != null) {
+      // 调用方已在事务里（测试场景），不再嵌套
+      return runMerge(db);
+    }
+    return (await database).transaction(runMerge);
+  }
+
   /// 删除服务器已不存在的本地已同步笔记（安全清理，不影响未同步数据）
   Future<void> deleteSyncedNotesNotIn(List<String> serverIds) async {
     if (serverIds.isEmpty) {

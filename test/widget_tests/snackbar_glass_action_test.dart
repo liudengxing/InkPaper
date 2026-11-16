@@ -50,8 +50,12 @@ void main() {
     await tester.pump();
     expect(undone, isTrue);
 
-    // showAction 里还有一个兜底隐藏的延时器，推掉它再结束
-    await tester.pump(const Duration(seconds: 5));
+    // 退场玻璃动画 → SnackBar 隐藏动画 → 推掉自动隐藏计时器
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('笔记已删除'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('GA-02 提示底色透明，不盖住玻璃下面的内容', (tester) async {
@@ -65,6 +69,32 @@ void main() {
     expect(snackBar.backgroundColor, Colors.transparent);
     expect(snackBar.elevation, 0);
     expect(snackBar.padding, EdgeInsets.zero);
+
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('GA-03 入场动画：玻璃参数与位移随时间渐入', (tester) async {
+    await pumpHost(tester, onUndo: () {});
+
+    await tester.tap(find.text('删除'));
+    await tester.pump();
+    // 动画刚起步：折射/着色还接近零，胶囊还沉在下方
+    var layer = tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer));
+    expect(layer.settings.tintAmount, lessThan(0.2));
+    final toast = find.ancestor(
+      of: find.text('笔记已删除'),
+      matching: find.byType(Transform),
+    );
+    expect(
+      tester.widget<Transform>(toast.first).transform,
+      isNot(equals(Matrix4.identity())),
+    );
+
+    // 动画播完：玻璃参数到位，胶囊停在最终位置
+    await tester.pump(const Duration(milliseconds: 400));
+    layer = tester.widget<LiquidGlassLayer>(find.byType(LiquidGlassLayer));
+    expect(layer.settings.tintAmount, closeTo(0.35, 0.001));
+    expect(find.text('笔记已删除'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 5));
   });

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:inkpaper/themes/app_theme.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 
 class SnackBarUtils {
   /// [duration] 仅对有阅读价值的多行结果（备份/恢复统计等）需要放长，
@@ -155,6 +156,12 @@ class SnackBarUtils {
     );
   }
 
+  /// 带操作的提示（删除笔记后的「撤销」）：玻璃胶囊。
+  ///
+  /// 视觉与首页底部输入条是同一套 `liquid_glass_renderer` 材质。
+  /// SnackBar 自身背景透明、elevation 归零，玻璃由 content 里的
+  /// [LiquidGlass] 画出来 —— 这样它浮在列表上时能真的折射下面的内容，
+  /// 而不是一块纯色底。
   static void showAction(
     BuildContext context,
     String message, {
@@ -164,42 +171,93 @@ class SnackBarUtils {
     Duration duration = const Duration(milliseconds: 2800),
   }) {
     final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final brightness = isDarkMode ? Brightness.dark : Brightness.light;
+    // 玻璃上的前景色：浅色用深灰、深色用白，与底部输入条同一口径
+    final foreground = isDarkMode ? Colors.white : const Color(0xFF2E2E2E);
+    // 与首页底部输入条同一个圆角，视觉上才是同一颗胶囊
+    const shapeRadius = 26.0;
+
     messenger.showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            if (icon != null) ...[
-              Icon(icon, color: Colors.white, size: 20),
-              const SizedBox(width: 10),
+        content: LiquidGlassLayer(
+          // 与首页输入条一致：58dp 高太陡，倒角收到 14/40，
+          // tintAmount 0.35 兼顾通透与文字可读性。
+          settings: LiquidGlassSettings.ios27Regular(
+            brightness: brightness,
+            tintAmount: 0.35,
+          ).copyWith(refractionHeight: 14, refractionAmount: 40),
+          defaultAppearance:
+              LiquidGlassAppearance.ios27Regular(brightness: brightness),
+          child: LiquidGlass(
+            shape: const LiquidRoundedSuperellipse(borderRadius: shapeRadius),
+            shadows: [
+              BoxShadow(
+                color: isDarkMode
+                    ? const Color(0x80000000)
+                    : const Color(0x26000000),
+                blurRadius: 20,
+                offset: const Offset(0, 6),
+              ),
             ],
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  height: 1.35,
+            child: Material(
+              color: Colors.transparent,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+                child: Row(
+                  children: [
+                    if (icon != null) ...[
+                      Icon(icon, color: foreground, size: 20),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      child: Text(
+                        message,
+                        style: TextStyle(
+                          color: foreground,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          height: 1.35,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        // 先收起提示再执行，避免连点两次「撤销」
+                        messenger.hideCurrentSnackBar();
+                        onAction();
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: isDarkMode
+                            ? AppTheme.primaryLightColor
+                            : AppTheme.primaryColor,
+                        minimumSize: const Size(0, 40),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      child: Text(actionLabel),
+                    ),
+                  ],
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
-          ],
+          ),
         ),
-        backgroundColor: const Color(0xFF303236),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         behavior: SnackBarBehavior.floating,
         margin: _floatingMargin(context, compact: false),
+        padding: EdgeInsets.zero,
         duration: duration,
         persist: false,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        action: SnackBarAction(
-          label: actionLabel,
-          textColor: AppTheme.primaryLightColor,
-          onPressed: onAction,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(shapeRadius)),
         ),
       ),
     );

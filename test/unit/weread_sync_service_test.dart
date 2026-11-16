@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/models/weread_models.dart';
 import 'package:inkpaper/services/weread_api_service.dart';
+import 'package:inkpaper/services/weread_note_builder.dart';
 import 'package:inkpaper/services/weread_sync_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,6 +16,8 @@ WeReadNotebook _notebook({
   int sort = 100,
   int highlights = 1,
   int reviews = 0,
+  int markedStatus = 0,
+  double progress = 0,
 }) =>
     WeReadNotebook(
       bookId: bookId,
@@ -23,6 +26,8 @@ WeReadNotebook _notebook({
       sort: sort,
       highlightCount: highlights,
       reviewCount: reviews,
+      markedStatus: markedStatus,
+      readingProgress: progress,
     );
 
 /// 可控的假网关：不发网络，只按预设回包。
@@ -30,12 +35,17 @@ class _FakeApi extends WeReadApiService {
   _FakeApi({
     this.notebooks = const [],
     this.details = const {},
+    this.shelf = const [],
+    this.progresses = const {},
   });
 
   final List<WeReadNotebook> notebooks;
   final Map<String, WeReadBookNotes> details;
+  final List<WeReadShelfBook> shelf;
+  final Map<String, WeReadBookProgress> progresses;
 
   final List<String> detailRequests = [];
+  final List<String> progressRequests = [];
 
   @override
   Future<List<WeReadNotebook>> fetchNotebooks({
@@ -52,6 +62,15 @@ class _FakeApi extends WeReadApiService {
       throw const WeReadApiException('拉取失败');
     }
     return detail;
+  }
+
+  @override
+  Future<List<WeReadShelfBook>> fetchShelfBooks() async => shelf;
+
+  @override
+  Future<WeReadBookProgress?> fetchProgress(String bookId) async {
+    progressRequests.add(bookId);
+    return progresses[bookId];
   }
 }
 
@@ -386,6 +405,147 @@ void main() {
       );
 
       expect(await service.autoSyncIfDue(persist: (notes) async {}), isNull);
+    });
+  });
+
+  group('WS 读完档案', () {
+    WeReadBookProgress progressOf({
+      String bookId = 'b1',
+      int finishTime = 1761500000,
+    }) =>
+        WeReadBookProgress(
+          bookId: bookId,
+          finishTime: finishTime,
+          startReadingTime: 1760000000,
+          readingTime: 3600,
+          progress: 99,
+        );
+
+    test('WS-13 标记读完的书会查进度并生成档案', () async {
+      final api = _FakeApi(
+        notebooks: [_notebook(markedStatus: 4, progress: 99)],
+        details: {'b1': _detail()},
+        progresses: {'b1': progressOf()},
+      );
+      final notes = <Note>[];
+      final result = await _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {},
+        api: api,
+      ).sync(persist: (list) async => notes.addAll(list));
+
+      expect(api.progressRequests, ['b1']);
+      expect(result.finishedImported, 1);
+      expect(result.summary, contains('读完档案'));
+      final archive = notes.firstWhere(
+        (note) => note.id.startsWith(WeReadNoteBuilder.finishedIdPrefix),
+      );
+      expect(archive.content, contains('读完时间'));
+      expect(archive.tags, contains('读完'));
+    });
+
+    test('WS-14 已建过档案的书不再查进度', () async {
+      final api = _FakeApi(
+        notebooks: [_notebook(markedStatus: 4, progress: 99)],
+        details: {'b1': _detail()},
+        progresses: {'b1': progressOf()},
+      );
+      final result = await _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {'local_wr_fin_b1'},
+        api: api,
+      ).sync(persist: (notes) async {});
+
+      expect(api.progressRequests, isEmpty);
+      expect(result.finishedImported, 0);
+    });
+
+    test('WS-15 进度里没有 finishTime 就不建档，下一轮同版本不再查', () async {
+      final api = _FakeApi(
+        notebooks: [_notebook(markedStatus: 4, progress: 99)],
+        details: {'b1': _detail()},
+        progresses: {'b1': progressOf(finishTime: 0)},
+      );
+      final service = _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {},
+        api: api,
+      );
+
+      final first = await service.sync(persist: (notes) async {});
+      expect(first.finishedImported, 0);
+      expect(api.progressRequests, ['b1']);
+
+      // 元信息没变：第二轮直接跳过，不再打进度接口
+      final second = await service.sync(persist: (notes) async {});
+      expect(second.finishedImported, 0);
+      expect(api.progressRequests, ['b1'], reason: '确认没读完的书不该反复查');
+    });
+
+    test('WS-16 书架里读完但没有任何笔记的书也建档案', () async {
+      final api = _FakeApi(
+        shelf: const [
+          WeReadShelfBook(
+            bookId: 'shelf-1',
+            title: '超越百岁',
+            author: '彼得·阿提亚',
+            isFinished: true,
+            readUpdateTime: 1786019869,
+          ),
+          WeReadShelfBook(
+            bookId: 'shelf-2',
+            title: '没读完的书',
+            author: '',
+          ),
+        ],
+        progresses: {'shelf-1': progressOf(bookId: 'shelf-1')},
+      );
+      final notes = <Note>[];
+
+      await _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {},
+        api: api,
+      ).sync(persist: (list) async => notes.addAll(list));
+
+      expect(api.progressRequests, ['shelf-1']);
+      expect(notes.single.id, 'local_wr_fin_shelf-1');
+      expect(notes.single.content, contains('《超越百岁》'));
+    });
+
+    test('WS-17 开关关掉时不查进度也不建档案', () async {
+      final api = _FakeApi(
+        notebooks: [_notebook(markedStatus: 4, progress: 99)],
+        details: {'b1': _detail()},
+        progresses: {'b1': progressOf()},
+      );
+      final service = _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {},
+        api: api,
+      );
+      await service.setFinishedSyncEnabled(false);
+
+      final result = await service.sync(persist: (notes) async {});
+
+      expect(api.progressRequests, isEmpty);
+      expect(result.finishedImported, 0);
+    });
+
+    test('WS-18 没读完标记的书不进候选，省掉进度请求', () async {
+      final api = _FakeApi(
+        notebooks: [_notebook(markedStatus: 2, progress: 61)],
+        details: {'b1': _detail()},
+        progresses: {'b1': progressOf()},
+      );
+
+      await _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {},
+        api: api,
+      ).sync(persist: (notes) async {});
+
+      expect(api.progressRequests, isEmpty);
     });
   });
 }

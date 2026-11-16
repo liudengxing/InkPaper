@@ -32,12 +32,14 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
   bool _verifying = false;
   bool _syncing = false;
   bool _autoSync = true;
+  bool _syncFinished = true;
 
   String? _keyError;
   String? _keySuccess;
   DateTime? _lastSyncAt;
   int _trackedBooks = 0;
   int _lastImported = 0;
+  int _lastFinished = 0;
 
   WeReadSyncProgress? _progress;
   String? _syncError;
@@ -57,9 +59,11 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
   Future<void> _loadState() async {
     final apiKey = await _service.getApiKey();
     final autoSync = await _service.isAutoSyncEnabled();
+    final syncFinished = await _service.isFinishedSyncEnabled();
     final lastSyncAt = await _service.lastSyncAt();
     final tracked = await _service.trackedBookCount();
     final lastImported = await _service.lastImportedCount();
+    final lastFinished = await _service.lastFinishedCount();
     if (!mounted) {
       return;
     }
@@ -67,9 +71,11 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
       _keyConfigured = apiKey != null && apiKey.trim().isNotEmpty;
       _apiKeyController.text = apiKey ?? '';
       _autoSync = autoSync;
+      _syncFinished = syncFinished;
       _lastSyncAt = lastSyncAt;
       _trackedBooks = tracked;
       _lastImported = lastImported;
+      _lastFinished = lastFinished;
       _loading = false;
     });
   }
@@ -276,6 +282,7 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
                   textColor: textColor,
                   secondaryTextColor: secondaryTextColor,
                   iconColor: iconColor,
+                  isDarkMode: isDarkMode,
                 ),
                 const SizedBox(height: 16),
                 _buildStatusCard(
@@ -304,6 +311,9 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
         '把微信读书里的划线和想法增量拉进来：一条划线一条笔记，带 '
         '#微信读书 与书名标签。同步用确定性 id 去重，重复跑不会产生副本；'
         '你删掉的笔记也不会被下一次同步复活。\n\n'
+        '读完的书另外生成一条「读完档案」：封面、读完时间、阅读天数、'
+        '累计阅读时长。阅读天数按「开始阅读 → 读完」的自然日跨度算，'
+        '所以起止日期会一起写出来。\n\n'
         '实验性功能：走的是微信读书对外开放的接口，可能随时变更或失效；'
         'API Key 只存在本机安全存储，不经过任何第三方服务器。',
         style: AppTextStyles.bodyMedium(
@@ -434,33 +444,64 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
     required Color textColor,
     required Color secondaryTextColor,
     required Color iconColor,
-  }) =>
-      _SectionCard(
-        cardColor: cardColor,
-        isDarkMode: Theme.of(context).brightness == Brightness.dark,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _autoSync,
-          activeThumbColor: iconColor,
-          title: Text(
-            '开 App 时自动同步',
-            style: TextStyle(
-              color: textColor,
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
+    required bool isDarkMode,
+  }) {
+    final dividerColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.06);
+    return _SectionCard(
+      cardColor: cardColor,
+      isDarkMode: isDarkMode,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Column(
+        children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _autoSync,
+            activeThumbColor: iconColor,
+            title: Text(
+              '开 App 时自动同步',
+              style: TextStyle(
+                color: textColor,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
             ),
+            subtitle: Text(
+              '6 小时内不重复请求，只新增不覆盖',
+              style: TextStyle(color: secondaryTextColor, fontSize: 12.5),
+            ),
+            onChanged: (value) async {
+              setState(() => _autoSync = value);
+              await _service.setAutoSyncEnabled(value);
+            },
           ),
-          subtitle: Text(
-            '6 小时内不重复请求，只新增不覆盖',
-            style: TextStyle(color: secondaryTextColor, fontSize: 12.5),
+          Divider(height: 1, color: dividerColor),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _syncFinished,
+            activeThumbColor: iconColor,
+            title: Text(
+              '同步读完档案',
+              style: TextStyle(
+                color: textColor,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            subtitle: Text(
+              '读完的书生成一条笔记：封面、读完时间、阅读天数',
+              style: TextStyle(color: secondaryTextColor, fontSize: 12.5),
+            ),
+            onChanged: (value) async {
+              setState(() => _syncFinished = value);
+              await _service.setFinishedSyncEnabled(value);
+            },
           ),
-          onChanged: (value) async {
-            setState(() => _autoSync = value);
-            await _service.setAutoSyncEnabled(value);
-          },
-        ),
-      );
+        ],
+      ),
+    );
+  }
 
   Widget _buildStatusCard({
     required BuildContext context,
@@ -498,7 +539,13 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
             ),
             _buildStatusRow(
               '上次新增',
-              _lastImported == 0 ? '—' : '$_lastImported 条',
+              _lastImported == 0 && _lastFinished == 0
+                  ? '—'
+                  : [
+                      if (_lastImported > _lastFinished)
+                        '${_lastImported - _lastFinished} 条笔记',
+                      if (_lastFinished > 0) '$_lastFinished 本读完档案',
+                    ].join(' · '),
               secondaryTextColor,
             ),
             if (_syncing) ...[
@@ -581,14 +628,16 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
 
   String _progressText() {
     final progress = _progress;
+    final isFinishedPhase = progress?.phase == WeReadSyncPhase.finished;
     if (progress == null || progress.booksTotal == 0) {
-      return '正在拉取笔记本列表…';
+      return isFinishedPhase ? '正在读取读完书籍…' : '正在拉取笔记本列表…';
     }
     final title = progress.currentBookTitle;
     final base = '${progress.booksDone}/${progress.booksTotal}';
+    final action = isFinishedPhase ? '正在整理读完档案' : '正在处理';
     return title == null || title.isEmpty
-        ? '正在处理 $base'
-        : '正在处理 $base · 《$title》';
+        ? '$action $base'
+        : '$action $base · 《$title》';
   }
 
   String _formatLastSync() {

@@ -176,6 +176,49 @@ class WeReadApiService {
     );
   }
 
+  /// 拉取单本书的阅读进度。
+  ///
+  /// 这是「读完」与「读完时间」的唯一可靠来源：书架只给一个 finishReading
+  /// 布尔量，笔记本列表的 markedStatus 含义与文档不符。一次约 0.2 秒，
+  /// 只对候选书调用。
+  Future<WeReadBookProgress?> fetchProgress(String bookId) async {
+    if (bookId.trim().isEmpty) {
+      return null;
+    }
+    final data = await _post('/book/getprogress', {'bookId': bookId});
+    final progress = WeReadBookProgress.fromJson({
+      'bookId': bookId,
+      ...data,
+    });
+    return progress.bookId.isEmpty ? null : progress;
+  }
+
+  /// 拉取书架，用于补「没有划线但已读完」的书。
+  ///
+  /// 书架里有 `finishReading`（是否读完）与书名/作者/封面，一次请求拿全，
+  /// 不会像逐本查详情那样放大请求数。
+  Future<List<WeReadShelfBook>> fetchShelfBooks() async {
+    final data = await _post('/shelf/sync');
+    final rawBooks = data['books'];
+    if (rawBooks is! List) {
+      return const [];
+    }
+    final books = <WeReadShelfBook>[];
+    final seen = <String>{};
+    for (final raw in rawBooks) {
+      if (raw is! Map) {
+        continue;
+      }
+      final book = WeReadShelfBook.fromJson(Map<String, dynamic>.from(raw));
+      if (book.bookId.isEmpty || !seen.add(book.bookId)) {
+        continue;
+      }
+      books.add(book);
+    }
+    _logger.debug('书架拉取完成', data: {'books': books.length});
+    return books;
+  }
+
   /// 拉取单本书的全部个人想法/点评。
   ///
   /// 参数名是 `bookid`（小写 d），和 `/book/bookmarklist` 的 `bookId` 不一致，

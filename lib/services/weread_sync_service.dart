@@ -10,17 +10,28 @@ import 'package:inkpaper/services/weread_note_builder.dart';
 import 'package:inkpaper/utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// 同步阶段。UI 用它区分「正在拉划线」和「正在整理读完档案」。
+enum WeReadSyncPhase {
+  /// 拉每本书的划线与想法。
+  notes,
+
+  /// 逐本查阅读进度，给读完的书建档案笔记。
+  finished,
+}
+
 /// 同步进度（界面用它画「正在拉取《xxx》3/12」）。
 class WeReadSyncProgress {
   const WeReadSyncProgress({
     required this.booksDone,
     required this.booksTotal,
     this.currentBookTitle,
+    this.phase = WeReadSyncPhase.notes,
   });
 
   final int booksDone;
   final int booksTotal;
   final String? currentBookTitle;
+  final WeReadSyncPhase phase;
 
   double get ratio => booksTotal <= 0 ? 0 : booksDone / booksTotal;
 }
@@ -68,6 +79,47 @@ int _asInt(Object? value) {
   return int.tryParse(value.toString().trim()) ?? 0;
 }
 
+/// 读完档案的候选书。
+class _FinishedCandidate {
+  const _FinishedCandidate({
+    required this.bookId,
+    required this.title,
+    required this.author,
+    this.cover,
+    this.highlightCount = 0,
+    this.reviewCount = 0,
+    this.version = 0,
+  });
+
+  final String bookId;
+  final String title;
+  final String author;
+  final String? cover;
+  final int highlightCount;
+  final int reviewCount;
+
+  /// 元信息版本（笔记本用 sort，书架用 readUpdateTime）。用它判断
+  /// 「查过且确认没读完」的书要不要重新查。
+  final int version;
+}
+
+/// 读完档案一轮的结果。
+class _FinishedOutcome {
+  const _FinishedOutcome({
+    required this.notes,
+    required this.probed,
+    required this.missed,
+  });
+
+  final List<Note> notes;
+
+  /// 真正查了阅读进度的书数。
+  final int probed;
+
+  /// 「查过但服务端没有 finishTime」的书 → 版本号，下一轮同版本不再查。
+  final Map<String, int> missed;
+}
+
 /// 微信读书 → InkPaper 的笔记同步。
 ///
 /// 幂等靠两条：① 笔记 id 由 bookmarkId / reviewId 确定性生成；② 写库前用
@@ -90,6 +142,8 @@ class WeReadSyncService {
   static const String _prefKeyState = 'weread_sync_state';
   static const String _prefKeyAutoSync = 'weread_auto_sync';
   static const String _prefKeyLastImported = 'weread_last_imported';
+  static const String _prefKeyLastFinished = 'weread_last_finished';
+  static const String _prefKeyFinished = 'weread_sync_finished';
 
   final WeReadApiService _api;
   final DatabaseService _database;
@@ -113,6 +167,17 @@ class WeReadSyncService {
     await prefs.setBool(_prefKeyAutoSync, enabled);
   }
 
+  /// 是否同步「读完档案」（一本书一条，记录读完时间与阅读天数），默认开启。
+  Future<bool> isFinishedSyncEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_prefKeyFinished) ?? true;
+  }
+
+  Future<void> setFinishedSyncEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefKeyFinished, enabled);
+  }
+
   Future<String?> getApiKey() => _preferences.getWeReadApiKey();
 
   Future<void> saveApiKey(String apiKey) =>
@@ -132,6 +197,12 @@ class WeReadSyncService {
   Future<int> lastImportedCount() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getInt(_prefKeyLastImported) ?? 0;
+  }
+
+  /// 上次同步新增了多少本读完档案。
+  Future<int> lastFinishedCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_prefKeyLastFinished) ?? 0;
   }
 
   /// 已记录的「有笔记的书」数量，用于界面展示覆盖范围。
@@ -155,6 +226,7 @@ class WeReadSyncService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_prefKeyState);
     await prefs.remove(_prefKeyLastImported);
+    await prefs.remove(_prefKeyLastFinished);
   }
 
   /// 校验 API Key：能拉到笔记本列表即有效。返回「有笔记的书」数量。
@@ -188,19 +260,13 @@ class WeReadSyncService {
     _running = true;
     final state = await _readState();
     final watermarks = _readWatermarks(state);
+    final finishedMiss = _readFinishedMiss(state);
     final now = DateTime.now();
 
     _api.apiKey = apiKey;
 
     try {
       final notebooks = await _api.fetchNotebooks();
-      if (notebooks.isEmpty) {
-        await _saveState(
-          watermarks: watermarks,
-          lastSyncAt: now,
-        );
-        return const WeReadSyncResult();
-      }
 
       final candidates = <Note>[];
       final failures = <String>[];
@@ -251,15 +317,42 @@ class WeReadSyncService {
         ),
       );
 
+      // 第二阶段：读完档案。失败不影响划线结果，所以整体包一层。
+      var finishedProbed = 0;
+      var finishedMissed = <String, int>{};
+      if (await isFinishedSyncEnabled()) {
+        final outcome = await _syncFinishedBooks(
+          notebooks: notebooks,
+          previousMiss: finishedMiss,
+          onProgress: onProgress,
+          failures: failures,
+        );
+        candidates.addAll(outcome.notes);
+        finishedProbed = outcome.probed;
+        // 本轮查过但没读完的覆盖旧记录；本轮没查的保留旧记录（下次元信息
+        // 变了自然会重新进候选）。
+        finishedMissed = {...finishedMiss, ...outcome.missed};
+      }
+
       final fresh = await _filterUnimported(candidates);
       final skippedDuplicates = candidates.length - fresh.length;
       if (fresh.isNotEmpty) {
         await persist(fresh);
       }
 
-      await _saveState(watermarks: watermarks, lastSyncAt: now);
+      await _saveState(
+        watermarks: watermarks,
+        finishedMiss: finishedMissed,
+        lastSyncAt: now,
+      );
+      final finishedImported = fresh
+          .where(
+            (note) => note.id.startsWith(WeReadNoteBuilder.finishedIdPrefix),
+          )
+          .length;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_prefKeyLastImported, fresh.length);
+      await prefs.setInt(_prefKeyLastFinished, finishedImported);
 
       final result = WeReadSyncResult(
         imported: fresh.length,
@@ -267,6 +360,8 @@ class WeReadSyncService {
         booksSkipped: booksSkipped,
         booksTotal: notebooks.length,
         skippedDuplicates: skippedDuplicates,
+        finishedCandidates: finishedProbed,
+        finishedImported: finishedImported,
         failures: failures,
       );
       _logger.info(
@@ -275,6 +370,8 @@ class WeReadSyncService {
           'imported': result.imported,
           'fetched': booksFetched,
           'skipped': booksSkipped,
+          'finishedProbed': finishedProbed,
+          'finishedImported': result.finishedImported,
           'failures': failures.length,
         },
       );
@@ -309,6 +406,128 @@ class WeReadSyncService {
       _logger.warning('开屏自动同步跳过', data: {'error': '$error'});
       return null;
     }
+  }
+
+  /// 读完档案阶段：候选 → 去重 → 逐本查进度 → 建笔记。
+  ///
+  /// 候选只挑「可能读完」的书（`markedStatus=4` 或进度顶到 99），再并上书架里
+  /// `finishReading=1` 的 —— 后者补的是「一本书没划线但确实读完了」的情况。
+  /// 最终是否读完只看 `/book/getprogress` 的 `finishTime`，那是唯一可靠字段。
+  Future<_FinishedOutcome> _syncFinishedBooks({
+    required List<WeReadNotebook> notebooks,
+    required Map<String, int> previousMiss,
+    required List<String> failures,
+    void Function(WeReadSyncProgress progress)? onProgress,
+  }) async {
+    final candidates = <String, _FinishedCandidate>{};
+    for (final notebook in notebooks) {
+      if (!notebook.maybeFinished || notebook.bookId.isEmpty) {
+        continue;
+      }
+      candidates[notebook.bookId] = _FinishedCandidate(
+        bookId: notebook.bookId,
+        title: notebook.title,
+        author: notebook.author,
+        cover: notebook.cover,
+        highlightCount: notebook.highlightCount,
+        reviewCount: notebook.reviewCount,
+        version: notebook.sort,
+      );
+    }
+
+    try {
+      final shelf = await _api.fetchShelfBooks();
+      for (final book in shelf) {
+        if (!book.isFinished || candidates.containsKey(book.bookId)) {
+          continue;
+        }
+        candidates[book.bookId] = _FinishedCandidate(
+          bookId: book.bookId,
+          title: book.title,
+          author: book.author,
+          cover: book.cover,
+          version: book.readUpdateTime,
+        );
+      }
+    } on WeReadUpgradeRequiredException {
+      rethrow;
+    } on Object catch (error) {
+      // 书架拉不到不影响有笔记的书，只是可能漏掉没划线的读完书。
+      _logger.warning('书架拉取失败', data: {'error': '$error'});
+    }
+
+    if (candidates.isEmpty) {
+      return const _FinishedOutcome(notes: [], probed: 0, missed: {});
+    }
+
+    final existing = await existingNoteIds(
+      candidates.keys.map(WeReadNoteBuilder.finishedNoteId).toSet(),
+    );
+    final pending = candidates.values.where((candidate) {
+      if (existing
+          .contains(WeReadNoteBuilder.finishedNoteId(candidate.bookId))) {
+        return false;
+      }
+      final missedVersion = previousMiss[candidate.bookId];
+      return missedVersion == null || missedVersion != candidate.version;
+    }).toList();
+
+    final notes = <Note>[];
+    final missed = <String, int>{};
+
+    for (var index = 0; index < pending.length; index++) {
+      final candidate = pending[index];
+      onProgress?.call(
+        WeReadSyncProgress(
+          booksDone: index,
+          booksTotal: pending.length,
+          currentBookTitle: candidate.title,
+          phase: WeReadSyncPhase.finished,
+        ),
+      );
+
+      try {
+        final progress = await _api.fetchProgress(candidate.bookId);
+        if (progress == null || !progress.isFinished) {
+          // 记下「查过但这本没读完」，元信息不变就不再浪费请求。
+          missed[candidate.bookId] = candidate.version;
+          continue;
+        }
+        final note = builder.buildFinishedNote(
+          bookId: candidate.bookId,
+          title: candidate.title,
+          author: candidate.author,
+          coverUrl: candidate.cover,
+          progress: progress,
+          highlightCount: candidate.highlightCount,
+          reviewCount: candidate.reviewCount,
+        );
+        if (note != null) {
+          notes.add(note);
+        }
+      } on WeReadUpgradeRequiredException {
+        rethrow;
+      } on Object catch (error) {
+        final title =
+            candidate.title.isEmpty ? candidate.bookId : candidate.title;
+        failures.add('《$title》读完档案：$error');
+        _logger.warning('读完档案失败', data: {'book': title, 'error': '$error'});
+      }
+    }
+
+    onProgress?.call(
+      WeReadSyncProgress(
+        booksDone: pending.length,
+        booksTotal: pending.length,
+        phase: WeReadSyncPhase.finished,
+      ),
+    );
+
+    return _FinishedOutcome(
+      notes: notes,
+      probed: pending.length,
+      missed: missed,
+    );
   }
 
   /// 把一本书的划线 + 想法组装成待写入的笔记。
@@ -426,17 +645,34 @@ class WeReadSyncService {
     return result;
   }
 
+  /// 「查过阅读进度但没读完」的书 → 当时的元信息版本号。
+  Map<String, int> _readFinishedMiss(Map<String, dynamic> state) {
+    final raw = state['finishedMiss'];
+    if (raw is! Map) {
+      return {};
+    }
+    final result = <String, int>{};
+    raw.forEach((key, value) {
+      // 版本号允许为 0（个别书的 sort / readUpdateTime 就是 0），
+      // 「map 里有没有这个 key」本身才是「查过没」的判据。
+      result[key.toString()] = _asInt(value);
+    });
+    return result;
+  }
+
   Future<void> _saveState({
     required Map<String, _BookWatermark> watermarks,
+    required Map<String, int> finishedMiss,
     required DateTime lastSyncAt,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final payload = <String, dynamic>{
-      'v': 1,
+      'v': 2,
       'lastSyncAt': lastSyncAt.millisecondsSinceEpoch,
       'books': {
         for (final entry in watermarks.entries) entry.key: entry.value.toJson(),
       },
+      'finishedMiss': finishedMiss,
     };
     await prefs.setString(_prefKeyState, jsonEncode(payload));
   }

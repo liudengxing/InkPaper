@@ -57,7 +57,10 @@ class WeReadNotebook {
 
   final double readingProgress;
 
-  /// 1 = 读完，0 = 在读。
+  /// 阅读状态。**官方文档写的「1=读完, 0=在读」与实测不符**：实测取值为
+  /// 1/2/3/4，其中 4 才是读完（progress 99~100、`/book/getprogress` 有
+  /// finishTime），1/2/3 都能见到进度只有 30~60 的书。所以这里只把它当
+  /// 「粗筛线索」，最终是否读完一律以 `finishTime > 0` 为准。
   final int markedStatus;
 
   /// 最近一条笔记的排序值（时间戳），翻页游标与增量判断都用它。
@@ -66,7 +69,98 @@ class WeReadNotebook {
   /// 统计口径的总笔记数：想法 + 划线 + 书签。
   int get totalNotes => reviewCount + highlightCount + bookmarkCount;
 
-  bool get isFinished => markedStatus == 1;
+  /// 粗判「可能读完了」：markedStatus 为 4，或进度已经顶到 99% 以上。
+  ///
+  /// 只是用来决定「哪些书值得再调一次进度接口」，不是最终结论 ——
+  /// 微信读书的进度会停在 99 不走到 100，也有进度 0 却标记读完（听书或
+  /// 快速翻完）的情况，所以两条件任一满足都进候选。
+  bool get maybeFinished => markedStatus == 4 || readingProgress >= 99;
+}
+
+/// 单本书的阅读进度（`/book/getprogress`）。
+///
+/// 这是判断「是否读完」与拿「读完时间 / 阅读天数」的唯一可靠来源：
+/// 书架只能给 `finishReading` 布尔量，笔记本列表的 `markedStatus` 含义
+/// 与文档不符，只有这里会给出 `finishTime` 这个确切的时间戳。
+class WeReadBookProgress {
+  const WeReadBookProgress({
+    required this.bookId,
+    this.finishTime = 0,
+    this.startReadingTime = 0,
+    this.readingTime = 0,
+    this.ttsTime = 0,
+    this.progress = 0,
+    this.chapterIdx = 0,
+  });
+
+  factory WeReadBookProgress.fromJson(Map<String, dynamic> json) {
+    // 真实结构是 `{"bookId": "...", "book": {...}}`；个别回包会把字段平铺。
+    final book = json['book'] is Map
+        ? Map<String, dynamic>.from(json['book'] as Map)
+        : json;
+    return WeReadBookProgress(
+      bookId: _asString(json['bookId'] ?? book['bookId']),
+      finishTime: _asInt(book['finishTime']),
+      startReadingTime: _asInt(book['startReadingTime']),
+      readingTime: _asInt(book['readingTime']),
+      ttsTime: _asInt(book['ttsTime']),
+      progress: _asDouble(book['progress']),
+      chapterIdx: _asInt(book['chapterIdx']),
+    );
+  }
+
+  final String bookId;
+
+  /// 读完时间（Unix 秒）。0 表示没读完 —— 这是「读完」的唯一判据。
+  final int finishTime;
+
+  /// 第一次打开这本书的时间（Unix 秒）。
+  final int startReadingTime;
+
+  /// 累计阅读时长（秒）。
+  final int readingTime;
+
+  /// 其中听书时长（秒）。
+  final int ttsTime;
+
+  /// 阅读进度百分比。
+  final double progress;
+
+  final int chapterIdx;
+
+  bool get isFinished => finishTime > 0;
+}
+
+/// 书架条目（`/shelf/sync`），只为补「没有划线但已读完」的书。
+class WeReadShelfBook {
+  const WeReadShelfBook({
+    required this.bookId,
+    required this.title,
+    required this.author,
+    this.cover,
+    this.isFinished = false,
+    this.readUpdateTime = 0,
+  });
+
+  factory WeReadShelfBook.fromJson(Map<String, dynamic> json) =>
+      WeReadShelfBook(
+        bookId: _asString(json['bookId']),
+        title: _asString(json['title']),
+        author: _asString(json['author']),
+        cover:
+            _asString(json['cover']).isEmpty ? null : _asString(json['cover']),
+        // `finishReading: 1` 才是读完；`finish` 是「这本书完结出版」的
+        // 意思（连载书也会是 1），不能拿来判断用户读没读完。
+        isFinished: _asInt(json['finishReading']) == 1,
+        readUpdateTime: _asInt(json['readUpdateTime']),
+      );
+
+  final String bookId;
+  final String title;
+  final String author;
+  final String? cover;
+  final bool isFinished;
+  final int readUpdateTime;
 }
 
 /// 一条划线（高亮原文）。
@@ -216,6 +310,8 @@ class WeReadSyncResult {
     this.booksSkipped = 0,
     this.booksTotal = 0,
     this.skippedDuplicates = 0,
+    this.finishedCandidates = 0,
+    this.finishedImported = 0,
     this.failures = const [],
   });
 
@@ -234,14 +330,24 @@ class WeReadSyncResult {
   /// 命中去重（之前已经导入过）的条数。
   final int skippedDuplicates;
 
+  /// 这一轮查过进度的「可能读完」的书数（已排除建过档案的）。
+  final int finishedCandidates;
+
+  /// 新增的读完档案笔记数。
+  final int finishedImported;
+
   /// 单本失败的书名与原因，不阻断整轮同步。
   final List<String> failures;
 
   bool get isEmpty => imported == 0 && skippedDuplicates == 0;
 
   String get summary {
+    final finishedHint = finishedImported > 0 ? '、$finishedImported 本读完档案' : '';
     if (imported > 0) {
-      return '新增 $imported 条笔记';
+      return '新增 $imported 条笔记$finishedHint';
+    }
+    if (finishedImported > 0) {
+      return '新增 $finishedImported 本读完档案';
     }
     if (skippedDuplicates > 0) {
       return '已是最新，$skippedDuplicates 条已导入过';

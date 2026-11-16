@@ -224,4 +224,136 @@ void main() {
       expect(note!.createdAt, fallback);
     });
   });
+
+  group('WF 读完档案', () {
+    int ts(DateTime time) => time.millisecondsSinceEpoch ~/ 1000;
+
+    WeReadBookProgress progressOf({
+      int finishTime = 0,
+      int startReadingTime = 0,
+      int readingTime = 0,
+      double percent = 99,
+    }) =>
+        WeReadBookProgress(
+          bookId: '3300001',
+          finishTime: finishTime,
+          startReadingTime: startReadingTime,
+          readingTime: readingTime,
+          progress: percent,
+        );
+
+    final started = DateTime(2026, 10, 18, 21, 38);
+    final finished = DateTime(2026, 10, 27, 21, 38);
+
+    test('WF-01 正文含封面、读完时间、阅读天数、累计时长与标签', () {
+      final note = builder.buildFinishedNote(
+        bookId: '3300001',
+        title: '深度工作',
+        author: '卡尔·纽波特',
+        coverUrl: 'https://cdn.weread.qq.com/cover.jpg',
+        progress: progressOf(
+          finishTime: ts(finished),
+          startReadingTime: ts(started),
+          readingTime: 5601,
+        ),
+        highlightCount: 3,
+        reviewCount: 2,
+      );
+
+      expect(note!.id, 'local_wr_fin_3300001');
+      expect(WeReadNoteBuilder.isWeReadNoteId(note.id), isTrue);
+      expect(
+        note.content,
+        startsWith('![](https://cdn.weread.qq.com/cover.jpg)'),
+      );
+      expect(note.content, contains('读完了《深度工作》 · 卡尔·纽波特'));
+      expect(note.content, contains('- 读完时间：2026-10-27 21:38'));
+      expect(note.content, contains('- 阅读天数：10 天'));
+      expect(note.content, contains('2026-10-18 ~ 2026-10-27'));
+      expect(note.content, contains('- 累计阅读：1 小时 33 分钟'));
+      expect(note.content, contains('- 阅读进度：99%'));
+      expect(note.content, contains('- 划线 3 条 · 想法 2 条'));
+      expect(note.tags, containsAll(<String>['微信读书', '读完', '深度工作']));
+      // 笔记时间落在读完那一刻，首页排序才落在读完那天。
+      expect(note.createdAt, finished);
+    });
+
+    test('WF-02 没有 finishTime 就不是读完，不生成档案', () {
+      final note = builder.buildFinishedNote(
+        bookId: '3300001',
+        title: '深度工作',
+        author: '卡尔·纽波特',
+        progress: progressOf(startReadingTime: ts(started)),
+      );
+
+      expect(note, isNull);
+    });
+
+    test('WF-03 同一天读完算 1 天，不是 0 天', () {
+      final note = builder.buildFinishedNote(
+        bookId: '3300001',
+        title: '深度工作',
+        author: '',
+        progress: progressOf(
+          finishTime: ts(finished),
+          startReadingTime: ts(finished.subtract(const Duration(hours: 3))),
+          readingTime: 1800,
+        ),
+      );
+
+      expect(note!.content, contains('- 阅读天数：1 天'));
+      expect(note.content, contains('- 累计阅读：30 分钟'));
+    });
+
+    test('WF-04 没有开始时间时按 1 天算，且不写起止区间', () {
+      final note = builder.buildFinishedNote(
+        bookId: '3300001',
+        title: '深度工作',
+        author: '',
+        progress: progressOf(finishTime: ts(finished)),
+      );
+
+      expect(note!.content, contains('- 阅读天数：1 天'));
+      expect(note.content, isNot(contains('~')));
+    });
+
+    test('WF-05 没有封面 / 作者时不留空壳标记', () {
+      final note = builder.buildFinishedNote(
+        bookId: '3300001',
+        title: '深度工作',
+        author: '',
+        progress: progressOf(finishTime: ts(finished)),
+      );
+
+      expect(note!.content, isNot(contains('![](')));
+      // 标题行不含作者分隔符（页脚里的「 · 阅读档案」不算）
+      expect(note.content, contains('读完了《深度工作》\n'));
+    });
+
+    test('WF-06 一本书记完档案后 id 稳定，重复跑命中去重', () {
+      final first = builder.buildFinishedNote(
+        bookId: '3300001',
+        title: '深度工作',
+        author: '卡尔·纽波特',
+        progress: progressOf(finishTime: ts(finished)),
+      );
+      final second = builder.buildFinishedNote(
+        bookId: '3300001',
+        title: '深度工作（新版）',
+        author: '卡尔·纽波特',
+        progress: progressOf(finishTime: ts(finished)),
+      );
+
+      expect(second!.id, first!.id);
+    });
+
+    test('WF-07 阅读时长格式化', () {
+      expect(WeReadNoteBuilder.formatReadingDuration(0), '');
+      expect(WeReadNoteBuilder.formatReadingDuration(30), '不到 1 分钟');
+      expect(WeReadNoteBuilder.formatReadingDuration(300), '5 分钟');
+      expect(WeReadNoteBuilder.formatReadingDuration(3600), '1 小时');
+      expect(WeReadNoteBuilder.formatReadingDuration(3660), '1 小时 1 分钟');
+      expect(WeReadNoteBuilder.formatReadingDuration(7260), '2 小时 1 分钟');
+    });
+  });
 }

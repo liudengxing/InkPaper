@@ -45,8 +45,13 @@ class LivePhotoUtils {
   }
 
   /// 判断某个图片是否有配套的动图片段。
+  ///
+  /// 只排除确实拿不到本地文件的来源（网络 / content URI）；`file://` 与
+  /// 裸绝对路径都试一下，避免调用方因为少了个前缀就永远判成静态图。
   static bool hasLiveVideo(String imagePath) {
-    if (!imagePath.startsWith('file://')) {
+    if (imagePath.startsWith('http://') ||
+        imagePath.startsWith('https://') ||
+        imagePath.startsWith('content://')) {
       return false;
     }
     try {

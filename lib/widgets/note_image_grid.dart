@@ -10,6 +10,7 @@ import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/image_decode_width.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
+import 'package:inkpaper/widgets/live_photo_badge.dart';
 import 'package:provider/provider.dart';
 
 /// 笔记图片九宫格。
@@ -173,24 +174,35 @@ class _NoteImageGridState extends State<NoteImageGrid> {
           MediaQuery.devicePixelRatioOf(context),
         );
 
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(borderRadius),
-          child: GestureDetector(
-            onTap: () => ImageViewerScreen.open(
-              context,
-              imagePaths: imagePaths,
+        return Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(borderRadius),
+              child: GestureDetector(
+                onTap: () => ImageViewerScreen.open(
+                  context,
+                  imagePaths: imagePaths,
+                ),
+                onLongPress: onLongPress == null
+                    ? null
+                    : () => onLongPress!(imagePaths.first),
+                child: _buildImage(
+                  context,
+                  imagePaths.first,
+                  decodeWidth,
+                  fit: BoxFit.contain,
+                  placeholderHeight: 220,
+                ),
+              ),
             ),
-            onLongPress: onLongPress == null
-                ? null
-                : () => onLongPress!(imagePaths.first),
-            child: _buildImage(
-              context,
-              imagePaths.first,
-              decodeWidth,
-              fit: BoxFit.contain,
-              placeholderHeight: 220,
-            ),
-          ),
+            // 单图铺满宽度，角标跟着放大一档，缩略图上才看得清
+            if (LivePhotoBadge.shouldShow(imagePaths.first))
+              const Positioned(
+                right: 8,
+                top: 8,
+                child: LivePhotoBadge(compact: false),
+              ),
+          ],
         );
       },
     );
@@ -293,9 +305,20 @@ class _NoteImageGridState extends State<NoteImageGrid> {
             initialIndex: index,
           ),
           onLongPress: onLongPress == null ? null : () => onLongPress!(path),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(borderRadius),
-            child: _buildImage(context, path, decodeWidth),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(borderRadius),
+                child: _buildImage(context, path, decodeWidth),
+              ),
+              if (LivePhotoBadge.shouldShow(path))
+                const Positioned(
+                  right: 5,
+                  top: 5,
+                  child: LivePhotoBadge(),
+                ),
+            ],
           ),
         ),
       );

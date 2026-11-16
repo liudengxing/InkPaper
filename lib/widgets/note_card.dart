@@ -26,6 +26,7 @@ import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:inkpaper/utils/text_style_helper.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:inkpaper/utils/todo_parser.dart';
+import 'package:inkpaper/widgets/live_photo_badge.dart';
 import 'package:inkpaper/widgets/note_actions_ui.dart';
 import 'package:inkpaper/widgets/note_image_grid.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
@@ -407,19 +408,32 @@ class _NoteCardState extends State<NoteCard>
             borderRadius: BorderRadius.circular(8),
             color: Colors.grey[200],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: _DeferredThumbnail(
-              delay: _thumbDecodeDelay + _thumbDecodeStep * index.clamp(0, 8),
-              immediate: thumb != null,
-              placeholder: _buildThumbPlaceholder(),
-              builder: () => _buildImageWidget(
-                imagePath,
-                context,
-                decodeWidth: decodeWidth,
-                knownThumb: thumb,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: _DeferredThumbnail(
+                  delay:
+                      _thumbDecodeDelay + _thumbDecodeStep * index.clamp(0, 8),
+                  immediate: thumb != null,
+                  placeholder: _buildThumbPlaceholder(),
+                  builder: () => _buildImageWidget(
+                    imagePath,
+                    context,
+                    decodeWidth: decodeWidth,
+                    knownThumb: thumb,
+                  ),
+                ),
               ),
-            ),
+              // Live 图：右下角之外最容易看到的位置，缩略图只有 120 高
+              if (LivePhotoBadge.shouldShow(imagePath))
+                const Positioned(
+                  right: 6,
+                  top: 6,
+                  child: LivePhotoBadge(),
+                ),
+            ],
           ),
         ),
       );

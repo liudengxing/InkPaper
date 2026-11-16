@@ -331,6 +331,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
                     itemBuilder: (context, index) => _PhotoPage(
                       key: ValueKey(widget.imagePaths[index]),
                       imagePath: widget.imagePaths[index],
+                      isActive: index == _currentIndex,
                       matrix: index == _currentIndex
                           ? _transformationController
                           : null,
@@ -1007,9 +1008,14 @@ class _PhotoPage extends StatefulWidget {
     super.key,
     this.matrix,
     this.onLayout,
+    this.isActive = false,
   });
 
   final String imagePath;
+
+  /// 是不是当前正在看的那一页。Live 图只在这一页自动播，
+  /// 否则多图笔记一打开，所有页的视频一起解码。
+  final bool isActive;
 
   /// 当前页才会拿到缩放矩阵，相邻页传 null（永远按完整显示渲染）。
   final TransformationController? matrix;
@@ -1043,10 +1049,18 @@ class _PhotoPageState extends State<_PhotoPage> {
   bool _liveLoading = false;
   bool _liveFailed = false;
 
+  /// Live 图自动播放的延迟：转场结束、原图解码之后才开始解视频。
+  ///
+  /// 原图在 260ms 才启动解码，这里必须排在它后面 —— 两件事挤在同一帧里，
+  /// 打开查看器的动画就会被视频解码拖出顿感。
+  static const Duration _liveAutoPlayDelay = Duration(milliseconds: 550);
+  Timer? _liveAutoPlayTimer;
+
   @override
   void initState() {
     super.initState();
     _hasLiveVideo = LivePhotoUtils.hasLiveVideo(widget.imagePath);
+    _scheduleLiveAutoPlay();
   }
 
   @override
@@ -1067,21 +1081,75 @@ class _PhotoPageState extends State<_PhotoPage> {
       _disposeLiveController();
       _hasLiveVideo = LivePhotoUtils.hasLiveVideo(widget.imagePath);
       _liveFailed = false;
+      _scheduleLiveAutoPlay();
+      return;
+    }
+    if (oldWidget.isActive != widget.isActive) {
+      if (widget.isActive) {
+        _scheduleLiveAutoPlay();
+      } else {
+        // 翻到别的图了，后台继续播既费电又浪费解码器
+        _stopLivePlayback();
+      }
+    }
+  }
+
+  /// 当前页是 Live 图就自动播一遍：静音、不循环，播完回到静态图。
+  void _scheduleLiveAutoPlay() {
+    _liveAutoPlayTimer?.cancel();
+    if (!_hasLiveVideo || !widget.isActive || _liveFailed) {
+      return;
+    }
+    _liveAutoPlayTimer = Timer(_liveAutoPlayDelay, () {
+      if (!mounted || !widget.isActive || _livePlaying) {
+        return;
+      }
+      unawaited(_toggleLive(silent: true));
+    });
+  }
+
+  void _stopLivePlayback() {
+    _liveAutoPlayTimer?.cancel();
+    final controller = _liveController;
+    if (controller != null && controller.value.isPlaying) {
+      unawaited(controller.pause());
+    }
+    if (_livePlaying) {
+      setState(() => _livePlaying = false);
+    }
+  }
+
+  /// 视频播到末尾（不循环）时把覆盖层收起来，回到静态图。
+  void _handleLiveTick() {
+    final controller = _liveController;
+    if (controller == null || !_livePlaying || !mounted) {
+      return;
+    }
+    final value = controller.value;
+    if (!value.isInitialized || value.duration <= Duration.zero) {
+      return;
+    }
+    if (!value.isPlaying && value.position >= value.duration) {
+      setState(() => _livePlaying = false);
     }
   }
 
   void _disposeLiveController() {
+    _liveAutoPlayTimer?.cancel();
     final controller = _liveController;
     _liveController = null;
     _livePlaying = false;
     _liveLoading = false;
     if (controller != null) {
+      controller.removeListener(_handleLiveTick);
       unawaited(controller.dispose());
     }
   }
 
-  /// 点击 LIVE 角标：首次点击才创建播放器，避免打开查看器就解码视频。
-  Future<void> _toggleLive() async {
+  /// 播放 / 暂停 Live 片段。
+  ///
+  /// [silent] 给自动播放用：静音播一遍，手动点角标才有声音。
+  Future<void> _toggleLive({bool silent = false}) async {
     if (_livePlaying) {
       await _liveController?.pause();
       if (mounted) {
@@ -1101,7 +1169,10 @@ class _PhotoPageState extends State<_PhotoPage> {
       );
       try {
         await created.initialize();
-        await created.setLooping(true);
+        // Live 图是「播一遍就停」：循环播放在自动播放时像 GIF，还费电
+        await created.setLooping(false);
+        await created.setVolume(silent ? 0 : 1);
+        created.addListener(_handleLiveTick);
         _liveController = created;
         controller = created;
       } on Object catch (e) {
@@ -1118,6 +1189,7 @@ class _PhotoPageState extends State<_PhotoPage> {
     }
 
     try {
+      await controller.setVolume(silent ? 0 : 1);
       await controller.seekTo(Duration.zero);
       await controller.play();
     } on Object catch (e) {
@@ -1223,6 +1295,7 @@ class _PhotoPageState extends State<_PhotoPage> {
   @override
   void dispose() {
     _originalTimer?.cancel();
+    _liveAutoPlayTimer?.cancel();
     if (_imageStream != null && _imageStreamListener != null) {
       _imageStream!.removeListener(_imageStreamListener!);
     }

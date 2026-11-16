@@ -230,4 +230,101 @@ void main() {
       reason: '键盘收起后要回到原来的行数高度',
     );
   });
+
+  Widget fsApp(String content) => ChangeNotifierProvider(
+        create: (_) => AppProvider(),
+        child: MaterialApp(
+          home: NoteEditor(
+            fullScreen: true,
+            initialContent: content,
+            onSave: (_) async {},
+          ),
+        ),
+      );
+
+  Future<void> openFullscreenEditor(WidgetTester tester, int imageCount) async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(fsApp(_imageMarkdown(image, imageCount)));
+    await tester.pumpAndSettle();
+    expect(find.byType(NoteEditor), findsOneWidget);
+    // 全屏编辑器打开后有个 180ms 聚焦定时器，推掉避免 pending timer
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  /// 全屏编辑专属（注意：底部卡片那几条测试锁的是旧行为，勿混改）。
+  group('全屏编辑图片区两态', () {
+    testWidgets('FSG-01 图片区默认只露一行九宫格，正文不被挤', (tester) async {
+      usePhoneCanvas(tester);
+      await openFullscreenEditor(tester, 7);
+
+      final section = tester.getRect(imageSection);
+      final tile = tester.getRect(find.byType(AnimatedSlide).first).height;
+      expect(
+        section.height,
+        closeTo(22.0 + 4.0 + tile + 16.0, 1.0),
+        reason: '默认只露一行：标题行 22 + 上内距 4 + 一格 + 底部留白 16',
+      );
+      // 正文始终可见：图片区顶边距顶栏要留出一大截（文字区高度）
+      expect(
+        section.top - 50,
+        greaterThan(100),
+        reason: '图片区只占一行，中间的文字区应该还有几百 px',
+      );
+      expect(find.text('7 张图片 · 长按拖动排序 · 上滑展开'), findsOneWidget);
+    });
+
+    testWidgets('FSG-02 上滑展开看全部，下滑收起回一行', (tester) async {
+      usePhoneCanvas(tester);
+      await openFullscreenEditor(tester, 7);
+
+      final collapsed = tester.getRect(imageSection).height;
+      await tester.fling(imageSection, const Offset(0, -300), 1000);
+      await tester.pumpAndSettle();
+
+      final expanded = tester.getRect(imageSection).height;
+      expect(
+        expanded,
+        greaterThan(collapsed + 100),
+        reason: '展开后至少多露一整行',
+      );
+      expect(
+        tester.getRect(imageSection).top - 50,
+        greaterThan(100),
+        reason: '展开后正文的最低保留高度仍在',
+      );
+      expect(find.text('7 张图片 · 长按拖动排序 · 下滑收起'), findsOneWidget);
+
+      // 展开后格子自己吃纵向滚动，收起手势从标题行走
+      await tester.fling(
+        find.text('7 张图片 · 长按拖动排序 · 下滑收起'),
+        const Offset(0, 300),
+        1000,
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getRect(imageSection).height, closeTo(collapsed, 1.0));
+    });
+
+    testWidgets('FSG-03 每格右上角有删除按钮，点击移除图片', (tester) async {
+      usePhoneCanvas(tester);
+      // 4 张 = 2 行：收起时只渲染第一行的 3 个删除钮
+      await openFullscreenEditor(tester, 4);
+
+      final deleteInGrid = find.descendant(
+        of: imageSection,
+        matching: find.byIcon(Icons.close),
+      );
+      expect(deleteInGrid, findsNWidgets(3));
+
+      await tester.tap(deleteInGrid.first);
+      await tester.pumpAndSettle();
+
+      // 剩 3 张只有一行，不再可展开，提示回到普通文案
+      expect(find.text('3 张图片 · 长按拖动排序'), findsOneWidget);
+      expect(
+        find.descendant(of: imageSection, matching: find.byIcon(Icons.close)),
+        findsNWidgets(3),
+      );
+    });
+  });
 }

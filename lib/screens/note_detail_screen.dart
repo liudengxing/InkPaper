@@ -423,7 +423,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           // 中间：笔记内容（单击进编辑态，长按复制全文）
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              // 顶边距 8 与编辑页正文输入框的 top:8 对齐：两边切换时正文起点不跳
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
                 // 单击正文＝编辑。原来要双击，等于把「能改」藏起来了：
@@ -604,14 +605,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                               // 视频与图片互斥：有视频就只显示视频卡片，
                               // 点开走全屏播放器
                               if (_renderVideoPaths.isNotEmpty) ...[
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 16),
                                 NoteVideoCard(
                                   videoPath: _renderVideoPaths.first,
                                 ),
                               ]
                               // 图片统一走九宫格，长按弹保存菜单
                               else if (_renderImagePaths.isNotEmpty) ...[
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 16),
                                 NoteImageGrid(
                                   imagePaths: _renderImagePaths,
                                   serverUrl: serverUrl,
@@ -629,10 +630,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             ),
           ),
 
-          // 底部信息区：时间在左、字数在其右，同一套字体字号
+          // 底部信息区：时间 | 字数，位置对齐编辑页底部工具栏
           _buildBottomInfo(
             secondaryTextColor: secondaryTextColor,
             iconColor: iconColor,
+            dividerColor: dividerColor,
           ),
         ],
       ),
@@ -689,52 +691,74 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     );
   }
 
-  /// 底部信息区：时间（创建，按当前显示口径）在左、字数在其右，
-  /// 字体字号一致；设了提醒就单独一行展示。
+  /// 底部信息条：高度与分隔线对齐编辑页底部工具栏（50px + 0.5 线），
+  /// 切换编辑态时底部不跳。时间（创建，按当前显示口径）在左、
+  /// 「|」分隔、字数在右同一套字体字号；设了提醒就排在行尾。
   Widget _buildBottomInfo({
     required Color secondaryTextColor,
     required Color iconColor,
+    required Color dividerColor,
   }) {
     final note = _note!;
     final infoStyle = TextStyle(fontSize: 14, color: secondaryTextColor);
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (note.reminderTime != null) ...[
-              Row(
-                children: [
-                  Icon(Icons.alarm, size: 14, color: iconColor),
-                  const SizedBox(width: 4),
-                  Text(
-                    '提醒: ${DateFormat('MM-dd HH:mm').format(note.reminderTime!)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: iconColor,
-                      fontWeight: FontWeight.w500,
-                    ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          height: 50,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: dividerColor, width: 0.5)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                // 详情页展示创建时间：最后编辑时间会随待办等操作不断变化，
+                // 不便于定位这条笔记是什么时候记下的。显示口径与首页卡片一致。
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: formatNoteTimestamp(note.createdAt),
+                        style: infoStyle,
+                      ),
+                      TextSpan(
+                        text: ' | ',
+                        style: infoStyle.copyWith(
+                          color: dividerColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      TextSpan(
+                        text: '${note.content.length} 字',
+                        style: infoStyle,
+                      ),
+                    ],
                   ),
-                ],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              const SizedBox(height: 6),
-            ],
-            // 详情页展示创建时间：最后编辑时间会随待办等操作不断变化，
-            // 不便于定位这条笔记是什么时候记下的。显示口径与首页卡片一致。
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(formatNoteTimestamp(note.createdAt), style: infoStyle),
-                const SizedBox(width: 10),
-                Text('${note.content.length} 字', style: infoStyle),
+              if (note.reminderTime != null) ...[
+                const SizedBox(width: 12),
+                Icon(Icons.alarm, size: 14, color: iconColor),
+                const SizedBox(width: 4),
+                Text(
+                  DateFormat('MM-dd HH:mm').format(note.reminderTime!),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: iconColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
+        // 手势条高度自己让开：外层是自绘 Column，没有 Scaffold/SafeArea 帮垫
+        SizedBox(height: MediaQuery.of(context).padding.bottom),
+      ],
     );
   }
 

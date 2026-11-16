@@ -106,6 +106,10 @@ class _NoteEditorState extends State<NoteEditor>
   // 是否显示更多选项
   bool _showingMoreOptions = false;
 
+  /// 全屏编辑：图片区是否已展开。默认只露一行九宫格（正文永远可见），
+  /// 上滑展开看全部、下滑收起；卡片新建模式没有这个两态。
+  bool _imageSectionExpanded = false;
+
   // 🚀 标志：是否已成功保存笔记（用于判断是否需要保存草稿）
   bool _hasSuccessfullySaved = false;
 
@@ -1423,7 +1427,7 @@ class _NoteEditorState extends State<NoteEditor>
   }) {
     final l10n = AppLocalizationsSimple.of(context);
     return Container(
-      height: 50,
+      height: _fullScreenHeaderHeight,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: dividerColor, width: 0.5)),
@@ -1487,7 +1491,7 @@ class _NoteEditorState extends State<NoteEditor>
     );
 
     // 底部工具栏高度
-    const toolbarHeight = 50.0;
+    const toolbarHeight = _editorToolbarHeight;
     final keyboardInset = mediaQuery.viewInsets.bottom;
 
     // 顶部指示器和内边距高度
@@ -1528,16 +1532,22 @@ class _NoteEditorState extends State<NoteEditor>
     // 还按满格九宫格的高度长：卡片已经不再变高，多出来的空间只能从文字区抢，
     // 文字会被挤扁。这里让图片区主动让步——只显示能放下的**完整行**，其余靠
     // 内部滚动；给到 1.3 行会让第二行被裁掉一截，看起来像图片没加载完。
+    // 全屏编辑的图片区：默认只露一行九宫格，正文不被动；上滑展开看全部。
+    // 卡片新建模式保持原行为：按预算放下尽量多的整行，卡片随之长高。
     final imageSectionHeight = _hasVideo
         ? _videoSectionHeight
         : (_imageList.isEmpty
             ? 0.0
-            : _imageGridFitHeight(
-                widget.fullScreen
-                    ? imageTargetHeight
-                    : editorHeight - baseEditorHeight,
-                screenSize.width,
-              ));
+            : widget.fullScreen
+                ? _fullscreenImageSectionHeight(
+                    screenSize.width,
+                    availableHeight,
+                    toolbarHeight,
+                  )
+                : _imageGridFitHeight(
+                    editorHeight - baseEditorHeight,
+                    screenSize.width,
+                  ));
 
     // 获取当前主题模式
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -1716,9 +1726,12 @@ class _NoteEditorState extends State<NoteEditor>
                                     ),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.only(
+                                    padding: EdgeInsets.only(
                                       left: 16,
-                                      right: 56,
+                                      // 语音按钮固定在文字区右上角，开了语音
+                                      // 才需要给右边留出它的位置；不开时与
+                                      // 详情页同样留 16，两边切换正文不换行跳动。
+                                      right: _speechEnabled ? 56 : 16,
                                       top: 8,
                                       bottom: 8,
                                     ),
@@ -1967,11 +1980,21 @@ class _NoteEditorState extends State<NoteEditor>
                               ),
                             ),
 
-                            // 图片预览区域：九宫格（长按拖动排序）
+                            // 图片预览区域：九宫格（长按拖动排序）；全屏下
+                            // 默认一行，上滑展开，可展开时给外层套上滑/下滑手势
                             if (_imageList.isNotEmpty)
                               _buildImageSection(
                                 dividerColor,
                                 imageSectionHeight,
+                                expandable: widget.fullScreen &&
+                                    !_hasVideo &&
+                                    _imageGridContentHeight(screenSize.width) >
+                                        _imageGridHeaderHeight +
+                                            _imageGridTopPadding +
+                                            _imageGridTileSize(
+                                              screenSize.width,
+                                            ) +
+                                            _imageGridBottomPadding,
                               ),
 
                             // 更多选项栏（条件显示）
@@ -2427,11 +2450,15 @@ class _NoteEditorState extends State<NoteEditor>
   /// 所以这里只需要一个裁剪壳，不再有两态切换。高度用 [AnimatedContainer]：
   /// 键盘弹起 / 收起时它要和卡片位移同一条曲线一起收，否则图片区先缩、卡片后缩，
   /// 读起来就是「拉一下再跳一下」。
-  Widget _buildImageSection(Color dividerColor, double height) {
+  Widget _buildImageSection(
+    Color dividerColor,
+    double height, {
+    bool expandable = false,
+  }) {
     if (_hasVideo) {
       return _buildVideoSection(dividerColor);
     }
-    return AnimatedContainer(
+    Widget section = AnimatedContainer(
       key: const ValueKey('note-editor-image-section'),
       duration: _heightTransitionDuration,
       curve: Curves.easeOutCubic,
@@ -2445,13 +2472,100 @@ class _NoteEditorState extends State<NoteEditor>
             top: BorderSide(color: dividerColor, width: 0.5),
           ),
         ),
-        child: ClipRect(child: _buildImageGrid()),
+        child: ClipRect(
+          child: _buildImageGrid(
+            scrollable: !expandable || _imageSectionExpanded,
+            expandable: expandable,
+          ),
+        ),
       ),
     );
+
+    // 可展开时整个图片区吃上滑/下滑手势：收起状态九宫格不滚，
+    // 纵向拖动全归这里；展开后格子自己滚，收起手势走标题行。
+    if (expandable) {
+      section = GestureDetector(
+        onVerticalDragUpdate: _handleImageSectionDragUpdate,
+        onVerticalDragEnd: _handleImageSectionDragEnd,
+        child: section,
+      );
+    }
+    return section;
+  }
+
+  /// 累计本次纵向拖动的位移（手势判定同时看位移和速度）。
+  double _imageSectionDragDelta = 0;
+
+  void _handleImageSectionDragUpdate(DragUpdateDetails details) {
+    _imageSectionDragDelta += details.delta.dy;
+  }
+
+  /// 图片区的上滑/下滑手势：上滑展开、下滑收起。
+  void _handleImageSectionDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    final moved = _imageSectionDragDelta;
+    _imageSectionDragDelta = 0;
+    final swipeUp = velocity < -120 || moved < -24;
+    final swipeDown = velocity > 120 || moved > 24;
+    if (swipeUp && !_imageSectionExpanded) {
+      setState(() => _imageSectionExpanded = true);
+    } else if (swipeDown && _imageSectionExpanded) {
+      setState(() => _imageSectionExpanded = false);
+    }
   }
 
   /// 视频卡片高度。视频只放一个，不做九宫格，所以高度是定值。
   static const double _videoCardHeight = 180;
+
+  /// 全屏顶栏高度（详情页底部信息条也按这个高度对齐）。
+  static const double _fullScreenHeaderHeight = 50;
+
+  /// 底部工具栏高度。
+  static const double _editorToolbarHeight = 50;
+
+  /// 全屏编辑时展开图片区后给正文保留的最低高度（约 5 行），
+  /// 图片再多正文也不被挤没。
+  static const double _minTextAreaHeight = 120;
+
+  /// 全屏编辑的图片区高度：默认一行九宫格；展开时最多吃到
+  /// 「可用高度 - 顶栏 - 工具栏 - 正文最低高度」，收在整行边界，
+  /// 剩下的行交给九宫格内部滚动。
+  double _fullscreenImageSectionHeight(
+    double width,
+    double availableHeight,
+    double toolbarHeight,
+  ) {
+    final tile = _imageGridTileSize(width);
+    final oneRow = _imageGridHeaderHeight +
+        _imageGridTopPadding +
+        tile +
+        _imageGridBottomPadding;
+    final target = _imageGridContentHeight(width);
+    if (target <= oneRow) {
+      return target;
+    }
+    if (!_imageSectionExpanded) {
+      return oneRow;
+    }
+    final maxAllowed = availableHeight -
+        _fullScreenHeaderHeight -
+        toolbarHeight -
+        _minTextAreaHeight;
+    final fitRows = ((maxAllowed -
+                _imageGridHeaderHeight -
+                _imageGridTopPadding -
+                _imageGridBottomPadding +
+                _imageGridSpacing) /
+            (tile + _imageGridSpacing))
+        .floor()
+        .clamp(1, _imageRows);
+    final capped = _imageGridHeaderHeight +
+        _imageGridTopPadding +
+        fitRows * tile +
+        (fitRows - 1) * _imageGridSpacing +
+        _imageGridBottomPadding;
+    return math.min(target, math.max(oneRow, capped));
+  }
 
   /// 视频区总高：标题行 + 上内边距 + 卡片 + 底部留白，与九宫格同一套算法口径。
   double get _videoSectionHeight =>
@@ -2512,22 +2626,32 @@ class _NoteEditorState extends State<NoteEditor>
     );
   }
 
-  Widget _buildImageGrid() {
+  Widget _buildImageGrid({bool scrollable = true, bool expandable = false}) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final secondaryTextColor = isDarkMode ? Colors.grey[400] : Colors.grey[700];
+    final sortHint = '${_imageList.length} 张图片 · 长按拖动排序';
+    final hint = expandable
+        ? (scrollable ? '$sortHint · 下滑收起' : '$sortHint · 上滑展开')
+        : sortHint;
     return Column(
       children: [
         // 高度必须固定：它已经算进图片区总高，这里若随字号/字体缩放变高，卡片
         // 就会比预算的矮一截，九宫格底部被裁。
         SizedBox(
           height: _imageGridHeaderHeight,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '${_imageList.length} 张图片 · 长按拖动排序',
-                style: TextStyle(fontSize: 12, color: secondaryTextColor),
+          child: GestureDetector(
+            // 展开后格子自己吃纵向滚动手势，收起只能从标题行拖
+            onVerticalDragUpdate:
+                expandable ? _handleImageSectionDragUpdate : null,
+            onVerticalDragEnd: expandable ? _handleImageSectionDragEnd : null,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  hint,
+                  style: TextStyle(fontSize: 12, color: secondaryTextColor),
+                ),
               ),
             ),
           ),
@@ -2541,6 +2665,9 @@ class _NoteEditorState extends State<NoteEditor>
               return GridView.builder(
                 key: _imageGridKey,
                 controller: _imageGridScrollController,
+                // 收起状态不滚：一行高度里纵向拖动要归「上滑展开」手势。
+                physics:
+                    scrollable ? null : const NeverScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(
                   _imageGridHPadding,
                   _imageGridTopPadding,
@@ -2611,7 +2738,7 @@ class _NoteEditorState extends State<NoteEditor>
         onDragEnd: (details) => _finishGridDrag(),
         onDraggableCanceled: (velocity, offset) =>
             _finishGridDrag(cancelled: true),
-        child: _buildGridTile(image, index, showDelete: false),
+        child: _buildGridTile(image, index),
       ),
     );
   }

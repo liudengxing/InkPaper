@@ -393,7 +393,9 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildGlassAction(
-                      icon: Icons.north_east_rounded,
+                      // 微信同款转发箭头：reply 是向左的实心弧箭头，镜像成向右。
+                      icon: Icons.reply_rounded,
+                      flipX: true,
                       tooltip: l10n?.share ?? '分享',
                       onTap: _handleShare,
                     ),
@@ -442,6 +444,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
     required IconData icon,
     required String tooltip,
     required VoidCallback onTap,
+    bool flipX = false,
   }) {
     return Tooltip(
       message: tooltip,
@@ -461,7 +464,10 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
             child: SizedBox(
               width: 48,
               height: 48,
-              child: Icon(icon, color: Colors.white, size: 22),
+              child: Transform.flip(
+                flipX: flipX,
+                child: Icon(icon, color: Colors.white, size: 22),
+              ),
             ),
           ),
         ),

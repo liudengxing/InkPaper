@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
@@ -276,80 +277,168 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizationsSimple.of(context);
+    final total = widget.imagePaths.length;
+    final mediaPadding = MediaQuery.paddingOf(context);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      // 沉浸式全黑页面没有 AppBar 帮着切状态栏样式，这里手动指定浅色图标，
+      // 否则深色图标会直接消失在黑底里。
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
         backgroundColor: Colors.black,
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.black.withValues(alpha: 0.34),
-          elevation: 0,
-          iconTheme: const IconThemeData(color: Colors.white),
-          title: Text(
-            widget.imagePaths.length > 1
-                ? '${_currentIndex + 1}/${widget.imagePaths.length}'
-                : (AppLocalizationsSimple.of(context)?.viewOriginalImage ??
-                    '查看原图'),
-            style: const TextStyle(color: Colors.white, fontSize: 16),
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.download, color: Colors.white),
-              tooltip: AppLocalizationsSimple.of(context)?.saveImage ?? '保存图片',
-              onPressed: () async {
-                await ImageUtils.saveImageToGallery(
-                  context,
-                  _getFullImageUrl(context),
-                  headers: _getHeaders(context),
-                );
-              },
+        body: Stack(
+          children: [
+            Positioned.fill(
+              // 键盘 / 鼠标滚轮缩放：只有 PointerSignal，不参与手势竞技场
+              child: Listener(
+                onPointerSignal: _handlePointerSignal,
+                // 查看器里所有触摸手势都归这一个识别器管：翻页、缩放、平移。
+                // PageView 的 physics 恒为 NeverScrollable，它不再注册拖动识别器，
+                // 也就不会和缩放手势抢 —— 这是这次改造的核心。
+                child: RawGestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  gestures: <Type, GestureRecognizerFactory>{
+                    TapGestureRecognizer: GestureRecognizerFactoryWithHandlers<
+                        TapGestureRecognizer>(
+                      TapGestureRecognizer.new,
+                      (recognizer) => recognizer.onTap = _handleCloseTap,
+                    ),
+                    DoubleTapGestureRecognizer:
+                        GestureRecognizerFactoryWithHandlers<
+                            DoubleTapGestureRecognizer>(
+                      DoubleTapGestureRecognizer.new,
+                      (recognizer) => recognizer
+                        ..onDoubleTapDown = _handleDoubleTapDown
+                        ..onDoubleTap = _handleDoubleTap,
+                    ),
+                    _ViewerGestureRecognizer:
+                        GestureRecognizerFactoryWithHandlers<
+                            _ViewerGestureRecognizer>(
+                      _ViewerGestureRecognizer.new,
+                      (recognizer) => recognizer
+                        ..onStart = _handleScaleStart
+                        ..onUpdate = _handleScaleUpdate
+                        ..onEnd = _handleScaleEnd,
+                    ),
+                  },
+                  child: PageView.builder(
+                    controller: _pageController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: widget.imagePaths.length,
+                    onPageChanged: _handlePageChanged,
+                    itemBuilder: (context, index) => _PhotoPage(
+                      key: ValueKey(widget.imagePaths[index]),
+                      imagePath: widget.imagePaths[index],
+                      matrix: index == _currentIndex
+                          ? _transformationController
+                          : null,
+                      onLayout:
+                          index == _currentIndex ? _handleCurrentLayout : null,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // 顶部只留一个关闭按钮和居中页码，不再压一整条工具栏，
+            // 图片区域尽量让给画面（微信看图同款）。
+            Positioned(
+              top: mediaPadding.top + 6,
+              left: 8,
+              child: _buildViewerAction(
+                icon: Icons.close_rounded,
+                tooltip: l10n?.close ?? '关闭',
+                onTap: _handleCloseTap,
+              ),
+            ),
+            if (total > 1)
+              Positioned(
+                top: mediaPadding.top + 18,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Center(
+                    child: Text(
+                      '${_currentIndex + 1}/$total',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        shadows: [
+                          Shadow(color: Colors.black54, blurRadius: 6),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            // 右下角两个操作：分享、保存
+            Positioned(
+              right: 16,
+              bottom: mediaPadding.bottom + 20,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildViewerAction(
+                    icon: Icons.share_rounded,
+                    tooltip: l10n?.share ?? '分享',
+                    onTap: _handleShare,
+                  ),
+                  const SizedBox(width: 12),
+                  _buildViewerAction(
+                    icon: Icons.download_rounded,
+                    tooltip: l10n?.saveImage ?? '保存图片',
+                    onTap: _handleSave,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-        // 键盘 / 鼠标滚轮缩放：只有 PointerSignal，不参与手势竞技场
-        body: Listener(
-          onPointerSignal: _handlePointerSignal,
-          // 查看器里所有触摸手势都归这一个识别器管：翻页、缩放、平移。
-          // PageView 的 physics 恒为 NeverScrollable，它不再注册拖动识别器，
-          // 也就不会和缩放手势抢 —— 这是这次改造的核心。
-          child: RawGestureDetector(
-            behavior: HitTestBehavior.opaque,
-            gestures: <Type, GestureRecognizerFactory>{
-              TapGestureRecognizer:
-                  GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
-                TapGestureRecognizer.new,
-                (recognizer) => recognizer.onTap = _handleCloseTap,
-              ),
-              DoubleTapGestureRecognizer: GestureRecognizerFactoryWithHandlers<
-                  DoubleTapGestureRecognizer>(
-                DoubleTapGestureRecognizer.new,
-                (recognizer) => recognizer
-                  ..onDoubleTapDown = _handleDoubleTapDown
-                  ..onDoubleTap = _handleDoubleTap,
-              ),
-              _ViewerGestureRecognizer: GestureRecognizerFactoryWithHandlers<
-                  _ViewerGestureRecognizer>(
-                _ViewerGestureRecognizer.new,
-                (recognizer) => recognizer
-                  ..onStart = _handleScaleStart
-                  ..onUpdate = _handleScaleUpdate
-                  ..onEnd = _handleScaleEnd,
-              ),
-            },
-            child: PageView.builder(
-              controller: _pageController,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: widget.imagePaths.length,
-              onPageChanged: _handlePageChanged,
-              itemBuilder: (context, index) => _PhotoPage(
-                key: ValueKey(widget.imagePaths[index]),
-                imagePath: widget.imagePaths[index],
-                matrix:
-                    index == _currentIndex ? _transformationController : null,
-                onLayout: index == _currentIndex ? _handleCurrentLayout : null,
-              ),
-            ),
+      ),
+    );
+  }
+
+  /// 查看器上的圆形浮动按钮：半透明黑底 + 白色图标，压在照片上也不抢画面。
+  Widget _buildViewerAction({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.42),
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(icon, color: Colors.white, size: 22),
           ),
         ),
-      );
+      ),
+    );
+  }
+
+  Future<void> _handleShare() async {
+    await ImageUtils.shareImage(
+      context,
+      _getFullImageUrl(context),
+      headers: _getHeaders(context),
+    );
+  }
+
+  Future<void> _handleSave() async {
+    await ImageUtils.saveImageToGallery(
+      context,
+      _getFullImageUrl(context),
+      headers: _getHeaders(context),
+    );
+  }
 
   void _handleCloseTap() {
     Navigator.of(context).maybePop();
@@ -1055,7 +1144,8 @@ class _PhotoPageState extends State<_PhotoPage> {
     }
     final topInset = MediaQuery.paddingOf(context).top + 12;
     return Positioned(
-      left: 12,
+      // 左上角现在是关闭按钮，LIVE 角标挪到右上角，两边不打架。
+      right: 12,
       top: topInset,
       child: GestureDetector(
         onTap: _toggleLive,

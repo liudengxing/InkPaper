@@ -94,7 +94,15 @@ class ImageUtils {
 
   static String _imageExtensionFromSource(String? source) {
     final path = Uri.tryParse(source ?? '')?.path.toLowerCase() ?? '';
-    for (final extension in ['jpg', 'jpeg', 'png', 'webp', 'gif']) {
+    for (final extension in [
+      'jpg',
+      'jpeg',
+      'png',
+      'webp',
+      'gif',
+      'heic',
+      'heif',
+    ]) {
       if (path.endsWith('.$extension')) {
         return extension;
       }
@@ -349,7 +357,7 @@ class ImageUtils {
                         color: iconColor,
                         onTap: () async {
                           Navigator.pop(context);
-                          await _shareImage(
+                          await shareImage(
                             context,
                             imageUrl,
                             headers: headers,
@@ -431,8 +439,12 @@ class ImageUtils {
         ),
       );
 
-  /// 分享图片
-  static Future<void> _shareImage(
+  /// 分享图片。
+  ///
+  /// [imageUrl] 既可以是远端地址，也可以是本地路径（`file://` 或绝对路径）。
+  /// 大图查看器传进来的是附件缓存里的原图，本地有就直接分享，省掉一次
+  /// http 缓存查询，离线状态下也能用。
+  static Future<void> shareImage(
     BuildContext context,
     String imageUrl, {
     Map<String, String>? headers,
@@ -443,7 +455,6 @@ class ImageUtils {
     final cannotGetImageFile = l10n?.cannotGetImageFile ?? '无法获取图片文件';
     final shareImageFailed = l10n?.shareImageFailed ?? '分享图片失败';
     try {
-      // 显示加载提示
       if (context.mounted) {
         SnackBarUtils.showInfo(
           context,
@@ -451,41 +462,29 @@ class ImageUtils {
         );
       }
 
-      // 获取图片文件
-      File? imageFile;
-
-      // 先尝试从缓存获取
-      final cachedFile = await ImageCacheManager.authImageCache
-          .getFileFromCache(imageUrl)
-          .then((info) => info?.file);
-
-      if (cachedFile != null && await cachedFile.exists()) {
-        imageFile = cachedFile;
-      } else {
-        // 从网络下载到临时文件
-        final response = await http.get(
-          Uri.parse(imageUrl),
+      // 本地已有的文件直接分享，省一次读写；只有远端地址才落临时文件。
+      var imageFile = _existingLocalFile(imageUrl);
+      if (imageFile == null) {
+        final imageBytes = await _loadImageBytes(
+          imageUrl,
           headers: headers,
+          downloadImageFailed: cannotGetImageFile,
         );
-
-        if (response.statusCode == 200) {
-          final tempDir = Directory.systemTemp;
-          final fileName =
-              'inkpaper_share_${DateTime.now().millisecondsSinceEpoch}.jpg';
-          imageFile = File('${tempDir.path}/$fileName');
-          await imageFile.writeAsBytes(response.bodyBytes);
+        if (imageBytes.isEmpty) {
+          throw Exception(cannotGetImageFile);
         }
+        // 临时文件必须带真实扩展名，微信和相册都按后缀判断文件类型。
+        imageFile = File(
+          '${Directory.systemTemp.path}/${_defaultImageFileName(imageUrl)}',
+        );
+        await imageFile.writeAsBytes(imageBytes, flush: true);
       }
 
-      if (imageFile != null && await imageFile.exists()) {
-        // 使用 share_plus 直接分享
-        await Share.shareXFiles(
-          [XFile(imageFile.path)],
-          text: imageShareText,
-        );
-      } else {
-        throw Exception(cannotGetImageFile);
-      }
+      // 使用 share_plus 直接分享
+      await Share.shareXFiles(
+        [XFile(imageFile.path)],
+        text: imageShareText,
+      );
     } on Object catch (e) {
       if (context.mounted) {
         SnackBarUtils.showError(
@@ -497,5 +496,24 @@ class ImageUtils {
         debugPrint('❌ 分享图片失败: $e');
       }
     }
+  }
+
+  /// 把 [source] 当本地路径解析，文件存在则返回。
+  static File? _existingLocalFile(String source) {
+    try {
+      final candidates = <String>[
+        if (source.startsWith('file://')) Uri.parse(source).toFilePath(),
+        source,
+      ];
+      for (final path in candidates) {
+        final file = File(path);
+        if (file.existsSync()) {
+          return file;
+        }
+      }
+    } on Object catch (_) {
+      // 解析不了就当远端地址处理
+    }
+    return null;
   }
 }

@@ -32,6 +32,9 @@ class NoteMoreOptionsMenu {
     VoidCallback? onNoteUpdated,
     // 覆盖默认删除行为（例如示例笔记只提示、不落库）。
     VoidCallback? onDeleteOverride,
+    // 详情页顶栏没有独立 AI 摘要按钮了，由菜单补上这个入口；
+    // 其他调用方传 null 就不显示。
+    VoidCallback? onAiSummary,
   }) {
     final box = context.findRenderObject() as RenderBox?;
     final anchor = box != null && box.hasSize
@@ -49,6 +52,7 @@ class NoteMoreOptionsMenu {
       anchor: anchor,
       onNoteUpdated: onNoteUpdated,
       onDeleteOverride: onDeleteOverride,
+      onAiSummary: onAiSummary,
     );
   }
 
@@ -59,6 +63,7 @@ class NoteMoreOptionsMenu {
     required Rect anchor,
     VoidCallback? onNoteUpdated,
     VoidCallback? onDeleteOverride,
+    VoidCallback? onAiSummary,
   }) {
     final localizations = AppLocalizationsSimple.of(context);
     var currentNote = note;
@@ -88,7 +93,12 @@ class NoteMoreOptionsMenu {
           maxWidth: _maxWidth,
           maxHeightRatio: _maxHeightRatio,
         ),
-        child: _buildCard(dialogContext, currentNote, localizations),
+        child: _buildCard(
+          dialogContext,
+          currentNote,
+          localizations,
+          showAiSummary: onAiSummary != null,
+        ),
       ),
       transitionBuilder: (dialogContext, animation, _, child) {
         final curved = CurvedAnimation(
@@ -153,6 +163,9 @@ class NoteMoreOptionsMenu {
             context: context,
             note: currentNote,
           );
+          break;
+        case 'ai_summary':
+          onAiSummary?.call();
           break;
         case 'link':
           await NoteActionsUi.copyShareLink(
@@ -244,8 +257,9 @@ class NoteMoreOptionsMenu {
   static Widget _buildCard(
     BuildContext context,
     Note note,
-    AppLocalizationsSimple? localizations,
-  ) {
+    AppLocalizationsSimple? localizations, {
+    bool showAiSummary = false,
+  }) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final surface = isDarkMode ? const Color(0xFF1C1C1E) : Colors.white;
     final secondaryText = isDarkMode ? Colors.grey[500] : Colors.grey[600];
@@ -307,6 +321,13 @@ class NoteMoreOptionsMenu {
                     isDarkMode: isDarkMode,
                     onTap: () => select('pin'),
                   ),
+                  if (showAiSummary)
+                    _buildSheetAction(
+                      icon: Icons.article_outlined,
+                      label: localizations?.aiSummary ?? 'AI摘要',
+                      isDarkMode: isDarkMode,
+                      onTap: () => select('ai_summary'),
+                    ),
                   _buildSheetAction(
                     icon: Icons.rate_review_rounded,
                     label: localizations?.aiReview ?? 'AI点评',

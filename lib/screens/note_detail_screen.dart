@@ -8,7 +8,6 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/ai_enhanced_service.dart';
-import 'package:inkpaper/services/ai_review_service.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/services/user_behavior_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
@@ -48,7 +47,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   // AI 摘要
   final AIEnhancedService _aiEnhancedService = AIEnhancedService();
-  final AiReviewService _aiReviewService = const AiReviewService();
   String? _aiSummary;
   bool _isGeneratingSummary = false;
   bool _showSummary = false;
@@ -242,303 +240,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
   }
 
-  // 🔥 AI点评功能 - 大厂风格底部Sheet
-  Future<void> _showAiReviewDialog() async {
-    if (_note == null) {
-      return;
-    }
-
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final appConfig = appProvider.appConfig;
-
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    String? aiReview;
-    var isLoading = true;
-    String? errorMessage;
-    var reviewSource = AiReviewSource.local;
-
-    // 🔥 使用底部Sheet替代Dialog - 更现代的体验
-    unawaited(
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (bottomSheetContext) => StatefulBuilder(
-          builder: (context, setState) {
-            // 开始点评。AI 未配置或失败时使用本地分析，不阻断用户。
-            if (isLoading && aiReview == null && errorMessage == null) {
-              _aiReviewService
-                  .generateReview(
-                appConfig: appConfig,
-                note: _note!,
-                allNotes: appProvider.notes,
-              )
-                  .then((result) {
-                if (mounted && context.mounted) {
-                  setState(() {
-                    isLoading = false;
-                    aiReview = result.review;
-                    reviewSource = result.source;
-                    errorMessage = null;
-                  });
-                  // 🔥 完成后显示提示
-                  if (result.usedRemote) {
-                    SnackBarUtils.showSuccess(
-                      context,
-                      AppLocalizationsSimple.of(context)?.aiReviewCompleted ??
-                          '✨ AI点评完成！',
-                    );
-                  } else if (result.usedFallback) {
-                    SnackBarUtils.showInfo(
-                      context,
-                      'AI暂不可用，已使用本地点评',
-                    );
-                  }
-                }
-              });
-            }
-
-            // 🔥 大厂风格的底部Sheet
-            return Container(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.8,
-              ),
-              decoration: BoxDecoration(
-                color: isDarkMode ? AppTheme.darkCardColor : Colors.white,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(24)),
-                boxShadow: [
-                  BoxShadow(
-                    color:
-                        Colors.black.withValues(alpha: isDarkMode ? 0.5 : 0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 🔥 拖动指示器 - iOS风格
-                  Container(
-                    margin: const EdgeInsets.only(top: 12, bottom: 8),
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: (isDarkMode ? Colors.white : Colors.black)
-                          .withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-
-                  // 🔥 标题栏 - 简洁现代
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-                    child: Row(
-                      children: [
-                        const Text(
-                          '💬',
-                          style: TextStyle(fontSize: 24),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            reviewSource == AiReviewSource.remote
-                                ? (AppLocalizationsSimple.of(context)
-                                        ?.aiReviewTitle ??
-                                    '给你的点评')
-                                : '本地点评',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: isDarkMode
-                                  ? Colors.white
-                                  : AppTheme.textPrimaryColor,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ),
-                        if (!isLoading)
-                          IconButton(
-                            icon: Icon(
-                              Icons.close,
-                              color: (isDarkMode ? Colors.white : Colors.black)
-                                  .withValues(alpha: 0.5),
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                      ],
-                    ),
-                  ),
-
-                  // 🔥 内容区域 - flomo风格
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: isLoading
-                          ? Center(
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 60),
-                                child: Column(
-                                  children: [
-                                    const CircularProgressIndicator(),
-                                    const SizedBox(height: 20),
-                                    Text(
-                                      AppLocalizationsSimple.of(context)
-                                              ?.aiReadingNote ??
-                                          'AI正在阅读笔记...',
-                                      style: TextStyle(
-                                        color: (isDarkMode
-                                                ? Colors.white
-                                                : Colors.black)
-                                            .withValues(alpha: 0.6),
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          : errorMessage != null
-                              ? Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 60,
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        const Icon(
-                                          Icons.error_outline,
-                                          color: Colors.red,
-                                          size: 48,
-                                        ),
-                                        const SizedBox(height: 16),
-                                        Text(
-                                          errorMessage!,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            color: Colors.red,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                )
-                              : Padding(
-                                  padding: const EdgeInsets.only(bottom: 24),
-                                  child: _buildReviewContent(
-                                    aiReview!,
-                                    isDarkMode,
-                                  ),
-                                ),
-                    ),
-                  ),
-
-                  // 🔥 底部按钮 - 简洁设计
-                  if (!isLoading && aiReview != null)
-                    SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Row(
-                          children: [
-                            // 复制按钮
-                            OutlinedButton.icon(
-                              onPressed: () async {
-                                await Clipboard.setData(
-                                  ClipboardData(text: aiReview!),
-                                );
-                                if (mounted && context.mounted) {
-                                  SnackBarUtils.showSuccess(
-                                    context,
-                                    AppLocalizationsSimple.of(context)
-                                            ?.reviewCopiedShort ??
-                                        '✨ 点评已复制',
-                                  );
-                                }
-                              },
-                              icon: const Icon(Icons.copy_rounded, size: 18),
-                              label: Text(
-                                AppLocalizationsSimple.of(context)
-                                        ?.copyContent ??
-                                    '复制',
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 14,
-                                ),
-                                side: const BorderSide(
-                                  color: AppTheme.primaryColor,
-                                ),
-                                foregroundColor: AppTheme.primaryColor,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            // 完成按钮
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () => Navigator.pop(context),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppTheme.primaryColor,
-                                  foregroundColor: Colors.white,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 14),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                child: const Text(
-                                  '完成',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  // 🔥 flomo风格的点评内容展示 - 带淡入动画
-  Widget _buildReviewContent(String review, bool isDarkMode) =>
-      TweenAnimationBuilder<double>(
-        duration: const Duration(milliseconds: 500),
-        tween: Tween(begin: 0, end: 1),
-        curve: Curves.easeOutCubic,
-        builder: (context, value, child) => Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)), // 从下往上淡入
-            child: child,
-          ),
-        ),
-        child: Text(
-          review,
-          style: TextStyle(
-            fontSize: 16,
-            height: 1.8,
-            color: isDarkMode ? Colors.white : AppTheme.textPrimaryColor,
-            letterSpacing: 0.3,
-          ),
-        ),
-      );
-
   /// 长按正文：复制笔记内容（正文不再可选中，复制走这里）。
   Future<void> _copyNoteContent() async {
     final note = _note;
@@ -586,7 +287,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     await _loadNote();
   }
 
-  // 显示更多选项菜单（统一使用 NoteMoreOptionsMenu）
+  // 显示更多选项菜单（统一使用 NoteMoreOptionsMenu）；
+  // 顶栏三点按钮与 AI 摘要开关都从这里走。
   void _showMoreOptions(BuildContext btnContext) {
     if (_note == null) {
       return;
@@ -596,7 +298,17 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       context: btnContext,
       note: _note!,
       onNoteUpdated: _loadNote,
+      onAiSummary: _toggleAiSummary,
     );
+  }
+
+  /// AI 摘要开关：已展示完整摘要时收起，否则（重新）生成。
+  void _toggleAiSummary() {
+    if (_showSummary && _aiSummary != null) {
+      setState(() => _showSummary = false);
+    } else {
+      _generateAISummary();
+    }
   }
 
   // 🎯 切换笔记中指定索引的待办事项
@@ -680,386 +392,347 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
 
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final bgColor =
-        isDarkMode ? AppTheme.darkBackgroundColor : AppTheme.backgroundColor;
-    final cardColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
+    // 配色对齐全屏编辑器（note_editor.dart _buildEditor）：整页一张实色底，
+    // 不再有「灰底 + 白色圆角卡」的容器层级
+    final surfaceColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
     final textColor =
-        isDarkMode ? AppTheme.darkTextPrimaryColor : Colors.black87;
-    final secondaryTextColor =
-        isDarkMode ? Colors.grey[400]! : const Color(0xFF666666);
+        isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
+    final secondaryTextColor = isDarkMode
+        ? (Colors.grey[600] ?? Colors.grey)
+        : (Colors.grey[800] ?? Colors.grey);
+    final dividerColor = isDarkMode
+        ? Colors.grey[800] ?? Colors.grey.shade800
+        : Colors.grey[200] ?? Colors.grey.shade200;
     final iconColor =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
 
     return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, size: 20, color: iconColor),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        centerTitle: true,
-        title: Text(
-          AppLocalizationsSimple.of(context)?.noteDetail ?? '笔记详情',
-          style: TextStyle(
-            color: textColor,
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
+      backgroundColor: surfaceColor,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 顶栏与全屏编辑器同构（返回 / 标题 / 更多），不走 AppBar：
+          // 状态栏高度要像全屏编辑器那样手动让开
+          SizedBox(height: MediaQuery.of(context).padding.top),
+          _buildDetailHeader(
+            textColor: textColor,
+            secondaryTextColor: secondaryTextColor,
+            dividerColor: dividerColor,
           ),
-        ),
-        actions: [
-          // 📝 AI 摘要按钮
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color:
-                    _showSummary ? iconColor.withValues(alpha: 0.1) : bgColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.article_outlined, size: 20, color: iconColor),
-            ),
-            tooltip:
-                AppLocalizationsSimple.of(context)?.aiSummary ?? 'AI Summary',
-            onPressed: () {
-              if (_showSummary && _aiSummary != null) {
-                setState(() => _showSummary = false);
-              } else {
-                _generateAISummary();
-              }
-            },
-          ),
-          // 🔥 AI点评按钮
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child:
-                  Icon(Icons.rate_review_rounded, size: 20, color: iconColor),
-            ),
-            tooltip: AppLocalizationsSimple.of(context)?.aiReview ?? 'AI点评',
-            onPressed: _showAiReviewDialog,
-          ),
-          // 编辑按钮
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.edit, size: 20, color: iconColor),
-            ),
-            tooltip: AppLocalizationsSimple.of(context)?.editNote ?? '编辑笔记',
-            onPressed: () => _openEditor(_note!),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Center(
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          child: Card(
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
-            ),
-            color: cardColor,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 顶部：时间 + 更多按钮
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+          // 中间：笔记内容（单击进编辑态，长按复制全文）
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                // 单击正文＝编辑。原来要双击，等于把「能改」藏起来了：
+                // 点一下没反应，绝大多数人就不会再点第二下。
+                // 长按仍是复制全文（与首页卡片同一套手势）
+                onTap: () => _openEditor(_note!),
+                onLongPress: _copyNoteContent,
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // 详情页展示创建时间：最后编辑时间会随待办等
-                          // 操作不断变化，不便于定位这条笔记是什么时候记下的。
-                          // 样式对齐首页卡片：flomo 缩减式 + 10sp 浅灰细字。
-                          Text(
-                            formatNoteTimestamp(_note!.createdAt),
-                            style: TextStyle(
-                              fontSize: 10,
-                              height: 1.1,
-                              fontWeight: FontWeight.w300,
-                              letterSpacing: 0.2,
-                              color: isDarkMode
-                                  ? const Color(0xFF8E8E93)
-                                  : const Color(0xFF949494),
+                      // AI 摘要卡片
+                      if (_showSummary)
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: isDarkMode
+                                  ? [
+                                      AppTheme.primaryColor
+                                          .withValues(alpha: 0.1),
+                                      AppTheme.accentColor
+                                          .withValues(alpha: 0.1),
+                                    ]
+                                  : [
+                                      AppTheme.primaryColor
+                                          .withValues(alpha: 0.05),
+                                      AppTheme.accentColor
+                                          .withValues(alpha: 0.05),
+                                    ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: iconColor.withValues(alpha: 0.3),
+                              width: 1.5,
                             ),
                           ),
-                          if (_note!.reminderTime != null) ...[
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.alarm,
-                                  size: 14,
-                                  color: AppTheme.primaryColor,
-                                ),
-                                const SizedBox(width: 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          iconColor,
+                                          AppTheme.accentColor,
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.auto_awesome,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    AppLocalizationsSimple.of(context)
+                                            ?.aiSummary ??
+                                        'AI Summary',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    icon: const Icon(Icons.close, size: 18),
+                                    onPressed: () => setState(
+                                      () => _showSummary = false,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (_isGeneratingSummary)
+                                Center(
+                                  child: Column(
+                                    children: [
+                                      SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                            iconColor,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        '正在生成摘要...',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: secondaryTextColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else if (_aiSummary != null)
                                 Text(
-                                  '提醒: ${DateFormat('MM-dd HH:mm').format(_note!.reminderTime!)}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppTheme.primaryColor,
-                                    fontWeight: FontWeight.w500,
+                                  _aiSummary!,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    height: 1.6,
+                                    color: textColor,
                                   ),
                                 ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                      Builder(
-                        builder: (btnContext) => InkWell(
-                          onTap: () => _showMoreOptions(btnContext),
-                          child: Icon(
-                            Icons.more_horiz,
-                            color: isDarkMode
-                                ? Colors.grey.shade400
-                                : AppTheme.textPrimaryColor,
+                            ],
                           ),
                         ),
+
+                      // 原有的笔记内容：与首页卡片同源（NotePreviewText
+                      // 轻量渲染），图片单独走九宫格
+                      Builder(
+                        builder: (context) {
+                          final serverUrl = Provider.of<AppProvider>(
+                            context,
+                            listen: false,
+                          ).appConfig.memosApiUrl;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // 这里刻意不用 SelectableText /
+                              // SelectionArea：两者都会把单击吞进选区逻辑，
+                              // 正文就再也点不进编辑态了（实测 SelectionArea
+                              // 同样吃单击）。想复制片段就点进编辑态复制
+                              NotePreviewText(
+                                content: _note!.content,
+                                style: AppTextStyles.bodyLarge(
+                                  context,
+                                  height: 1.6,
+                                  color: textColor,
+                                ),
+                                accentColor: isDarkMode
+                                    ? AppTheme.primaryLightColor
+                                    : AppTheme.primaryColor,
+                                onCheckboxTap: _toggleTodoInNote,
+                                onTagTap: (tagName) {
+                                  try {
+                                    final tagPath = normalizeIncomingTagPath(
+                                      tagName,
+                                    );
+                                    if (tagPath == null) {
+                                      return;
+                                    }
+                                    context.pushNamed(
+                                      'tag-notes',
+                                      queryParameters: {
+                                        'tag': tagPath,
+                                      },
+                                    );
+                                  } on Object catch (e, stackTrace) {
+                                    Log.ui.error(
+                                      'Failed to navigate from note detail tag',
+                                      error: e,
+                                      stackTrace: stackTrace,
+                                      data: {'tagName': tagName},
+                                    );
+                                  }
+                                },
+                                onLinkTap: _handleLinkTap,
+                              ),
+                              // 视频与图片互斥：有视频就只显示视频卡片，
+                              // 点开走全屏播放器
+                              if (_renderVideoPaths.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                NoteVideoCard(
+                                  videoPath: _renderVideoPaths.first,
+                                ),
+                              ]
+                              // 图片统一走九宫格，长按弹保存菜单
+                              else if (_renderImagePaths.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                NoteImageGrid(
+                                  imagePaths: _renderImagePaths,
+                                  serverUrl: serverUrl,
+                                  onLongPress: _showGridImageSaveDialog,
+                                ),
+                              ],
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),
                 ),
-
-                // 中间：笔记内容（双击编辑）
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      // 单击正文＝编辑。原来要双击，等于把「能改」藏起来了：
-                      // 点一下没反应，绝大多数人就不会再点第二下。
-                      // 长按仍是复制全文（与首页卡片同一套手势）
-                      onTap: () => _openEditor(_note!),
-                      onLongPress: _copyNoteContent,
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // AI 摘要卡片
-                            if (_showSummary)
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                margin: const EdgeInsets.only(bottom: 16),
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: isDarkMode
-                                        ? [
-                                            AppTheme.primaryColor
-                                                .withValues(alpha: 0.1),
-                                            AppTheme.accentColor
-                                                .withValues(alpha: 0.1),
-                                          ]
-                                        : [
-                                            AppTheme.primaryColor
-                                                .withValues(alpha: 0.05),
-                                            AppTheme.accentColor
-                                                .withValues(alpha: 0.05),
-                                          ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: iconColor.withValues(alpha: 0.3),
-                                    width: 1.5,
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              colors: [
-                                                iconColor,
-                                                AppTheme.accentColor,
-                                              ],
-                                            ),
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          child: const Icon(
-                                            Icons.auto_awesome,
-                                            color: Colors.white,
-                                            size: 16,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          AppLocalizationsSimple.of(context)
-                                                  ?.aiSummary ??
-                                              'AI Summary',
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        IconButton(
-                                          icon:
-                                              const Icon(Icons.close, size: 18),
-                                          onPressed: () => setState(
-                                            () => _showSummary = false,
-                                          ),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    if (_isGeneratingSummary)
-                                      Center(
-                                        child: Column(
-                                          children: [
-                                            SizedBox(
-                                              width: 24,
-                                              height: 24,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                        Color>(
-                                                  iconColor,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              '正在生成摘要...',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: secondaryTextColor,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      )
-                                    else if (_aiSummary != null)
-                                      Text(
-                                        _aiSummary!,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          height: 1.6,
-                                          color: textColor,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-
-                            // 原有的笔记内容：与首页卡片同源（NotePreviewText
-                            // 轻量渲染），图片单独走九宫格
-                            Builder(
-                              builder: (context) {
-                                final serverUrl = Provider.of<AppProvider>(
-                                  context,
-                                  listen: false,
-                                ).appConfig.memosApiUrl;
-
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // 这里刻意不用 SelectableText /
-                                    // SelectionArea：两者都会把单击吞进选区逻辑，
-                                    // 正文就再也点不进编辑态了（实测 SelectionArea
-                                    // 同样吃单击）。想复制片段就点进编辑态复制
-                                    NotePreviewText(
-                                      content: _note!.content,
-                                      style: AppTextStyles.bodyLarge(
-                                        context,
-                                        height: 1.6,
-                                        color: textColor,
-                                      ),
-                                      accentColor: isDarkMode
-                                          ? AppTheme.primaryLightColor
-                                          : AppTheme.primaryColor,
-                                      onCheckboxTap: _toggleTodoInNote,
-                                      onTagTap: (tagName) {
-                                        try {
-                                          final tagPath =
-                                              normalizeIncomingTagPath(
-                                            tagName,
-                                          );
-                                          if (tagPath == null) {
-                                            return;
-                                          }
-                                          context.pushNamed(
-                                            'tag-notes',
-                                            queryParameters: {
-                                              'tag': tagPath,
-                                            },
-                                          );
-                                        } on Object catch (e, stackTrace) {
-                                          Log.ui.error(
-                                            'Failed to navigate from note detail tag',
-                                            error: e,
-                                            stackTrace: stackTrace,
-                                            data: {'tagName': tagName},
-                                          );
-                                        }
-                                      },
-                                      onLinkTap: _handleLinkTap,
-                                    ),
-                                    // 视频与图片互斥：有视频就只显示视频卡片，
-                                    // 点开走全屏播放器
-                                    if (_renderVideoPaths.isNotEmpty) ...[
-                                      const SizedBox(height: 10),
-                                      NoteVideoCard(
-                                        videoPath: _renderVideoPaths.first,
-                                      ),
-                                    ]
-                                    // 图片统一走九宫格，长按弹保存菜单
-                                    else if (_renderImagePaths.isNotEmpty) ...[
-                                      const SizedBox(height: 10),
-                                      NoteImageGrid(
-                                        imagePaths: _renderImagePaths,
-                                        serverUrl: serverUrl,
-                                        onLongPress: _showGridImageSaveDialog,
-                                      ),
-                                    ],
-                                  ],
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // 底部：字数统计
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    '${_note!.content.length} 字',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: secondaryTextColor,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
+
+          // 底部信息区：时间在左、字数在其右，同一套字体字号
+          _buildBottomInfo(
+            secondaryTextColor: secondaryTextColor,
+            iconColor: iconColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 顶栏：与全屏编辑器的「取消 / 编辑笔记 / 完成」同构——左「返回」、
+  /// 中标题、右「更多」。高度、分隔线、按钮内边距逐项对齐
+  /// note_editor.dart 的 _buildFullScreenHeader。
+  Widget _buildDetailHeader({
+    required Color textColor,
+    required Color secondaryTextColor,
+    required Color dividerColor,
+  }) {
+    final l10n = AppLocalizationsSimple.of(context);
+    return Container(
+      height: 50,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: dividerColor, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: TextButton.styleFrom(
+              foregroundColor: secondaryTextColor,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            child: Text(l10n?.back ?? '返回'),
+          ),
+          Expanded(
+            child: Text(
+              l10n?.noteDetail ?? '笔记详情',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+          ),
+          Builder(
+            builder: (btnContext) => IconButton(
+              onPressed: () => _showMoreOptions(btnContext),
+              tooltip: AppLocalizationsSimple.of(context)?.more ?? '更多',
+              icon: Icon(Icons.more_vert, size: 22, color: secondaryTextColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 底部信息区：时间（创建，按当前显示口径）在左、字数在其右，
+  /// 字体字号一致；设了提醒就单独一行展示。
+  Widget _buildBottomInfo({
+    required Color secondaryTextColor,
+    required Color iconColor,
+  }) {
+    final note = _note!;
+    final infoStyle = TextStyle(fontSize: 14, color: secondaryTextColor);
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (note.reminderTime != null) ...[
+              Row(
+                children: [
+                  Icon(Icons.alarm, size: 14, color: iconColor),
+                  const SizedBox(width: 4),
+                  Text(
+                    '提醒: ${DateFormat('MM-dd HH:mm').format(note.reminderTime!)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: iconColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+            ],
+            // 详情页展示创建时间：最后编辑时间会随待办等操作不断变化，
+            // 不便于定位这条笔记是什么时候记下的。显示口径与首页卡片一致。
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(formatNoteTimestamp(note.createdAt), style: infoStyle),
+                const SizedBox(width: 10),
+                Text('${note.content.length} 字', style: infoStyle),
+              ],
+            ),
+          ],
         ),
       ),
     );

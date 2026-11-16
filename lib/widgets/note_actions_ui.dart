@@ -14,7 +14,7 @@ import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/intelligent_related_notes_sheet.dart';
 import 'package:inkpaper/widgets/ios_datetime_picker.dart';
-import 'package:inkpaper/widgets/note_editor.dart';
+import 'package:inkpaper/widgets/note_editor_page.dart';
 import 'package:inkpaper/widgets/permission_guide_dialog.dart';
 import 'package:inkpaper/widgets/references_sidebar.dart';
 import 'package:intl/intl.dart';
@@ -42,40 +42,37 @@ class NoteActionsUi {
     required Note note,
     required VoidCallback onUpdated,
   }) async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => NoteEditor(
-        initialContent: note.content,
-        onSave: (content) async {
-          if (content.trim().isNotEmpty) {
-            try {
-              final appProvider =
-                  Provider.of<AppProvider>(context, listen: false);
-              await NoteActionsService.updateContent(
-                appProvider,
-                note,
-                content,
+    await NoteEditorPage.open(
+      context,
+      noteId: note.id,
+      initialContent: note.content,
+      onSave: (content) async {
+        if (content.trim().isNotEmpty) {
+          try {
+            final appProvider =
+                Provider.of<AppProvider>(context, listen: false);
+            await NoteActionsService.updateContent(
+              appProvider,
+              note,
+              content,
+            );
+            onUpdated();
+            if (context.mounted) {
+              SnackBarUtils.showSuccess(
+                context,
+                AppLocalizationsSimple.of(context)?.noteUpdated ?? '笔记已更新',
               );
-              onUpdated();
-              if (context.mounted) {
-                SnackBarUtils.showSuccess(
-                  context,
-                  AppLocalizationsSimple.of(context)?.noteUpdated ?? '笔记已更新',
-                );
-              }
-            } on Object catch (e) {
-              if (context.mounted) {
-                SnackBarUtils.showError(
-                  context,
-                  '${AppLocalizationsSimple.of(context)?.updatingFailed ?? '更新失败'}: $e',
-                );
-              }
+            }
+          } on Object catch (e) {
+            if (context.mounted) {
+              SnackBarUtils.showError(
+                context,
+                '${AppLocalizationsSimple.of(context)?.updatingFailed ?? '更新失败'}: $e',
+              );
             }
           }
-        },
-      ),
+        }
+      },
     );
   }
 

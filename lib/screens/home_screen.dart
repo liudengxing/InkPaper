@@ -17,6 +17,7 @@ import 'package:inkpaper/utils/responsive_utils.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/note_card.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
+import 'package:inkpaper/widgets/note_editor_page.dart';
 import 'package:inkpaper/widgets/on_this_day_card.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
@@ -840,38 +841,36 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // 显示编辑笔记表单
+  /// 编辑已有笔记：进全屏编辑器（卡片只留给新建）。
+  ///
+  /// 入口有三个——卡片双击、卡片三点菜单、长按菜单，全都汇到这里，
+  /// 免得改一处漏一处。
   void _showEditNoteForm(Note note) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => NoteEditor(
-        initialContent: note.content,
-        currentNoteId: note.id,
-        onSave: (content) async {
-          if (content.trim().isNotEmpty) {
-            try {
-              final appProvider =
-                  Provider.of<AppProvider>(context, listen: false);
-              await appProvider.updateNote(note, content);
-              // 🚀 笔记更新成功（静默）
-            } on Object catch (e) {
-              if (kDebugMode) {
-                debugPrint('HomeScreen: 更新笔记失败: $e');
-              }
-              if (mounted && context.mounted) {
-                SnackBarUtils.showError(
-                  context,
-                  '${AppLocalizationsSimple.of(context)?.updateFailed ?? '更新失败'}: $e',
-                );
-              }
-            }
+    NoteEditorPage.open(
+      context,
+      noteId: note.id,
+      initialContent: note.content,
+      onSave: (content) async {
+        if (content.trim().isEmpty) {
+          return;
+        }
+        try {
+          final appProvider = Provider.of<AppProvider>(context, listen: false);
+          await appProvider.updateNote(note, content);
+          // 🚀 笔记更新成功（静默）
+        } on Object catch (e) {
+          if (kDebugMode) {
+            debugPrint('HomeScreen: 更新笔记失败: $e');
           }
-        },
-      ),
-    ).then((_) {
-      // 🚀 表单关闭（静默）
-    });
+          if (mounted && context.mounted) {
+            SnackBarUtils.showError(
+              context,
+              '${AppLocalizationsSimple.of(context)?.updateFailed ?? '更新失败'}: $e',
+            );
+          }
+        }
+      },
+    );
   }
 
   void _showDeleteUndoSnackBar(AppProvider appProvider) {

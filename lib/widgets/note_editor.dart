@@ -43,6 +43,7 @@ class NoteEditor extends StatefulWidget {
     this.currentNoteId,
     this.startWithSpeech = false,
     this.preserveDraftOnClose = false,
+    this.fullScreen = false,
   });
   final Function(String content) onSave;
   final String? initialContent;
@@ -52,6 +53,14 @@ class NoteEditor extends StatefulWidget {
   /// 从草稿箱进来时置 true：没做修改就关闭也不会把草稿删掉，
   /// 避免用户只是看一眼就把草稿弄丢了。
   final bool preserveDraftOnClose;
+
+  /// 全屏编辑：详情页里点正文进来时用，替代原来「双击卡片弹底部小卡片」。
+  ///
+  /// 只换容器，不换能力：去掉拖动条、毛玻璃与上圆角，撑满键盘上方，
+  /// 顶部变成「取消 / 编辑笔记 / 完成」，底部不再重复一个发送按钮。
+  /// 输入、图片、视频、标签、AI、草稿、保存全部共用同一套逻辑——
+  /// 复制一份全屏编辑器出来维护，是这套代码里最容易腐烂的做法。
+  final bool fullScreen;
 
   @override
   State<NoteEditor> createState() => _NoteEditorState();
@@ -1400,6 +1409,69 @@ class _NoteEditorState extends State<NoteEditor>
     );
   }
 
+  /// 全屏编辑的顶部栏：左「取消」、中标题、右「完成」。
+  ///
+  /// 「完成」先收键盘再保存：键盘收起有 180ms 的位移动画，保存失败时要弹
+  /// 提示，不收键盘两个动画会打架；保存成功后编辑器 pop，正好退回上面那层
+  /// 详情页，详情页监听到返回就刷新成编辑后的内容。
+  Widget _buildFullScreenHeader(
+    BuildContext context, {
+    required Color textColor,
+    required Color secondaryTextColor,
+    required Color accentColor,
+    required Color dividerColor,
+  }) {
+    final l10n = AppLocalizationsSimple.of(context);
+    return Container(
+      height: 50,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: dividerColor, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          TextButton(
+            onPressed: _isSaving ? null : _requestCloseEditor,
+            style: TextButton.styleFrom(
+              foregroundColor: secondaryTextColor,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            child: Text(l10n?.cancel ?? '取消'),
+          ),
+          Expanded(
+            child: Text(
+              l10n?.editNote ?? '编辑笔记',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _isSaving
+                ? null
+                : () {
+                    _textFocusNode.unfocus();
+                    unawaited(_saveNote());
+                  },
+            style: TextButton.styleFrom(
+              foregroundColor: accentColor,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            child: Text(
+              l10n?.done ?? '完成',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEditor(BuildContext context, int lineCount) {
     // 获取屏幕尺寸
     final mediaQuery = MediaQuery.of(context);
@@ -1441,7 +1513,9 @@ class _NoteEditorState extends State<NoteEditor>
     // 上限要按「键盘上方的可用高度」算：卡片底部垫了 keyboardInset，用整屏
     // 高度做上限的话键盘弹出时卡片会顶到屏幕外，底部工具栏被裁掉。
     final availableHeight = screenSize.height - keyboardInset;
-    final editorHeight = math.min(desiredEditorHeight, availableHeight * 0.92);
+    final editorHeight = widget.fullScreen
+        ? availableHeight
+        : math.min(desiredEditorHeight, availableHeight * 0.92);
 
     // 卡片高度被上面一句钳住时（图片多 + 键盘弹出几乎必然发生），图片区不能
     // 还按满格九宫格的高度长：卡片已经不再变高，多出来的空间只能从文字区抢，
@@ -1452,7 +1526,9 @@ class _NoteEditorState extends State<NoteEditor>
         : (_imageList.isEmpty
             ? 0.0
             : _imageGridFitHeight(
-                editorHeight - baseEditorHeight,
+                widget.fullScreen
+                    ? imageTargetHeight
+                    : editorHeight - baseEditorHeight,
                 screenSize.width,
               ));
 
@@ -1471,6 +1547,31 @@ class _NoteEditorState extends State<NoteEditor>
         : Colors.grey[200] ?? Colors.grey.shade200;
     final hintTextColor = isDarkMode ? Colors.grey[600] : Colors.grey[400];
 
+    // 全屏与底部卡片只差一层「容器」：圆角、投影、玻璃在全屏下都没有意义，
+    // 底色也必须是实色——下面没有首页可折射，半透明会透出 Material 的黑
+    final cardRadius = widget.fullScreen
+        ? BorderRadius.zero
+        : const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          );
+    final surfaceColor = widget.fullScreen
+        ? backgroundColor
+        : (isDarkMode
+            ? const Color(0xE01C1C1E)
+            : Colors.white.withValues(alpha: 0.9));
+
+    Widget withGlass(Widget child) {
+      final tinted = ColoredBox(color: surfaceColor, child: child);
+      if (widget.fullScreen) {
+        return tinted;
+      }
+      return BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: tinted,
+      );
+    }
+
     // 确保即使只有图片也能保存
     // 注意：发送按钮的可用状态不能在这里算。本方法只在行数变化（或 setState）
     // 时重建，而首行输入不改变行数，按钮会一直是灰的、点不动（要按一次回车
@@ -1478,13 +1579,16 @@ class _NoteEditorState extends State<NoteEditor>
     // 输入内容，见下方「发送按钮」。
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: widget.fullScreen ? backgroundColor : Colors.transparent,
       resizeToAvoidBottomInset: false,
-      // 点上方空白区域：先收起键盘，再走统一关闭流程（有改动会先落草稿）
+      // 卡片模式下点上方空白＝关掉；全屏模式只收键盘。全屏下碰一下空白就
+      // 退出编辑态，读的时候手滑一下都会莫名其妙被踢出来
       body: GestureDetector(
         onTap: () {
           _textFocusNode.unfocus();
-          unawaited(_requestCloseEditor());
+          if (!widget.fullScreen) {
+            unawaited(_requestCloseEditor());
+          }
         },
         behavior: HitTestBehavior.opaque,
         child: Container(
@@ -1509,35 +1613,36 @@ class _NoteEditorState extends State<NoteEditor>
                     curve: Curves.easeOutCubic,
                     height: editorHeight,
                     decoration: BoxDecoration(
-                      // 颜色交给内层 ColoredBox（半透明），这里只留圆角与投影
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(20),
-                        topRight: Radius.circular(20),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 16,
-                          spreadRadius: 2,
-                        ),
-                      ],
+                      borderRadius: cardRadius,
+                      boxShadow: widget.fullScreen
+                          ? null
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 16,
+                                spreadRadius: 2,
+                              ),
+                            ],
                     ),
                     // flomo 式玻璃卡片：半透明底 + 自身 BackdropFilter，
                     // 卡片边缘后面也是模糊背景，而不是一整块实心白
                     child: ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(20),
-                        topRight: Radius.circular(20),
-                      ),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                        child: ColoredBox(
-                          color: isDarkMode
-                              ? const Color(0xE01C1C1E)
-                              : Colors.white.withValues(alpha: 0.9),
-                          child: Column(
-                            children: [
-                              // 顶部：左关闭 / 中拖动指示条 / 右侧占位保持视觉居中
+                      borderRadius: cardRadius,
+                      child: withGlass(
+                        Column(
+                          children: [
+                            // 顶部：卡片模式是「关闭 + 拖动条」，全屏模式是
+                            // 「取消 / 编辑笔记 / 完成」——全屏没有拖拽语义，
+                            // 留个拖动条只会让人去拉
+                            if (widget.fullScreen)
+                              _buildFullScreenHeader(
+                                context,
+                                textColor: textColor,
+                                secondaryTextColor: secondaryTextColor,
+                                accentColor: iconColor,
+                                dividerColor: dividerColor,
+                              )
+                            else
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
                                 child: Row(
@@ -1571,473 +1676,393 @@ class _NoteEditorState extends State<NoteEditor>
                                 ),
                               ),
 
-                              // 自动恢复草稿后给一条可撤销的提示
-                              if (_showDraftRecovered)
-                                _buildDraftBanner(
-                                  accentColor: iconColor,
-                                  textColor: textColor,
-                                  secondaryTextColor: secondaryTextColor,
-                                ),
-
-                              // 编辑区域 - 高度自适应，支持滚动
-                              Expanded(
-                                child: Stack(
-                                  children: [
-                                    // 正文输入框的高度只跟着文字走，文字下面的空白在
-                                    // 它自己的矩形之外，双击那儿不会触发 Flutter 的
-                                    // 双击选词，系统工具栏也就弹不出来。这里在最底层
-                                    // 铺一层兜底手势：文字和浮层先吃事件，剩下的空白
-                                    // 由它接住 —— 单击落光标，双击选中该处最近的词并
-                                    // 弹出复制/粘贴工具栏。
-                                    Positioned.fill(
-                                      child: GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        onTapDown: _handleBlankAreaTapDown,
-                                        onDoubleTapDown:
-                                            _handleBlankAreaDoubleTapDown,
-                                        child: const SizedBox.expand(),
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.only(
-                                        left: 16,
-                                        right: 56,
-                                        top: 8,
-                                        bottom: 8,
-                                      ),
-                                      child: CompositedTransformTarget(
-                                        link:
-                                            _textFieldLayerLink, // 🎯 用于跟踪光标位置
-                                        // 只旁听，不抢手势：TextField 自身的落点、
-                                        // 选词、双击判定全部照旧。
-                                        child: Listener(
-                                          onPointerUp: _handleBodyPointerUp,
-                                          child: TextField(
-                                            controller: _textController,
-                                            focusNode: _textFocusNode,
-                                            scrollController: _scrollController,
-                                            keyboardType:
-                                                TextInputType.multiline,
-                                            maxLines: null, // 允许无限行
-                                            autofocus: true,
-                                            decoration: InputDecoration(
-                                              hintText:
-                                                  AppLocalizationsSimple.of(
-                                                        context,
-                                                      )?.editorPlaceholder ??
-                                                      '现在的想法是...',
-                                              // 全局主题给输入框设了 filled:true，
-                                              // 玻璃卡片上会糊出一块实心白，这里关掉
-                                              filled: false,
-                                              border: InputBorder.none,
-                                              contentPadding: EdgeInsets.zero,
-                                              hintStyle: TextStyle(
-                                                fontSize: 16,
-                                                color: hintTextColor,
-                                                height: 1.5,
-                                              ),
-                                              enabledBorder: InputBorder.none,
-                                              focusedBorder: InputBorder.none,
-                                              disabledBorder: InputBorder.none,
-                                              errorBorder: InputBorder.none,
-                                              focusedErrorBorder:
-                                                  InputBorder.none,
-                                            ),
-                                            cursorColor: iconColor,
-                                            // 选中文字的复制/粘贴菜单换成
-                                            // 仿系统的胶囊横条，尺寸参考
-                                            // HyperOS 的 ActionMode 悬浮条。
-                                            contextMenuBuilder:
-                                                (context, editableTextState) {
-                                              final anchors = editableTextState
-                                                  .contextMenuAnchors;
-                                              return CapsuleTextSelectionToolbar(
-                                                anchorAbove:
-                                                    anchors.primaryAnchor,
-                                                anchorBelow:
-                                                    anchors.secondaryAnchor ??
-                                                        anchors.primaryAnchor,
-                                                buttonItems: editableTextState
-                                                    .contextMenuButtonItems,
-                                              );
-                                            },
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              color: textColor,
-                                              height: 1.5,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 语音识别按钮 - 固定在右上角；语音未开启时不渲染
-                                    if (_speechEnabled)
-                                      Positioned(
-                                        top: 4,
-                                        right: 12,
-                                        child: _buildSpeechButton(
-                                          iconColor,
-                                          secondaryTextColor,
-                                        ),
-                                      ),
-
-                                    // 实时识别文本提示 - 大厂级别的炫酷动效
-                                    if (_isSpeechListening)
-                                      Positioned(
-                                        bottom: 8,
-                                        left: 16,
-                                        right: 56,
-                                        child: GestureDetector(
-                                          onTap:
-                                              _toggleSpeechRecognition, // 点击整个识别框停止
-                                          behavior: HitTestBehavior
-                                              .opaque, // 确保整个区域可点击
-                                          child: AnimatedContainer(
-                                            duration: const Duration(
-                                              milliseconds: 200,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 16,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              gradient: LinearGradient(
-                                                colors: _partialSpeechText
-                                                        .isEmpty
-                                                    ? [
-                                                        iconColor.withValues(
-                                                          alpha: 0.05,
-                                                        ),
-                                                        iconColor.withValues(
-                                                          alpha: 0.1,
-                                                        ),
-                                                      ]
-                                                    : [
-                                                        iconColor.withValues(
-                                                          alpha: 0.12,
-                                                        ),
-                                                        iconColor.withValues(
-                                                          alpha: 0.18,
-                                                        ),
-                                                      ],
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
-                                              border: Border.all(
-                                                color: iconColor.withValues(
-                                                  alpha: 0.4,
-                                                ),
-                                                width: 1.5,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: iconColor.withValues(
-                                                    alpha: 0.25,
-                                                  ),
-                                                  blurRadius: 12,
-                                                  offset: const Offset(0, 4),
-                                                ),
-                                              ],
-                                            ),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Row(
-                                                  children: [
-                                                    // 音波动画
-                                                    _buildSoundWaveAnimation(
-                                                      iconColor,
-                                                    ),
-                                                    const SizedBox(width: 12),
-                                                    Expanded(
-                                                      child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          // 状态文字
-                                                          Text(
-                                                            _partialSpeechText
-                                                                    .isEmpty
-                                                                ? (AppLocalizationsSimple
-                                                                            .of(
-                                                                      context,
-                                                                    )
-                                                                        ?.voiceListening ??
-                                                                    '正在聆听...')
-                                                                : (AppLocalizationsSimple
-                                                                        .of(
-                                                                      context,
-                                                                    )?.voiceRecognizing ??
-                                                                    '识别中'),
-                                                            style: TextStyle(
-                                                              color: iconColor,
-                                                              fontSize: 12,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w500,
-                                                            ),
-                                                          ),
-                                                          if (_partialSpeechText
-                                                              .isNotEmpty) ...[
-                                                            const SizedBox(
-                                                              height: 8,
-                                                            ),
-                                                            // 识别文字 - 带打字机效果
-                                                            AnimatedDefaultTextStyle(
-                                                              duration:
-                                                                  const Duration(
-                                                                milliseconds:
-                                                                    150,
-                                                              ),
-                                                              style: TextStyle(
-                                                                color:
-                                                                    textColor,
-                                                                fontSize: 16,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                                height: 1.4,
-                                                              ),
-                                                              child: Text(
-                                                                _partialSpeechText,
-                                                                maxLines: 3,
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    // 点击停止提示
-                                                    Container(
-                                                      padding: const EdgeInsets
-                                                          .symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
-                                                      ),
-                                                      decoration: BoxDecoration(
-                                                        color: iconColor
-                                                            .withValues(
-                                                          alpha: 0.15,
-                                                        ),
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(8),
-                                                      ),
-                                                      child: Text(
-                                                        AppLocalizationsSimple
-                                                                .of(
-                                                              context,
-                                                            )?.clickToStop ??
-                                                            '点击停止',
-                                                        style: TextStyle(
-                                                          color: iconColor,
-                                                          fontSize: 11,
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
+                            // 自动恢复草稿后给一条可撤销的提示
+                            if (_showDraftRecovered)
+                              _buildDraftBanner(
+                                accentColor: iconColor,
+                                textColor: textColor,
+                                secondaryTextColor: secondaryTextColor,
                               ),
 
-                              // 图片预览区域：九宫格（长按拖动排序）
-                              if (_imageList.isNotEmpty)
-                                _buildImageSection(
-                                  dividerColor,
-                                  imageSectionHeight,
+                            // 编辑区域 - 高度自适应，支持滚动
+                            Expanded(
+                              child: Stack(
+                                children: [
+                                  // 正文输入框的高度只跟着文字走，文字下面的空白在
+                                  // 它自己的矩形之外，双击那儿不会触发 Flutter 的
+                                  // 双击选词，系统工具栏也就弹不出来。这里在最底层
+                                  // 铺一层兜底手势：文字和浮层先吃事件，剩下的空白
+                                  // 由它接住 —— 单击落光标，双击选中该处最近的词并
+                                  // 弹出复制/粘贴工具栏。
+                                  Positioned.fill(
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTapDown: _handleBlankAreaTapDown,
+                                      onDoubleTapDown:
+                                          _handleBlankAreaDoubleTapDown,
+                                      child: const SizedBox.expand(),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.only(
+                                      left: 16,
+                                      right: 56,
+                                      top: 8,
+                                      bottom: 8,
+                                    ),
+                                    child: CompositedTransformTarget(
+                                      link: _textFieldLayerLink, // 🎯 用于跟踪光标位置
+                                      // 只旁听，不抢手势：TextField 自身的落点、
+                                      // 选词、双击判定全部照旧。
+                                      child: Listener(
+                                        onPointerUp: _handleBodyPointerUp,
+                                        child: TextField(
+                                          controller: _textController,
+                                          focusNode: _textFocusNode,
+                                          scrollController: _scrollController,
+                                          keyboardType: TextInputType.multiline,
+                                          maxLines: null, // 允许无限行
+                                          autofocus: true,
+                                          decoration: InputDecoration(
+                                            hintText: AppLocalizationsSimple.of(
+                                                  context,
+                                                )?.editorPlaceholder ??
+                                                '现在的想法是...',
+                                            // 全局主题给输入框设了 filled:true，
+                                            // 玻璃卡片上会糊出一块实心白，这里关掉
+                                            filled: false,
+                                            border: InputBorder.none,
+                                            contentPadding: EdgeInsets.zero,
+                                            hintStyle: TextStyle(
+                                              fontSize: 16,
+                                              color: hintTextColor,
+                                              height: 1.5,
+                                            ),
+                                            enabledBorder: InputBorder.none,
+                                            focusedBorder: InputBorder.none,
+                                            disabledBorder: InputBorder.none,
+                                            errorBorder: InputBorder.none,
+                                            focusedErrorBorder:
+                                                InputBorder.none,
+                                          ),
+                                          cursorColor: iconColor,
+                                          // 选中文字的复制/粘贴菜单换成
+                                          // 仿系统的胶囊横条，尺寸参考
+                                          // HyperOS 的 ActionMode 悬浮条。
+                                          contextMenuBuilder:
+                                              (context, editableTextState) {
+                                            final anchors = editableTextState
+                                                .contextMenuAnchors;
+                                            return CapsuleTextSelectionToolbar(
+                                              anchorAbove:
+                                                  anchors.primaryAnchor,
+                                              anchorBelow:
+                                                  anchors.secondaryAnchor ??
+                                                      anchors.primaryAnchor,
+                                              buttonItems: editableTextState
+                                                  .contextMenuButtonItems,
+                                            );
+                                          },
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: textColor,
+                                            height: 1.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  // 语音识别按钮 - 固定在右上角；语音未开启时不渲染
+                                  if (_speechEnabled)
+                                    Positioned(
+                                      top: 4,
+                                      right: 12,
+                                      child: _buildSpeechButton(
+                                        iconColor,
+                                        secondaryTextColor,
+                                      ),
+                                    ),
+
+                                  // 实时识别文本提示 - 大厂级别的炫酷动效
+                                  if (_isSpeechListening)
+                                    Positioned(
+                                      bottom: 8,
+                                      left: 16,
+                                      right: 56,
+                                      child: GestureDetector(
+                                        onTap:
+                                            _toggleSpeechRecognition, // 点击整个识别框停止
+                                        behavior:
+                                            HitTestBehavior.opaque, // 确保整个区域可点击
+                                        child: AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 200,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 16,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: _partialSpeechText.isEmpty
+                                                  ? [
+                                                      iconColor.withValues(
+                                                        alpha: 0.05,
+                                                      ),
+                                                      iconColor.withValues(
+                                                        alpha: 0.1,
+                                                      ),
+                                                    ]
+                                                  : [
+                                                      iconColor.withValues(
+                                                        alpha: 0.12,
+                                                      ),
+                                                      iconColor.withValues(
+                                                        alpha: 0.18,
+                                                      ),
+                                                    ],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            border: Border.all(
+                                              color: iconColor.withValues(
+                                                alpha: 0.4,
+                                              ),
+                                              width: 1.5,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: iconColor.withValues(
+                                                  alpha: 0.25,
+                                                ),
+                                                blurRadius: 12,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  // 音波动画
+                                                  _buildSoundWaveAnimation(
+                                                    iconColor,
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        // 状态文字
+                                                        Text(
+                                                          _partialSpeechText
+                                                                  .isEmpty
+                                                              ? (AppLocalizationsSimple
+                                                                          .of(
+                                                                    context,
+                                                                  )
+                                                                      ?.voiceListening ??
+                                                                  '正在聆听...')
+                                                              : (AppLocalizationsSimple
+                                                                      .of(
+                                                                    context,
+                                                                  )?.voiceRecognizing ??
+                                                                  '识别中'),
+                                                          style: TextStyle(
+                                                            color: iconColor,
+                                                            fontSize: 12,
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                          ),
+                                                        ),
+                                                        if (_partialSpeechText
+                                                            .isNotEmpty) ...[
+                                                          const SizedBox(
+                                                            height: 8,
+                                                          ),
+                                                          // 识别文字 - 带打字机效果
+                                                          AnimatedDefaultTextStyle(
+                                                            duration:
+                                                                const Duration(
+                                                              milliseconds: 150,
+                                                            ),
+                                                            style: TextStyle(
+                                                              color: textColor,
+                                                              fontSize: 16,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                              height: 1.4,
+                                                            ),
+                                                            child: Text(
+                                                              _partialSpeechText,
+                                                              maxLines: 3,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  // 点击停止提示
+                                                  Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          iconColor.withValues(
+                                                        alpha: 0.15,
+                                                      ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                        8,
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      AppLocalizationsSimple.of(
+                                                            context,
+                                                          )?.clickToStop ??
+                                                          '点击停止',
+                                                      style: TextStyle(
+                                                        color: iconColor,
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+
+                            // 图片预览区域：九宫格（长按拖动排序）
+                            if (_imageList.isNotEmpty)
+                              _buildImageSection(
+                                dividerColor,
+                                imageSectionHeight,
+                              ),
+
+                            // 更多选项栏（条件显示）
+                            if (_showingMoreOptions)
+                              Container(
+                                margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                                decoration: BoxDecoration(
+                                  color: backgroundColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: dividerColor.withValues(alpha: 0.3),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: isDarkMode
+                                          ? Colors.black.withValues(alpha: 0.3)
+                                          : Colors.grey.withValues(alpha: 0.1),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
-
-                              // 更多选项栏（条件显示）
-                              if (_showingMoreOptions)
-                                Container(
-                                  margin:
-                                      const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                                  decoration: BoxDecoration(
-                                    color: backgroundColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color:
-                                          dividerColor.withValues(alpha: 0.3),
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: isDarkMode
-                                            ? Colors.black
-                                                .withValues(alpha: 0.3)
-                                            : Colors.grey
-                                                .withValues(alpha: 0.1),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: SizedBox(
-                                    height: 50,
-                                    child: SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: Row(
-                                        children: [
-                                          const SizedBox(width: 8),
-
-                                          // 下划线
-                                          _buildMoreOptionButton(
-                                            icon: Icons.format_underlined,
-                                            onPressed: () {
-                                              _wrapSelectedText('<u>', '</u>');
-                                              setState(
-                                                () =>
-                                                    _showingMoreOptions = false,
-                                              );
-                                            },
-                                            secondaryTextColor:
-                                                secondaryTextColor,
-                                          ),
-
-                                          // 链接
-                                          _buildMoreOptionButton(
-                                            icon: Icons.link,
-                                            onPressed: () {
-                                              setState(
-                                                () =>
-                                                    _showingMoreOptions = false,
-                                              );
-                                              _showLinkDialog();
-                                            },
-                                            secondaryTextColor:
-                                                secondaryTextColor,
-                                          ),
-
-                                          // 引用格式
-                                          _buildMoreOptionButton(
-                                            icon: Icons.format_quote,
-                                            onPressed: () {
-                                              _insertQuoteLine();
-                                              setState(
-                                                () =>
-                                                    _showingMoreOptions = false,
-                                              );
-                                            },
-                                            secondaryTextColor:
-                                                secondaryTextColor,
-                                          ),
-
-                                          // 标题
-                                          _buildMoreOptionButton(
-                                            icon: Icons.title,
-                                            onPressed: () {
-                                              _toggleHeading();
-                                              setState(
-                                                () =>
-                                                    _showingMoreOptions = false,
-                                              );
-                                            },
-                                            secondaryTextColor:
-                                                secondaryTextColor,
-                                          ),
-
-                                          // 代码
-                                          _buildMoreOptionButton(
-                                            icon: Icons.code,
-                                            onPressed: () {
-                                              _wrapSelectedText('`', '`');
-                                              setState(
-                                                () =>
-                                                    _showingMoreOptions = false,
-                                              );
-                                            },
-                                            secondaryTextColor:
-                                                secondaryTextColor,
-                                          ),
-
-                                          // 笔记引用（使用@图标）
-                                          _buildMoreOptionButton(
-                                            icon: Icons.alternate_email,
-                                            onPressed: () {
-                                              _showNoteReferenceDialog();
-                                              setState(
-                                                () =>
-                                                    _showingMoreOptions = false,
-                                              );
-                                            },
-                                            secondaryTextColor:
-                                                secondaryTextColor,
-                                          ),
-
-                                          const SizedBox(width: 8),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                              // AI 选项栏（条件显示）
-                              if (_showingAIOptions)
-                                Container(
-                                  margin:
-                                      const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                                  decoration: BoxDecoration(
-                                    color: backgroundColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color:
-                                          dividerColor.withValues(alpha: 0.3),
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: isDarkMode
-                                            ? Colors.black
-                                                .withValues(alpha: 0.3)
-                                            : Colors.grey
-                                                .withValues(alpha: 0.1),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: SizedBox(
-                                    height: 50,
+                                child: SizedBox(
+                                  height: 50,
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
                                     child: Row(
                                       children: [
                                         const SizedBox(width: 8),
 
-                                        // AI 续写 - 使用魔法棒图标表示AI自动续写
+                                        // 下划线
                                         _buildMoreOptionButton(
-                                          icon: Icons.auto_fix_high,
+                                          icon: Icons.format_underlined,
                                           onPressed: () {
+                                            _wrapSelectedText('<u>', '</u>');
                                             setState(
-                                              () => _showingAIOptions = false,
+                                              () => _showingMoreOptions = false,
                                             );
-                                            _aiContinueWriting();
                                           },
                                           secondaryTextColor:
                                               secondaryTextColor,
                                         ),
 
-                                        // 智能标签 - 使用价签图标表示标签
+                                        // 链接
                                         _buildMoreOptionButton(
-                                          icon: Icons.local_offer_outlined,
+                                          icon: Icons.link,
                                           onPressed: () {
                                             setState(
-                                              () => _showingAIOptions = false,
+                                              () => _showingMoreOptions = false,
                                             );
-                                            _aiGenerateTags();
+                                            _showLinkDialog();
+                                          },
+                                          secondaryTextColor:
+                                              secondaryTextColor,
+                                        ),
+
+                                        // 引用格式
+                                        _buildMoreOptionButton(
+                                          icon: Icons.format_quote,
+                                          onPressed: () {
+                                            _insertQuoteLine();
+                                            setState(
+                                              () => _showingMoreOptions = false,
+                                            );
+                                          },
+                                          secondaryTextColor:
+                                              secondaryTextColor,
+                                        ),
+
+                                        // 标题
+                                        _buildMoreOptionButton(
+                                          icon: Icons.title,
+                                          onPressed: () {
+                                            _toggleHeading();
+                                            setState(
+                                              () => _showingMoreOptions = false,
+                                            );
+                                          },
+                                          secondaryTextColor:
+                                              secondaryTextColor,
+                                        ),
+
+                                        // 代码
+                                        _buildMoreOptionButton(
+                                          icon: Icons.code,
+                                          onPressed: () {
+                                            _wrapSelectedText('`', '`');
+                                            setState(
+                                              () => _showingMoreOptions = false,
+                                            );
+                                          },
+                                          secondaryTextColor:
+                                              secondaryTextColor,
+                                        ),
+
+                                        // 笔记引用（使用@图标）
+                                        _buildMoreOptionButton(
+                                          icon: Icons.alternate_email,
+                                          onPressed: () {
+                                            _showNoteReferenceDialog();
+                                            setState(
+                                              () => _showingMoreOptions = false,
+                                            );
                                           },
                                           secondaryTextColor:
                                               secondaryTextColor,
@@ -2048,153 +2073,212 @@ class _NoteEditorState extends State<NoteEditor>
                                     ),
                                   ),
                                 ),
+                              ),
 
-                              // 底部功能栏和发送按钮
+                            // AI 选项栏（条件显示）
+                            if (_showingAIOptions)
                               Container(
-                                height: toolbarHeight,
+                                margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                                 decoration: BoxDecoration(
                                   color: backgroundColor,
-                                  border: Border(
-                                    top: BorderSide(
-                                      color: dividerColor,
-                                      width: 0.5,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: dividerColor.withValues(alpha: 0.3),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: isDarkMode
+                                          ? Colors.black.withValues(alpha: 0.3)
+                                          : Colors.grey.withValues(alpha: 0.1),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
                                     ),
+                                  ],
+                                ),
+                                child: SizedBox(
+                                  height: 50,
+                                  child: Row(
+                                    children: [
+                                      const SizedBox(width: 8),
+
+                                      // AI 续写 - 使用魔法棒图标表示AI自动续写
+                                      _buildMoreOptionButton(
+                                        icon: Icons.auto_fix_high,
+                                        onPressed: () {
+                                          setState(
+                                            () => _showingAIOptions = false,
+                                          );
+                                          _aiContinueWriting();
+                                        },
+                                        secondaryTextColor: secondaryTextColor,
+                                      ),
+
+                                      // 智能标签 - 使用价签图标表示标签
+                                      _buildMoreOptionButton(
+                                        icon: Icons.local_offer_outlined,
+                                        onPressed: () {
+                                          setState(
+                                            () => _showingAIOptions = false,
+                                          );
+                                          _aiGenerateTags();
+                                        },
+                                        secondaryTextColor: secondaryTextColor,
+                                      ),
+
+                                      const SizedBox(width: 8),
+                                    ],
                                   ),
                                 ),
-                                child: Row(
-                                  children: [
-                                    // 功能按钮容器
-                                    Expanded(
-                                      child: SingleChildScrollView(
-                                        scrollDirection: Axis.horizontal,
-                                        child: Row(
-                                          children: [
-                                            const SizedBox(width: 12),
+                              ),
 
-                                            // # 标签按钮
-                                            _buildToolbarIconButton(
-                                              icon: Text(
-                                                '#',
-                                                style: TextStyle(
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: secondaryTextColor,
-                                                ),
-                                              ),
-                                              onPressed: () => _insertText('#'),
-                                              iconColor: secondaryTextColor,
-                                              activeColor: iconColor,
-                                            ),
+                            // 底部功能栏和发送按钮
+                            Container(
+                              height: toolbarHeight,
+                              decoration: BoxDecoration(
+                                color: backgroundColor,
+                                border: Border(
+                                  top: BorderSide(
+                                    color: dividerColor,
+                                    width: 0.5,
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  // 功能按钮容器
+                                  Expanded(
+                                    child: SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: Row(
+                                        children: [
+                                          const SizedBox(width: 12),
 
-                                            // 图片按钮
-                                            _buildToolbarIconButton(
-                                              icon: Icon(
-                                                Icons.photo_outlined,
-                                                size: 20,
+                                          // # 标签按钮
+                                          _buildToolbarIconButton(
+                                            icon: Text(
+                                              '#',
+                                              style: TextStyle(
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.bold,
                                                 color: secondaryTextColor,
                                               ),
-                                              onPressed: _pickImage,
-                                              iconColor: secondaryTextColor,
-                                              activeColor: iconColor,
                                             ),
+                                            onPressed: () => _insertText('#'),
+                                            iconColor: secondaryTextColor,
+                                            activeColor: iconColor,
+                                          ),
 
-                                            // 视频按钮（与图片互斥）
-                                            _buildToolbarIconButton(
-                                              icon: Icon(
-                                                Icons.videocam_outlined,
-                                                size: 20,
+                                          // 图片按钮
+                                          _buildToolbarIconButton(
+                                            icon: Icon(
+                                              Icons.photo_outlined,
+                                              size: 20,
+                                              color: secondaryTextColor,
+                                            ),
+                                            onPressed: _pickImage,
+                                            iconColor: secondaryTextColor,
+                                            activeColor: iconColor,
+                                          ),
+
+                                          // 视频按钮（与图片互斥）
+                                          _buildToolbarIconButton(
+                                            icon: Icon(
+                                              Icons.videocam_outlined,
+                                              size: 20,
+                                              color: secondaryTextColor,
+                                            ),
+                                            onPressed: _pickVideo,
+                                            iconColor: secondaryTextColor,
+                                            activeColor: iconColor,
+                                          ),
+
+                                          // 🎯 待办按钮
+                                          _buildToolbarIconButton(
+                                            icon: Icon(
+                                              Icons.check_box_outlined,
+                                              size: 20,
+                                              color: secondaryTextColor,
+                                            ),
+                                            onPressed: _insertTodoItem,
+                                            iconColor: secondaryTextColor,
+                                            activeColor: iconColor,
+                                          ),
+
+                                          // AI 按钮 - 与工具栏统一，点击展开/收起选项
+                                          _buildToolbarIconButton(
+                                            icon: Icon(
+                                              _showingAIOptions
+                                                  ? Icons.keyboard_arrow_down
+                                                  : Icons.auto_awesome,
+                                              size: 20,
+                                              color: secondaryTextColor,
+                                            ),
+                                            onPressed: () {
+                                              setState(() {
+                                                _showingAIOptions =
+                                                    !_showingAIOptions;
+                                              });
+                                            },
+                                            iconColor: secondaryTextColor,
+                                            activeColor: iconColor,
+                                            isActive: _showingAIOptions,
+                                          ),
+
+                                          // B 粗体按钮
+                                          _buildToolbarIconButton(
+                                            icon: Text(
+                                              'B',
+                                              style: TextStyle(
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.bold,
                                                 color: secondaryTextColor,
                                               ),
-                                              onPressed: _pickVideo,
-                                              iconColor: secondaryTextColor,
-                                              activeColor: iconColor,
                                             ),
+                                            onPressed: _toggleBold,
+                                            iconColor: secondaryTextColor,
+                                            activeColor: iconColor,
+                                            isActive:
+                                                _textController.isMarkActive(
+                                              MemoTextMark.bold,
+                                            ),
+                                          ),
 
-                                            // 🎯 待办按钮
-                                            _buildToolbarIconButton(
-                                              icon: Icon(
-                                                Icons.check_box_outlined,
-                                                size: 20,
-                                                color: secondaryTextColor,
-                                              ),
-                                              onPressed: _insertTodoItem,
-                                              iconColor: secondaryTextColor,
-                                              activeColor: iconColor,
+                                          // 列表按钮
+                                          _buildToolbarIconButton(
+                                            icon: Icon(
+                                              Icons.format_list_bulleted,
+                                              size: 20,
+                                              color: secondaryTextColor,
                                             ),
+                                            onPressed: _insertBulletItem,
+                                            iconColor: secondaryTextColor,
+                                            activeColor: iconColor,
+                                          ),
 
-                                            // AI 按钮 - 与工具栏统一，点击展开/收起选项
-                                            _buildToolbarIconButton(
-                                              icon: Icon(
-                                                _showingAIOptions
-                                                    ? Icons.keyboard_arrow_down
-                                                    : Icons.auto_awesome,
-                                                size: 20,
-                                                color: secondaryTextColor,
-                                              ),
-                                              onPressed: () {
-                                                setState(() {
-                                                  _showingAIOptions =
-                                                      !_showingAIOptions;
-                                                });
-                                              },
-                                              iconColor: secondaryTextColor,
-                                              activeColor: iconColor,
-                                              isActive: _showingAIOptions,
+                                          // 更多按钮
+                                          _buildToolbarIconButton(
+                                            icon: Icon(
+                                              _showingMoreOptions
+                                                  ? Icons.keyboard_arrow_down
+                                                  : Icons.more_horiz,
+                                              size: 20,
+                                              color: secondaryTextColor,
                                             ),
-
-                                            // B 粗体按钮
-                                            _buildToolbarIconButton(
-                                              icon: Text(
-                                                'B',
-                                                style: TextStyle(
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: secondaryTextColor,
-                                                ),
-                                              ),
-                                              onPressed: _toggleBold,
-                                              iconColor: secondaryTextColor,
-                                              activeColor: iconColor,
-                                              isActive:
-                                                  _textController.isMarkActive(
-                                                MemoTextMark.bold,
-                                              ),
-                                            ),
-
-                                            // 列表按钮
-                                            _buildToolbarIconButton(
-                                              icon: Icon(
-                                                Icons.format_list_bulleted,
-                                                size: 20,
-                                                color: secondaryTextColor,
-                                              ),
-                                              onPressed: _insertBulletItem,
-                                              iconColor: secondaryTextColor,
-                                              activeColor: iconColor,
-                                            ),
-
-                                            // 更多按钮
-                                            _buildToolbarIconButton(
-                                              icon: Icon(
-                                                _showingMoreOptions
-                                                    ? Icons.keyboard_arrow_down
-                                                    : Icons.more_horiz,
-                                                size: 20,
-                                                color: secondaryTextColor,
-                                              ),
-                                              onPressed: _showMoreOptions,
-                                              iconColor: secondaryTextColor,
-                                              activeColor: iconColor,
-                                              isActive: _showingMoreOptions,
-                                            ),
-                                          ],
-                                        ),
+                                            onPressed: _showMoreOptions,
+                                            iconColor: secondaryTextColor,
+                                            activeColor: iconColor,
+                                            isActive: _showingMoreOptions,
+                                          ),
+                                        ],
                                       ),
                                     ),
+                                  ),
 
-                                    // 发送按钮
-                                    // 直接监听输入内容，不再依赖外层 build 重建：
-                                    // 首行打字不改变行数，原先按钮会一直保持灰色。
+                                  // 发送按钮
+                                  // 直接监听输入内容，不再依赖外层 build 重建：
+                                  // 首行打字不改变行数，原先按钮会一直保持灰色。
+                                  // 全屏模式的保存入口是右上「完成」，这里不再重复
+                                  if (!widget.fullScreen)
                                     ValueListenableBuilder<TextEditingValue>(
                                       valueListenable: _textController,
                                       builder: (context, textValue, _) {
@@ -2234,11 +2318,10 @@ class _NoteEditorState extends State<NoteEditor>
                                         );
                                       },
                                     ),
-                                  ],
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

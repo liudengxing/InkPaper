@@ -12,7 +12,7 @@ import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:inkpaper/utils/todo_parser.dart';
 import 'package:inkpaper/widgets/memos_markdown_renderer.dart';
-import 'package:inkpaper/widgets/note_editor.dart';
+import 'package:inkpaper/widgets/note_editor_page.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
 import 'package:inkpaper/widgets/on_this_day_card.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
@@ -158,39 +158,36 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
     return allTags;
   }
 
-  // 显示编辑笔记表单
+  // 编辑已有笔记：走全屏编辑器，卡片只留给新建
   void _showEditNoteForm(Note note) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => NoteEditor(
-        initialContent: note.content,
-        onSave: (content) async {
-          if (content.trim().isNotEmpty) {
-            try {
-              final appProvider =
-                  Provider.of<AppProvider>(context, listen: false);
-              await appProvider.updateNote(note, content);
-              if (!mounted || !context.mounted) {
-                return;
-              }
-              await _loadReviewNotes(); // 重新加载笔记
-            } on Object catch (e) {
-              if (mounted && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      '${AppLocalizationsSimple.of(context)?.updatingFailed ?? '更新失败'}: $e',
-                    ),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            }
+    NoteEditorPage.open(
+      context,
+      noteId: note.id,
+      initialContent: note.content,
+      onSave: (content) async {
+        if (content.trim().isEmpty) {
+          return;
+        }
+        try {
+          final appProvider = Provider.of<AppProvider>(context, listen: false);
+          await appProvider.updateNote(note, content);
+          if (!mounted || !context.mounted) {
+            return;
           }
-        },
-      ),
+          await _loadReviewNotes(); // 重新加载笔记
+        } on Object catch (e) {
+          if (mounted && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '${AppLocalizationsSimple.of(context)?.updatingFailed ?? '更新失败'}: $e',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      },
     );
   }
 

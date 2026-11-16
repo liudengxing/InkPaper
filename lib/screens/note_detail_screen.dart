@@ -21,7 +21,7 @@ import 'package:inkpaper/utils/tag_path_utils.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:inkpaper/utils/text_style_helper.dart';
 import 'package:inkpaper/utils/todo_parser.dart';
-import 'package:inkpaper/widgets/note_editor.dart';
+import 'package:inkpaper/widgets/note_editor_page.dart';
 import 'package:inkpaper/widgets/note_image_grid.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
 import 'package:inkpaper/widgets/note_preview_text.dart';
@@ -539,69 +539,51 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         ),
       );
 
-  void _showEditNoteForm(Note note) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => NoteEditor(
-        initialContent: note.content,
-        onSave: (content) async {
-          if (content.trim().isNotEmpty) {
-            try {
-              final appProvider =
-                  Provider.of<AppProvider>(context, listen: false);
-              await appProvider.updateNote(note, content);
-              await _loadNote(); // 重新加载笔记
-              if (mounted && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        const Icon(Icons.check_circle, color: Colors.white),
-                        const SizedBox(width: 12),
-                        Text(
-                          AppLocalizationsSimple.of(context)?.noteUpdated ??
-                              '笔记已更新',
-                        ),
-                      ],
-                    ),
-                    backgroundColor: Colors.green,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
-              }
-            } on Object catch (e) {
-              if (mounted && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        const Icon(Icons.error, color: Colors.white),
-                        const SizedBox(width: 12),
-                        Text(
-                          '${AppLocalizationsSimple.of(context)?.updateFailed ?? '更新失败'}: $e',
-                        ),
-                      ],
-                    ),
-                    backgroundColor: Colors.red,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            }
-          }
-        },
-      ),
+  /// 长按正文：复制笔记内容（正文不再可选中，复制走这里）。
+  Future<void> _copyNoteContent() async {
+    final note = _note;
+    if (note == null) {
+      return;
+    }
+    final text = MemosContentHelper.previewVisibleText(note.content).trim();
+    final copyText = text.isEmpty ? note.content.trim() : text;
+    if (copyText.isEmpty) {
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: copyText));
+    if (!mounted) {
+      return;
+    }
+    unawaited(HapticFeedback.selectionClick());
+    SnackBarUtils.showSuccess(context, '已复制笔记内容');
+  }
+
+  /// 打开全屏编辑器。
+  ///
+  /// 原来这里是「双击正文 → 弹底部小卡片」。编辑已有笔记是重活：正文可能有
+  /// 几十行、还要调图片顺序、加标签，220px 高的小卡片撑不住。现在统一走全屏
+  /// 编辑器，保存后 pop 回本页再刷新——阅读与编辑仍是同一个入口，只是多了一个
+  /// 「编辑」状态，不再需要用户先猜「双击可以编辑」。
+  Future<void> _openEditor(Note note) async {
+    if (_note == null) {
+      return;
+    }
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    // 编辑的几分钟不该算进浏览时长，回来重新计时
+    _viewStopwatch.stop();
+    await NoteEditorPage.open(
+      context,
+      noteId: note.id,
+      initialContent: note.content,
+      onSave: (content) async {
+        await appProvider.updateNote(note, content);
+      },
     );
+    if (!mounted) {
+      return;
+    }
+    _viewStopwatch.start();
+    await _loadNote();
   }
 
   // 显示更多选项菜单（统一使用 NoteMoreOptionsMenu）
@@ -773,7 +755,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               child: Icon(Icons.edit, size: 20, color: iconColor),
             ),
             tooltip: AppLocalizationsSimple.of(context)?.editNote ?? '编辑笔记',
-            onPressed: () => _showEditNoteForm(_note!),
+            onPressed: () => _openEditor(_note!),
           ),
           const SizedBox(width: 8),
         ],
@@ -857,12 +839,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: GestureDetector(
                       behavior: HitTestBehavior.translucent,
-                      onDoubleTap: () {
-                        if (kDebugMode) {
-                          debugPrint('🖱️ 双击检测到，打开编辑');
-                        }
-                        _showEditNoteForm(_note!);
-                      },
+                      // 单击正文＝编辑。原来要双击，等于把「能改」藏起来了：
+                      // 点一下没反应，绝大多数人就不会再点第二下。
+                      // 长按仍是复制全文（与首页卡片同一套手势）
+                      onTap: () => _openEditor(_note!),
+                      onLongPress: _copyNoteContent,
                       child: SingleChildScrollView(
                         physics: const BouncingScrollPhysics(),
                         child: Column(
@@ -996,6 +977,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    // 这里刻意不用 SelectableText /
+                                    // SelectionArea：两者都会把单击吞进选区逻辑，
+                                    // 正文就再也点不进编辑态了（实测 SelectionArea
+                                    // 同样吃单击）。想复制片段就点进编辑态复制
                                     NotePreviewText(
                                       content: _note!.content,
                                       style: AppTextStyles.bodyLarge(
@@ -1006,12 +991,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                       accentColor: isDarkMode
                                           ? AppTheme.primaryLightColor
                                           : AppTheme.primaryColor,
-                                      selectable: true,
                                       onCheckboxTap: _toggleTodoInNote,
                                       onTagTap: (tagName) {
                                         try {
                                           final tagPath =
-                                              normalizeIncomingTagPath(tagName);
+                                              normalizeIncomingTagPath(
+                                            tagName,
+                                          );
                                           if (tagPath == null) {
                                             return;
                                           }

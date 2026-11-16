@@ -12,6 +12,7 @@ import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_path_utils.dart';
 import 'package:inkpaper/widgets/note_card.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
+import 'package:inkpaper/widgets/note_editor_page.dart';
 import 'package:provider/provider.dart';
 
 /// 标签笔记详情页 - 显示某个标签下的所有笔记
@@ -224,32 +225,28 @@ class _TagNotesScreenState extends State<TagNotesScreen> {
     );
   }
 
-  // 🎯 显示编辑笔记表单（与主页完全一致）
+  // 🎯 编辑已有笔记：走全屏编辑器，卡片只留给新建
   void _showEditNoteForm(Note note) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => NoteEditor(
-        initialContent: note.content,
-        currentNoteId: note.id,
-        onSave: (content) async {
-          if (content.trim().isNotEmpty) {
-            try {
-              final appProvider =
-                  Provider.of<AppProvider>(context, listen: false);
-              await appProvider.updateNote(note, content);
-            } on Object catch (e) {
-              if (mounted && context.mounted) {
-                SnackBarUtils.showError(
-                  context,
-                  '更新失败: $e',
-                );
-              }
-            }
+    NoteEditorPage.open(
+      context,
+      noteId: note.id,
+      initialContent: note.content,
+      onSave: (content) async {
+        if (content.trim().isEmpty) {
+          return;
+        }
+        try {
+          final appProvider = Provider.of<AppProvider>(context, listen: false);
+          await appProvider.updateNote(note, content);
+        } on Object catch (e) {
+          if (mounted && context.mounted) {
+            SnackBarUtils.showError(
+              context,
+              '更新失败: $e',
+            );
           }
-        },
-      ),
+        }
+      },
     );
   }
 

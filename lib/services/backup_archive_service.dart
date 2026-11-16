@@ -238,6 +238,35 @@ class BackupArchiveService {
       if (isVideo) {
         videoCount++;
       }
+
+      // 动图没播放过时旁边还没有 `<图>.live.mp4`（播放才会抽出片段），
+      // 但片段就嵌在刚读到的字节里。直接切出来当 sidecar 落包，
+      // 否则备份出来的动图会退化成静态图。
+      if (!isVideo && !LivePhotoUtils.hasLiveVideo(originalPath)) {
+        final liveBytes = LivePhotoUtils.extractMotionPhoto(bytes)?.videoBytes;
+        if (liveBytes != null &&
+            liveBytes.isNotEmpty &&
+            liveBytes.length <= _maxSingleVideoBytes &&
+            videoBytesTotal + liveBytes.length <= _maxVideosTotalBytes) {
+          videoBytesTotal += liveBytes.length;
+          final liveArchivePath = '$resourceDirName/'
+              'video_${noteIndex + 1}_${resources.length + 1}.mp4';
+          archive.addFile(
+            ArchiveFile(liveArchivePath, liveBytes.length, liveBytes),
+          );
+          final livePath = LivePhotoUtils.videoPathFor(originalPath);
+          resources.add({
+            'noteId': note.id,
+            'originalPath': livePath,
+            'archivePath': liveArchivePath,
+            'isVideo': true,
+            'sizeBytes': liveBytes.length,
+            'liveOf': originalPath,
+          });
+          archivedByOriginal[livePath] = liveArchivePath;
+          videoCount++;
+        }
+      }
     }
 
     if (includeImages || includeVideos) {

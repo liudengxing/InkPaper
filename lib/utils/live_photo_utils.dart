@@ -61,6 +61,65 @@ class LivePhotoUtils {
     }
   }
 
+  /// 保证图片旁边的动图片段已经落在本地，返回是否拿到了动图。
+  ///
+  /// 修复 Container 格式之前导入的动图只有静图、没有 `<图>.live.mp4`，
+  /// 角标 / 播放 / 备份全都会把它当静态图。这里按需补抽一次。
+  static Future<bool> ensureLiveVideo(String imagePath) async {
+    if (hasLiveVideo(imagePath)) {
+      return true;
+    }
+    if (imagePath.startsWith('http://') ||
+        imagePath.startsWith('https://') ||
+        imagePath.startsWith('content://')) {
+      return false;
+    }
+    try {
+      final file = File(imagePath.replaceFirst('file://', ''));
+      if (!file.existsSync()) {
+        return false;
+      }
+      // XMP 一定在文件前部，先只读头部：普通静态图到这里就返回，
+      // 不会为了确认去整块读一张几 MB 的照片。
+      final header = await _readPrefix(file, 262144);
+      if (!_looksLikeMotionPhoto(header)) {
+        return false;
+      }
+      final data = extractMotionPhoto(await file.readAsBytes());
+      if (data == null) {
+        return false;
+      }
+      await File(
+        videoPathFor(imagePath),
+      ).writeAsBytes(data.videoBytes, flush: true);
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
+  static bool _looksLikeMotionPhoto(Uint8List bytes) {
+    if (!_isJpeg(bytes)) {
+      return false;
+    }
+    final header = _latin1(bytes, 0, bytes.length);
+    return header.contains('MicroVideoOffset') ||
+        header.contains('MotionPhoto') ||
+        header.contains('Container:Item');
+  }
+
+  static Future<Uint8List> _readPrefix(File file, int max) async {
+    final handle = await file.open();
+    try {
+      final total = await handle.length();
+      final take = total < max ? total : max;
+      await handle.setPosition(0);
+      return await handle.read(take);
+    } finally {
+      await handle.close();
+    }
+  }
+
   /// 从 JPEG 字节里提取动态片段；不是动态照片时返回 null。
   static MotionPhotoData? extractMotionPhoto(Uint8List bytes) {
     if (bytes.length < 4096 || !_isJpeg(bytes)) {
@@ -74,7 +133,7 @@ class LivePhotoUtils {
     final offset = _matchInt(header, RegExp(r'MicroVideoOffset="(\d+)"'));
     final timestamp = _matchInt(
       header,
-      RegExp(r'MicroVideoPresentationTimestampUs="(\d+)"'),
+      RegExp(r'(?:MicroVideo|MotionPhoto)PresentationTimestampUs="(\d+)"'),
     );
 
     if (offset != null) {
@@ -85,7 +144,18 @@ class LivePhotoUtils {
       }
     }
 
-    // 新版 Container 格式（无 MicroVideoOffset）：从尾部找 ftyp box
+    // 新版 Container 格式（Google / 小米相机都是这套）：目录里不写偏移量，
+    // 只写动态片段自己的字节数（`Item:Semantic="MotionPhoto"` + `Item:Length`），
+    // 动片段永远在文件末尾，所以起点 = 总长 - Length。
+    final itemLength = _motionPhotoItemLength(header);
+    if (itemLength != null) {
+      final data = _sliceVideo(bytes, bytes.length - itemLength, timestamp);
+      if (data != null) {
+        return data;
+      }
+    }
+
+    // 兜底：目录信息残缺时从尾部找 ftyp box
     if (header.contains('MotionPhoto') || header.contains('Container:Item')) {
       final start = _findLastFtyp(bytes);
       if (start != null) {
@@ -123,9 +193,29 @@ class LivePhotoUtils {
     );
   }
 
+  /// 从 Container 目录里读到动态片段的字节数。
+  ///
+  /// 目录是一串 `<Container:Item .../>`，主图那条只写 Mime/Semantic，
+  /// 动图那条才带 `Item:Length`。属性顺序各家不一样，所以整段按标签切。
+  static int? _motionPhotoItemLength(String text) {
+    for (final match in RegExp('<Container:Item[^>]*>').allMatches(text)) {
+      final tag = match.group(0) ?? '';
+      if (!tag.contains('MotionPhoto')) {
+        continue;
+      }
+      final length = _matchInt(tag, RegExp(r'Item:Length="(\d+)"'));
+      if (length != null && length > 0) {
+        return length;
+      }
+    }
+    return null;
+  }
+
   /// 从文件尾部向前搜索 `ftyp`，返回 box 起点（size 字段所在位置）。
   static int? _findLastFtyp(Uint8List bytes) {
-    final searchStart = bytes.length > 1048576 ? bytes.length - 1048576 : 0;
+    // 窗口要能盖住常见的动图片段长度：早期只扫 1MB，几 MB 的片段直接漏掉
+    const window = 16 * 1024 * 1024;
+    final searchStart = bytes.length > window ? bytes.length - window : 0;
     for (var i = bytes.length - 8; i >= searchStart; i--) {
       if (bytes[i] == 0x66 &&
           bytes[i + 1] == 0x74 &&

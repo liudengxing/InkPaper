@@ -14,6 +14,33 @@ final Uint8List _tinyPng = base64Decode(
   'IQAAAABJRU5ErkJggg==',
 );
 
+/// 造一张「Container 目录」格式的动图（小米相机 MVIMG 就是这套）。
+///
+/// 目录里不写偏移量，只写片段自己的字节数，片段紧贴在文件末尾。
+Uint8List _containerMotionPhoto({int videoLength = 4096}) {
+  final xmp = '<x:xmpmeta><rdf:Description GCamera:MotionPhoto="1">'
+      '<Container:Directory><rdf:Seq>'
+      '<rdf:li><Container:Item Item:Mime="image/jpeg" '
+      'Item:Semantic="Primary"/></rdf:li>'
+      '<rdf:li><Container:Item Item:Mime="video/mp4" '
+      'Item:Semantic="MotionPhoto" Item:Length="$videoLength" '
+      'Item:Padding="0"/></rdf:li>'
+      '</rdf:Seq></Container:Directory></rdf:Description></x:xmpmeta>';
+  final video = Uint8List(videoLength);
+  video[3] = 24;
+  video.setRange(4, 8, 'ftyp'.codeUnits);
+  for (var i = 8; i < videoLength; i++) {
+    video[i] = i & 0xFF;
+  }
+  return Uint8List.fromList([
+    0xFF,
+    0xD8,
+    ...xmp.codeUnits,
+    ...List<int>.filled(2048, 0),
+    ...video,
+  ]);
+}
+
 Note _note({
   required String id,
   required String content,
@@ -363,6 +390,41 @@ void main() {
       expect(
         File(LivePhotoUtils.videoPathFor(restoredImage)).lengthSync(),
         4096,
+      );
+    });
+
+    test('没抽过侧车的动图，备份时从图片字节里切出片段', () async {
+      // 小米相机的 MVIMG 是「Container 目录」格式，片段就嵌在 JPEG 里，
+      // 播放过之前不会有 `<图>.live.mp4`。只按侧车打包会把动图退化成静态图。
+      const videoLength = 8192;
+      final image = File('${imagesDir.path}${Platform.pathSeparator}mv2.jpg');
+      await image.writeAsBytes(
+        _containerMotionPhoto(videoLength: videoLength),
+        flush: true,
+      );
+      expect(LivePhotoUtils.hasLiveVideo(image.path), isFalse);
+
+      final built = await service.buildArchive(
+        notes: [_note(id: 'lv2', content: '动图 ![图片](${image.path})')],
+        format: BackupContentFormat.json,
+        includeImages: true,
+      );
+
+      expect(built.imageCount, 1);
+      expect(built.videoCount, 1, reason: '内嵌片段按视频计数');
+
+      final decoded = await service.decodeArchive(built.bytes);
+      final json =
+          jsonDecode(decoded.entries.first.content) as Map<String, dynamic>;
+      final content = ((json['notes'] as List).first
+          as Map<String, dynamic>)['content'] as String;
+      final restoredImage =
+          RegExp(r'file://([^)\s]+)').firstMatch(content)?.group(1);
+      expect(restoredImage, isNotNull);
+      expect(LivePhotoUtils.hasLiveVideo(restoredImage!), isTrue);
+      expect(
+        File(LivePhotoUtils.videoPathFor(restoredImage)).lengthSync(),
+        videoLength,
       );
     });
 

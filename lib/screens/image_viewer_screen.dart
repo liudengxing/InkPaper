@@ -1064,6 +1064,27 @@ class _PhotoPageState extends State<_PhotoPage> {
   void initState() {
     super.initState();
     _hasLiveVideo = LivePhotoUtils.hasLiveVideo(widget.imagePath);
+    unawaited(_prepareLive());
+  }
+
+  /// 老动图旁边可能还没有片段文件，这里补抽一次再决定要不要播。
+  ///
+  /// 补抽前先看文件头，普通静态图不会整块读盘，代价和一次缩略图解码差不多。
+  Future<void> _prepareLive() async {
+    final path = widget.imagePath;
+    if (!_hasLiveVideo) {
+      final extracted = await LivePhotoUtils.ensureLiveVideo(path);
+      if (!mounted || path != widget.imagePath) {
+        return;
+      }
+      if (!extracted) {
+        return;
+      }
+      setState(() => _hasLiveVideo = true);
+    }
+    if (!mounted || path != widget.imagePath || !_hasLiveVideo) {
+      return;
+    }
     _scheduleLiveAutoPlay();
   }
 
@@ -1085,7 +1106,7 @@ class _PhotoPageState extends State<_PhotoPage> {
       _disposeLiveController();
       _hasLiveVideo = LivePhotoUtils.hasLiveVideo(widget.imagePath);
       _liveFailed = false;
-      _scheduleLiveAutoPlay();
+      unawaited(_prepareLive());
       return;
     }
     if (oldWidget.isActive != widget.isActive) {

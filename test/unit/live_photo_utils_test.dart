@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,6 +56,84 @@ void main() {
       expect(LivePhotoUtils.hasLiveVideo('https://x.com/a.jpg'), isFalse);
       expect(LivePhotoUtils.hasLiveVideo('http://x.com/a.jpg'), isFalse);
       expect(LivePhotoUtils.hasLiveVideo('content://media/a.jpg'), isFalse);
+    });
+  });
+
+  group('动图解析', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('inkpaper_motion_test');
+    });
+
+    tearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    /// 造一张「Container 目录」格式的动图（小米相机 MVIMG 就是这套）。
+    Uint8List buildContainerMotionPhoto({int videoLength = 8192}) {
+      final xmp = '<x:xmpmeta><rdf:Description GCamera:MotionPhoto="1" '
+          'GCamera:MotionPhotoPresentationTimestampUs="1265856">'
+          '<Container:Directory><rdf:Seq>'
+          '<rdf:li><Container:Item Item:Mime="image/jpeg" '
+          'Item:Semantic="Primary"/></rdf:li>'
+          '<rdf:li><Container:Item Item:Mime="video/mp4" '
+          'Item:Semantic="MotionPhoto" Item:Length="$videoLength" '
+          'Item:Padding="0"/></rdf:li>'
+          '</rdf:Seq></Container:Directory></rdf:Description></x:xmpmeta>';
+      final video = Uint8List(videoLength);
+      video[3] = 24; // box size
+      video.setRange(4, 8, 'ftyp'.codeUnits);
+      for (var i = 8; i < videoLength; i++) {
+        video[i] = i & 0xFF;
+      }
+      final head = <int>[0xFF, 0xD8, ...xmp.codeUnits];
+      final filler = List<int>.filled(2048, 0);
+      return Uint8List.fromList([...head, ...filler, ...video]);
+    }
+
+    test('LP-05 Container 目录格式按 Item:Length 切出片段', () {
+      final bytes = buildContainerMotionPhoto();
+      final data = LivePhotoUtils.extractMotionPhoto(bytes);
+
+      expect(data, isNotNull);
+      expect(data!.videoBytes.length, 8192);
+      expect(data.imageLength, bytes.length - 8192);
+      expect(data.presentationTimestampUs, 1265856);
+      // 片段首部必须是 ftyp box
+      expect(String.fromCharCodes(data.videoBytes, 4, 8), 'ftyp');
+    });
+
+    test('LP-06 没有侧车时 ensureLiveVideo 会补抽出来', () async {
+      final image = File('${tempDir.path}${Platform.pathSeparator}mv.jpg');
+      await image.writeAsBytes(buildContainerMotionPhoto());
+
+      expect(LivePhotoUtils.hasLiveVideo(image.path), isFalse);
+      expect(await LivePhotoUtils.ensureLiveVideo(image.path), isTrue);
+
+      final sidecar = File(LivePhotoUtils.videoPathFor(image.path));
+      expect(sidecar.existsSync(), isTrue);
+      expect(sidecar.lengthSync(), 8192);
+      expect(LivePhotoUtils.hasLiveVideo(image.path), isTrue);
+    });
+
+    test('LP-07 普通静态图不会被当成动图，也不会落侧车', () async {
+      final image = File('${tempDir.path}${Platform.pathSeparator}plain.jpg');
+      await image.writeAsBytes(
+        Uint8List.fromList([0xFF, 0xD8, ...List<int>.filled(6000, 7)]),
+      );
+
+      expect(
+        LivePhotoUtils.extractMotionPhoto(image.readAsBytesSync()),
+        isNull,
+      );
+      expect(await LivePhotoUtils.ensureLiveVideo(image.path), isFalse);
+      expect(
+        File(LivePhotoUtils.videoPathFor(image.path)).existsSync(),
+        isFalse,
+      );
     });
   });
 

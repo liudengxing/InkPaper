@@ -40,6 +40,7 @@ import 'package:inkpaper/services/widget_snapshot_service.dart';
 import 'package:inkpaper/utils/error_handler.dart';
 // 🚀 大厂标准：监控工具
 import 'package:inkpaper/utils/logger.dart';
+import 'package:inkpaper/utils/media_paths.dart';
 import 'package:inkpaper/utils/note_dedupe.dart';
 import 'package:inkpaper/utils/note_sorting_helper.dart';
 import 'package:inkpaper/utils/note_tags_helper.dart' as note_tags;
@@ -1294,13 +1295,28 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       }
 
       final localPath = localUri.replaceFirst('file://', '');
-      final imageFile = File(localPath);
-      if (!await imageFile.exists()) {
-        debugPrint('AppProvider: 本地图片不存在，暂不上传: $localPath');
+      final mediaFile = File(localPath);
+      if (!await mediaFile.exists()) {
+        debugPrint('AppProvider: 本地媒体不存在，暂不上传: $localPath');
         continue;
       }
 
-      final uploadResult = await _resourceService!.uploadImage(imageFile);
+      // 超过上传上限的视频留在本地：正文里保留 file:// 路径，其它设备上打不开，
+      // 但比整条笔记同步失败强。用户选视频时已经提示过「仅本机」。
+      if (MediaPaths.isVideoPath(localPath) &&
+          await mediaFile.length() > MediaPaths.maxUploadBytes) {
+        debugPrint('AppProvider: 视频超过上传上限，保留本地路径: $localPath');
+        continue;
+      }
+
+      final Map<String, dynamic> uploadResult;
+      try {
+        uploadResult = await _resourceService!.uploadImage(mediaFile);
+      } on Object catch (e) {
+        // 单个媒体失败不该拖垮整条笔记的同步，保留本地路径继续处理下一个
+        debugPrint('AppProvider: 媒体上传失败，保留本地路径: $e');
+        continue;
+      }
       final serverMarkdown = MemosResourceService.generateImageMarkdown(
         uploadResult,
         alt: alt.isEmpty ? '图片' : alt,

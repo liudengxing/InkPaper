@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:inkpaper/services/memos_api_service_fixed.dart';
+import 'package:inkpaper/utils/media_paths.dart';
 import 'package:path/path.dart' as path;
 
 /// Memos资源上传服务
@@ -39,24 +40,29 @@ class MemosResourceService {
         throw Exception('图片文件不存在');
       }
 
-      // 检查文件大小（限制32MB）
+      // 检查文件大小（Memos 默认上限 32MB）
       final fileSize = await imageFile.length();
-      const maxSize = 32 * 1024 * 1024; // 32MB
-      if (fileSize > maxSize) {
-        throw Exception('图片文件太大，最大支持32MB');
+      final fileName = path.basename(imageFile.path);
+      final isVideo = MediaPaths.isVideoPath(fileName);
+      if (fileSize > MediaPaths.maxUploadBytes) {
+        throw Exception(
+          isVideo ? '视频文件太大，最大支持32MB' : '图片文件太大，最大支持32MB',
+        );
       }
 
-      final fileName = path.basename(imageFile.path);
       final version =
           serverVersion ?? await MemosApiServiceFixed.getServerVersion(baseUrl);
-      final attempts = version >= 27
+      // 视频只走 multipart：attachments 接口要把整个文件 base64 塞进 JSON，
+      // 30MB 的视频会膨胀成 40MB 字符串，内存直接顶满。
+      final attachmentsFirst = version >= 27 && !isVideo;
+      final attempts = attachmentsFirst
           ? <Future<Map<String, dynamic>> Function()>[
               () => _uploadAttachmentJson(imageFile, fileName),
               () => _uploadResourceBlob(imageFile, fileName),
             ]
           : <Future<Map<String, dynamic>> Function()>[
               () => _uploadResourceBlob(imageFile, fileName),
-              () => _uploadAttachmentJson(imageFile, fileName),
+              if (!isVideo) () => _uploadAttachmentJson(imageFile, fileName),
             ];
 
       Object? lastError;
@@ -252,6 +258,19 @@ class MemosResourceService {
         return MediaType('image', 'heic');
       case '.heif':
         return MediaType('image', 'heif');
+      case '.mp4':
+      case '.m4v':
+        return MediaType('video', 'mp4');
+      case '.mov':
+        return MediaType('video', 'quicktime');
+      case '.webm':
+        return MediaType('video', 'webm');
+      case '.mkv':
+        return MediaType('video', 'x-matroska');
+      case '.avi':
+        return MediaType('video', 'x-msvideo');
+      case '.3gp':
+        return MediaType('video', '3gpp');
       case '.jpg':
       case '.jpeg':
       default:

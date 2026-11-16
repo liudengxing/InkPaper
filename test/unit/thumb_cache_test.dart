@@ -75,12 +75,13 @@ void main() {
       expect(name, 'shot_${ThumbCache.defaultWidth}.png');
     });
 
-    test('TC-03 视频不做缩略图，动图与 HEIC 现在都做', () {
-      for (final ext in ['.mp4', '.mov', '.m4v']) {
+    test('TC-03 视频与动图、HEIC 都会生成缩略图', () {
+      // 视频首帧交给原生 MediaMetadataRetriever，输出 JPEG
+      for (final ext in ['.mp4', '.mov', '.m4v', '.webm', '.mkv']) {
         expect(
           ThumbCache.instance.fileNameFor('/a/images/x$ext'),
-          isNull,
-          reason: '$ext 是视频，应该回退原图',
+          'x_${ThumbCache.defaultWidth}.jpg',
+          reason: '$ext 应该有首帧封面',
         );
       }
       // GIF 取首帧、HEIC 走原生解码：都必须有名字，否则根本进不了补齐队列

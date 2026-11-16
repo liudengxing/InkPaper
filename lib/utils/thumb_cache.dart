@@ -45,13 +45,12 @@ class ThumbCache {
   /// 82 是肉眼几乎无损的档位，再高只是让文件变大。
   static const int _jpegQuality = 82;
 
-  /// 视频没有解码器，做了也没意义，直接回退原图。
+  /// 视频首帧也做缩略图（[nativeVideoExtensions]），和 HEIC 一样交给原生。
   ///
-  /// 动图（GIF）与 HEIC 早先也在这张表里，代价是 151 张图只有 108 个缩略图，
-  /// 剩下 43 张每次渲染都要现解原图 —— 滑到多图笔记就白一片。现在：
-  /// GIF 取首帧存静图（[animatedExtensions]），HEIC 交给 Android 原生解码
-  /// （[nativeDecodeExtensions]）。
-  static const Set<String> _skipExtensions = <String>{'.mp4', '.mov', '.m4v'};
+  /// 这张表曾经装过 GIF / HEIC / 视频：151 张图只有 108 个缩略图，剩下 43 张
+  /// 每次渲染都要现解原图 —— 滑到多图笔记就白一片。三者现在都能生成缩略图，
+  /// 表清空后 `fileNameFor` 不再对任何格式返回 null。
+  static const Set<String> _skipExtensions = <String>{};
 
   /// 动图只取第一帧，缩略图是静图。列表里不再动，点开大图读的仍是原图。
   static const Set<String> animatedExtensions = <String>{'.gif'};
@@ -59,6 +58,19 @@ class ThumbCache {
   /// Dart 侧没有 HEVC 解码器（`package:image` 只认 jpeg/png/gif/webp/tiff/
   /// psd/exr/tga/bmp），这两种必须走 Android 原生 `ImageDecoder`。
   static const Set<String> nativeDecodeExtensions = <String>{'.heic', '.heif'};
+
+  /// 视频：Dart 侧没有任何解码能力，首帧由原生 `MediaMetadataRetriever` 取。
+  /// 与 `MediaPaths.videoExtensions` 保持一致。
+  static const Set<String> nativeVideoExtensions = <String>{
+    '.mp4',
+    '.mov',
+    '.m4v',
+    '.avi',
+    '.mkv',
+    '.webm',
+    '.flv',
+    '.3gp',
+  };
 
   /// 不做缩略图的扩展名。数据清理页用它区分「没补上」和「本来就不做」。
   static Set<String> get skippedExtensions => _skipExtensions;
@@ -312,8 +324,10 @@ class ThumbCache {
         return target;
       }
       final Uint8List? encoded;
-      if (nativeDecodeExtensions.contains(ext)) {
-        // HEIC 按路径交给原生解码：采样解码连原图字节都不用读（一张 3~5MB）。
+      if (nativeDecodeExtensions.contains(ext) ||
+          nativeVideoExtensions.contains(ext)) {
+        // HEIC 与视频都按路径交给原生：HEIC 采样解码连原图字节都不用读
+        // （一张 3~5MB），视频更不可能整个读进来（动辄几十 MB）。
         encoded = await _nativeDecoder(abs, bucket);
       } else {
         final bytes = await source.readAsBytes();

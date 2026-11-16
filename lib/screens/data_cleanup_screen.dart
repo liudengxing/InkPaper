@@ -10,6 +10,7 @@ import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/attachment_maintenance.dart';
+import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:path/path.dart' as p;
@@ -150,11 +151,10 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
     }
   }
 
-  /// 按类别数出目录里的特殊图片：动图、HEIC/HEIF、视频。
+  /// 按类别数出目录里的特殊媒体：动图、HEIC/HEIF、视频。
   ///
-  /// 用户看到 151 张图只对应 108 个缩略图会以为补漏了，这里把缺口对上。
-  /// 动图与 HEIC 现在都会生成缩略图（首帧 / 原生解码），只有视频不做，
-  /// 因此「缩略图数 + 视频数 < 图片数」才说明真的补漏了。
+  /// 三者现在都会生成缩略图（GIF 首帧、HEIC 原生解码、视频首帧），所以
+  /// 缩略图数应该等于文件数；这里分行列出只是让「目录里都是些什么」一眼可见。
   Future<({int gifs, int heics, int videos})> _countSpecialImages(
     Directory dir,
   ) async {
@@ -175,7 +175,7 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
           gifs++;
         } else if (ThumbCache.nativeDecodeExtensions.contains(ext)) {
           heics++;
-        } else if (ThumbCache.skippedExtensions.contains(ext)) {
+        } else if (ThumbCache.nativeVideoExtensions.contains(ext)) {
           videos++;
         }
       }
@@ -440,6 +440,9 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
           ? File(pathWithoutQuery).absolute.path
           : File('$appDocPath/$pathWithoutQuery').absolute.path;
       referencedPaths.add(normalizedPath);
+      // Live 图（Motion Photo）的伴生视频不写在正文里，靠这个约定一起保住，
+      // 否则「清理未使用图片」会把它们当孤儿删掉，图片就失去动态效果。
+      referencedPaths.add(LivePhotoUtils.videoPathFor(normalizedPath));
     }
 
     for (final note in notes) {
@@ -733,8 +736,8 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
                 const SizedBox(height: 8),
                 _buildStatItem(
                   Icons.movie_outlined,
-                  '不做缩略图',
-                  '$_videoCount 个（视频）',
+                  '视频 · 首帧封面',
+                  '$_videoCount 个',
                 ),
               ],
               const SizedBox(height: 8),

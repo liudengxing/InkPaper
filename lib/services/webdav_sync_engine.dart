@@ -808,10 +808,8 @@ class WebDavSyncEngine {
   }
 
   String? _resourcePathFromResource(Map<String, dynamic> resource) {
-    if (_isVideoResource(resource)) {
-      return null;
-    }
-
+    // 视频不再跳过：以前这里直接 return null，备份里没有视频副本，换机
+    // 恢复后视频全丢且界面没有任何提示。现在与图片走同一条内容寻址通道。
     final externalLink = resource['externalLink']?.toString();
     if (externalLink != null && externalLink.isNotEmpty) {
       return externalLink;
@@ -869,23 +867,6 @@ class WebDavSyncEngine {
     }
 
     return candidates;
-  }
-
-  bool _isVideoResource(Map<String, dynamic> resource) {
-    final type = resource['type']?.toString().toLowerCase();
-    final filename = resource['filename']?.toString().toLowerCase();
-    if (type != null && type.startsWith('video')) {
-      return true;
-    }
-    if (filename == null) {
-      return false;
-    }
-    return filename.endsWith('.mov') ||
-        filename.endsWith('.mp4') ||
-        filename.endsWith('.avi') ||
-        filename.endsWith('.mkv') ||
-        filename.endsWith('.webm') ||
-        filename.endsWith('.flv');
   }
 
   List<_WebDavResourceRecord> _parseResourceManifest(rawManifest) {

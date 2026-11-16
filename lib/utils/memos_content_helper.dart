@@ -2,16 +2,42 @@
 
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
+import 'package:inkpaper/utils/media_paths.dart';
 import 'package:inkpaper/utils/memos_markdown_converter.dart';
 import 'package:markdown/markdown.dart' as md;
 
 abstract final class MemosContentHelper {
   static final RegExp markdownImageRegex = RegExp(r'!\[[^\]]*\]\(([^)]+)\)');
 
+  /// 带 alt 的媒体正则：group(1)=alt、group(2)=路径。
+  ///
+  /// 上传到服务端后路径会变成没有扩展名的 `/o/r/<uid>`，只看后缀分不出
+  /// 图片还是视频，得靠 alt 约定（`![视频](…)`）兜住。
+  static final RegExp markdownMediaRegex = RegExp(r'!\[([^\]]*)\]\(([^)]+)\)');
+
   static List<String> extractMarkdownImagePaths(String content) =>
-      markdownImageRegex
+      markdownMediaRegex
           .allMatches(content)
-          .map((match) => match.group(1) ?? '')
+          .where(
+            (match) => !MediaPaths.isVideoMarkdown(
+              path: match.group(2) ?? '',
+              alt: match.group(1) ?? '',
+            ),
+          )
+          .map((match) => match.group(2) ?? '')
+          .where((path) => path.isNotEmpty)
+          .toList();
+
+  static List<String> extractMarkdownVideoPaths(String content) =>
+      markdownMediaRegex
+          .allMatches(content)
+          .where(
+            (match) => MediaPaths.isVideoMarkdown(
+              path: match.group(2) ?? '',
+              alt: match.group(1) ?? '',
+            ),
+          )
+          .map((match) => match.group(2) ?? '')
           .where((path) => path.isNotEmpty)
           .toList();
 
@@ -124,11 +150,22 @@ abstract final class MemosContentHelper {
 
   static List<String> extractResourceImagePaths(
     List<Map<String, dynamic>> resources,
-  ) {
+  ) =>
+      _resourcePaths(resources, video: false);
+
+  static List<String> extractResourceVideoPaths(
+    List<Map<String, dynamic>> resources,
+  ) =>
+      _resourcePaths(resources, video: true);
+
+  static List<String> _resourcePaths(
+    List<Map<String, dynamic>> resources, {
+    required bool video,
+  }) {
     final paths = <String>[];
 
     for (final resource in resources) {
-      if (_isVideoResource(resource)) {
+      if (_isVideoResource(resource) != video) {
         continue;
       }
 
@@ -173,6 +210,25 @@ abstract final class MemosContentHelper {
     }
 
     for (final path in extractMarkdownImagePaths(note.content)) {
+      if (!paths.contains(path)) {
+        paths.add(path);
+      }
+    }
+
+    return paths;
+  }
+
+  /// 笔记里的视频路径：resourceList 里的视频 + 正文里写成视频的 markdown。
+  static List<String> extractNoteVideoPaths(Note note) {
+    final paths = <String>[];
+
+    for (final path in extractResourceVideoPaths(note.resourceList)) {
+      if (!paths.contains(path)) {
+        paths.add(path);
+      }
+    }
+
+    for (final path in extractMarkdownVideoPaths(note.content)) {
       if (!paths.contains(path)) {
         paths.add(path);
       }

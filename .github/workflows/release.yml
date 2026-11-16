@@ -60,7 +60,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/release_notes.py CHANGELOG.md "${{ steps.version.outputs.version }}" > release_notes.md
+          # 攒批发版时中间版本的改动也要进说明：取上一个已发布 Release，
+          # 把它之后的所有 CHANGELOG 段落合并进来（--since），查不到就退回单版本。
+          prev_tag="$(curl -fsS -m 20 \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest" \
+            | python3 -c 'import json,sys;print(json.load(sys.stdin).get("tag_name",""))' || true)"
+          if [ -n "$prev_tag" ]; then
+            echo "Previous release: $prev_tag, merging notes since ${prev_tag#v}."
+            python3 scripts/release_notes.py CHANGELOG.md "${{ steps.version.outputs.version }}" \
+              --since "${prev_tag#v}" > release_notes.md
+          else
+            echo "No previous release found, using single-version notes."
+            python3 scripts/release_notes.py CHANGELOG.md "${{ steps.version.outputs.version }}" > release_notes.md
+          fi
           {
             echo 'notes<<EOF'
             cat release_notes.md

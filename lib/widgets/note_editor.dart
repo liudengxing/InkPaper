@@ -211,18 +211,30 @@ class _NoteEditorState extends State<NoteEditor>
     body.write(markdown.substring(cursor));
     final bodyText = body.toString();
 
-    for (final anchor in markdownAnchors) {
-      imageAnchors.add(
-        MemoMarkdownEditingCodec.decode(bodyText.substring(0, anchor))
-            .text
-            .length,
-      );
+    // 图片从 markdown 里抠出来后，原本用来分隔「正文/图片/图片」的换行全都留
+    // 在了正文尾部 —— N 张尾随图就是 N 个空行，光标下面挂着一大片空白。这里把
+    // 正文尾部空白裁掉；裁剪线之后的图片锚点清成 null，让它们走「尾随图」，
+    // 保存时统一由一个换行接回图片块，内容往返保持稳定。
+    final trimmedBody = bodyText.trimRight();
+    final cutIndex = trimmedBody.length;
+
+    for (var i = 0; i < markdownAnchors.length; i++) {
+      final rawAnchor = markdownAnchors[i];
+      if (rawAnchor > cutIndex) {
+        imageAnchors.add(null);
+      } else {
+        imageAnchors.add(
+          MemoMarkdownEditingCodec.decode(bodyText.substring(0, rawAnchor))
+              .text
+              .length,
+        );
+      }
     }
 
     _imageList = imageItems;
     _mdCodes = markdownCodes;
     _imageAnchors = imageAnchors;
-    return bodyText;
+    return trimmedBody;
   }
 
   // 更新内容行数（只更新 Notifier，不触发整页 setState）
@@ -1102,6 +1114,10 @@ class _NoteEditorState extends State<NoteEditor>
       return bodyMarkdown.trim().isEmpty ? '' : bodyMarkdown;
     }
 
+    // 尾部空白只属于「正文和图片块之间的分隔」，一个换行就够——之前这里原样
+    // 保留正文尾部的空行，图片块一追加，两三个空行就变成内部空行永久落库。
+    final trimmedBody = bodyText.trimRight();
+
     final anchoredImages = <NoteImageAnchor>[];
     final trailingImages = <String>[];
     for (var i = 0; i < _imageList.length; i++) {
@@ -1109,12 +1125,12 @@ class _NoteEditorState extends State<NoteEditor>
       final mdCode =
           i < _mdCodes.length ? _mdCodes[i] : '![${img.alt}](${img.path})';
       final anchor = i < _imageAnchors.length ? _imageAnchors[i] : null;
-      if (anchor == null) {
+      if (anchor == null || anchor > trimmedBody.length) {
         trailingImages.add(mdCode);
       } else {
         anchoredImages.add(
           NoteImageAnchor(
-            offset: anchor.clamp(0, bodyText.length),
+            offset: anchor.clamp(0, trimmedBody.length),
             markdown: mdCode,
             order: i,
           ),
@@ -1131,16 +1147,15 @@ class _NoteEditorState extends State<NoteEditor>
     var cursor = 0;
     for (final image in anchoredImages) {
       buffer
-        ..write(bodyText.substring(cursor, image.offset))
+        ..write(trimmedBody.substring(cursor, image.offset))
         ..write(image.markdown);
       cursor = image.offset;
     }
-    buffer.write(bodyText.substring(cursor));
+    buffer.write(trimmedBody.substring(cursor));
 
     if (trailingImages.isNotEmpty) {
-      if (buffer.isNotEmpty &&
-          buffer.toString().trim().isNotEmpty &&
-          !buffer.toString().endsWith('\n')) {
+      // 已裁剪过的正文不会以换行结尾；只有确实有正文时才补一个分隔换行。
+      if (trimmedBody.isNotEmpty) {
         buffer.write('\n');
       }
       for (final imageMarkdown in trailingImages) {
@@ -2383,6 +2398,10 @@ class _NoteEditorState extends State<NoteEditor>
   /// 不能等布局完成再回填（回填会让首帧高度跳一下）。
   static const double _imageGridHeaderHeight = 22;
 
+  /// 全屏图片区顶部的拖拽横条总高（横条 4px + 上下各 5px 留白）。
+  /// 只在可展开的全屏编辑里显示，告诉用户按住这里上滑/下滑。
+  static const double _imageDragHandleHeight = 14;
+
   /// 单格边长。网格撑满屏宽，左右各留 [_imageGridHPadding]，格间留
   /// [_imageGridSpacing]；高度预估与拖动坐标反算必须共用这一个式子。
   static double _imageGridTileSize(double width) =>
@@ -2462,6 +2481,13 @@ class _NoteEditorState extends State<NoteEditor>
       key: const ValueKey('note-editor-image-section'),
       duration: _heightTransitionDuration,
       curve: Curves.easeOutCubic,
+      // 展开收起动画收尾时把时长归零：平时键盘高度调整走 Duration.zero，
+      // 只有展开/收起那一刻临时给了 240ms。
+      onEnd: () {
+        if (_heightTransitionDuration != Duration.zero && mounted) {
+          setState(() => _heightTransitionDuration = Duration.zero);
+        }
+      },
       // 宽度必须显式给满：Column 默认 center，容器宽度一旦退回「由内容决定」，
       // 格子边长就会跟着内容重算。
       width: double.infinity,
@@ -2500,7 +2526,8 @@ class _NoteEditorState extends State<NoteEditor>
     _imageSectionDragDelta += details.delta.dy;
   }
 
-  /// 图片区的上滑/下滑手势：上滑展开、下滑收起。
+  /// 图片区的上滑/下滑手势：上滑展开、下滑收起。切换时给高度动画临时
+  /// 开 240ms，结束后由 AnimatedContainer.onEnd 归零。
   void _handleImageSectionDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
     final moved = _imageSectionDragDelta;
@@ -2508,9 +2535,15 @@ class _NoteEditorState extends State<NoteEditor>
     final swipeUp = velocity < -120 || moved < -24;
     final swipeDown = velocity > 120 || moved > 24;
     if (swipeUp && !_imageSectionExpanded) {
-      setState(() => _imageSectionExpanded = true);
+      setState(() {
+        _imageSectionExpanded = true;
+        _heightTransitionDuration = const Duration(milliseconds: 240);
+      });
     } else if (swipeDown && _imageSectionExpanded) {
-      setState(() => _imageSectionExpanded = false);
+      setState(() {
+        _imageSectionExpanded = false;
+        _heightTransitionDuration = const Duration(milliseconds: 240);
+      });
     }
   }
 
@@ -2536,11 +2569,12 @@ class _NoteEditorState extends State<NoteEditor>
     double toolbarHeight,
   ) {
     final tile = _imageGridTileSize(width);
-    final oneRow = _imageGridHeaderHeight +
+    final oneRow = _imageDragHandleHeight +
+        _imageGridHeaderHeight +
         _imageGridTopPadding +
         tile +
         _imageGridBottomPadding;
-    final target = _imageGridContentHeight(width);
+    final target = _imageGridContentHeight(width) + _imageDragHandleHeight;
     if (target <= oneRow) {
       return target;
     }
@@ -2552,6 +2586,7 @@ class _NoteEditorState extends State<NoteEditor>
         toolbarHeight -
         _minTextAreaHeight;
     final fitRows = ((maxAllowed -
+                _imageDragHandleHeight -
                 _imageGridHeaderHeight -
                 _imageGridTopPadding -
                 _imageGridBottomPadding +
@@ -2559,7 +2594,8 @@ class _NoteEditorState extends State<NoteEditor>
             (tile + _imageGridSpacing))
         .floor()
         .clamp(1, _imageRows);
-    final capped = _imageGridHeaderHeight +
+    final capped = _imageDragHandleHeight +
+        _imageGridHeaderHeight +
         _imageGridTopPadding +
         fitRows * tile +
         (fitRows - 1) * _imageGridSpacing +
@@ -2635,6 +2671,29 @@ class _NoteEditorState extends State<NoteEditor>
         : sortHint;
     return Column(
       children: [
+        // 拖拽横条：只在可展开的全屏编辑里出现，视觉上告诉用户
+        // 按住这个区域上滑展开、下滑收起。
+        if (expandable)
+          SizedBox(
+            height: _imageDragHandleHeight,
+            child: GestureDetector(
+              onVerticalDragUpdate: _handleImageSectionDragUpdate,
+              onVerticalDragEnd: _handleImageSectionDragEnd,
+              child: Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: (isDarkMode
+                            ? Colors.grey.shade600
+                            : Colors.grey.shade400)
+                        .withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+          ),
         // 高度必须固定：它已经算进图片区总高，这里若随字号/字体缩放变高，卡片
         // 就会比预算的矮一截，九宫格底部被裁。
         SizedBox(

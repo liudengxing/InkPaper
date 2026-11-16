@@ -254,6 +254,23 @@ void main() {
 
   /// 全屏编辑专属（注意：底部卡片那几条测试锁的是旧行为，勿混改）。
   group('全屏编辑图片区两态', () {
+    testWidgets('FSG-04 加载尾随图片不往正文尾部堆空行', (tester) async {
+      usePhoneCanvas(tester);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        fsApp('今天写了三行笔记\n![图片](a.png)\n![图片](b.png)\n![图片](c.png)'),
+      );
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+
+      // 图片全进九宫格（3 张只有一行，不满足展开条件，提示是普通文案）
+      expect(find.text('3 张图片 · 长按拖动排序'), findsOneWidget);
+      // 正文尾部不再挂着 N 个分隔空行（旧实现里 3 张图 = 3 个空行）
+      final controller =
+          tester.widget<TextField>(find.byType(TextField).first).controller!;
+      expect(controller.text, '今天写了三行笔记');
+    });
     testWidgets('FSG-01 图片区默认只露一行九宫格，正文不被挤', (tester) async {
       usePhoneCanvas(tester);
       await openFullscreenEditor(tester, 7);
@@ -262,8 +279,8 @@ void main() {
       final tile = tester.getRect(find.byType(AnimatedSlide).first).height;
       expect(
         section.height,
-        closeTo(22.0 + 4.0 + tile + 16.0, 1.0),
-        reason: '默认只露一行：标题行 22 + 上内距 4 + 一格 + 底部留白 16',
+        closeTo(14.0 + 22.0 + 4.0 + tile + 16.0, 1.0),
+        reason: '默认只露一行：拖拽横条 14 + 标题行 22 + 上内距 4 + 一格 + 底部留白 16',
       );
       // 正文始终可见：图片区顶边距顶栏要留出一大截（文字区高度）
       expect(
@@ -279,7 +296,17 @@ void main() {
       await openFullscreenEditor(tester, 7);
 
       final collapsed = tester.getRect(imageSection).height;
+      // 只推两帧：240ms 展开动画应该还在半路，而不是一步到位
+      // （第一帧只是启动动画，第二帧才真正采样到中间状态）
       await tester.fling(imageSection, const Offset(0, -300), 1000);
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pump(const Duration(milliseconds: 60));
+      final midFlight = tester.getRect(imageSection).height;
+      expect(
+        midFlight,
+        greaterThan(collapsed + 1),
+        reason: '展开是渐进动画，60ms 时高度应该已经离开收起值',
+      );
       await tester.pumpAndSettle();
 
       final expanded = tester.getRect(imageSection).height;

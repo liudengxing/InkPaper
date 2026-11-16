@@ -605,14 +605,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                               // 视频与图片互斥：有视频就只显示视频卡片，
                               // 点开走全屏播放器
                               if (_renderVideoPaths.isNotEmpty) ...[
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 24),
                                 NoteVideoCard(
                                   videoPath: _renderVideoPaths.first,
                                 ),
                               ]
                               // 图片统一走九宫格，长按弹保存菜单
                               else if (_renderImagePaths.isNotEmpty) ...[
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 24),
                                 NoteImageGrid(
                                   imagePaths: _renderImagePaths,
                                   serverUrl: serverUrl,

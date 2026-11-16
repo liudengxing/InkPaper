@@ -161,5 +161,51 @@ void main() {
       expect(find.text('完成'), findsOneWidget);
       expect(find.byIcon(Icons.send), findsNothing);
     });
+
+    testWidgets('FS-06 全屏头部落在状态栏下方，底部让开手势条', (tester) async {
+      tester.view.physicalSize = const Size(1233, 2742);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      // 真机（Xiaomi 14）上状态栏约 48、手势条约 24。之前全屏容器直接从
+      // 屏幕顶边画，「取消 / 完成」整个压在时间与信号图标上，点不到。
+      await tester.pumpWidget(
+        ChangeNotifierProvider(
+          create: (_) => AppProvider(),
+          child: MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                padding: const EdgeInsets.only(top: 48, bottom: 24),
+              ),
+              child: child!,
+            ),
+            home: NoteEditor(
+              initialContent: '第一行笔记',
+              fullScreen: true,
+              onSave: (_) async {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final cancelTop = tester.getTopLeft(find.text('取消')).dy;
+      expect(cancelTop, greaterThanOrEqualTo(48), reason: '取消按钮被状态栏盖住了');
+
+      final doneBottom = tester.getBottomLeft(find.text('完成')).dy;
+      expect(doneBottom, greaterThan(48));
+
+      // 底部工具栏（# 按钮所在行）不能压进手势条
+      final hashtagBottom = tester.getBottomLeft(find.text('#')).dy;
+      expect(
+        hashtagBottom,
+        lessThanOrEqualTo(2742 / 3 - 24 + 0.5),
+        reason: '底部工具栏压进了手势条',
+      );
+
+      // 编辑器打开后有个 180ms 的聚焦定时器，推掉它再结束，
+      // 否则测试会因为 pending timer 报失败
+      await tester.pump(const Duration(seconds: 1));
+    });
   });
 }

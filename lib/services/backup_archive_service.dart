@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:inkpaper/utils/media_paths.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:intl/intl.dart';
@@ -187,6 +188,7 @@ class BackupArchiveService {
       required String originalPath,
       required bool isVideo,
       required bool referencedInBody,
+      String? liveOf,
     }) async {
       // 同一份媒体被多条笔记引用时只打一份
       if (archivedByOriginal.containsKey(originalPath)) {
@@ -228,6 +230,9 @@ class BackupArchiveService {
         'archivePath': archivePath,
         if (isVideo) 'isVideo': true,
         if (isVideo) 'sizeBytes': bytes.length,
+        // Live 图的动态片段：还原时要贴着同名静图落盘（`<图>.live.mp4`），
+        // 否则动图会退化成静态图。
+        if (liveOf != null) 'liveOf': liveOf,
       });
       archivedByOriginal[originalPath] = archivePath;
       if (isVideo) {
@@ -257,6 +262,19 @@ class BackupArchiveService {
               isVideo: false,
               referencedInBody: bodyImages.contains(originalPath),
             );
+            // Live 图的动态片段不写在正文里（正文只有一张静图），但少了它
+            // 动图就退化成静态图。所以只要打了这张图，就顺手把旁边的
+            // `<图>.live.mp4` 一起收进包，并记下它属于哪张图。
+            if (LivePhotoUtils.hasLiveVideo(originalPath)) {
+              await archiveMedia(
+                noteIndex: i,
+                note: note,
+                originalPath: LivePhotoUtils.videoPathFor(originalPath),
+                isVideo: true,
+                referencedInBody: false,
+                liveOf: originalPath,
+              );
+            }
           }
         }
 
@@ -625,6 +643,11 @@ class BackupArchiveService {
       await imagesDir.create(recursive: true);
     }
 
+    // Live 图的动态片段要贴在还原后的静图旁边（`<图>.live.mp4`），
+    // 所以分两趟：先落静图与普通视频，再回头补侧车片段。
+    final liveSidecars =
+        <({String originalPath, ArchiveFile file, String liveOf})>[];
+
     for (final item in decoded['resources'] as List<dynamic>) {
       if (item is! Map) {
         continue;
@@ -639,6 +662,14 @@ class BackupArchiveService {
       }
       final archivedFile = files[archivePath];
       if (archivedFile == null) {
+        continue;
+      }
+
+      final liveOf = item['liveOf']?.toString();
+      if (liveOf != null && liveOf.isNotEmpty) {
+        liveSidecars.add(
+          (originalPath: originalPath, file: archivedFile, liveOf: liveOf),
+        );
         continue;
       }
 
@@ -659,6 +690,26 @@ class BackupArchiveService {
       restored[originalPath] = 'file://${localFile.path}';
       if (isVideo) {
         videoCount++;
+      }
+    }
+
+    for (final sidecar in liveSidecars) {
+      final imagePath = restored[sidecar.liveOf];
+      if (imagePath == null) {
+        // 静图没还原出来，孤立的动图片段没有意义
+        continue;
+      }
+      final localImage = imagePath.replaceFirst('file://', '');
+      final target = LivePhotoUtils.videoPathFor(localImage);
+      try {
+        await File(target).writeAsBytes(
+          sidecar.file.content as List<int>,
+          flush: true,
+        );
+        restored[sidecar.originalPath] = 'file://$target';
+        videoCount++;
+      } on Object {
+        // 单个片段写失败不该让整包恢复失败
       }
     }
 

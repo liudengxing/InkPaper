@@ -6,6 +6,7 @@ import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/services/backup_archive_service.dart';
+import 'package:inkpaper/utils/live_photo_utils.dart';
 
 /// 1×1 透明 PNG，够当作真实的图片字节用
 final Uint8List _tinyPng = base64Decode(
@@ -330,6 +331,39 @@ void main() {
       expect(built.skippedVideoCount, 1);
       // 跳过不等于丢失：正文原样保留，重新登录或走 WebDAV 还能补回来
       expect(built.missingVideoCount, 0);
+    });
+
+    test('Live 图的动态片段跟着静图进包，还原时按同名落盘', () async {
+      // Live 图的正文里只有一张静图，动图片段是旁边的 `<图>.live.mp4`。
+      // 只按正文引用打包会把片段漏掉，恢复出来的「动图」就成了静态图。
+      final image = await writeImage('live_1.jpg');
+      final sidecar = File(LivePhotoUtils.videoPathFor(image.path));
+      await sidecar.writeAsBytes(Uint8List(4096), flush: true);
+
+      final built = await service.buildArchive(
+        notes: [_note(id: 'lv1', content: '动图 ![图片](${image.path})')],
+        format: BackupContentFormat.json,
+        // 故意不开「包含视频」：动图片段是图片的一部分，不是正文视频
+        includeImages: true,
+      );
+
+      expect(built.imageCount, 1);
+      expect(built.videoCount, 1, reason: '动图片段按视频计数');
+
+      final decoded = await service.decodeArchive(built.bytes);
+      final json =
+          jsonDecode(decoded.entries.first.content) as Map<String, dynamic>;
+      final content = ((json['notes'] as List).first
+          as Map<String, dynamic>)['content'] as String;
+      final restoredImage =
+          RegExp(r'file://([^)\s]+)').firstMatch(content)?.group(1);
+      expect(restoredImage, isNotNull);
+      // 角标只看这个：还原后的图片旁边必须有同名片段
+      expect(LivePhotoUtils.hasLiveVideo(restoredImage!), isTrue);
+      expect(
+        File(LivePhotoUtils.videoPathFor(restoredImage)).lengthSync(),
+        4096,
+      );
     });
 
     test('HTML 导出把视频渲染成 video 标签', () async {

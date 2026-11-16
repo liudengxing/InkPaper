@@ -1056,6 +1056,10 @@ class _PhotoPageState extends State<_PhotoPage> {
   static const Duration _liveAutoPlayDelay = Duration(milliseconds: 550);
   Timer? _liveAutoPlayTimer;
 
+  /// 自动播放补试次数。首帧解码器要排在全屏转场 + 原图解码之后，
+  /// 转场期间抢不到解码器就会静默失败一次，补一次就好，别无限重试。
+  int _liveAutoTries = 0;
+
   @override
   void initState() {
     super.initState();
@@ -1100,11 +1104,22 @@ class _PhotoPageState extends State<_PhotoPage> {
     if (!_hasLiveVideo || !widget.isActive || _liveFailed) {
       return;
     }
-    _liveAutoPlayTimer = Timer(_liveAutoPlayDelay, () {
+    _liveAutoPlayTimer = Timer(_liveAutoPlayDelay, () async {
       if (!mounted || !widget.isActive || _livePlaying) {
         return;
       }
-      unawaited(_toggleLive(silent: true));
+      await _toggleLive(silent: true);
+      // 转场没结束就抢解码器会失败一次（initialize 直接抛异常），
+      // 这时补一次；真的播不了会把角标置灰，不再重试。
+      if (!mounted ||
+          _livePlaying ||
+          _liveFailed ||
+          _liveAutoTries >= 1 ||
+          !widget.isActive) {
+        return;
+      }
+      _liveAutoTries++;
+      _scheduleLiveAutoPlay();
     });
   }
 
@@ -1248,7 +1263,11 @@ class _PhotoPageState extends State<_PhotoPage> {
                 ),
               const SizedBox(width: 4),
               Text(
-                'LIVE',
+                // 播不了的动图要明说是「无法播放」，只把图标置灰
+                // 没人看得出来是什么问题
+                _liveFailed
+                    ? 'LIVE · ${AppLocalizationsSimple.of(context)?.liveUnavailable ?? '无法播放'}'
+                    : 'LIVE',
                 style: TextStyle(
                   color: _liveFailed ? Colors.grey : Colors.white,
                   fontSize: 11,

@@ -1512,7 +1512,14 @@ class _NoteEditorState extends State<NoteEditor>
 
     // 上限要按「键盘上方的可用高度」算：卡片底部垫了 keyboardInset，用整屏
     // 高度做上限的话键盘弹出时卡片会顶到屏幕外，底部工具栏被裁掉。
-    final availableHeight = screenSize.height - keyboardInset;
+    // 全屏模式要把状态栏与手势条一起让开：容器直接从屏幕顶边开始画，
+    // 顶部「取消 / 编辑笔记 / 完成」会整个压在状态栏的时间和信号图标上
+    // （真机上三个按钮点不到，也看不见）。卡片模式本来就贴着底部，
+    // 只让键盘 inset 就够。
+    final safeTop = widget.fullScreen ? mediaQuery.padding.top : 0.0;
+    final safeBottom = widget.fullScreen ? mediaQuery.padding.bottom : 0.0;
+    final availableHeight =
+        screenSize.height - keyboardInset - safeTop - safeBottom;
     final editorHeight = widget.fullScreen
         ? availableHeight
         : math.min(desiredEditorHeight, availableHeight * 0.92);
@@ -1604,7 +1611,12 @@ class _NoteEditorState extends State<NoteEditor>
                 child: AnimatedPadding(
                   duration: _keyboardResizeDuration,
                   curve: Curves.easeOutCubic,
-                  padding: EdgeInsets.only(bottom: keyboardInset),
+                  // 全屏时上边让状态栏、下边让手势条：容器高度已经扣掉这两段，
+                  // 这里再把同样的距离垫回去，容器就正好落在安全区内。
+                  padding: EdgeInsets.only(
+                    top: safeTop,
+                    bottom: keyboardInset + safeBottom,
+                  ),
                   // 高度要和位移用同一条时长：卡片底边是 180ms 平滑上移的，高度
                   // 若瞬变，顶部会在第一帧就跳一下、图片区像被扯了一把。打字引起
                   // 的行数变化仍然瞬变，见 _heightTransitionDuration 的说明。

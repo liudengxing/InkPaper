@@ -996,6 +996,8 @@ class AppLocalizationsSimple {
   String get saveImage => _t('saveImage', fallback: '保存图片');
   String get loadingHDImage => _t('loadingHDImage', fallback: '正在加载高清原图...');
   String get imageLoadError => _t('imageLoadError', fallback: '无法加载图片');
+
+  String get liveUnavailable => _t('liveUnavailable', fallback: '无法播放');
   String get timeUpdateFailed => _t('timeUpdateFailed', fallback: '时间更新失败');
   String get detailedInfo => _t('detailedInfo', fallback: '详细信息');
   String get referenceCreated => _t('referenceCreated', fallback: '引用关系已创建');

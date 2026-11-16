@@ -99,54 +99,35 @@ class NoteActionsUi {
       onDeleted();
 
       if (context.mounted) {
-        // 🎨 显示带撤销按钮的SnackBar（2.5秒，留出操作时间）
-        ScaffoldMessenger.of(context).clearSnackBars(); // 🎯 清除之前的通知，避免累积
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    AppLocalizationsSimple.of(context)?.noteDeleted ?? '笔记已删除',
-                    style: const TextStyle(fontSize: 15),
-                  ),
-                ),
-              ],
-            ),
-            action: SnackBarAction(
-              label: AppLocalizationsSimple.of(context)?.undo ?? '撤销',
-              textColor: Colors.yellow[300],
-              onPressed: () async {
-                // 🎯 撤销删除：重新创建笔记
-                try {
-                  await NoteActionsService.restore(appProvider, deletedNote);
-                  if (context.mounted) {
-                    SnackBarUtils.showSuccess(
-                      context,
-                      AppLocalizationsSimple.of(context)?.undoDelete ?? '已撤销删除',
-                    );
-                  }
-                } on Object catch (e) {
-                  if (context.mounted) {
-                    SnackBarUtils.showError(
-                      context,
-                      '${AppLocalizationsSimple.of(context)?.undoFailed ?? '撤销失败'}: $e',
-                    );
-                  }
-                }
-              },
-            ),
-            backgroundColor: const Color(0xFF2E7D32), // 成功绿色
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(milliseconds: 2500), // 2.5秒（给用户足够时间撤销）
-            persist: false,
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+        // 与首页同一个玻璃胶囊：删除 + 撤销在所有入口长得一样。
+        // 以前这里是自带的一块纯绿 SnackBar（撤销字还是黄的），首页那条
+        // 玻璃提示只有在「卡片 onDelete 直连」那条路径上才会出现，日常从
+        // 更多菜单删除走的是这里，等于玻璃改造白做了。
+        SnackBarUtils.showAction(
+          context,
+          AppLocalizationsSimple.of(context)?.noteDeleted ?? '笔记已删除',
+          icon: Icons.delete_outline_rounded,
+          actionLabel: AppLocalizationsSimple.of(context)?.undo ?? '撤销',
+          duration: const Duration(milliseconds: 2500),
+          onAction: () async {
+            // 🎯 撤销删除：重新创建笔记
+            try {
+              await NoteActionsService.restore(appProvider, deletedNote);
+              if (context.mounted) {
+                SnackBarUtils.showSuccess(
+                  context,
+                  AppLocalizationsSimple.of(context)?.undoDelete ?? '已撤销删除',
+                );
+              }
+            } on Object catch (e) {
+              if (context.mounted) {
+                SnackBarUtils.showError(
+                  context,
+                  '${AppLocalizationsSimple.of(context)?.undoFailed ?? '撤销失败'}: $e',
+                );
+              }
+            }
+          },
         );
       }
     } on Object catch (e) {

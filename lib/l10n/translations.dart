@@ -1057,6 +1057,7 @@ class Translations {
     'saveImage': {'zh': '保存图片', 'en': 'Save Image'},
     'loadingHDImage': {'zh': '正在加载高清原图...', 'en': 'Loading HD image...'},
     'imageLoadError': {'zh': '无法加载图片', 'en': 'Failed to load image'},
+    'liveUnavailable': {'zh': '无法播放', 'en': "Can't play"},
     'cannotDisplayImage': {'zh': '无法显示图片', 'en': 'Cannot display image'},
     'timeUpdateFailed': {'zh': '时间更新失败', 'en': 'Time Update Failed'},
     'share': {'zh': '分享', 'en': 'Share'},

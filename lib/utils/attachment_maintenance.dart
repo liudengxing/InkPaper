@@ -148,8 +148,22 @@ String canonicalAttachmentKey(String fileName) {
 /// 同一份二进制无论来自 `resourceList` 还是正文 Markdown、附件 uid 怎么变，
 /// 算出的名字都相同，因此 WebDAV 上不会存出重复副本；反过来，
 /// 远端「同名即同内容」，`exists` 判断就等价于「这份内容已经备份过」。
-String contentAddressedAttachmentName(List<int> bytes, String extension) {
-  final digest = sha1.convert(bytes).toString();
+String contentAddressedAttachmentName(List<int> bytes, String extension) =>
+    contentAddressedAttachmentNameFromDigest(
+      sha1.convert(bytes),
+      extension,
+    );
+
+/// 已算好的摘要 + 扩展名 → 内容寻址文件名。
+///
+/// 视频动辄几十上百 MB，不能整块读进内存算哈希；调用方用
+/// `sha1.startChunkedConversion` 流式算出 [digest] 后走这里，产出与
+/// [contentAddressedAttachmentName] 完全一致的名字——两条路径必须同名，
+/// 否则同一份视频会被备份成两份，增量去重直接失效。
+String contentAddressedAttachmentNameFromDigest(
+  Digest digest,
+  String extension,
+) {
   var ext = extension.replaceAll(RegExp('[^a-zA-Z0-9]'), '').toLowerCase();
   if (ext.isEmpty) {
     ext = 'bin';

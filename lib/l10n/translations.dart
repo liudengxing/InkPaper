@@ -1806,6 +1806,12 @@ class Translations {
       'zh': '资源：{count} 个',
       'en': 'Resources: {count}',
     },
+    'webdavVideosUploaded': {'zh': '视频：{count} 个', 'en': 'Videos: {count}'},
+    'webdavVideosRestored': {'zh': '视频：{count} 个', 'en': 'Videos: {count}'},
+    'webdavVideosDeferred': {
+      'zh': '按选择跳过视频：{count} 个',
+      'en': 'Videos skipped: {count}',
+    },
     'webdavBackupNotesCount': {
       'zh': '笔记：{count} 条',
       'en': 'Notes: {count}',

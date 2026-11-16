@@ -699,9 +699,12 @@ class _NoteEditorState extends State<NoteEditor>
       final item = newItems.first;
       if (item.tooLargeToUpload) {
         // 超过 Memos 的上传上限：硬传必然被拒，不如当场说清楚只存本机。
+        // 但 WebDAV 备份不受这个上限约束（走本地文件流式上传），要一并讲明，
+        // 否则用户会以为这段视频换机就没了。
         SnackBarUtils.showInfo(
           context,
-          '视频 ${_formatBytes(item.sizeBytes)}，超过上传上限，只保存在本机',
+          '视频 ${_formatBytes(item.sizeBytes)}，超过服务器上传上限，只保存在本机；'
+          'WebDAV 备份不受影响',
         );
         return;
       }

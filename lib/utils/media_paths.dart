@@ -42,6 +42,17 @@ abstract final class MediaPaths {
   }) =>
       alt.trim() == videoAlt || isVideoPath(path);
 
+  /// 备份清单里的一条资源是不是视频。
+  ///
+  /// 服务端资源路径（`/o/r/<uid>`）没有扩展名，只能靠清单里的显式标记
+  /// [markedVideo]；旧备份没有该标记，退回按原路径/文件名扩展名判断。
+  static bool isVideoAttachment({
+    String path = '',
+    String filename = '',
+    bool markedVideo = false,
+  }) =>
+      markedVideo || isVideoPath(path) || isVideoPath(filename);
+
   static List<String> onlyImages(Iterable<String> paths) =>
       paths.where((path) => !isVideoPath(path)).toList();
 

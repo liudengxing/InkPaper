@@ -1,6 +1,33 @@
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/utils/attachment_maintenance.dart';
+
+/// 模拟引擎里的流式哈希（分块喂数据）。
+Digest _sha1Chunked(List<int> bytes) {
+  Digest? result;
+  final input = sha1.startChunkedConversion(
+    _Collector((digest) => result = digest),
+  );
+  for (var i = 0; i < bytes.length; i += 1024) {
+    final end = i + 1024 > bytes.length ? bytes.length : i + 1024;
+    input.add(bytes.sublist(i, end));
+  }
+  input.close();
+  return result!;
+}
+
+class _Collector implements Sink<Digest> {
+  _Collector(this._onData);
+
+  final void Function(Digest) _onData;
+
+  @override
+  void add(Digest data) => _onData(data);
+
+  @override
+  void close() {}
+}
 
 Note _note(String content, {List<Map<String, dynamic>>? resourceList}) => Note(
       id: 'n1',
@@ -219,6 +246,16 @@ void main() {
       expect(
         contentAddressedAttachmentName([7], '??'),
         endsWith('.bin'),
+      );
+    });
+
+    test('流式摘要算出的名字与整块哈希完全一致', () {
+      final bytes = List<int>.generate(4096, (i) => i % 251);
+      final chunked = _sha1Chunked(bytes);
+      expect(
+        contentAddressedAttachmentNameFromDigest(chunked, 'MP4'),
+        contentAddressedAttachmentName(bytes, 'mp4'),
+        reason: '视频走流式、图片走整块，两条通道必须同名，否则同一份内容会被存两份',
       );
     });
   });

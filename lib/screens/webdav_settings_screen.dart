@@ -641,9 +641,22 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
         !result.success ? '失败' : (result.errors > 0 ? '部分完成' : '成功');
     final title = result.isBackup ? '上次备份' : '上次恢复';
 
+    final imagePart = result.isBackup
+        ? (result.resources > result.videos
+            ? result.resources - result.videos
+            : 0)
+        : result.resources;
     final detail = StringBuffer()
       ..write('${result.isBackup ? '笔记' : '恢复'} ${result.notes}')
-      ..write(' · 图片新增 ${result.resources}');
+      ..write(
+        ' · ${result.isBackup ? '图片新增' : '附件'} $imagePart',
+      );
+    if (result.videos > 0) {
+      detail.write(' · 视频${result.isBackup ? '新增' : ''} ${result.videos}');
+    }
+    if (result.videosDeferred > 0) {
+      detail.write(' · 视频未恢复 ${result.videosDeferred}');
+    }
     if (result.resourcesSkipped > 0) {
       detail.write(' · 已存在 ${result.resourcesSkipped}');
     }
@@ -1090,13 +1103,16 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
                 final imageInfo = _backupImages
                     ? '\n${l10n?.webdavResourcesUploaded(stats.resourceUploaded) ?? 'Resources: ${stats.resourceUploaded}'}'
                     : '';
+                final videoInfo = stats.videoUploaded > 0
+                    ? '\n${l10n?.webdavVideosUploaded(stats.videoUploaded) ?? 'Videos: ${stats.videoUploaded}'}'
+                    : '';
                 final errorInfo = stats.errors > 0
                     ? '\n${l10n?.errorsCount(stats.errors) ?? 'Errors: ${stats.errors}'}'
                     : '';
                 final message =
                     '${l10n?.backupCompleted ?? 'Backup completed'}\n'
                     '${l10n?.webdavBackupNotesCount(stats.uploaded) ?? 'Notes: ${stats.uploaded}'}'
-                    '$imageInfo$errorInfo';
+                    '$imageInfo$videoInfo$errorInfo';
                 // 结果已常驻显示在下方卡片里，成功时不再弹 SnackBar；
                 // 有错误时仍然提醒一次，避免「部分图片没传上去」被忽略。
                 if (stats.errors > 0) {
@@ -1424,31 +1440,53 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
       return;
     }
 
-    // 显示确认对话框
+    // 显示确认对话框。视频体积大，默认恢复但允许当场关掉：
+    // 换机时先拿回笔记和图片、视频再说的用法很常见。
+    var restoreVideos = true;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n?.confirmRestore ?? '确认恢复'),
-        content: Text(
-          l10n?.confirmRestoreMessage ??
-              '此操作将从 WebDAV 下载所有笔记到本地。\n\n如果本地和远程有相同的笔记，将保留远程版本（覆盖本地）。\n\n是否继续？',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(l10n?.confirmRestore ?? '确认恢复'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n?.confirmRestoreMessage ??
+                    '此操作将从 WebDAV 下载所有笔记到本地。\n\n如果本地和远程有相同的笔记，将保留远程版本（覆盖本地）。\n\n是否继续？',
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                value: restoreVideos,
+                onChanged: (value) =>
+                    setDialogState(() => restoreVideos = value),
+                title: Text(l10n?.restoreVideosTitle ?? '同时恢复视频'),
+                subtitle: Text(
+                  l10n?.restoreVideosSubtitle ?? '视频体积较大；关闭后本次只恢复笔记与图片',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l10n?.cancel ?? '取消'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+              ),
+              child: Text(
+                l10n?.confirmRestore ?? '确认恢复',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n?.cancel ?? '取消'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-            ),
-            child: Text(
-              l10n?.confirmRestore ?? '确认恢复',
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
       ),
     );
 
@@ -1493,6 +1531,7 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
             // 执行恢复，传入进度回调
             final stats = await appProvider.restoreFromWebDav(
               onProgress: callback,
+              includeVideos: restoreVideos,
             );
 
             // 延迟一下让用户看到100%
@@ -1506,13 +1545,19 @@ class _WebDavSettingsScreenState extends State<WebDavSettingsScreen> {
             // 显示结果
             if (mounted && context.mounted) {
               if (stats != null) {
+                final videoInfo = stats.videoRestored > 0
+                    ? '\n${l10n?.webdavVideosRestored(stats.videoRestored) ?? 'Videos: ${stats.videoRestored}'}'
+                    : '';
+                final deferredInfo = stats.videoDeferred > 0
+                    ? '\n${l10n?.webdavVideosDeferred(stats.videoDeferred) ?? 'Videos skipped: ${stats.videoDeferred}'}'
+                    : '';
                 final errorInfo = stats.errors > 0
                     ? '\n${l10n?.errorsCount(stats.errors) ?? 'Errors: ${stats.errors}'}'
                     : '';
                 final message =
                     '${l10n?.restoreCompleted ?? 'Restore completed'}\n'
                     '${l10n?.restoredNotesCount(stats.downloaded) ?? 'Restored: ${stats.downloaded} notes'}'
-                    '$errorInfo';
+                    '$videoInfo$deferredInfo$errorInfo';
                 // 恢复结果同样常驻显示在下方卡片里
                 if (stats.errors > 0) {
                   SnackBarUtils.showWarning(

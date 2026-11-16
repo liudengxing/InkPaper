@@ -1323,11 +1323,12 @@ class AppLocalizationsSimple {
       locale.languageCode == 'zh' ? '从 WebDAV 恢复' : 'Restore from WebDAV';
   String get timedBackupSettings =>
       locale.languageCode == 'zh' ? '定时备份设置' : 'Timed Backup Settings';
-  String get backupImageAttachments =>
-      locale.languageCode == 'zh' ? '备份图片附件' : 'Back Up Image Attachments';
+  String get backupImageAttachments => locale.languageCode == 'zh'
+      ? '备份图片与视频附件'
+      : 'Back Up Image and Video Attachments';
   String get backupImageAttachmentsDesc => locale.languageCode == 'zh'
-      ? '开启后会把笔记里的本地图片和 Memos 图片一起备份到 WebDAV'
-      : 'Back up local and Memos images in notes to WebDAV';
+      ? '开启后会把笔记里的图片和视频一起备份到 WebDAV；视频走增量，已备份过的不会重传'
+      : 'Back up images and videos in notes to WebDAV. Videos are incremental — already-backed-up files are not re-uploaded';
   String get enableTimedBackup =>
       locale.languageCode == 'zh' ? '启用定时备份' : 'Enable Timed Backup';
   String get autoBackupToWebdav => locale.languageCode == 'zh'
@@ -1380,6 +1381,20 @@ class AppLocalizationsSimple {
   String webdavResourcesUploaded(int count) =>
       _t('webdavResourcesUploaded', fallback: '资源：{count} 个')
           .replaceAll('{count}', count.toString());
+  String webdavVideosUploaded(int count) =>
+      _t('webdavVideosUploaded', fallback: '视频：{count} 个')
+          .replaceAll('{count}', count.toString());
+  String webdavVideosRestored(int count) =>
+      _t('webdavVideosRestored', fallback: '视频：{count} 个')
+          .replaceAll('{count}', count.toString());
+  String webdavVideosDeferred(int count) =>
+      _t('webdavVideosDeferred', fallback: '按选择跳过视频：{count} 个')
+          .replaceAll('{count}', count.toString());
+  String get restoreVideosTitle =>
+      locale.languageCode == 'zh' ? '同时恢复视频' : 'Also restore videos';
+  String get restoreVideosSubtitle => locale.languageCode == 'zh'
+      ? '视频体积较大；关闭后本次只恢复笔记与图片'
+      : 'Videos are large; turn off to restore notes and images only';
   String webdavBackupNotesCount(int count) =>
       _t('webdavBackupNotesCount', fallback: '笔记：{count} 条')
           .replaceAll('{count}', count.toString());

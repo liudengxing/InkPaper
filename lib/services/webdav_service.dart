@@ -91,8 +91,12 @@ class WebDavService {
 
     // 设置超时：移动网络上行常见只有几 KB/s，几百 KB 的备份要传几分钟，
     // 30/60 秒会稳定触发 sendTimeout。连接超时保持 30 秒（无响应就该报错）。
+    //
+    // sendTimeout 给到 15 分钟：视频备份是几百 MB 级别的上行，300 秒在
+    // 1MB/s 的家宽上只能传 300MB，大视频必然撞线。真正卡死的连接由
+    // receiveTimeout 与传输层的错误兜住。
     _client!.setConnectTimeout(30000);
-    _client!.setSendTimeout(300000);
+    _client!.setSendTimeout(900000);
     _client!.setReceiveTimeout(300000);
   }
 
@@ -270,6 +274,28 @@ class WebDavService {
     }
   }
 
+  /// 从本地文件流式上传（视频等大文件）。
+  ///
+  /// [uploadBinaryFile] 要求把整个文件读进内存：一段 300MB 的视频在 2G 内存
+  /// 的机器上会直接把 App 撑崩。这里交给 dio 的流式上传，内存占用只跟分块
+  /// 缓冲有关。
+  Future<void> uploadFileFromPath(String remotePath, String localPath) async {
+    try {
+      if (_client == null) {
+        throw Exception('客户端未初始化');
+      }
+
+      final parentDir = remotePath.substring(0, remotePath.lastIndexOf('/'));
+      if (parentDir.isNotEmpty && parentDir != '/') {
+        await _ensureDirectoryExists('$parentDir/');
+      }
+
+      await _client!.writeFromFile(localPath, remotePath);
+    } on Object catch (e) {
+      throw WebDavException('上传', remotePath, e);
+    }
+  }
+
   /// 下载文件（文本），自动识别 gzip 压缩内容
   Future<String> downloadFile(String remotePath) async {
     try {
@@ -296,6 +322,25 @@ class WebDavService {
       final bytes = await _client!.read(remotePath);
 
       return bytes;
+    } on Object catch (e) {
+      throw WebDavException('下载', remotePath, e);
+    }
+  }
+
+  /// 流式下载二进制文件到本地路径（视频等大文件）。
+  ///
+  /// 与 [downloadBinaryFile] 的差别只在内存占用：整块 read 会把几百 MB 全部
+  /// 驻留内存，恢复一个大视频就可能被系统直接杀掉。
+  Future<void> downloadFileToPath(
+    String remotePath,
+    String localPath,
+  ) async {
+    try {
+      if (_client == null) {
+        throw Exception('客户端未初始化');
+      }
+
+      await _client!.read2File(remotePath, localPath);
     } on Object catch (e) {
       throw WebDavException('下载', remotePath, e);
     }

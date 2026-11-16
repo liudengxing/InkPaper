@@ -14,6 +14,8 @@ class WebDavTransferResult {
     this.errors = 0,
     this.errorSamples = const [],
     this.message = '',
+    this.videos = 0,
+    this.videosDeferred = 0,
   });
 
   factory WebDavTransferResult.fromJson(Map<String, dynamic> json) {
@@ -35,6 +37,8 @@ class WebDavTransferResult {
               .toList() ??
           const [],
       message: json['message']?.toString() ?? '',
+      videos: (json['videos'] as num?)?.toInt() ?? 0,
+      videosDeferred: (json['videosDeferred'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -70,6 +74,12 @@ class WebDavTransferResult {
   /// 失败原因（成功时为空）。
   final String message;
 
+  /// 视频数量（备份=本次新上传，恢复=本次落地）。
+  final int videos;
+
+  /// 恢复时用户选择跳过、本次未恢复的视频数。
+  final int videosDeferred;
+
   Map<String, dynamic> toJson() => {
         'isBackup': isBackup,
         'success': success,
@@ -81,5 +91,7 @@ class WebDavTransferResult {
         'errors': errors,
         'errorSamples': errorSamples,
         'message': message,
+        'videos': videos,
+        'videosDeferred': videosDeferred,
       };
 }

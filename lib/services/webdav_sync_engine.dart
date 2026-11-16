@@ -10,6 +10,8 @@ import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/webdav_service.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/attachment_maintenance.dart';
+import 'package:inkpaper/utils/media_paths.dart';
+import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:inkpaper/utils/note_dedupe.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:path_provider/path_provider.dart';
@@ -36,10 +38,28 @@ class SyncStats {
     this.conflicts = 0,
     this.errors = 0,
     this.errorSamples = const [],
+    this.videoUploaded = 0,
+    this.videoSkipped = 0,
+    this.videoRestored = 0,
+    this.resourceRestored = 0,
+    this.videoDeferred = 0,
   });
   final int uploaded; // 上传数量
   final int resourceUploaded; // 图片等资源上传数量
   final int resourceSkipped; // 远端已存在、本次跳过的资源数量
+
+  /// 其中属于视频的部分（已包含在 [resourceUploaded] / [resourceSkipped] 里）。
+  final int videoUploaded;
+  final int videoSkipped;
+
+  /// 本次恢复落地的视频数。
+  final int videoRestored;
+
+  /// 本次恢复落地的附件总数（图片 + 视频）。
+  final int resourceRestored;
+
+  /// 用户选择「不恢复视频」而跳过的视频数。
+  final int videoDeferred;
 
   /// 本地没有副本、也没有可用的服务器来源，本次无法备份的附件数。
   ///
@@ -64,6 +84,11 @@ class SyncStats {
     int? conflicts,
     int? errors,
     List<String>? errorSamples,
+    int? videoUploaded,
+    int? videoSkipped,
+    int? videoRestored,
+    int? resourceRestored,
+    int? videoDeferred,
   }) =>
       SyncStats(
         uploaded: uploaded ?? this.uploaded,
@@ -75,11 +100,18 @@ class SyncStats {
         conflicts: conflicts ?? this.conflicts,
         errors: errors ?? this.errors,
         errorSamples: errorSamples ?? this.errorSamples,
+        videoUploaded: videoUploaded ?? this.videoUploaded,
+        videoSkipped: videoSkipped ?? this.videoSkipped,
+        videoRestored: videoRestored ?? this.videoRestored,
+        resourceRestored: resourceRestored ?? this.resourceRestored,
+        videoDeferred: videoDeferred ?? this.videoDeferred,
       );
 
   @override
   String toString() =>
-      'SyncStats(上传: $uploaded, 资源上传: $resourceUploaded, 资源跳过: $resourceSkipped, 下载: $downloaded, 删除: $deleted, 冲突: $conflicts, 错误: $errors)';
+      'SyncStats(上传: $uploaded, 资源上传: $resourceUploaded, 资源跳过: $resourceSkipped, '
+      '视频上传: $videoUploaded, 视频跳过: $videoSkipped, 下载: $downloaded, '
+      '删除: $deleted, 冲突: $conflicts, 错误: $errors)';
 }
 
 class _WebDavResourceRecord {
@@ -88,6 +120,8 @@ class _WebDavResourceRecord {
     required this.webdavPath,
     required this.filename,
     required this.source,
+    this.isVideo = false,
+    this.sizeBytes = 0,
   });
 
   factory _WebDavResourceRecord.fromJson(Map<String, dynamic> json) =>
@@ -96,6 +130,10 @@ class _WebDavResourceRecord {
         webdavPath: json['webdavPath']?.toString() ?? '',
         filename: json['filename']?.toString() ?? '',
         source: json['source']?.toString() ?? 'unknown',
+        // 旧备份没有这两个字段：isVideo 留 false，靠路径/文件名二次判定兜底，
+        // sizeBytes 为 0 时界面不展示体积。
+        isVideo: json['isVideo'] as bool? ?? false,
+        sizeBytes: (json['sizeBytes'] as num?)?.toInt() ?? 0,
       );
 
   final String originalPath;
@@ -103,14 +141,115 @@ class _WebDavResourceRecord {
   final String filename;
   final String source;
 
+  /// 是否视频。旧备份没有该字段，判定时还要回退到扩展名。
+  final bool isVideo;
+
+  /// 文件字节数；0 表示旧备份未记录。
+  final int sizeBytes;
+
   Map<String, dynamic> toJson() => {
         'originalPath': originalPath,
         'webdavPath': webdavPath,
         'filename': filename,
         'source': source,
+        'isVideo': isVideo,
+        'sizeBytes': sizeBytes,
       };
 
   bool get isValid => originalPath.isNotEmpty && webdavPath.isNotEmpty;
+
+  /// 是否是视频资源：新记录看标记，旧记录按扩展名兜底。
+  bool get videoLike => MediaPaths.isVideoAttachment(
+        path: originalPath,
+        filename: filename,
+        markedVideo: isVideo,
+      );
+}
+
+/// 一次备份里资源的来源与体积。
+class _LocalMediaFile {
+  const _LocalMediaFile(this.file, {this.temporary = false});
+
+  final File file;
+
+  /// 是否本次为上传临时落盘、用完要删。
+  final bool temporary;
+}
+
+/// 正文里的一条媒体引用（图片或视频）。
+class _MarkdownMedia {
+  const _MarkdownMedia({required this.path, required this.isVideo});
+
+  final String path;
+  final bool isVideo;
+}
+
+/// 收集流式哈希的结果。
+///
+/// `sha1.startChunkedConversion` 需要一个 `Sink<Digest>` 接住最终摘要，
+/// crypto 包自带的 `AccumulatorSink` 在 package:convert 里，为二十行代码
+/// 新增一个直接依赖不划算。
+class _DigestCollector implements Sink<Digest> {
+  Digest? value;
+
+  @override
+  void add(Digest data) {
+    value = data;
+  }
+
+  @override
+  void close() {}
+}
+
+/// 资源同步的计数器，避免在 `_syncResources` 里堆十几个局部变量。
+class _ResourceSyncCounters {
+  int uploaded = 0;
+  int skipped = 0;
+  int unavailable = 0;
+  int errors = 0;
+  int videoUploaded = 0;
+  int videoSkipped = 0;
+  final List<String> errorSamples = <String>[];
+
+  void recordUpload({required bool isVideo}) {
+    uploaded++;
+    if (isVideo) {
+      videoUploaded++;
+    }
+  }
+
+  void recordSkip({required bool isVideo}) {
+    skipped++;
+    if (isVideo) {
+      videoSkipped++;
+    }
+  }
+
+  void recordUnavailable({
+    required String path,
+    required bool fromServer,
+    required bool isVideo,
+  }) {
+    unavailable++;
+    if (unavailable <= 3) {
+      debugPrint(
+        fromServer
+            ? 'WebDAV 备份：本地无副本且服务器取回失败，跳过 $path'
+            : 'WebDAV 备份：本地无副本且未配置服务器，跳过 $path',
+      );
+    }
+    if (isVideo) {
+      debugPrint('WebDAV 备份：视频未备份 $path');
+    }
+  }
+
+  void recordError(String message) {
+    errors++;
+    if (errorSamples.length < 5) {
+      errorSamples.add(message);
+    }
+    debugPrint('WebDAV 备份：$message');
+  }
 }
 
 /// WebDAV 同步引擎
@@ -423,7 +562,11 @@ class WebDavSyncEngine {
     return deduped.notes;
   }
 
-  /// 同步图片资源并返回可恢复的资源清单。
+  /// 同步图片与视频资源，返回可恢复的资源清单。
+  ///
+  /// 视频和图片走同一条内容寻址通道：本地有副本就流式算 sha1，远端同名即
+  /// 同内容 → 本次直接跳过。因此「超过 Memos 32MB 上限、传不上服务器」的
+  /// 视频照样能进 WebDAV 备份，第二次备份也不会重传。
   Future<List<_WebDavResourceRecord>> _syncResources(List<Note> notes) async {
     final config = _webdavService.config;
     if (config == null) {
@@ -433,144 +576,362 @@ class WebDavSyncEngine {
       return const [];
     }
 
-    var resourceCount = 0;
-    var skippedCount = 0;
-    var unavailableCount = 0;
-    var errorCount = 0;
-    final errorSamples = <String>[];
-    void recordError(String message) {
-      errorCount++;
-      if (errorSamples.length < 5) {
-        errorSamples.add(message);
-      }
-      debugPrint('WebDAV 备份：$message');
-    }
-
-    // 附件本身拿不到（本机没缓存 + 没有可用的服务器来源）：不是备份失败，
-    // 单独计数。否则每次备份都显示「部分完成 + 错误 46」，看起来像坏库。
-    void recordUnavailable(String path, {required bool fromServer}) {
-      unavailableCount++;
-      if (unavailableCount <= 3) {
-        debugPrint(
-          fromServer
-              ? 'WebDAV 备份：本地无副本且服务器取回失败，跳过 $path'
-              : 'WebDAV 备份：本地无副本且未配置服务器，跳过 $path',
-        );
-      }
-    }
-
+    final resourcesPath = '${config.fullSyncPath}resources/';
+    final counters = _ResourceSyncCounters();
     final manifest = <String, _WebDavResourceRecord>{};
 
     // 每次备份重新扫描本地图片目录，避免用到过期的文件索引
     _localImageNameIndex = null;
+    _digestCache.clear();
 
     // 先把远端 resources/ 目录列一次，后续靠内存集合判断「是否已备份过」。
     // 逐个调 exists() 会让每张图都 readDir 一次父目录，几十张图就能把备份
     // 卡住好几分钟（坚果云这类服务单次目录请求很慢）。
-    final existingResourceNames = await _listResourceNames(
-      '${config.fullSyncPath}resources/',
-    );
+    final existingResourceNames = await _listResourceNames(resourcesPath);
+
+    // 服务端资源路径（`/o/r/<uid>`）没有扩展名，靠 resourceList 里的真实
+    // 文件名把扩展名补齐：否则同一段 mov 视频会因正文通道猜成 mp4 而存成两份。
+    final resourceFileNames = _resourceFileNameIndex(notes);
 
     for (final note in notes) {
-      if (note.resourceList.isEmpty) {
-        continue;
-      }
-
       for (final resource in note.resourceList) {
-        try {
-          final resourcePath = _resourcePathFromResource(resource);
-          final filename = resource['filename']?.toString();
-          if (resourcePath == null || resourcePath.isEmpty) {
-            continue;
-          }
-
-          final canFetchFromServer = _memosResourceUrl(resourcePath) != null;
-          final bytes = await _readImageBytes(resourcePath);
-          if (bytes == null) {
-            recordUnavailable(resourcePath, fromServer: canFetchFromServer);
-            continue;
-          }
-
-          // 内容寻址命名：远端同名即同内容。同一张图不会因为附件 uid 变化，
-          // 或从正文 Markdown 通道再次上传，而在服务器上存出第二份。
-          final remoteName = contentAddressedAttachmentName(
-            bytes,
-            _extensionFromPath(filename ?? resourcePath),
-          );
-          final remotePath = '${config.fullSyncPath}resources/$remoteName';
-          manifest[resourcePath] = _WebDavResourceRecord(
-            originalPath: resourcePath,
-            webdavPath: remotePath,
-            filename: filename?.isNotEmpty ?? false ? filename! : remoteName,
-            source: 'resourceList',
-          );
-
-          // 内容寻址后，远端同名即同内容，已经备份过就跳过
-          if (existingResourceNames.contains(remoteName)) {
-            skippedCount++;
-            continue;
-          }
-
-          await _webdavService.uploadBinaryFile(remotePath, bytes);
-          existingResourceNames.add(remoteName);
-          resourceCount++;
-        } on Object catch (e) {
-          recordError('资源上传失败: $e');
+        final resourcePath = _resourcePathFromResource(resource);
+        if (resourcePath == null || resourcePath.isEmpty) {
+          continue;
+        }
+        final record = await _backupMedia(
+          originalPath: resourcePath,
+          filename: resource['filename']?.toString(),
+          isVideo: MemosContentHelper.isVideoResource(resource) ||
+              MediaPaths.isVideoPath(resourcePath),
+          source: 'resourceList',
+          resourcesPath: resourcesPath,
+          existingNames: existingResourceNames,
+          counters: counters,
+        );
+        if (record != null) {
+          manifest.putIfAbsent(resourcePath, () => record);
         }
       }
-    }
 
-    for (final note in notes) {
-      for (final imagePath in _extractMarkdownImagePaths(note.content)) {
-        try {
-          final canFetchFromServer = imagePath.startsWith('http') ||
-              _memosResourceUrl(imagePath) != null;
-          final bytes = await _readImageBytes(imagePath);
-          if (bytes == null) {
-            recordUnavailable(imagePath, fromServer: canFetchFromServer);
-            continue;
-          }
-
-          // 与 resourceList 通道共用同一套内容寻址命名：同内容的图只存一份
-          final remoteName = contentAddressedAttachmentName(
-            bytes,
-            _extensionFromPath(imagePath),
-          );
-          final remotePath = '${config.fullSyncPath}resources/$remoteName';
-          manifest.putIfAbsent(
-            imagePath,
-            () => _WebDavResourceRecord(
-              originalPath: imagePath,
-              webdavPath: remotePath,
-              filename: remoteName,
-              source: 'markdown',
-            ),
-          );
-
-          if (existingResourceNames.contains(remoteName)) {
-            skippedCount++;
-            continue;
-          }
-
-          await _webdavService.uploadBinaryFile(remotePath, bytes);
-          existingResourceNames.add(remoteName);
-          resourceCount++;
-        } on Object catch (e) {
-          recordError('正文图片上传失败 $imagePath: $e');
+      for (final media in _extractMarkdownMedia(note.content)) {
+        final record = await _backupMedia(
+          originalPath: media.path,
+          filename: resourceFileNames[media.path],
+          isVideo: media.isVideo,
+          source: 'markdown',
+          resourcesPath: resourcesPath,
+          existingNames: existingResourceNames,
+          counters: counters,
+        );
+        if (record != null) {
+          manifest.putIfAbsent(media.path, () => record);
         }
       }
     }
 
     // 更新统计
     _stats = _stats.copyWith(
-      resourceUploaded: _stats.resourceUploaded + resourceCount,
-      resourceSkipped: _stats.resourceSkipped + skippedCount,
-      resourcesUnavailable: _stats.resourcesUnavailable + unavailableCount,
-      errors: _stats.errors + errorCount,
-      errorSamples: [..._stats.errorSamples, ...errorSamples],
+      resourceUploaded: _stats.resourceUploaded + counters.uploaded,
+      resourceSkipped: _stats.resourceSkipped + counters.skipped,
+      resourcesUnavailable: _stats.resourcesUnavailable + counters.unavailable,
+      errors: _stats.errors + counters.errors,
+      errorSamples: [..._stats.errorSamples, ...counters.errorSamples],
+      videoUploaded: _stats.videoUploaded + counters.videoUploaded,
+      videoSkipped: _stats.videoSkipped + counters.videoSkipped,
     );
 
     return manifest.values.where((record) => record.isValid).toList();
+  }
+
+  /// 备份单个媒体（图片或视频）并返回它在恢复清单里的记录。
+  ///
+  /// 全程按「文件」处理而不是「字节」：视频几百 MB，整块读进内存会直接把
+  /// App 撑崩。内容寻址名也用流式 sha1 计算，和 [contentAddressedAttachmentName]
+  /// 产出的名字一致，所以图片与视频在远端是同一个命名空间、同一套去重。
+  Future<_WebDavResourceRecord?> _backupMedia({
+    required String originalPath,
+    required String? filename,
+    required bool isVideo,
+    required String source,
+    required String resourcesPath,
+    required Set<String> existingNames,
+    required _ResourceSyncCounters counters,
+  }) async {
+    _LocalMediaFile? local;
+    try {
+      local = await _materializeMedia(originalPath, isVideo: isVideo);
+      if (local == null) {
+        counters.recordUnavailable(
+          path: originalPath,
+          fromServer: _memosResourceUrl(originalPath) != null ||
+              originalPath.startsWith('http'),
+          isVideo: isVideo,
+        );
+        return null;
+      }
+
+      final size = await local.file.length();
+      final extension = _mediaExtension(
+        filename: filename,
+        path: originalPath,
+        isVideo: isVideo,
+      );
+      final digest = await _sha1OfFile(local.file);
+      final remoteName = contentAddressedAttachmentNameFromDigest(
+        digest,
+        extension,
+      );
+      final remotePath = '$resourcesPath$remoteName';
+      final record = _WebDavResourceRecord(
+        originalPath: originalPath,
+        webdavPath: remotePath,
+        filename: filename?.isNotEmpty ?? false ? filename! : remoteName,
+        source: source,
+        isVideo: isVideo,
+        sizeBytes: size,
+      );
+
+      // 内容寻址后，远端同名即同内容，已经备份过就跳过（增量就靠这一步）
+      if (existingNames.contains(remoteName)) {
+        counters.recordSkip(isVideo: isVideo);
+        return record;
+      }
+
+      await _webdavService.uploadFileFromPath(remotePath, local.file.path);
+      existingNames.add(remoteName);
+      counters.recordUpload(isVideo: isVideo);
+      return record;
+    } on Object catch (e) {
+      counters.recordError(
+        '${isVideo ? '视频' : '图片'}上传失败 $originalPath: $e',
+      );
+      return null;
+    } finally {
+      // 只为这一趟上传临时落盘的文件，结束就删，不占用户空间
+      final temporary = local;
+      if (temporary != null && temporary.temporary) {
+        try {
+          if (await temporary.file.exists()) {
+            await temporary.file.delete();
+          }
+        } on Object {
+          // 删不掉不影响备份结果，临时目录本身也会被系统回收
+        }
+      }
+    }
+  }
+
+  /// 拿到媒体的本地文件：本地已有副本直接用，服务端/外链才下载。
+  Future<_LocalMediaFile?> _materializeMedia(
+    String path, {
+    required bool isVideo,
+  }) async {
+    final existing = await _existingLocalMediaFile(path);
+    if (existing != null) {
+      return _LocalMediaFile(existing);
+    }
+
+    final serverUrl = _memosResourceUrl(path);
+    final isHttp = path.startsWith('http://') || path.startsWith('https://');
+    if (serverUrl == null && !isHttp) {
+      return null;
+    }
+    final url = serverUrl ?? path;
+
+    if (serverUrl != null) {
+      // 服务端附件：直接落到附件缓存（`images/memos_*`），一次下载同时完成
+      // 「备份源」和「离线副本」两件事，之后离线看图不必再跑一趟服务器。
+      final appDir = await getApplicationDocumentsDirectory();
+      final imagesDir = Directory('${appDir.path}/images');
+      if (!await imagesDir.exists()) {
+        await imagesDir.create(recursive: true);
+      }
+      final cacheFile = File(
+        '${imagesDir.path}/${localFileNameForAttachment(path)}',
+      );
+      if (await cacheFile.exists() && await cacheFile.length() > 0) {
+        return _LocalMediaFile(cacheFile);
+      }
+      if (!await _downloadUrlToFile(url, cacheFile, authorized: true)) {
+        return null;
+      }
+      AttachmentCache.instance.invalidate();
+      _localImageNameIndex = null;
+      if (!isVideo) {
+        unawaited(ThumbCache.instance.ensure(cacheFile.path));
+      }
+      return _LocalMediaFile(cacheFile);
+    }
+
+    // 第三方图片/视频：只为一趟上传临时落盘，结束就删
+    final tempDir = await getTemporaryDirectory();
+    final extension = _mediaExtension(
+      filename: null,
+      path: path,
+      isVideo: isVideo,
+    );
+    final tempFile = File(
+      '${tempDir.path}/webdav_media_'
+      '${DateTime.now().microsecondsSinceEpoch}.$extension',
+    );
+    if (!await _downloadUrlToFile(url, tempFile)) {
+      return null;
+    }
+    return _LocalMediaFile(tempFile, temporary: true);
+  }
+
+  /// 本机已有的副本（不触发网络）。
+  Future<File?> _existingLocalMediaFile(String path) async {
+    if (path.startsWith('file://')) {
+      final file = File(path.replaceFirst('file://', ''));
+      return await file.exists() ? file : null;
+    }
+
+    if (_isAppRelativeImagePath(path)) {
+      final appDir = await getApplicationDocumentsDirectory();
+      final file = File('${appDir.path}/$path');
+      return await file.exists() ? file : null;
+    }
+
+    // 服务端附件先查本地离线副本（数据维护里缓存过、或上次恢复落地过）。
+    // 没登录服务器 / 服务器不可达时，这是把图带进备份的唯一来源；漏掉这一步
+    // 会导致备份静默丢图，换设备恢复后图片全裂。
+    if (isRemoteAttachmentPath(path) || _isMemosResourcePath(path)) {
+      await AttachmentCache.instance.prepare();
+      final cached = AttachmentCache.instance.fileFor(path);
+      if (cached != null && await cached.exists()) {
+        return cached;
+      }
+      return _localMediaFileByFileName(path);
+    }
+
+    return null;
+  }
+
+  /// 流式计算文件的 sha1，用于内容寻址命名。
+  ///
+  /// 同一次备份里同一个文件可能被 resourceList 与正文两条通道各引用一次，
+  /// 视频几百 MB，重复读盘算哈希太贵——按「路径 + 大小 + 修改时间」缓存。
+  Future<Digest> _sha1OfFile(File file) async {
+    final stat = await file.stat();
+    final key =
+        '${file.path}|${stat.size}|${stat.modified.millisecondsSinceEpoch}';
+    final cached = _digestCache[key];
+    if (cached != null) {
+      return cached;
+    }
+
+    final sink = _DigestCollector();
+    final input = sha1.startChunkedConversion(sink);
+    await for (final chunk in file.openRead()) {
+      input.add(chunk);
+    }
+    input.close();
+    final digest = sink.value;
+    if (digest == null) {
+      throw StateError('计算文件摘要失败: ${file.path}');
+    }
+    _digestCache[key] = digest;
+    return digest;
+  }
+
+  /// 本次备份已算过的文件摘要，[SyncStats] 一轮结束即失效。
+  final Map<String, Digest> _digestCache = <String, Digest>{};
+
+  /// 从文件名 / 路径推断扩展名；都没有时按媒体类型兜底。
+  ///
+  /// 服务端资源路径（`/o/r/<uid>`）是没有扩展名的，视频必须兜成 mp4，
+  /// 否则恢复出来的文件叫 `.jpg`，播放器直接认不出来。
+  String _mediaExtension({
+    required String? filename,
+    required String path,
+    required bool isVideo,
+  }) {
+    final fromName = filename == null || filename.isEmpty
+        ? null
+        : _extensionOrNull(filename);
+    if (fromName != null) {
+      return fromName;
+    }
+    final fromPath = _extensionOrNull(path);
+    if (fromPath != null) {
+      return fromPath;
+    }
+    return isVideo ? 'mp4' : 'jpg';
+  }
+
+  /// `resourceList` 的「资源路径 → 真实文件名」索引，用于补齐扩展名。
+  Map<String, String> _resourceFileNameIndex(List<Note> notes) {
+    final index = <String, String>{};
+    for (final note in notes) {
+      for (final resource in note.resourceList) {
+        final filename = resource['filename']?.toString();
+        if (filename == null || filename.isEmpty) {
+          continue;
+        }
+        for (final candidate in _resourcePathCandidates(resource)) {
+          index.putIfAbsent(candidate, () => filename);
+        }
+      }
+    }
+    return index;
+  }
+
+  /// 把 URL 流式写入本地文件，返回是否成功。
+  ///
+  /// 整块 `http.get` 会把视频整个放进内存；这里按流写盘，几百 MB 也只是
+  /// 分块缓冲。超时只卡「等响应头」这一段：大文件传输本来就慢，用整体
+  /// 超时会稳定误杀下载。
+  Future<bool> _downloadUrlToFile(
+    String url,
+    File target, {
+    bool authorized = false,
+  }) async {
+    final client = http.Client();
+    IOSink? sink;
+    try {
+      final request = http.Request('GET', Uri.parse(url));
+      final token = _memosToken;
+      if (authorized && token != null && token.isNotEmpty) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      final response =
+          await client.send(request).timeout(const Duration(seconds: 30));
+      if (response.statusCode != 200) {
+        debugPrint('WebDAV 备份：下载返回 ${response.statusCode} $url');
+        return false;
+      }
+      await target.parent.create(recursive: true);
+      sink = target.openWrite();
+      // 整体不设上限（大视频就是慢），但「连续 60 秒一个字节都没来」直接
+      // 判定链路已死：否则网络假死时整个备份会永远挂在这里。
+      await sink.addStream(
+        response.stream.timeout(const Duration(seconds: 60)),
+      );
+      await sink.flush();
+      await sink.close();
+      sink = null;
+      return true;
+    } on Object catch (e) {
+      debugPrint('WebDAV 备份：下载失败 $url [$e]');
+      // 半截文件不能留着当缓存，否则之后会命中一个坏文件
+      try {
+        if (await target.exists()) {
+          await target.delete();
+        }
+      } on Object {
+        // 删不掉就算了，下次下载会覆盖
+      }
+      return false;
+    } finally {
+      try {
+        await sink?.close();
+      } on Object {
+        // 已经关闭或写入失败，忽略
+      }
+      client.close();
+    }
   }
 
   /// 列出远端资源目录里的文件名。
@@ -586,95 +947,34 @@ class WebDavSyncEngine {
     }
   }
 
-  List<String> _extractMarkdownImagePaths(String content) {
-    final regex = RegExp(r'!\[[^\]]*\]\(([^)]+)\)');
-    return regex
-        .allMatches(content)
-        .map((match) => match.group(1)?.trim() ?? '')
-        .where((path) => path.isNotEmpty)
-        .toList();
-  }
-
-  Future<List<int>?> _readImageBytes(String imagePath) async {
-    if (imagePath.startsWith('file://')) {
-      final file = File(imagePath.replaceFirst('file://', ''));
-      if (!await file.exists()) {
-        return null;
+  /// 正文里的媒体引用：图片和视频共用 `![alt](path)`，靠 alt/扩展名分流。
+  Iterable<_MarkdownMedia> _extractMarkdownMedia(String content) sync* {
+    for (final match
+        in MemosContentHelper.markdownMediaRegex.allMatches(content)) {
+      final path = match.group(2)?.trim() ?? '';
+      if (path.isEmpty) {
+        continue;
       }
-      return file.readAsBytes();
-    }
-
-    if (_isAppRelativeImagePath(imagePath)) {
-      final appDir = await getApplicationDocumentsDirectory();
-      final file = File('${appDir.path}/$imagePath');
-      if (!await file.exists()) {
-        return null;
-      }
-      return file.readAsBytes();
-    }
-
-    // 服务端附件先查本地离线副本（数据维护里缓存过、或上次恢复落地过）。
-    // 没登录服务器 / 服务器不可达时，这是把图带进备份的唯一来源；漏掉这一步
-    // 会导致备份静默丢图，换设备恢复后图片全裂。
-    if (isRemoteAttachmentPath(imagePath)) {
-      final cached = await _readCachedAttachment(imagePath);
-      if (cached != null) {
-        return cached;
-      }
-      // 路径形态不同导致缓存名对不上时，按文件名兜底命中同一张图
-      final byName = await _readLocalImageByFileName(imagePath);
-      if (byName != null) {
-        return byName;
-      }
-    }
-
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      // 指向本服务器的绝对 URL 是私有附件，必须带 token，否则 401。
-      return _downloadImage(
-        imagePath,
-        authorized: isServerBackedImagePath(imagePath),
+      yield _MarkdownMedia(
+        path: path,
+        isVideo: MediaPaths.isVideoMarkdown(
+          path: path,
+          alt: match.group(1) ?? '',
+        ),
       );
-    }
-
-    if (_isMemosResourcePath(imagePath)) {
-      final fullUrl = _memosResourceUrl(imagePath);
-      if (fullUrl == null) {
-        return null;
-      }
-      final bytes = await _downloadImage(fullUrl, authorized: true);
-      // 顺手落到附件缓存：下次离线备份也能直接读到，不用再跑一趟服务器。
-      if (bytes != null) {
-        await _cacheAttachmentBytes(imagePath, bytes);
-      }
-      return bytes;
-    }
-
-    return null;
-  }
-
-  Future<List<int>?> _readCachedAttachment(String remotePath) async {
-    await AttachmentCache.instance.prepare();
-    final cached = AttachmentCache.instance.fileFor(remotePath);
-    if (cached == null) {
-      return null;
-    }
-    try {
-      return await cached.readAsBytes();
-    } on Object {
-      return null;
     }
   }
 
   /// 本机 images/ 目录的「文件名 → 绝对路径」索引，只在首次用到时构建。
   Map<String, String>? _localImageNameIndex;
 
-  /// 按文件名在本机 images/ 目录里找同一张图。
+  /// 按文件名在本机 images/ 目录里找同一个文件。
   ///
   /// 附件缓存按「整条路径的 sha1」命名，同一张图在正文（`/file/attachments/...`）
   /// 和资源列表 externalLink 里可能形态不同，算出的缓存名对不上——只按路径查
   /// 会误判成「本机没有」，然后去网络重新下载，慢网下直接超时失败。
   /// 同一附件的文件名是稳定的，这里按文件名兜一次底。
-  Future<List<int>?> _readLocalImageByFileName(String remotePath) async {
+  Future<File?> _localMediaFileByFileName(String remotePath) async {
     final clean = remotePath.split('?').first.split('#').first;
     final name = clean.split('/').last;
     if (name.isEmpty) {
@@ -713,61 +1013,8 @@ class WebDavSyncEngine {
     if (path == null) {
       return null;
     }
-    try {
-      return await File(path).readAsBytes();
-    } on Object {
-      return null;
-    }
-  }
-
-  /// 把刚从服务器取回的附件写进 `<documents>/images/`，命名与渲染层一致
-  /// （[localFileNameForAttachment]），这样之后的离线备份/离线看图都能命中。
-  Future<void> _cacheAttachmentBytes(String remotePath, List<int> bytes) async {
-    try {
-      final appDir = await getApplicationDocumentsDirectory();
-      final dir = Directory('${appDir.path}/images');
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      final file = File(
-        '${dir.path}/${localFileNameForAttachment(remotePath)}',
-      );
-      if (!await file.exists()) {
-        await file.writeAsBytes(bytes, flush: true);
-        unawaited(ThumbCache.instance.ensure(file.path));
-        AttachmentCache.instance.invalidate();
-        _localImageNameIndex = null;
-      }
-    } on Object catch (e) {
-      debugPrint('WebDAV 备份：缓存附件失败 $remotePath [$e]');
-    }
-  }
-
-  Future<List<int>?> _downloadImage(
-    String url, {
-    bool authorized = false,
-  }) async {
-    final headers = <String, String>{};
-    final token = _memosToken;
-    if (authorized && token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-    try {
-      // 单张图最长等 12 秒：服务器不可达时不能让整个备份挂死在这里。
-      final response = await http
-          .get(Uri.parse(url), headers: headers)
-          .timeout(const Duration(seconds: 12));
-      if (response.statusCode != 200) {
-        debugPrint(
-          'WebDAV 备份：下载图片返回 ${response.statusCode} $url',
-        );
-        return null;
-      }
-      return response.bodyBytes;
-    } on Object catch (e) {
-      debugPrint('WebDAV 备份：下载图片失败 $url [$e]');
-      return null;
-    }
+    final file = File(path);
+    return await file.exists() ? file : null;
   }
 
   bool _isMemosResourcePath(String path) =>
@@ -792,14 +1039,22 @@ class WebDavSyncEngine {
   bool _isAppRelativeImagePath(String path) =>
       path.startsWith('images/') || path.startsWith('webdav_images/');
 
-  String _extensionFromPath(String path) {
+  /// 路径上的扩展名；取不到返回 null。
+  ///
+  /// 只认 2~5 位纯字母数字：服务端 uid 里偶尔带点（`abc.def123`），
+  /// 不能把后半截当扩展名。
+  String? _extensionOrNull(String path) {
     final cleanPath = path.split('?').first.split('#').first;
     final name = cleanPath.split('/').last;
     final dot = name.lastIndexOf('.');
-    if (dot >= 0 && dot < name.length - 1) {
-      return _sanitizeFileComponent(name.substring(dot + 1)).toLowerCase();
+    if (dot <= 0 || dot >= name.length - 1) {
+      return null;
     }
-    return 'jpg';
+    final ext = _sanitizeFileComponent(name.substring(dot + 1)).toLowerCase();
+    if (!RegExp(r'^[a-z0-9]{2,5}$').hasMatch(ext)) {
+      return null;
+    }
+    return ext;
   }
 
   String _sanitizeFileComponent(String value) {
@@ -885,7 +1140,12 @@ class WebDavSyncEngine {
         .toList();
   }
 
-  Future<Map<String, String>> _restoreResources(
+  Future<
+      ({
+        Map<String, String> pathMap,
+        int videoRestored,
+        int resourceRestored,
+      })> _restoreResources(
     List<_WebDavResourceRecord> manifest, {
     void Function(double progress, String message)? onProgress,
   }) async {
@@ -897,6 +1157,8 @@ class WebDavSyncEngine {
 
     final restoredPathMap = <String, String>{};
     var errorCount = 0;
+    var videoRestored = 0;
+    var resourceRestored = 0;
 
     for (var i = 0; i < manifest.length; i++) {
       final record = manifest[i];
@@ -908,7 +1170,13 @@ class WebDavSyncEngine {
           continue;
         }
         if (action == RestoreAttachmentAction.cacheServerCopy) {
-          // 服务器上的图：正文保持 `/file/attachments/...` 不变，只把二进制
+          // 服务端视频不落离线副本：正文里仍是 `/o/r/<uid>`，播放直接流式
+          // 拉服务器；落一份几十 MB 的副本既不会被播放器用到，又白占空间。
+          // 真正需要经 WebDAV 恢复的是「传不上服务器」的本地视频（下面这支）。
+          if (record.videoLike) {
+            continue;
+          }
+          // 服务器上的图/视频：正文保持 `/file/attachments/...` 不变，只把二进制
           // 落到附件缓存目录（`images/memos_*`）。渲染时 AttachmentCache 优先
           // 读本地副本，服务器不可达也能看图；正文与服务端保持一致，
           // 多设备同步不会互相污染。
@@ -916,40 +1184,61 @@ class WebDavSyncEngine {
             '${imagesDir.path}/${localFileNameForAttachment(record.originalPath)}',
           );
           if (!await cacheFile.exists()) {
-            final bytes =
-                await _webdavService.downloadBinaryFile(record.webdavPath);
-            await cacheFile.writeAsBytes(bytes, flush: true);
+            // 流式落盘：视频几十上百 MB，整块 read 会直接吃光内存
+            await _webdavService.downloadFileToPath(
+              record.webdavPath,
+              cacheFile.path,
+            );
             unawaited(ThumbCache.instance.ensure(cacheFile.path));
           }
+          resourceRestored++;
+          if (record.videoLike) {
+            videoRestored++;
+          }
         } else {
-          final bytes =
-              await _webdavService.downloadBinaryFile(record.webdavPath);
           final localName = _restoredLocalFileName(record, i);
           final localFile = File('${imagesDir.path}/$localName');
-          await localFile.writeAsBytes(bytes, flush: true);
+          await _webdavService.downloadFileToPath(
+            record.webdavPath,
+            localFile.path,
+          );
+          // 视频也在这里生首帧：落地后信息流/详情页直接有封面
           unawaited(ThumbCache.instance.ensure(localFile.path));
           restoredPathMap[record.originalPath] = 'file://${localFile.path}';
+          resourceRestored++;
+          if (record.videoLike) {
+            videoRestored++;
+          }
         }
-      } on Object {
+      } on Object catch (e) {
         errorCount++;
+        debugPrint('WebDAV 恢复：附件失败 ${record.originalPath} [$e]');
       }
 
       onProgress?.call(
         manifest.isEmpty ? 1 : (i + 1) / manifest.length,
-        '恢复图片 ${i + 1}/${manifest.length}',
+        '恢复附件 ${i + 1}/${manifest.length}',
       );
     }
 
     if (errorCount > 0) {
       _stats = _stats.copyWith(errors: _stats.errors + errorCount);
     }
-    return restoredPathMap;
+    return (
+      pathMap: restoredPathMap,
+      videoRestored: videoRestored,
+      resourceRestored: resourceRestored,
+    );
   }
 
   String _restoredLocalFileName(_WebDavResourceRecord record, int index) {
     final sourceName =
         record.filename.isNotEmpty ? record.filename : record.webdavPath;
-    final ext = _extensionFromPath(sourceName);
+    final ext = _mediaExtension(
+      filename: record.filename,
+      path: record.webdavPath,
+      isVideo: record.videoLike,
+    );
     final digest = sha1
         .convert(utf8.encode('${record.originalPath}:${record.webdavPath}'))
         .toString()
@@ -1016,8 +1305,13 @@ class WebDavSyncEngine {
   /// [onProgress] 进度回调：(progress, message) => void
   /// - progress: 0.0 ~ 1.0 的进度值
   /// - message: 当前操作描述
+  ///
+  /// [includeVideos] 为 false 时不恢复视频：视频动辄几十上百 MB，换机时
+  /// 先把笔记和图片拉回来、视频按需再说，是很实际的用法。跳过的视频不改写
+  /// 正文，数量记在 [SyncStats.videoDeferred] 里给用户一个明确交代。
   Future<SyncStats> restore({
     void Function(double progress, String message)? onProgress,
+    bool includeVideos = true,
   }) async {
     // 🔧 改进：检查并自动重置异常状态
     if (_status == SyncStatus.syncing) {
@@ -1086,25 +1380,45 @@ class WebDavSyncEngine {
 
       // 2. 恢复图片资源并重写路径（兼容旧备份：没有 manifest 时跳过）
       if (config.backupImages && resourceManifest.isNotEmpty) {
-        _syncMessage = '恢复图片资源...';
-        onProgress?.call(0.55, '恢复图片资源...');
-        final restoredPathMap = await _restoreResources(
-          resourceManifest,
-          onProgress: (progress, message) {
-            onProgress?.call(0.55 + progress * 0.2, message);
-          },
-        );
-        if (restoredPathMap.isNotEmpty) {
-          remoteNotes = remoteNotes
-              .map((note) => _rewriteNoteImagePaths(note, restoredPathMap))
-              .toList();
+        // 用户选择不恢复视频时，把视频记录整体滤掉：不下载、不改写正文，
+        // 只在统计里报个数。
+        final restoreManifest = includeVideos
+            ? resourceManifest
+            : resourceManifest.where((record) => !record.videoLike).toList();
+        final deferredVideos = resourceManifest.length - restoreManifest.length;
+        if (deferredVideos > 0) {
+          _stats = _stats.copyWith(videoDeferred: deferredVideos);
+        }
+
+        final message = includeVideos ? '恢复图片与视频...' : '恢复图片资源...';
+        _syncMessage = message;
+        onProgress?.call(0.55, message);
+        if (restoreManifest.isNotEmpty) {
+          final restored = await _restoreResources(
+            restoreManifest,
+            onProgress: (progress, progressMessage) {
+              onProgress?.call(0.55 + progress * 0.2, progressMessage);
+            },
+          );
+          _stats = _stats.copyWith(
+            videoRestored: restored.videoRestored,
+            resourceRestored: restored.resourceRestored,
+          );
+          if (restored.pathMap.isNotEmpty) {
+            remoteNotes = remoteNotes
+                .map((note) => _rewriteNoteImagePaths(note, restored.pathMap))
+                .toList();
+          }
+        }
+        if (deferredVideos > 0) {
+          _syncMessage = '已跳过 $deferredVideos 个视频';
         }
       } else if (remoteNotes.any(_hasServerBackedImageRef)) {
         // 备份里没有图片资源：旧备份、或备份时既没本地缓存也没登录服务器。
         // 正文里的服务端路径在本机无副本，未登录时这些图必然裂。必须明说，
         // 否则用户只会看到「恢复完成」和一堆裂图。
-        _syncMessage = '备份中不含图片资源，图片可能无法显示';
-        onProgress?.call(0.55, '备份中不含图片资源，图片可能无法显示');
+        _syncMessage = '备份中不含附件资源，图片和视频可能无法显示';
+        onProgress?.call(0.55, '备份中不含附件资源，图片和视频可能无法显示');
       }
 
       // 3. 覆盖前保存本地应急备份，避免误操作造成不可恢复的数据损失。

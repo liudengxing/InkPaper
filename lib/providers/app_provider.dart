@@ -4247,6 +4247,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
           resourcesUnavailable: stats.resourcesUnavailable,
           errors: stats.errors,
           errorSamples: stats.errorSamples,
+          videos: stats.videoUploaded,
         ),
       );
 
@@ -4267,8 +4268,10 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   /// 从 WebDAV 恢复数据（单向下载）
   ///
   /// [onProgress] 进度回调：(progress, message) => void
+  /// [includeVideos] 是否一并恢复视频附件（体积大，默认恢复）。
   Future<SyncStats?> restoreFromWebDav({
     void Function(double progress, String message)? onProgress,
+    bool includeVideos = true,
   }) async {
     if (!_webDavStore.config.enabled || !_webDavStore.config.isValid) {
       return null;
@@ -4282,6 +4285,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     try {
       final stats = await _webDavStore.syncEngine!.restore(
         onProgress: onProgress,
+        includeVideos: includeVideos,
       );
 
       // 恢复完成后重新加载笔记
@@ -4299,8 +4303,10 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
           success: true,
           finishedAt: DateTime.now(),
           notes: stats.downloaded,
-          resources: stats.resourceUploaded,
+          resources: stats.resourceRestored,
           errors: stats.errors,
+          videos: stats.videoRestored,
+          videosDeferred: stats.videoDeferred,
         ),
       );
 

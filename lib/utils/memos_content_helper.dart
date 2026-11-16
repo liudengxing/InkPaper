@@ -165,7 +165,7 @@ abstract final class MemosContentHelper {
     final paths = <String>[];
 
     for (final resource in resources) {
-      if (_isVideoResource(resource) != video) {
+      if (isVideoResource(resource) != video) {
         continue;
       }
 
@@ -261,23 +261,16 @@ abstract final class MemosContentHelper {
     return buffer.toString().trimRight();
   }
 
-  static bool _isVideoResource(Map<String, dynamic> resource) {
+  /// resourceList 里的一条资源是不是视频。
+  ///
+  /// 服务端的 `type` 字段（`video/mp4`）最可靠；拿不到时按文件名扩展名判，
+  /// 与正文通道共用 [MediaPaths] 那一套，避免两边对 3gp/mkv 的认识不一致。
+  static bool isVideoResource(Map<String, dynamic> resource) {
     final type = resource['type'] as String?;
-    final filename = resource['filename'] as String?;
-
     if (type != null && type.toLowerCase().startsWith('video')) {
       return true;
     }
-    if (filename == null) {
-      return false;
-    }
-
-    final ext = filename.toLowerCase();
-    return ext.endsWith('.mov') ||
-        ext.endsWith('.mp4') ||
-        ext.endsWith('.avi') ||
-        ext.endsWith('.mkv') ||
-        ext.endsWith('.webm') ||
-        ext.endsWith('.flv');
+    final filename = resource['filename']?.toString() ?? '';
+    return MediaPaths.isVideoPath(filename);
   }
 }

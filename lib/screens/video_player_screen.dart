@@ -53,6 +53,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   VideoPlayerController? _controller;
   Object? _error;
 
+  /// 本地视频文件不存在（例如恢复时选择了不恢复视频）。
+  bool _localFileMissing = false;
+
   /// 是否已经初始化完成。初始化前 controller 存在但宽高为 0，不能直接铺开。
   bool _ready = false;
 
@@ -65,6 +68,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Future<void> _initController() async {
     try {
+      // 本地视频先确认文件在不在：从 WebDAV 恢复时可以选择不下载视频，
+      // 正文里的 `file://` 仍指向旧设备路径，这里断得清楚比抛解码错误好懂。
+      final path = widget.path;
+      if (path.startsWith('file://')) {
+        final file = File(path.replaceFirst('file://', ''));
+        if (!await file.exists()) {
+          if (mounted) {
+            setState(() => _localFileMissing = true);
+          }
+          return;
+        }
+      }
       final controller = await _createController();
       await controller.initialize();
       await controller.setLooping(false);
@@ -185,6 +200,34 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   Widget _buildStatus() {
+    if (_localFileMissing) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.cloud_off_outlined,
+                size: 48,
+                color: Colors.white54,
+              ),
+              SizedBox(height: 12),
+              Text(
+                '这段视频不在本机',
+                style: TextStyle(color: Colors.white70),
+              ),
+              SizedBox(height: 6),
+              Text(
+                '从备份恢复时若选择只恢复图片，视频不会下载到本机',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final error = _error;
     if (error != null) {
       return const Center(

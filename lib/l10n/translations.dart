@@ -413,6 +413,12 @@ class Translations {
       'zh': '所有格式都会打包为 ZIP，图片文件一并放进去',
       'en': 'All formats are packed as ZIP with images included',
     },
+    'includeVideosLabel': {'zh': '包含视频', 'en': 'Include Videos'},
+    'includeVideosDescription': {
+      'zh': '视频也一并打包；备份包会明显变大，单段超过 150MB 会跳过',
+      'en':
+          'Pack videos too; the archive grows a lot and clips over 150MB are skipped',
+    },
     'includeTagsLabel': {'zh': '包含标签', 'en': 'Include Tags'},
     'includeTagsDescription': {'zh': '保留笔记的标签信息', 'en': 'Keep tag information'},
     'encryptionOptionsTitle': {'zh': '加密选项', 'en': 'Encryption Options'},
@@ -420,6 +426,11 @@ class Translations {
     'encryptBackupDescription': {
       'zh': '使用密码加密您的备份文件',
       'en': 'Encrypt your backup with password',
+    },
+    'encryptVideosWarning': {
+      'zh': '加密会把整个备份包再转一次 Base64，视频较大时容易失败；大视频建议改用 WebDAV 备份',
+      'en':
+          'Encryption re-encodes the archive as Base64; large videos may fail. Prefer WebDAV for big videos.',
     },
     'startExportButton': {'zh': '导出备份', 'en': 'Export Backup'},
 

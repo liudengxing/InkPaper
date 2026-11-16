@@ -513,6 +513,11 @@ class AppLocalizationsSimple {
   String get includeImagesLabel => _t('includeImagesLabel', fallback: '包含图片');
   String get includeImagesDescription =>
       _t('includeImagesDescription', fallback: '所有格式都会打包为 ZIP，图片文件一并放进去');
+  String get includeVideosLabel => _t('includeVideosLabel', fallback: '包含视频');
+  String get includeVideosDescription => _t(
+        'includeVideosDescription',
+        fallback: '视频也一并打包；备份包会明显变大，单段超过 150MB 会跳过',
+      );
   String get includeTagsLabel => _t('includeTagsLabel', fallback: '包含标签');
   String get includeTagsDescription =>
       _t('includeTagsDescription', fallback: '保留笔记的标签信息');
@@ -521,6 +526,10 @@ class AppLocalizationsSimple {
   String get encryptBackupLabel => _t('encryptBackupLabel', fallback: '加密备份');
   String get encryptBackupDescription =>
       _t('encryptBackupDescription', fallback: '使用密码加密您的备份文件');
+  String get encryptVideosWarning => _t(
+        'encryptVideosWarning',
+        fallback: '加密会把整个备份包再转一次 Base64，视频较大时容易失败；大视频建议改用 WebDAV 备份',
+      );
   String get startExportButton => _t('startExportButton', fallback: '导出备份');
 
   // ===== 服务器信息页面 =====

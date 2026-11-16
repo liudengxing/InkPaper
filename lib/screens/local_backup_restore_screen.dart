@@ -65,6 +65,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
   final List<String> _exportFormats = ['JSON', 'Markdown', 'TXT', 'HTML'];
   String _selectedExportFormat = 'JSON';
   bool _includeImages = true;
+  bool _includeVideos = true;
   bool _includeTags = true;
   bool _encryptBackup = false;
   final TextEditingController _passwordController = TextEditingController();
@@ -962,6 +963,23 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
 
               const SizedBox(height: 12),
 
+              // 包含视频选项
+              _buildSwitchOption(
+                title: AppLocalizationsSimple.of(context)?.includeVideosLabel ??
+                    '包含视频',
+                subtitle: AppLocalizationsSimple.of(context)
+                        ?.includeVideosDescription ??
+                    '视频也一并打包；备份包会明显变大，单段超过 200MB 会跳过',
+                value: _includeVideos,
+                onChanged: (value) {
+                  setState(() {
+                    _includeVideos = value;
+                  });
+                },
+              ),
+
+              const SizedBox(height: 12),
+
               // 包含标签选项
               _buildSwitchOption(
                 title: AppLocalizationsSimple.of(context)?.includeTagsLabel ??
@@ -1059,6 +1077,20 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
                     fontSize: 12,
                   ),
                 ),
+
+                // 加密 + 视频是最容易吃满内存的组合，提前说清楚
+                if (_includeVideos) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    AppLocalizationsSimple.of(context)?.encryptVideosWarning ??
+                        '加密会把整个备份包再转一次 Base64，视频较大时容易失败；'
+                            '大视频建议改用 WebDAV 备份',
+                    style: TextStyle(
+                      color: Colors.orange.shade800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ],
             ],
           ),
@@ -1506,6 +1538,8 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       Uint8List fileBytes;
       final notesCount = exportNotes.length;
       var missingImages = 0;
+      var missingVideos = 0;
+      var skippedVideos = 0;
       final exportFormat =
           BackupContentFormat.fromLabel(_selectedExportFormat) ??
               BackupContentFormat.json;
@@ -1515,10 +1549,13 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
           notes: exportNotes,
           format: exportFormat,
           includeImages: _includeImages,
+          includeVideos: _includeVideos,
           markdownExporter: _databaseService.exportNoteToMarkdown,
         );
         fileBytes = built.bytes;
         missingImages = built.missingImageCount;
+        missingVideos = built.missingVideoCount;
+        skippedVideos = built.skippedVideoCount;
       } on Object catch (e) {
         throw Exception('生成备份文件失败: $e');
       }
@@ -1560,13 +1597,23 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       // 重新加载备份信息
       await _loadBackupInfo();
 
-      if (mounted && missingImages > 0) {
-        SnackBarUtils.showWarning(
-          context,
-          '有 $missingImages 张图片本地已找不到，已跳过；'
-          '重新登录服务器同步后会自动补回',
-          duration: const Duration(seconds: 4),
-        );
+      if (mounted) {
+        final warnings = <String>[
+          if (missingImages > 0 || missingVideos > 0)
+            '有 ${[
+              if (missingImages > 0) '$missingImages 张图片',
+              if (missingVideos > 0) '$missingVideos 段视频',
+            ].join('、')}本地已找不到，已跳过；重新登录服务器同步后会自动补回',
+          if (skippedVideos > 0)
+            '有 $skippedVideos 段视频超过备份包体积上限（单段 150MB / 合计 200MB）未打包，这类大文件建议用 WebDAV 备份',
+        ];
+        if (warnings.isNotEmpty) {
+          SnackBarUtils.showWarning(
+            context,
+            warnings.join('\n'),
+            duration: const Duration(seconds: 5),
+          );
+        }
       }
     } on Object catch (e) {
       _showErrorDialog('导出失败: $e');
@@ -1946,6 +1993,8 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       final originalFormat = decodedContent.originalFormat?.toUpperCase();
 
       var importedCount = 0;
+      var restoredImages = 0;
+      var restoredVideos = 0;
       var format = 'JSON';
 
       if (originalFormat == 'ZIP' || fileName.endsWith('.zip')) {
@@ -1953,6 +2002,8 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
           decodedContent.bytes,
         );
         format = decodedArchive.format.label;
+        restoredImages = decodedArchive.restoredImageCount;
+        restoredVideos = decodedArchive.restoredVideoCount;
         importedCount = await _importDecodedArchive(decodedArchive);
       } else if (originalFormat == 'JSON' ||
           (originalFormat == null && fileName.endsWith('.json'))) {
@@ -2008,6 +2059,13 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       // 显示导入成功对话框
       if (mounted) {
         _showImportSuccessDialog(importedCount);
+        if (restoredImages > 0 || restoredVideos > 0) {
+          final parts = <String>[
+            if (restoredImages > 0) '$restoredImages 张图片',
+            if (restoredVideos > 0) '$restoredVideos 段视频',
+          ];
+          SnackBarUtils.showInfo(context, '同时恢复了 ${parts.join('、')}');
+        }
       }
     } on Object catch (e) {
       _showErrorDialog('导入失败: $e');

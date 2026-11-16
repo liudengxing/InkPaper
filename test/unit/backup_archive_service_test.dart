@@ -48,6 +48,13 @@ void main() {
     return file;
   }
 
+  /// 造一段「视频」：内容不重要，体积和扩展名才是被测对象。
+  Future<File> writeVideo(String name, {int size = 2048}) async {
+    final file = File('${imagesDir.path}${Platform.pathSeparator}$name');
+    await file.writeAsBytes(Uint8List(size), flush: true);
+    return file;
+  }
+
   group('导出打包', () {
     test('JSON 导出会把图片一起塞进 zip，并在导入时还原路径', () async {
       final image = await writeImage('photo.png');
@@ -211,6 +218,133 @@ void main() {
       );
 
       expect(built.imageCount, 1);
+    });
+  });
+
+  group('视频备份', () {
+    test('视频随包打包，不混进图片统计，导入时还原到本地', () async {
+      final video = await writeVideo('video_1.mp4');
+      final built = await service.buildArchive(
+        notes: [_note(id: 'v1', content: '录屏 ![视频](${video.path})')],
+        format: BackupContentFormat.json,
+        includeImages: true,
+        includeVideos: true,
+      );
+
+      expect(built.videoCount, 1);
+      expect(built.imageCount, 0);
+      expect(built.missingVideoCount, 0);
+
+      final decoded = await service.decodeArchive(built.bytes);
+      expect(decoded.restoredVideoCount, 1);
+      expect(decoded.restoredImageCount, 0);
+
+      // 正文里的旧路径换成本地还原出来的文件，且文件真的落盘
+      final json =
+          jsonDecode(decoded.entries.first.content) as Map<String, dynamic>;
+      final content = ((json['notes'] as List).first
+          as Map<String, dynamic>)['content'] as String;
+      expect(content, isNot(contains(video.path)));
+      final restoredPath =
+          RegExp(r'file://([^)\s]+)').firstMatch(content)?.group(1);
+      expect(restoredPath, isNotNull);
+      expect(File(restoredPath!).existsSync(), isTrue);
+      expect(restoredPath, endsWith('.mp4'));
+    });
+
+    test('关掉「包含视频」就不打包视频，正文保留原路径', () async {
+      final video = await writeVideo('video_2.mp4');
+      final built = await service.buildArchive(
+        notes: [_note(id: 'v2', content: '![视频](${video.path})')],
+        format: BackupContentFormat.json,
+        includeImages: true,
+      );
+
+      expect(built.videoCount, 0);
+      final decoded = await service.decodeArchive(built.bytes);
+      expect(decoded.restoredVideoCount, 0);
+      expect(decoded.entries.first.content, contains('video_2.mp4'));
+    });
+
+    test('只开视频、关掉图片时视频照样进包', () async {
+      final video = await writeVideo('video_3.mov');
+      final built = await service.buildArchive(
+        notes: [_note(id: 'v3', content: '![视频](${video.path})')],
+        format: BackupContentFormat.json,
+        includeImages: false,
+        includeVideos: true,
+      );
+
+      expect(built.videoCount, 1);
+      expect(built.imageCount, 0);
+      expect(built.missingImageCount, 0);
+    });
+
+    test('「包含图片」不会顺手把视频当图片打包', () async {
+      final video = await writeVideo('video_4.mp4');
+      final built = await service.buildArchive(
+        notes: [_note(id: 'v4', content: '![视频](${video.path})')],
+        format: BackupContentFormat.json,
+        includeImages: true,
+      );
+
+      expect(built.imageCount, 0);
+      expect(built.missingImageCount, 0);
+    });
+
+    test('服务端无扩展名的视频靠 alt 判定，不算缺图片', () async {
+      final built = await service.buildArchive(
+        notes: [
+          _note(
+            id: 'v5',
+            content: '![视频](/o/r/abc123)',
+            resourceList: const [
+              {'path': '/o/r/abc123', 'alt': '视频', 'filename': 'clip.mov'},
+            ],
+          ),
+        ],
+        format: BackupContentFormat.json,
+        includeImages: true,
+        includeVideos: true,
+      );
+
+      expect(built.imageCount, 0);
+      expect(built.missingImageCount, 0);
+      expect(built.missingVideoCount, 1);
+    });
+
+    test('超过单段体积上限的视频跳过并计数', () async {
+      final tight = BackupArchiveService(
+        imagesDirectoryProvider: () async => imagesDir,
+        maxSingleVideoBytes: 1024,
+      );
+      final video = await writeVideo('big.mp4', size: 4096);
+      final built = await tight.buildArchive(
+        notes: [_note(id: 'v6', content: '![视频](${video.path})')],
+        format: BackupContentFormat.json,
+        includeImages: false,
+        includeVideos: true,
+      );
+
+      expect(built.videoCount, 0);
+      expect(built.skippedVideoCount, 1);
+      // 跳过不等于丢失：正文原样保留，重新登录或走 WebDAV 还能补回来
+      expect(built.missingVideoCount, 0);
+    });
+
+    test('HTML 导出把视频渲染成 video 标签', () async {
+      final video = await writeVideo('video_7.mp4');
+      final built = await service.buildArchive(
+        notes: [_note(id: 'v7', content: '录屏\n![视频](${video.path})')],
+        format: BackupContentFormat.html,
+        includeImages: true,
+        includeVideos: true,
+      );
+
+      final html =
+          (await service.decodeArchive(built.bytes)).entries.single.content;
+      expect(html, contains('<video'));
+      expect(html, contains('resources/video_'));
     });
   });
 

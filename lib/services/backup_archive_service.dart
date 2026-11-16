@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/utils/media_paths.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -53,6 +54,9 @@ class BackupArchiveBuildResult {
     required this.noteCount,
     required this.imageCount,
     required this.missingImageCount,
+    this.videoCount = 0,
+    this.missingVideoCount = 0,
+    this.skippedVideoCount = 0,
   });
 
   final Uint8List bytes;
@@ -64,6 +68,15 @@ class BackupArchiveBuildResult {
 
   /// 正文引用了、但本地找不到文件的图片数量。
   final int missingImageCount;
+
+  /// 真正塞进包里的视频数量。
+  final int videoCount;
+
+  /// 正文引用了、但本地找不到文件的视频数量。
+  final int missingVideoCount;
+
+  /// 因为体积超过上限而没打包的视频数量。
+  final int skippedVideoCount;
 }
 
 /// 解包后的一份正文文件（图片路径已重写成本地可读路径）。
@@ -80,6 +93,7 @@ class DecodedBackupArchive {
     required this.format,
     required this.entries,
     required this.restoredImageCount,
+    this.restoredVideoCount = 0,
   });
 
   final BackupContentFormat format;
@@ -87,6 +101,9 @@ class DecodedBackupArchive {
 
   /// 从包里还原到本地的图片数量。
   final int restoredImageCount;
+
+  /// 从包里还原到本地的视频数量。
+  final int restoredVideoCount;
 }
 
 /// 把笔记打包成「正文 + 图片」的 ZIP，以及把 ZIP 解回可导入的正文。
@@ -94,9 +111,16 @@ class DecodedBackupArchive {
 /// 之所以所有格式统一走 ZIP：JSON / TXT 这类纯文本格式本身没法携带二进制图片，
 /// 之前只有 Markdown 分支会把图片写进包，其余格式的「包含图片」开关等于摆设。
 class BackupArchiveService {
-  BackupArchiveService({Future<Directory> Function()? imagesDirectoryProvider})
-      : _imagesDirectoryProvider =
-            imagesDirectoryProvider ?? _defaultImagesDirectory;
+  BackupArchiveService({
+    Future<Directory> Function()? imagesDirectoryProvider,
+    int? maxSingleVideoBytes,
+    int? maxVideosTotalBytes,
+  })  : _imagesDirectoryProvider =
+            imagesDirectoryProvider ?? _defaultImagesDirectory,
+        _maxSingleVideoBytes =
+            maxSingleVideoBytes ?? defaultMaxSingleVideoBytes,
+        _maxVideosTotalBytes =
+            maxVideosTotalBytes ?? defaultMaxVideosTotalBytes;
 
   /// 图片落地目录（导出时找图、导入时存图都用它）。
   final Future<Directory> Function() _imagesDirectoryProvider;
@@ -116,6 +140,19 @@ class BackupArchiveService {
     resourceManifestName,
   };
 
+  /// 单段视频进本地备份包的上限。
+  ///
+  /// ZIP 是在内存里整块编码的（`ZipEncoder().encode`），视频本身又压不动，
+  /// 不设限等于拿低端机的堆在赌。超过上限的视频跳过并计数，
+  /// 用户改用 WebDAV 备份即可（那条链路是按文件流式上传的）。
+  static const int defaultMaxSingleVideoBytes = 150 * 1024 * 1024;
+
+  /// 一次备份里所有视频的合计上限。
+  static const int defaultMaxVideosTotalBytes = 200 * 1024 * 1024;
+
+  final int _maxSingleVideoBytes;
+  final int _maxVideosTotalBytes;
+
   // ---------------------------------------------------------------------------
   // 导出
   // ---------------------------------------------------------------------------
@@ -128,55 +165,115 @@ class BackupArchiveService {
     required List<Note> notes,
     required BackupContentFormat format,
     required bool includeImages,
+    bool includeVideos = false,
     String Function(Note note)? markdownExporter,
     DateTime? now,
   }) async {
     final exportedAt = now ?? DateTime.now();
     final archive = Archive();
-    final resources = <Map<String, String>>[];
+    final resources = <Map<String, dynamic>>[];
     final archivedByOriginal = <String, String>{};
     // 只统计正文里真正引用到的图片，resourceList 里只是附件元数据，
     // 找不到也不影响阅读，不拿它去打扰用户
     final missingPaths = <String>{};
+    final missingVideoPaths = <String>{};
+    final skippedVideoPaths = <String>{};
+    var videoCount = 0;
+    var videoBytesTotal = 0;
 
-    if (includeImages) {
+    Future<void> archiveMedia({
+      required int noteIndex,
+      required Note note,
+      required String originalPath,
+      required bool isVideo,
+      required bool referencedInBody,
+    }) async {
+      // 同一份媒体被多条笔记引用时只打一份
+      if (archivedByOriginal.containsKey(originalPath)) {
+        return;
+      }
+      final file = await _resolveMediaFile(originalPath);
+      if (file == null) {
+        if (referencedInBody) {
+          (isVideo ? missingVideoPaths : missingPaths).add(originalPath);
+        }
+        return;
+      }
+      if (isVideo) {
+        final size = file.lengthSync();
+        if (size > _maxSingleVideoBytes ||
+            videoBytesTotal + size > _maxVideosTotalBytes) {
+          // 打包是整块进内存的，体积不设限会直接把低端机的堆打爆。
+          // 跳过并计数，交给界面提示用户改用 WebDAV 备份。
+          skippedVideoPaths.add(originalPath);
+          return;
+        }
+        videoBytesTotal += size;
+      }
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
+        if (referencedInBody) {
+          (isVideo ? missingVideoPaths : missingPaths).add(originalPath);
+        }
+        return;
+      }
+      final ext = extensionOf(file.path);
+      final prefix = isVideo ? 'video' : 'note';
+      final archivePath =
+          '$resourceDirName/${prefix}_${noteIndex + 1}_${resources.length + 1}.$ext';
+      archive.addFile(ArchiveFile(archivePath, bytes.length, bytes));
+      resources.add({
+        'noteId': note.id,
+        'originalPath': originalPath,
+        'archivePath': archivePath,
+        if (isVideo) 'isVideo': true,
+        if (isVideo) 'sizeBytes': bytes.length,
+      });
+      archivedByOriginal[originalPath] = archivePath;
+      if (isVideo) {
+        videoCount++;
+      }
+    }
+
+    if (includeImages || includeVideos) {
       for (var i = 0; i < notes.length; i++) {
         final note = notes[i];
-        final referenced = contentImagePaths(note);
-        final candidates = <String>[
-          ...referenced,
-          ...extractImagePaths(note)
-              .where((path) => !referenced.contains(path)),
-        ];
-        for (final originalPath in candidates) {
-          // 同一张图被多条笔记引用时只打一份
-          if (archivedByOriginal.containsKey(originalPath)) {
-            continue;
+        final refs = contentMediaRefs(note);
+        final bodyImages =
+            refs.where((ref) => !ref.isVideo).map((ref) => ref.path).toList();
+        final bodyVideos =
+            refs.where((ref) => ref.isVideo).map((ref) => ref.path).toList();
+
+        if (includeImages) {
+          final candidates = <String>[
+            ...bodyImages,
+            ...extractImagePaths(note).where((p) => !bodyImages.contains(p)),
+          ];
+          for (final originalPath in candidates) {
+            await archiveMedia(
+              noteIndex: i,
+              note: note,
+              originalPath: originalPath,
+              isVideo: false,
+              referencedInBody: bodyImages.contains(originalPath),
+            );
           }
-          final file = await _resolveImageFile(originalPath);
-          if (file == null) {
-            if (referenced.contains(originalPath)) {
-              missingPaths.add(originalPath);
-            }
-            continue;
+        }
+
+        if (includeVideos) {
+          final candidates = <String>[
+            ...bodyVideos,
+            ...extractVideoPaths(note).where((p) => !bodyVideos.contains(p)),
+          ];
+          for (final originalPath in candidates) {
+            await archiveMedia(
+              noteIndex: i,
+              note: note,
+              originalPath: originalPath,
+              isVideo: true,
+              referencedInBody: bodyVideos.contains(originalPath),
+            );
           }
-          final bytes = await file.readAsBytes();
-          if (bytes.isEmpty) {
-            if (referenced.contains(originalPath)) {
-              missingPaths.add(originalPath);
-            }
-            continue;
-          }
-          final ext = extensionOf(file.path);
-          final archivePath =
-              '$resourceDirName/note_${i + 1}_${resources.length + 1}.$ext';
-          archive.addFile(ArchiveFile(archivePath, bytes.length, bytes));
-          resources.add({
-            'noteId': note.id,
-            'originalPath': originalPath,
-            'archivePath': archivePath,
-          });
-          archivedByOriginal[originalPath] = archivePath;
         }
       }
     }
@@ -225,8 +322,12 @@ class BackupArchiveService {
         'exportedAt': exportedAt.toIso8601String(),
         'noteCount': notes.length,
         'includeImages': includeImages,
-        'imageCount': resources.length,
+        'includeVideos': includeVideos,
+        'imageCount': resources.length - videoCount,
+        'videoCount': videoCount,
         'missingImageCount': missingPaths.length,
+        'missingVideoCount': missingVideoPaths.length,
+        'skippedVideoCount': skippedVideoPaths.length,
         'generator': 'InkPaper',
       }),
     );
@@ -240,8 +341,11 @@ class BackupArchiveService {
       bytes: Uint8List.fromList(encoded),
       format: format,
       noteCount: notes.length,
-      imageCount: resources.length,
+      imageCount: resources.length - videoCount,
       missingImageCount: missingPaths.length,
+      videoCount: videoCount,
+      missingVideoCount: missingVideoPaths.length,
+      skippedVideoCount: skippedVideoPaths.length,
     );
   }
 
@@ -311,6 +415,9 @@ class BackupArchiveService {
         '.note-content { white-space: pre-wrap; word-break: break-word; }',
       )
       ..writeln('.note-content img { max-width: 100%; border-radius: 6px; }')
+      ..writeln(
+        '.note-content video { max-width: 100%; border-radius: 6px; }',
+      )
       ..writeln('.tags { color: #007bff; }')
       ..writeln(
         '.missing-image { color: #b26a00; background: #fff4e5;'
@@ -356,9 +463,15 @@ class BackupArchiveService {
       final originalPath = match.group(2) ?? '';
       final archivePath = archived[originalPath];
       if (archivePath != null) {
+        // 视频和图片共用一套 Markdown 语法，HTML 里得渲染成 <video>
+        if (MediaPaths.isVideoPath(archivePath)) {
+          return '<video controls preload="metadata" src="$archivePath">'
+              '不支持内嵌播放，可直接打开 $archivePath</video>';
+        }
         return '<img src="$archivePath" alt="$alt">';
       }
-      return '<span class="missing-image">[图片未随备份打包：$originalPath]</span>';
+      final label = MediaPaths.isVideoPath(originalPath) ? '视频' : '图片';
+      return '<span class="missing-image">[$label未随备份打包：$originalPath]</span>';
     });
   }
 
@@ -390,7 +503,8 @@ class BackupArchiveService {
       throw Exception('压缩包里没有找到可导入的笔记内容');
     }
 
-    final restoredPaths = await _restoreResources(files);
+    final restoredResources = await _restoreResources(files);
+    final restoredPaths = restoredResources.paths;
 
     final entries = <BackupArchiveEntry>[];
     for (final name in files.keys) {
@@ -423,7 +537,8 @@ class BackupArchiveService {
     return DecodedBackupArchive(
       format: format,
       entries: entries,
-      restoredImageCount: restoredPaths.length,
+      restoredImageCount: restoredPaths.length - restoredResources.videoCount,
+      restoredVideoCount: restoredResources.videoCount,
     );
   }
 
@@ -482,13 +597,14 @@ class BackupArchiveService {
   }
 
   /// 把 `resources/*` 写进应用图片目录，返回「原始路径 → file:// 本地路径」。
-  Future<Map<String, String>> _restoreResources(
+  Future<({Map<String, String> paths, int videoCount})> _restoreResources(
     Map<String, ArchiveFile> files,
   ) async {
     final restored = <String, String>{};
+    var videoCount = 0;
     final manifest = files[resourceManifestName];
     if (manifest == null) {
-      return restored;
+      return (paths: restored, videoCount: videoCount);
     }
 
     final Map<String, dynamic> decoded;
@@ -497,11 +613,11 @@ class BackupArchiveService {
         utf8.decode(manifest.content as List<int>, allowMalformed: true),
       );
       if (raw is! Map<String, dynamic> || raw['resources'] is! List) {
-        return restored;
+        return (paths: restored, videoCount: videoCount);
       }
       decoded = raw;
     } on Object {
-      return restored;
+      return (paths: restored, videoCount: videoCount);
     }
 
     final imagesDir = await _imagesDirectoryProvider();
@@ -527,20 +643,26 @@ class BackupArchiveService {
       }
 
       final ext = extensionOf(archivePath);
-      final safeName = 'backup_${DateTime.now().millisecondsSinceEpoch}_'
-          '${restored.length}.$ext';
+      final isVideo =
+          item['isVideo'] == true || MediaPaths.isVideoPath(archivePath);
+      final safeName = 'backup_${isVideo ? 'video' : 'image'}_'
+          '${DateTime.now().millisecondsSinceEpoch}_${restored.length}.$ext';
       final localFile =
           File('${imagesDir.path}${Platform.pathSeparator}$safeName');
       await localFile.writeAsBytes(
         archivedFile.content as List<int>,
         flush: true,
       );
-      // 还原出来的图也要进缩略图缓存，否则恢复后第一次浏览信息流全是原图解码
+      // 还原出来的图/视频也要进缩略图缓存，否则恢复后第一次浏览信息流
+      // 全是原图解码（视频还会白等首帧）
       unawaited(ThumbCache.instance.ensure(localFile.path));
       restored[originalPath] = 'file://${localFile.path}';
+      if (isVideo) {
+        videoCount++;
+      }
     }
 
-    return restored;
+    return (paths: restored, videoCount: videoCount);
   }
 
   /// 把正文里的旧图片路径替换成本地还原后的路径。
@@ -573,18 +695,38 @@ class BackupArchiveService {
   // 图片解析
   // ---------------------------------------------------------------------------
 
-  /// 正文 Markdown 语法里直接引用到的图片路径。
-  List<String> contentImagePaths(Note note) {
-    final paths = <String>[];
-    final imageRegex = RegExp(r'!\[[^\]]*\]\(([^)\s]+)');
+  /// 正文 Markdown 语法里出现的所有媒体引用（图片 + 视频）。
+  ///
+  /// 视频和图片用的是同一套 `![alt](path)` 语法，必须靠 alt 约定与扩展名
+  /// 分流：否则「包含图片」会把视频也当图片塞进包里，统计和提示全错。
+  List<({String path, bool isVideo})> contentMediaRefs(Note note) {
+    final refs = <({String path, bool isVideo})>[];
+    final imageRegex = RegExp(r'!\[([^\]]*)\]\(([^)\s]+)');
     for (final match in imageRegex.allMatches(note.content)) {
-      final value = match.group(1)?.trim();
-      if (value != null && value.isNotEmpty && !paths.contains(value)) {
-        paths.add(value);
+      final path = match.group(2)?.trim() ?? '';
+      if (path.isEmpty || refs.any((ref) => ref.path == path)) {
+        continue;
       }
+      final isVideo = MediaPaths.isVideoMarkdown(
+        path: path,
+        alt: match.group(1) ?? '',
+      );
+      refs.add((path: path, isVideo: isVideo));
     }
-    return paths;
+    return refs;
   }
+
+  /// 正文 Markdown 语法里直接引用到的图片路径。
+  List<String> contentImagePaths(Note note) => contentMediaRefs(note)
+      .where((ref) => !ref.isVideo)
+      .map((ref) => ref.path)
+      .toList();
+
+  /// 正文 Markdown 语法里直接引用到的视频路径。
+  List<String> contentVideoPaths(Note note) => contentMediaRefs(note)
+      .where((ref) => ref.isVideo)
+      .map((ref) => ref.path)
+      .toList();
 
   /// 从正文的 Markdown 图片语法和 resourceList 里收集所有图片引用。
   List<String> extractImagePaths(Note note) {
@@ -593,6 +735,10 @@ class BackupArchiveService {
     void add(String? path) {
       final value = path?.trim();
       if (value == null || value.isEmpty || paths.contains(value)) {
+        return;
+      }
+      // 视频有自己的分支，混进图片统计会让「图片 N 张」多算
+      if (MediaPaths.isVideoPath(value)) {
         return;
       }
       paths.add(value);
@@ -607,11 +753,39 @@ class BackupArchiveService {
     return paths;
   }
 
-  /// 把各种写法的图片引用落到真实文件上。
+  /// 从正文的 Markdown 语法和 resourceList 里收集所有视频引用。
+  ///
+  /// 服务端资源路径（`/o/r/<uid>`）没有扩展名，只能靠 resourceList 的
+  /// `alt` 是不是「视频」来判，否则这类视频永远进不了备份。
+  List<String> extractVideoPaths(Note note) {
+    final paths = <String>[...contentVideoPaths(note)];
+
+    void add(String? path, {String alt = ''}) {
+      final value = path?.trim();
+      if (value == null || value.isEmpty || paths.contains(value)) {
+        return;
+      }
+      if (!MediaPaths.isVideoMarkdown(path: value, alt: alt)) {
+        return;
+      }
+      paths.add(value);
+    }
+
+    for (final resource in note.resourceList) {
+      final alt = resource['alt']?.toString() ?? '';
+      add(resource['localPath']?.toString(), alt: alt);
+      add(resource['path']?.toString(), alt: alt);
+      add(resource['filename']?.toString());
+    }
+
+    return paths;
+  }
+
+  /// 把各种写法的图片 / 视频引用落到真实文件上。
   ///
   /// 顺序：`file://` → 绝对路径 → 相对路径（按应用图片目录拼），
   /// `content://`、`http(s)://` 这类拿不到字节的直接跳过。
-  Future<File?> _resolveImageFile(String path) async {
+  Future<File?> _resolveMediaFile(String path) async {
     Future<File?> exists(String candidate) async {
       if (candidate.isEmpty) {
         return null;

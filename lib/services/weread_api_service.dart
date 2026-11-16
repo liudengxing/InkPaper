@@ -120,7 +120,11 @@ class WeReadApiService {
   /// 拉取单本书的划线 + 想法 + 章节。
   ///
   /// 两个接口各管一半：`/book/bookmarklist` 给划线内容和章节表，`/review/list/mine`
-  /// 给个人想法/点评。任何一半失败都不算致命 —— 只有划线也值得导入，反之亦然。
+  /// 给个人想法/点评。任何一半失败都整体抛错 —— 若吞掉失败返回半份数据，
+  /// sync 会照常推进书侧水位，这本书永远不会再重试，缺的那半就永久丢了
+  /// （读完档案独立走 getprogress，照常生成，于是出现「档案写有 3 条笔记，
+  /// 点标签一条都没有」）。抛错后 sync 记 failure、不推水位，下一轮整本重试；
+  /// 已导入的部分靠笔记 id 幂等去重，不会重复。
   Future<WeReadBookNotes> fetchBookNotes(String bookId) async {
     final highlights = <WeReadHighlight>[];
     final reviews = <WeReadReview>[];
@@ -158,6 +162,8 @@ class WeReadApiService {
       rethrow;
     } on Object catch (error) {
       _logger.warning('划线与章节拉取失败: $bookId', data: {'error': '$error'});
+      // 不吞：半份数据 + 推进水位 = 永久丢数据，见方法注释。
+      rethrow;
     }
 
     try {
@@ -166,6 +172,7 @@ class WeReadApiService {
       rethrow;
     } on Object catch (error) {
       _logger.warning('想法拉取失败: $bookId', data: {'error': '$error'});
+      rethrow;
     }
 
     return WeReadBookNotes(

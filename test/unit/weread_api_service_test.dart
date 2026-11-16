@@ -246,7 +246,7 @@ void main() {
       expect(notes.reviews.last.star, 5);
     });
 
-    test('WA-07 想法接口失败不影响划线导入', () async {
+    test('WA-07 想法接口失败整体抛错，不再吞成半份数据', () async {
       final api = WeReadApiService(
         apiKey: 'wrk-test',
         client: MockClient((request) async {
@@ -262,10 +262,18 @@ void main() {
         }),
       );
 
-      final notes = await api.fetchBookNotes('b1');
-
-      expect(notes.highlights.length, 1);
-      expect(notes.reviews, isEmpty);
+      // 吞掉失败会让 sync 推进水位、这本书永远不再重试（读完档案却照常
+      // 生成，出现「档案说有 N 条划线，点标签一条没有」）。必须抛出去。
+      await expectLater(
+        api.fetchBookNotes('b1'),
+        throwsA(
+          isA<WeReadApiException>().having(
+            (error) => error.message,
+            'message',
+            '炸了',
+          ),
+        ),
+      );
     });
   });
 

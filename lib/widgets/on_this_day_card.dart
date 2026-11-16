@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
+import 'package:inkpaper/widgets/note_preview_text.dart';
 import 'package:intl/intl.dart';
 
 /// 卡片时间戳格式：与列表里的笔记卡片一致（往年显示完整日期与时间）。
@@ -16,6 +18,7 @@ class OnThisDayCard extends StatefulWidget {
     required this.notes,
     required this.onClose,
     required this.onOpenNote,
+    this.onTagTap,
     super.key,
   });
 
@@ -27,6 +30,9 @@ class OnThisDayCard extends StatefulWidget {
 
   /// 点卡片正文：打开对应笔记详情。
   final ValueChanged<Note> onOpenNote;
+
+  /// 点正文里的 #标签：为空走默认的 tag-notes 路由。
+  final ValueChanged<String>? onTagTap;
 
   @override
   State<OnThisDayCard> createState() => _OnThisDayCardState();
@@ -132,6 +138,7 @@ class _OnThisDayCardState extends State<OnThisDayCard> {
                   return _buildPage(
                     context,
                     note,
+                    isDarkMode: isDarkMode,
                     timestampColor: timestampColor,
                     textColor: textColor,
                     secondaryTextColor: secondaryTextColor,
@@ -169,6 +176,7 @@ class _OnThisDayCardState extends State<OnThisDayCard> {
   Widget _buildPage(
     BuildContext context,
     Note note, {
+    required bool isDarkMode,
     required Color timestampColor,
     required Color textColor,
     required Color secondaryTextColor,
@@ -195,16 +203,35 @@ class _OnThisDayCardState extends State<OnThisDayCard> {
             ),
             const SizedBox(height: 6),
             Expanded(
-              child: Text(
-                preview.isEmpty ? '（无文字内容）' : preview,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.5,
-                  color: preview.isEmpty ? secondaryTextColor : textColor,
-                ),
-              ),
+              child: preview.isEmpty
+                  ? Text(
+                      '（无文字内容）',
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.5,
+                        color: secondaryTextColor,
+                      ),
+                    )
+                  : NotePreviewText(
+                      content: note.content,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.5,
+                        color: textColor,
+                      ),
+                      maxLines: 4,
+                      // 与首页卡片同一套富文本渲染：标签高亮、可点击
+                      accentColor: isDarkMode
+                          ? AppTheme.primaryLightColor
+                          : AppTheme.primaryColor,
+                      onTagTap: widget.onTagTap ??
+                          (tagPath) => context.pushNamed(
+                                'tag-notes',
+                                queryParameters: {'tag': tagPath},
+                              ),
+                    ),
             ),
           ],
         ),

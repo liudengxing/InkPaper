@@ -89,6 +89,27 @@ void main() {
       expect(openedId, 'a');
     });
 
+    testWidgets('OTD-07 正文里的 #标签 可点击且样式高亮', (tester) async {
+      final tapped = <String>[];
+      await tester.pumpWidget(
+        _wrap(
+          OnThisDayCard(
+            notes: [_note('a', 2024, content: '#旧时光 好久远')],
+            onClose: () {},
+            onOpenNote: (_) {},
+            onTagTap: tapped.add,
+          ),
+        ),
+      );
+
+      // 正文在 Expanded 里占满宽，tap 中心点会落在字形之外；
+      // 标签在行首，按字形起点 + 少量偏移点进标签 span。
+      final tagOrigin = tester.getTopLeft(find.textContaining('旧时光'));
+      await tester.tapAt(tagOrigin + const Offset(20, 8));
+      await tester.pump();
+      expect(tapped, ['旧时光']);
+    });
+
     testWidgets('OTD-06 时间样式与列表笔记卡片一致', (tester) async {
       await tester.pumpWidget(
         _wrap(

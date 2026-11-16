@@ -1357,23 +1357,39 @@ class _PhotoPageState extends State<_PhotoPage> {
     final aspectRatio = controller.value.aspectRatio <= 0
         ? 3 / 4
         : controller.value.aspectRatio;
-    return Positioned.fill(
-      child: GestureDetector(
-        onTap: () {
-          unawaited(controller.pause());
-          setState(() => _livePlaying = false);
-        },
-        child: ColoredBox(
-          color: Colors.black,
-          child: Center(
-            child: AspectRatio(
-              aspectRatio: aspectRatio,
-              child: VideoPlayer(controller),
-            ),
+
+    // 覆盖层必须套用和照片同一个缩放矩阵：否则放大后 Live 一开播，
+    // 全屏覆盖层会以原始大小盖住画面，看起来像缩放被强制重置了。
+    Widget overlay = GestureDetector(
+      onTap: () {
+        unawaited(controller.pause());
+        setState(() => _livePlaying = false);
+      },
+      child: ColoredBox(
+        color: Colors.black,
+        child: Center(
+          child: AspectRatio(
+            aspectRatio: aspectRatio,
+            child: VideoPlayer(controller),
           ),
         ),
       ),
     );
+
+    final matrix = widget.matrix;
+    if (matrix != null) {
+      overlay = ClipRect(
+        child: AnimatedBuilder(
+          animation: matrix,
+          builder: (context, inner) => Transform(
+            transform: matrix.value,
+            child: inner,
+          ),
+          child: overlay,
+        ),
+      );
+    }
+    return Positioned.fill(child: overlay);
   }
 
   @override

@@ -68,11 +68,11 @@ String? _sharedPayloadToRawContent(Object? payload) {
       if (paths.isEmpty) {
         return null;
       }
-      final buffer = StringBuffer('来自分享的图片 (${paths.length}张):\n\n');
-      for (final path in paths) {
-        buffer.writeln('![图片](file://$path)\n');
-      }
-      return buffer.toString();
+      // 图片之间空一行，末尾不留换行（原来每张图后写两个换行，
+      // 正文尾部就会挂着一串空行）
+      final images =
+          paths.map<String>((path) => '![图片](file://$path)').join('\n\n');
+      return '来自分享的图片 (${paths.length}张):\n\n$images';
     case 'file':
       final path = payload['path']?.toString();
       if (path == null || path.isEmpty) {

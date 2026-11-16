@@ -940,8 +940,17 @@ class _NoteEditorState extends State<NoteEditor>
     newMdCodes.add(mdCode);
   }
 
-  // 用于保存笔记前的最终内容准备
+  /// 用于保存笔记前的最终内容准备。
+  ///
+  /// 出口统一砍掉正文尾部的空白：换行在正文里只有"分段"这一个语义，末尾
+  /// 多出来的空行没有任何作用，却会原样落到数据库 —— 再次打开编辑器时光标
+  /// 下方挂着一大片空行，复制出去也带着。内部空行保持不动。
   String _prepareFinalContent() {
+    final content = _buildFinalContent();
+    return content.trim().isEmpty ? '' : content.trimRight();
+  }
+
+  String _buildFinalContent() {
     final bodyText = _textController.text;
     if (_imageList.isEmpty) {
       final bodyMarkdown = _textController.toMarkdown();

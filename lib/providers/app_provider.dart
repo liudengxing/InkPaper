@@ -2656,8 +2656,13 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   }) async {
     debugPrint('AppProvider: 开始创建笔记');
     try {
+      // 正文尾部的空白没有任何语义，入库前统一砍掉。分享图片、草稿恢复、
+      // 插图后保存这些入口生成的内容都可能带一长串尾部换行，落到库里之后
+      // 在编辑器里就是光标下方一大片空行。内部空行保持不动。
+      final normalizedContent = content.trimRight();
+
       // 提取标签
-      final tags = extractTags(content);
+      final tags = extractTags(normalizedContent);
       debugPrint('AppProvider: 提取标签: $tags');
 
       // 时间戳（如果未提供则使用当前时间）
@@ -2668,7 +2673,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 创建笔记对象
       final note = Note(
         id: const Uuid().v4(),
-        content: content,
+        content: normalizedContent,
         tags: tags,
         createdAt: noteCreatedAt,
         updatedAt: noteUpdatedAt,
@@ -2756,8 +2761,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     try {
       // 更新内容
       debugPrint('AppProvider: 创建更新后的笔记对象');
+      final normalizedContent = newContent.trimRight();
       final updatedNote = note.copyWith(
-        content: newContent,
+        content: normalizedContent,
         updatedAt: DateTime.now(), // 自动更新为当前时间
         isSynced: false,
       );
@@ -2768,7 +2774,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       // 提取标签
       debugPrint('AppProvider: 提取标签');
-      final tags = extractTags(newContent);
+      final tags = extractTags(normalizedContent);
       debugPrint('AppProvider: 提取到的标签: ${tags.join(', ')}');
       final noteWithTags = updatedNote.copyWith(tags: tags);
 

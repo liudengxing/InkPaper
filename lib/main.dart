@@ -401,12 +401,12 @@ Future<void> _initializeApp() async {
       await Future.delayed(const Duration(milliseconds: 500));
 
       // 跳转到主页并打开编辑器
-      final buffer = StringBuffer();
-      buffer.writeln('来自分享的图片 (${imagePaths.length}张):\n');
-      for (final path in imagePaths) {
-        buffer.writeln('![图片](file://$path)\n');
-      }
-      appRouter.router.go('/', extra: {'sharedContent': buffer.toString()});
+      // 图片之间空一行，末尾不留换行 —— 原来每张图后面写两个换行，
+      // 建出来的笔记尾部就会挂着一串空行。
+      final images =
+          imagePaths.map<String>((path) => '![图片](file://$path)').join('\n\n');
+      final content = '来自分享的图片 (${imagePaths.length}张):\n\n$images';
+      appRouter.router.go('/', extra: {'sharedContent': content});
     }
     // 🔥 处理分享的文件
     else if (call.method == 'onSharedFile') {

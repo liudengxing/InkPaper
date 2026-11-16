@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/themes/app_typography.dart';
@@ -31,6 +34,14 @@ class _TagsScreenState extends State<TagsScreen>
   bool _isSearching = false; // 🔍 是否正在搜索
   bool _didRequestTagRefresh = false;
 
+  // 全量查库：标签树/计数不能只看内存里的分页列表，
+  // 没滑到的笔记不在 appProvider.notes 里。
+  List<Note>? _allNotes;
+  Timer? _reloadDebounce;
+  bool _reloading = false;
+  bool _dirty = false;
+  AppProvider? _listenedProvider;
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +52,7 @@ class _TagsScreenState extends State<TagsScreen>
     // 🚀 初始化（静默）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshNotes();
+      _reloadAllNotes();
 
       // 只在首次进入时触发一次标签刷新，避免每次切换到标签页都做全量扫描导致卡顿
       if (!_didRequestTagRefresh) {
@@ -57,6 +69,8 @@ class _TagsScreenState extends State<TagsScreen>
 
   @override
   void dispose() {
+    _reloadDebounce?.cancel();
+    _listenedProvider?.removeListener(_onProviderChanged);
     _animationController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -65,7 +79,42 @@ class _TagsScreenState extends State<TagsScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final provider = context.read<AppProvider>();
+    if (!identical(provider, _listenedProvider)) {
+      _listenedProvider?.removeListener(_onProviderChanged);
+      _listenedProvider = provider..addListener(_onProviderChanged);
+    }
     // 不要在这里跟随 AppProvider 全量变化去 setState；会导致路由切换/同步时频繁重建，体感卡顿
+  }
+
+  void _onProviderChanged() {
+    // 防抖合并通知风暴（同步/分页加载时会连发通知），
+    // 全量查库本身很快（<10ms），卡顿来自整棵标签树重建。
+    _reloadDebounce ??= Timer(const Duration(milliseconds: 250), () {
+      _reloadDebounce = null;
+      _reloadAllNotes();
+    });
+  }
+
+  Future<void> _reloadAllNotes() async {
+    if (_reloading) {
+      _dirty = true;
+      return;
+    }
+    _reloading = true;
+    try {
+      final all = await context.read<AppProvider>().getAllVisibleNotes();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _allNotes = all);
+    } finally {
+      _reloading = false;
+      if (_dirty && mounted) {
+        _dirty = false;
+        unawaited(_reloadAllNotes());
+      }
+    }
   }
 
   void _refreshNotes() {
@@ -122,7 +171,10 @@ class _TagsScreenState extends State<TagsScreen>
 
     return Consumer<AppProvider>(
       builder: (context, appProvider, _) {
-        final tags = _visibleNormalizedTags(appProvider);
+        final tags = _visibleNormalizedTags(
+          // 全量查完用库里的；首帧还没查完先用内存分页列表，避免闪空
+          _allNotes ?? appProvider.notes,
+        );
         // 🚀 标签统计（静默）
 
         return ResponsiveLayout(
@@ -880,9 +932,9 @@ class _TagsScreenState extends State<TagsScreen>
     );
   }
 
-  List<String> _visibleNormalizedTags(AppProvider appProvider) {
+  List<String> _visibleNormalizedTags(List<Note> notes) {
     final tags = <String>{};
-    for (final note in appProvider.notes) {
+    for (final note in notes) {
       for (final tag in note.tags) {
         final normalized = normalizeIncomingTagPath(tag);
         if (normalized != null) {
@@ -1161,13 +1213,13 @@ class _TagsScreenState extends State<TagsScreen>
     }
 
     final appProvider = Provider.of<AppProvider>(context, listen: false);
+    // 全量查完用库里的；首帧还没查完先用内存分页列表
+    final notes = _allNotes ?? appProvider.notes;
     final validTagSet = validTags.toSet();
     final tagNodes = _searchQuery.trim().isEmpty
-        ? TagNode.buildTreeFromNoteTags(
-            appProvider.notes.map((note) => note.tags),
-          )
+        ? TagNode.buildTreeFromNoteTags(notes.map((note) => note.tags))
         : TagNode.buildTreeFromNoteTags(
-            appProvider.notes.map(
+            notes.map(
               (note) => note.tags.where((tag) {
                 final normalized = normalizeIncomingTagPath(tag);
                 return normalized != null && validTagSet.contains(normalized);

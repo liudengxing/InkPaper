@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
@@ -30,7 +32,67 @@ class TagNotesScreen extends StatefulWidget {
 }
 
 class _TagNotesScreenState extends State<TagNotesScreen> {
-  // 不再需要本地状态，直接使用 Consumer 监听 Provider
+  // 全量查库，而不是过滤内存里的分页列表：
+  // 首页只加载了前几页（getNotesPaged 每页 50 条），没滑到的笔记
+  // 不在 appProvider.notes 里，过滤内存列表会漏掉它们。
+  List<Note>? _allNotes;
+  Timer? _reloadDebounce;
+  bool _reloading = false;
+  bool _dirty = false;
+  AppProvider? _listenedProvider;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_reload());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.read<AppProvider>();
+    if (!identical(provider, _listenedProvider)) {
+      _listenedProvider?.removeListener(_onProviderChanged);
+      _listenedProvider = provider..addListener(_onProviderChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    _reloadDebounce?.cancel();
+    _listenedProvider?.removeListener(_onProviderChanged);
+    super.dispose();
+  }
+
+  void _onProviderChanged() {
+    // 防抖合并通知风暴（同步/分页加载时会连发通知），
+    // 全量查库本身很快（<10ms），卡顿来自整页重建。
+    _reloadDebounce ??= Timer(const Duration(milliseconds: 250), () {
+      _reloadDebounce = null;
+      _reload();
+    });
+  }
+
+  Future<void> _reload() async {
+    if (_reloading) {
+      _dirty = true;
+      return;
+    }
+    _reloading = true;
+    try {
+      final all = await context.read<AppProvider>().getAllVisibleNotes();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _allNotes = all);
+    } finally {
+      _reloading = false;
+      if (_dirty && mounted) {
+        _dirty = false;
+        unawaited(_reload());
+      }
+    }
+  }
 
   void _switchTag(String tagName) {
     final nextTag = normalizeIncomingTagPath(tagName);
@@ -72,105 +134,122 @@ class _TagNotesScreenState extends State<TagNotesScreen> {
     final backgroundColor =
         isDarkMode ? AppTheme.darkBackgroundColor : AppTheme.backgroundColor;
 
-    return Consumer<AppProvider>(
-      builder: (context, appProvider, _) {
-        final allVisibleNotes = appProvider.notes;
-        final currentNotes = _notesForCurrentTag(
-          appProvider,
-          allVisibleNotes,
-        );
-        final childCount = currentNotes
-            .where(
-              (note) => note.tags.any(
-                (tag) {
-                  final normalizedTag = normalizeIncomingTagPath(tag);
-                  return normalizedTag != null &&
-                      normalizedTag.startsWith('$tagName/');
-                },
-              ),
-            )
-            .length;
-        final notesCount = currentNotes.length;
-
-        return Scaffold(
+    final appProvider = context.watch<AppProvider>();
+    final allVisibleNotes = _allNotes;
+    if (allVisibleNotes == null) {
+      // 首次全量查询（SQLite <10ms），转圈代替闪空态
+      return Scaffold(
+        backgroundColor: backgroundColor,
+        appBar: AppBar(
           backgroundColor: backgroundColor,
-          appBar: AppBar(
-            backgroundColor: backgroundColor,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            surfaceTintColor: Colors.transparent,
-            leading: IconButton(
-              icon: Icon(
-                Icons.arrow_back_ios_new,
-                size: ResponsiveUtils.responsiveIconSize(context, 20),
-                color: isDarkMode
-                    ? AppTheme.primaryLightColor
-                    : AppTheme.primaryColor,
-              ),
-              onPressed: _handleBack,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
+          leading: IconButton(
+            icon: Icon(
+              Icons.arrow_back_ios_new,
+              size: ResponsiveUtils.responsiveIconSize(context, 20),
+              color: isDarkMode
+                  ? AppTheme.primaryLightColor
+                  : AppTheme.primaryColor,
             ),
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '#$tagName',
-                  style: AppTypography.getTitleStyle(
-                    context,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: isDarkMode
-                        ? AppTheme.darkTextPrimaryColor
-                        : AppTheme.textPrimaryColor,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  childCount > 0
-                      ? '$notesCount ${AppLocalizationsSimple.of(context)?.notes ?? "条笔记"} · 含子标签'
-                      : '$notesCount ${AppLocalizationsSimple.of(context)?.notes ?? "条笔记"}',
-                  style: AppTypography.getCaptionStyle(
-                    context,
-                    color: isDarkMode
-                        ? AppTheme.darkTextSecondaryColor
-                        : AppTheme.textSecondaryColor,
-                  ).copyWith(fontSize: 12),
-                ),
-              ],
-            ),
+            onPressed: _handleBack,
           ),
-          body: currentNotes.isEmpty
-              ? _buildEmptyState(context)
-              : ResponsiveLayout(
-                  mobile: _buildNotesList(
-                    context,
-                    currentNotes,
-                  ),
-                  tablet: _buildNotesGrid(
-                    context,
-                    currentNotes,
-                    crossAxisCount: 2,
-                  ),
-                  desktop: _buildNotesGrid(
-                    context,
-                    currentNotes,
-                    crossAxisCount: 3,
-                  ),
-                ),
-          // 🎯 右下角添加按钮，默认带当前标签
-          floatingActionButton: FloatingActionButton(
-            onPressed: () {
-              _showAddNoteDialog(context);
+          title: Text('#$tagName'),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    final currentNotes = _notesForCurrentTag(appProvider, allVisibleNotes);
+    final childCount = currentNotes
+        .where(
+          (note) => note.tags.any(
+            (tag) {
+              final normalizedTag = normalizeIncomingTagPath(tag);
+              return normalizedTag != null &&
+                  normalizedTag.startsWith('$tagName/');
             },
-            backgroundColor: AppTheme.primaryColor,
-            tooltip: AppLocalizationsSimple.of(context)?.createNote ?? '创建笔记',
-            child: const Icon(
-              Icons.add,
-              color: Colors.white,
-            ),
           ),
-        );
-      },
+        )
+        .length;
+    final notesCount = currentNotes.length;
+
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        backgroundColor: backgroundColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios_new,
+            size: ResponsiveUtils.responsiveIconSize(context, 20),
+            color:
+                isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor,
+          ),
+          onPressed: _handleBack,
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '#$tagName',
+              style: AppTypography.getTitleStyle(
+                context,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: isDarkMode
+                    ? AppTheme.darkTextPrimaryColor
+                    : AppTheme.textPrimaryColor,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              childCount > 0
+                  ? '$notesCount ${AppLocalizationsSimple.of(context)?.notes ?? "条笔记"} · 含子标签'
+                  : '$notesCount ${AppLocalizationsSimple.of(context)?.notes ?? "条笔记"}',
+              style: AppTypography.getCaptionStyle(
+                context,
+                color: isDarkMode
+                    ? AppTheme.darkTextSecondaryColor
+                    : AppTheme.textSecondaryColor,
+              ).copyWith(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+      body: currentNotes.isEmpty
+          ? _buildEmptyState(context)
+          : ResponsiveLayout(
+              mobile: _buildNotesList(
+                context,
+                currentNotes,
+              ),
+              tablet: _buildNotesGrid(
+                context,
+                currentNotes,
+                crossAxisCount: 2,
+              ),
+              desktop: _buildNotesGrid(
+                context,
+                currentNotes,
+                crossAxisCount: 3,
+              ),
+            ),
+      // 🎯 右下角添加按钮，默认带当前标签
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          _showAddNoteDialog(context);
+        },
+        backgroundColor: AppTheme.primaryColor,
+        tooltip: AppLocalizationsSimple.of(context)?.createNote ?? '创建笔记',
+        child: const Icon(
+          Icons.add,
+          color: Colors.white,
+        ),
+      ),
     );
   }
 

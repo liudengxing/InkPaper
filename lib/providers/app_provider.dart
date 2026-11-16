@@ -411,6 +411,14 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
   Future<List<Note>> getAllNotesForStats() async => _databaseService.getNotes();
 
+  /// 全量读取可见笔记（不分页），标签页这类「按条件筛全部」的场景用。
+  ///
+  /// 首页列表是分页内存缓存（getNotesPaged），没滑到的页不在内存
+  /// 笔记列表里——直接过滤内存列表会漏掉未加载的笔记。
+  /// SQLite 全量读取很快（<10ms），直接查库。
+  Future<List<Note>> getAllVisibleNotes() async =>
+      _excludePendingDeletedNotes(await _databaseService.getNotes());
+
   // ── 🕰️ 那年今日（往年同月同日的笔记） ──────────────────────────
 
   DateTime? _onThisDayCacheDate;

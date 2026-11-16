@@ -20,6 +20,7 @@ import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_decode_width.dart';
 import 'package:inkpaper/utils/live_photo_utils.dart';
+import 'package:inkpaper/utils/media_paths.dart';
 import 'package:inkpaper/utils/note_image_anchor.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_input_helper.dart';
@@ -27,6 +28,7 @@ import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:inkpaper/widgets/capsule_text_selection_toolbar.dart';
 import 'package:inkpaper/widgets/memo_editing_controller.dart';
 import 'package:inkpaper/widgets/note_reference_dialog.dart';
+import 'package:inkpaper/widgets/note_video_card.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -133,6 +135,9 @@ class _NoteEditorState extends State<NoteEditor>
   List<String> _mdCodes = [];
   List<int?> _imageAnchors = [];
 
+  /// 图片与视频互斥：有视频时不再走九宫格，也不再允许加图片。
+  bool get _hasVideo => _imageList.any((item) => item.isVideo);
+
   /// 九宫格自己的滚动控制器：拖动时要把指针的全局坐标换算回网格内容坐标，
   /// 换算里得把已滚动的距离加回去。
   final ScrollController _imageGridScrollController = ScrollController();
@@ -179,7 +184,13 @@ class _NoteEditorState extends State<NoteEditor>
       }
 
       body.write(markdown.substring(cursor, match.start));
-      imageItems.add(_ImageItem(path: imagePath, alt: alt));
+      imageItems.add(
+        _ImageItem(
+          path: imagePath,
+          alt: alt,
+          isVideo: MediaPaths.isVideoMarkdown(path: imagePath, alt: alt),
+        ),
+      );
       markdownCodes.add(fullMatch);
       markdownAnchors.add(body.length);
       cursor = match.end;
@@ -602,6 +613,10 @@ class _NoteEditorState extends State<NoteEditor>
 
   // 从设备选择图片并插入（支持多选）
   Future<void> _pickImage() async {
+    if (_hasVideo) {
+      SnackBarUtils.showError(context, '图片和视频只能选一种，请先删除已选视频');
+      return;
+    }
     try {
       final pickedFiles = await _imagePicker.pickMultiImage();
       if (!mounted) {
@@ -646,6 +661,114 @@ class _NoteEditorState extends State<NoteEditor>
         AppLocalizationsSimple.of(context)?.selectImageFailed ?? '选择图片失败',
       );
     }
+  }
+
+  /// 选择一段视频。
+  ///
+  /// 与图片互斥，且一条笔记只放一个：视频塞满九宫格没有任何意义，翻页也是
+  /// 一张张静图，不如限制成「一条笔记一段视频」。
+  Future<void> _pickVideo() async {
+    if (_hasVideo) {
+      SnackBarUtils.showError(context, '一条笔记只能放一个视频');
+      return;
+    }
+    if (_imageList.isNotEmpty) {
+      SnackBarUtils.showError(context, '图片和视频只能选一种，请先删除已选图片');
+      return;
+    }
+
+    try {
+      final picked = await _imagePicker.pickVideo(source: ImageSource.gallery);
+      if (picked == null || !mounted) {
+        return;
+      }
+
+      final newItems = <_ImageItem>[];
+      final newMdCodes = <String>[];
+      await _saveVideoLocally(picked, newItems, newMdCodes);
+      if (!mounted || newItems.isEmpty) {
+        return;
+      }
+
+      setState(() {
+        _imageList.addAll(newItems);
+        _mdCodes.addAll(newMdCodes);
+        _imageAnchors.addAll(List<int?>.filled(newItems.length, null));
+      });
+
+      final item = newItems.first;
+      if (item.tooLargeToUpload) {
+        // 超过 Memos 的上传上限：硬传必然被拒，不如当场说清楚只存本机。
+        SnackBarUtils.showInfo(
+          context,
+          '视频 ${_formatBytes(item.sizeBytes)}，超过上传上限，只保存在本机',
+        );
+        return;
+      }
+
+      final appProvider = Provider.of<AppProvider>(context, listen: false);
+      if (appProvider.isLoggedIn &&
+          !appProvider.isLocalMode &&
+          appProvider.resourceService != null) {
+        unawaited(_uploadImagesInBackground(<XFile>[picked], newItems));
+      }
+    } on Object catch (e) {
+      if (kDebugMode) {
+        debugPrint('选择视频失败: $e');
+      }
+      if (mounted) {
+        SnackBarUtils.showError(context, '选择视频失败');
+      }
+    }
+  }
+
+  /// 视频落盘，命名 `video_<毫秒>.<ext>`，与图片同目录，随后生成首帧缩略图。
+  Future<void> _saveVideoLocally(
+    XFile pickedFile,
+    List<_ImageItem> newItems,
+    List<String> newMdCodes,
+  ) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final imagesDir = Directory('${appDir.path}/images');
+    if (!await imagesDir.exists()) {
+      await imagesDir.create(recursive: true);
+    }
+
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final ext = path.extension(pickedFile.path).toLowerCase();
+    final fileName = 'video_$timestamp${ext.isEmpty ? '.mp4' : ext}';
+    final localPath = '${imagesDir.path}/$fileName';
+    final target = File(localPath);
+    try {
+      // copy 是流式的：几十 MB 的视频不会一次性读进内存
+      await File(pickedFile.path).copy(localPath);
+    } on Object {
+      // 少数机型的相册返回非文件路径（content://），退回按字节写
+      await target.writeAsBytes(await pickedFile.readAsBytes(), flush: true);
+    }
+
+    final size = await target.length();
+    unawaited(ThumbCache.instance.ensure(localPath));
+
+    newItems.add(
+      _ImageItem(
+        path: 'file://$localPath',
+        alt: MediaPaths.videoAlt,
+        isVideo: true,
+        sizeBytes: size,
+      ),
+    );
+    newMdCodes.add('![${MediaPaths.videoAlt}](file://$localPath)');
+  }
+
+  static String _formatBytes(int bytes) {
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
+    }
+    if (bytes >= 1024) {
+      return '${(bytes / 1024).round()}KB';
+    }
+    return '$bytes B';
   }
 
   // 后台上传图片到服务器
@@ -743,14 +866,20 @@ class _NoteEditorState extends State<NoteEditor>
             );
           });
 
-          // 替换Markdown中的本地路径为服务器路径
-          final localMdPattern = '![图片]($localPath)';
-          final serverMdPattern = '![图片]($serverPath)';
-          final mdIndex = _mdCodes.indexOf(localMdPattern);
-          debugPrint(
-            'NoteEditor: Markdown替换: $localMdPattern -> $serverMdPattern, 索引: $mdIndex',
+          // 按「路径」找对应的 markdown，不靠整串精确匹配：视频的 alt 可能是
+          // 历史内容里的任意写法，而服务端资源路径又没有扩展名，唯一可靠的
+          // 锚点就是撞上同一个本地路径。替换后的 alt 对视频强制写成「视频」，
+          // 否则重新打开时路径无扩展名、alt 又是「图片」，会被当成图片解码。
+          final mdIndex = _mdCodes.indexWhere(
+            (code) => code.contains('($localPath)'),
           );
           if (mdIndex != -1) {
+            final alt =
+                localImage.isVideo ? MediaPaths.videoAlt : localImage.alt;
+            final serverMdPattern = '![$alt]($serverPath)';
+            debugPrint(
+              'NoteEditor: Markdown替换: 索引 $mdIndex -> $serverMdPattern',
+            );
             if (!mounted) {
               return;
             }
@@ -790,7 +919,7 @@ class _NoteEditorState extends State<NoteEditor>
         }
         SnackBarUtils.showError(
           context,
-          '${pickedFiles.length - successCount} 张图片上传失败',
+          '${pickedFiles.length - successCount} 个媒体上传失败',
         );
       }
     } on Object catch (e, stackTrace) {
@@ -1315,12 +1444,14 @@ class _NoteEditorState extends State<NoteEditor>
     // 还按满格九宫格的高度长：卡片已经不再变高，多出来的空间只能从文字区抢，
     // 文字会被挤扁。这里让图片区主动让步——只显示能放下的**完整行**，其余靠
     // 内部滚动；给到 1.3 行会让第二行被裁掉一截，看起来像图片没加载完。
-    final imageSectionHeight = _imageList.isEmpty
-        ? 0.0
-        : _imageGridFitHeight(
-            editorHeight - baseEditorHeight,
-            screenSize.width,
-          );
+    final imageSectionHeight = _hasVideo
+        ? _videoSectionHeight
+        : (_imageList.isEmpty
+            ? 0.0
+            : _imageGridFitHeight(
+                editorHeight - baseEditorHeight,
+                screenSize.width,
+              ));
 
     // 获取当前主题模式
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -1964,6 +2095,18 @@ class _NoteEditorState extends State<NoteEditor>
                                               activeColor: iconColor,
                                             ),
 
+                                            // 视频按钮（与图片互斥）
+                                            _buildToolbarIconButton(
+                                              icon: Icon(
+                                                Icons.videocam_outlined,
+                                                size: 20,
+                                                color: secondaryTextColor,
+                                              ),
+                                              onPressed: _pickVideo,
+                                              iconColor: secondaryTextColor,
+                                              activeColor: iconColor,
+                                            ),
+
                                             // 🎯 待办按钮
                                             _buildToolbarIconButton(
                                               icon: Icon(
@@ -2186,24 +2329,90 @@ class _NoteEditorState extends State<NoteEditor>
   /// 所以这里只需要一个裁剪壳，不再有两态切换。高度用 [AnimatedContainer]：
   /// 键盘弹起 / 收起时它要和卡片位移同一条曲线一起收，否则图片区先缩、卡片后缩，
   /// 读起来就是「拉一下再跳一下」。
-  Widget _buildImageSection(Color dividerColor, double height) =>
-      AnimatedContainer(
-        key: const ValueKey('note-editor-image-section'),
-        duration: _heightTransitionDuration,
-        curve: Curves.easeOutCubic,
-        // 宽度必须显式给满：Column 默认 center，容器宽度一旦退回「由内容决定」，
-        // 格子边长就会跟着内容重算。
-        width: double.infinity,
-        height: height,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(color: dividerColor, width: 0.5),
+  Widget _buildImageSection(Color dividerColor, double height) {
+    if (_hasVideo) {
+      return _buildVideoSection(dividerColor);
+    }
+    return AnimatedContainer(
+      key: const ValueKey('note-editor-image-section'),
+      duration: _heightTransitionDuration,
+      curve: Curves.easeOutCubic,
+      // 宽度必须显式给满：Column 默认 center，容器宽度一旦退回「由内容决定」，
+      // 格子边长就会跟着内容重算。
+      width: double.infinity,
+      height: height,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: dividerColor, width: 0.5),
+          ),
+        ),
+        child: ClipRect(child: _buildImageGrid()),
+      ),
+    );
+  }
+
+  /// 视频卡片高度。视频只放一个，不做九宫格，所以高度是定值。
+  static const double _videoCardHeight = 180;
+
+  /// 视频区总高：标题行 + 上内边距 + 卡片 + 底部留白，与九宫格同一套算法口径。
+  double get _videoSectionHeight =>
+      _imageGridHeaderHeight +
+      _imageGridTopPadding +
+      _videoCardHeight +
+      _imageGridBottomPadding;
+
+  /// 视频区：一张封面卡片，不参与九宫格与拖动排序。
+  Widget _buildVideoSection(Color dividerColor) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final secondaryTextColor = isDarkMode ? Colors.grey[400] : Colors.grey[700];
+    final item = _imageList.first;
+    final sizeLabel = _formatBytes(item.sizeBytes);
+    final label = item.tooLargeToUpload ? '$sizeLabel · 仅本机' : sizeLabel;
+
+    return Container(
+      key: const ValueKey('note-editor-video-section'),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: dividerColor, width: 0.5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: _imageGridHeaderHeight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '视频 · 点击预览',
+                  style: TextStyle(fontSize: 12, color: secondaryTextColor),
+                ),
+              ),
             ),
           ),
-          child: ClipRect(child: _buildImageGrid()),
-        ),
-      );
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              _imageGridHPadding,
+              _imageGridTopPadding,
+              _imageGridHPadding,
+              0,
+            ),
+            child: NoteVideoCard(
+              videoPath: item.path,
+              height: _videoCardHeight,
+              label: label,
+              onRemove: () => _removeImage(0),
+            ),
+          ),
+          const SizedBox(height: _imageGridBottomPadding),
+        ],
+      ),
+    );
+  }
 
   Widget _buildImageGrid() {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -3737,26 +3946,40 @@ enum UploadStatus {
   failed, // 上传失败
 }
 
-// 图片项类
+// 媒体项：图片或视频。一条笔记只允许其中一种（见 [_pickVideo]）。
 class _ImageItem {
   _ImageItem({
     required this.path,
     required this.alt,
     this.uploadStatus = UploadStatus.none,
+    this.isVideo = false,
+    this.sizeBytes = 0,
   });
   final String path;
   final String alt;
   final UploadStatus uploadStatus;
+
+  /// 视频与图片走同一套插入 / 上传 / 锚点机制，只在渲染和上传分流上不同。
+  final bool isVideo;
+
+  /// 视频体积。超过 [MediaPaths.maxUploadBytes] 时只留本地，不上传服务器。
+  final int sizeBytes;
+
+  bool get tooLargeToUpload => isVideo && sizeBytes > MediaPaths.maxUploadBytes;
 
   // 复制方法，用于更新状态
   _ImageItem copyWith({
     String? path,
     String? alt,
     UploadStatus? uploadStatus,
+    bool? isVideo,
+    int? sizeBytes,
   }) =>
       _ImageItem(
         path: path ?? this.path,
         alt: alt ?? this.alt,
         uploadStatus: uploadStatus ?? this.uploadStatus,
+        isVideo: isVideo ?? this.isVideo,
+        sizeBytes: sizeBytes ?? this.sizeBytes,
       );
 }

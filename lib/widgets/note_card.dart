@@ -30,6 +30,7 @@ import 'package:inkpaper/widgets/note_actions_ui.dart';
 import 'package:inkpaper/widgets/note_image_grid.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
 import 'package:inkpaper/widgets/note_preview_text.dart';
+import 'package:inkpaper/widgets/note_video_card.dart';
 import 'package:inkpaper/widgets/saveable_image.dart';
 import 'package:provider/provider.dart';
 
@@ -141,6 +142,8 @@ class _NoteCardState extends State<NoteCard>
     final note = _effectiveNote;
 
     final imagePaths = MemosContentHelper.extractNoteImagePaths(note);
+    // 视频与图片互斥，一条笔记最多一段，取第一条即可
+    final videoPaths = MemosContentHelper.extractNoteVideoPaths(note);
 
     // 轻量预览：一次解析成纯文本 + 样式区间，渲染侧只产出一个 Text.rich。
     final preview = NotePreviewCache.resolve(note.content);
@@ -253,7 +256,15 @@ class _NoteCardState extends State<NoteCard>
                     ),
                 ],
               ),
-            if (imagePaths.isNotEmpty)
+            if (videoPaths.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.only(top: hasTextContent ? 10.0 : 0),
+                child: NoteVideoCard(
+                  videoPath: videoPaths.first,
+                  height: 180,
+                ),
+              )
+            else if (imagePaths.isNotEmpty)
               Padding(
                 padding: EdgeInsets.only(top: hasTextContent ? 10.0 : 0),
                 child: SizedBox(

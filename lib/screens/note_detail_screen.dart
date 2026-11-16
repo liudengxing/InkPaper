@@ -25,6 +25,7 @@ import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:inkpaper/widgets/note_image_grid.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
 import 'package:inkpaper/widgets/note_preview_text.dart';
+import 'package:inkpaper/widgets/note_video_card.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -55,6 +56,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   /// 图片路径只在笔记数据变化时算一次。放在 build 里的话，
   /// 每次 setState 都要重跑一遍全文正则。
   List<String> _renderImagePaths = const <String>[];
+
+  /// 视频路径同理，一条笔记最多一段。
+  List<String> _renderVideoPaths = const <String>[];
 
   @override
   void initState() {
@@ -94,9 +98,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     _note = note;
     if (note == null) {
       _renderImagePaths = const <String>[];
+      _renderVideoPaths = const <String>[];
       return;
     }
     _renderImagePaths = MemosContentHelper.extractNoteImagePaths(note);
+    _renderVideoPaths = MemosContentHelper.extractNoteVideoPaths(note);
   }
 
   Future<void> _loadNote() async {
@@ -1026,8 +1032,16 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                       },
                                       onLinkTap: _handleLinkTap,
                                     ),
+                                    // 视频与图片互斥：有视频就只显示视频卡片，
+                                    // 点开走全屏播放器
+                                    if (_renderVideoPaths.isNotEmpty) ...[
+                                      const SizedBox(height: 10),
+                                      NoteVideoCard(
+                                        videoPath: _renderVideoPaths.first,
+                                      ),
+                                    ]
                                     // 图片统一走九宫格，长按弹保存菜单
-                                    if (_renderImagePaths.isNotEmpty) ...[
+                                    else if (_renderImagePaths.isNotEmpty) ...[
                                       const SizedBox(height: 10),
                                       NoteImageGrid(
                                         imagePaths: _renderImagePaths,

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 2×2 方形变体：结构与 4×2 横条版一致，收紧行距与字号适配小面积。
+     真玻璃结构 + 可滚动预览：FrameLayout 兜底手绘玻璃，其上为壁纸模糊位图
+     （WallpaperGlass）；预览文本用「单行长条目 ListView」实现滚动。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/inkpaper_widget_glass_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/inkpaper_widget_background">
+
+    <ImageView
+        android:id="@+id/inkpaper_widget_glass"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/inkpaper_widget_review_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="vertical"
+        android:padding="10dp">
+
+        <!-- 整块可点（container 的 PendingIntent 在 Provider 里按当前显
+             示的笔记设置），与 4×2 版同一套 id，Provider 逻辑完全复用 -->
+        <TextView
+            android:id="@+id/inkpaper_widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="随机回顾"
+            android:textColor="@color/inkpaper_widget_text"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <!-- 单行长条目：条目高度由文本撑开，超出小部件可视区时 ListView 可上下滚动 -->
+        <ListView
+            android:id="@+id/inkpaper_widget_review_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="8dp"
+            android:layout_weight="1"
+            android:cacheColorHint="@android:color/transparent"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:listSelector="@android:color/transparent"
+            android:requiresFadingEdge="none"
+            android:scrollbars="none" />
+
+        <TextView
+            android:id="@+id/inkpaper_widget_review_time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="2026-11-14 08:30"
+            android:textColor="@color/inkpaper_widget_muted"
+            android:textSize="10sp" />
+
+        <TextView
+            android:id="@+id/inkpaper_widget_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="1小时刷新 · 全部"
+            android:textColor="@color/inkpaper_widget_muted"
+            android:textSize="10sp" />
+    </LinearLayout>
+</FrameLayout>

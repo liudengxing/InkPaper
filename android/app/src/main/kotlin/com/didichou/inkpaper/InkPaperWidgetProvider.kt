@@ -153,7 +153,7 @@ class InkPaperQuickNoteWidgetProvider : BaseInkPaperWidgetProvider() {
     }
 }
 
-class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
+open class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action == ACTION_RANDOM_REVIEW_TICK) {
             updateAllReviewWidgets(context)
@@ -173,13 +173,29 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
         cancelReviewUpdate(context)
     }
 
-    override fun updateWidget(
+    open override fun updateWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int
     ) {
+        updateReviewWidget(
+            context,
+            appWidgetManager,
+            appWidgetId,
+            R.layout.inkpaper_random_review_widget,
+        )
+    }
+
+    /// 随机回顾的完整刷新逻辑，布局资源由调用方给：
+    /// 横条（4×2）与方形（2×2）两个变体同一套 id 与数据源。
+    protected fun updateReviewWidget(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        layoutRes: Int,
+    ) {
         val snapshot = snapshot(context)
-        val views = RemoteViews(context.packageName, R.layout.inkpaper_random_review_widget)
+        val views = RemoteViews(context.packageName, layoutRes)
         val reviewConfig = snapshot?.optJSONObject("reviewConfig")
         val refreshMinutes = reviewConfig?.optInt("refreshIntervalMinutes", 60) ?: 60
         val rangeDays = reviewConfig?.optInt("rangeDays", 0) ?: 0
@@ -288,11 +304,17 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
             else -> "${days}天"
         }
 
+    /// 随机回顾的全部变体（横条 + 方形），定时刷新与逐个更新都要覆盖到。
+    private fun reviewComponents(context: Context) = arrayOf(
+        ComponentName(context, InkPaperRandomReviewWidgetProvider::class.java),
+        ComponentName(context, InkPaperRandomReviewCompactWidgetProvider::class.java),
+    )
+
     private fun updateAllReviewWidgets(context: Context) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        val widgetIds = appWidgetManager.getAppWidgetIds(
-            ComponentName(context, InkPaperRandomReviewWidgetProvider::class.java)
-        )
+        val widgetIds = reviewComponents(context).flatMap { component ->
+            appWidgetManager.getAppWidgetIds(component).toList()
+        }
         for (appWidgetId in widgetIds) {
             updateWidget(context, appWidgetManager, appWidgetId)
         }
@@ -300,10 +322,10 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
 
     private fun scheduleReviewUpdate(context: Context, refreshMinutes: Int = currentRefreshMinutes(context)) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        val widgetIds = appWidgetManager.getAppWidgetIds(
-            ComponentName(context, InkPaperRandomReviewWidgetProvider::class.java)
-        )
-        if (widgetIds.isEmpty()) {
+        val hasWidgets = reviewComponents(context).any { component ->
+            appWidgetManager.getAppWidgetIds(component).isNotEmpty()
+        }
+        if (!hasWidgets) {
             cancelReviewUpdate(context)
             return
         }
@@ -354,6 +376,23 @@ class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
     companion object {
         private const val ACTION_RANDOM_REVIEW_TICK =
             "com.didichou.inkpaper.action.RANDOM_REVIEW_WIDGET_TICK"
+    }
+}
+
+/// 随机回顾 2×2 方形变体：刷新/点击/数据源逻辑全部复用横条版，
+/// 只换紧凑布局。定时刷新由父类统一枚举两种组件实现。
+class InkPaperRandomReviewCompactWidgetProvider : InkPaperRandomReviewWidgetProvider() {
+    override fun updateWidget(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int
+    ) {
+        updateReviewWidget(
+            context,
+            appWidgetManager,
+            appWidgetId,
+            R.layout.inkpaper_random_review_widget_compact,
+        )
     }
 }
 

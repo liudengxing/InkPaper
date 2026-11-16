@@ -309,6 +309,7 @@ class MainActivity: FlutterActivity() {
 
             notifyWidgetProvider(InkPaperQuickNoteWidgetProvider::class.java)
             notifyWidgetProvider(InkPaperRandomReviewWidgetProvider::class.java)
+            notifyWidgetProvider(InkPaperRandomReviewCompactWidgetProvider::class.java)
         } catch (e: Exception) {
             ReleaseLog.e("MainActivity", "❌ 保存小组件快照失败: ${e.message}")
         }

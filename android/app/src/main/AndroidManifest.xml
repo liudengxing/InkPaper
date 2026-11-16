@@ -170,6 +170,19 @@
                 android:resource="@xml/inkpaper_random_review_widget_info" />
         </receiver>
 
+        <!-- 🧩 随机回顾 2×2 方形变体：复用同一套 Provider 逻辑与紧凑布局 -->
+        <receiver
+            android:name=".InkPaperRandomReviewCompactWidgetProvider"
+            android:exported="true"
+            android:label="@string/inkpaper_random_review_widget_compact_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/inkpaper_random_review_widget_compact_info" />
+        </receiver>
+
         <!-- 🧩 随机回顾预览文本的滚动数据源（RemoteViews 集合视图） -->
         <service
             android:name=".InkPaperReviewListService"

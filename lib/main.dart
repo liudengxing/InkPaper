@@ -19,6 +19,7 @@ import 'package:inkpaper/services/observability_service.dart';
 import 'package:inkpaper/services/performance_monitor_service.dart';
 import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/services/startup_update_service.dart';
+import 'package:inkpaper/services/weread_sync_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 // 🚀 大厂标准：新增工具
 import 'package:inkpaper/utils/attachment_cache.dart';
@@ -500,6 +501,18 @@ Future<void> _initializeApp() async {
   AppLifecycleListener(
     onPause: ThumbCache.instance.pauseBackfill,
     onResume: ThumbCache.instance.resumeBackfill,
+  );
+
+  // 微信读书笔记同步（实验室）。延迟 8 秒再跑：开屏这几秒正在读库、解码
+  // 图片、拉更新，同步再压上来会让首屏明显变慢。6 小时节流与「没配 Key /
+  // 开关关掉直接跳过」都在服务内部判断，失败一律静默。
+  Future<void>.delayed(
+    const Duration(seconds: 8),
+    () => unawaited(
+      WeReadSyncService().autoSyncIfDue(
+        persist: appProvider.createImportedNotes,
+      ),
+    ),
   );
 
   // 开屏检查更新：首帧之后自动拉一次 Release，有新版本直接在弹窗里下载安装。

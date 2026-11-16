@@ -46,6 +46,11 @@ class AppLocalizationsSimple {
   String get importExport => _t('importExport', fallback: '备份与同步');
   String get dataCleanup => _t('dataCleanup', fallback: '数据清理');
   String get laboratory => _t('laboratory', fallback: '实验室');
+  String get wereadSync => _t('wereadSync', fallback: '微信读书笔记同步');
+  String get wereadSyncDescription => _t(
+        'wereadSyncDescription',
+        fallback: '把微信读书的划线与想法增量导入本地，一条划线一条笔记',
+      );
   String get randomReview => _t('randomReview', fallback: '随机回顾');
   String get imageGallery => _t('imageGallery', fallback: '有图片');
   String get localAiPreferences =>

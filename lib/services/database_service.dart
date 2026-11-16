@@ -718,6 +718,40 @@ class DatabaseService {
     return Note.fromMap(maps[0]);
   }
 
+  /// 批量查这些 id 里哪些已经存在。
+  ///
+  /// 刻意查 `notes` 表而不是 `viewActiveNotes`：**软删行也算存在**。导入类
+  /// 功能（微信读书同步）用它做幂等，若把回收站里的笔记当成不存在，用户删
+  /// 掉的记录会在下一轮同步被重新写回来。
+  Future<Set<String>> getExistingNoteIds(Set<String> ids) async {
+    if (ids.isEmpty) {
+      return <String>{};
+    }
+    final db = await database;
+    final result = <String>{};
+    // SQLite 的变量上限是 999，分批查避免超限。
+    final all = ids.toList();
+    const batchSize = 900;
+    for (var start = 0; start < all.length; start += batchSize) {
+      final slice = all.sublist(
+        start,
+        (start + batchSize).clamp(0, all.length),
+      );
+      final placeholders = List.filled(slice.length, '?').join(',');
+      final rows = await db.rawQuery(
+        'SELECT id FROM notes WHERE id IN ($placeholders)',
+        slice,
+      );
+      for (final row in rows) {
+        final id = row['id'];
+        if (id is String) {
+          result.add(id);
+        }
+      }
+    }
+    return result;
+  }
+
   // 获取未同步的笔记
   Future<List<Note>> getUnsyncedNotes() async {
     final db = await database;

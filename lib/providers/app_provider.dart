@@ -2733,6 +2733,40 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
   }
 
+  /// 批量导入外部来源的笔记（目前只有微信读书同步在用）。
+  ///
+  /// 与 [createNote] 的区别有三：
+  /// 1. **id 由调用方给定**。同步靠确定性 id（`local_wr_bm_<划线 id>`）做幂等，
+  ///    随机 uuid 会让每次都产生副本。
+  /// 2. **一次事务写完再统一通知**。几百条走 [createNote] 会触发几百次
+  ///    `notifyListeners` 与几百次 Notion 自动同步，界面直接卡死。
+  /// 3. **不自动上传服务端**。导入是本地动作，Memos 同步会在下一轮自己捡走
+  ///    这些未同步笔记，没必要在这里再压一次网络。
+  Future<void> createImportedNotes(List<Note> notes) async {
+    final incoming = notes
+        .where((note) => note.content.trim().isNotEmpty)
+        .toList(growable: false);
+    if (incoming.isEmpty) {
+      return;
+    }
+
+    await _databaseService.saveNotes(incoming);
+    _notesStore.notes.insertAll(0, incoming);
+    _setTotalNotesCount(await _databaseService.getNotesCount());
+
+    // 引用重建每次都 `getNotes()` 全表加载，批量导入几百条时会退化成
+    // O(n × 全表)。划线正文里几乎不可能出现 `[[引用]]`，所以只对命中的补做。
+    for (final note in incoming) {
+      if (note.content.contains('[[')) {
+        await _processNoteReferences(note);
+      }
+    }
+
+    _applyCurrentSort();
+    notifyListeners();
+    _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
+  }
+
   // 应用当前排序规则
   void _applyCurrentSort() {
     final currentOrder = _getCurrentSortOrder();

@@ -61,6 +61,24 @@ class LaboratoryScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
+          // 微信读书笔记同步
+          _buildOptionCard(
+            context: context,
+            cardColor: cardColor,
+            textColor: textColor,
+            secondaryTextColor: secondaryTextColor,
+            iconColor: iconColor,
+            icon: Icons.auto_stories_rounded,
+            title: l10n?.wereadSync ?? '微信读书笔记同步',
+            description:
+                l10n?.wereadSyncDescription ?? '把微信读书的划线与想法增量导入本地，一条划线一条笔记',
+            onTap: () {
+              context.push('/settings/weread-sync');
+            },
+          ),
+
+          const SizedBox(height: 16),
+
           // Notion 同步
           _buildOptionCard(
             context: context,

@@ -28,6 +28,12 @@ class Translations {
     'logout': {'zh': '退出登录', 'en': 'Logout'},
     'dataCleanup': {'zh': '数据清理', 'en': 'Data Cleanup'},
     'laboratory': {'zh': '实验室', 'en': 'Laboratory'},
+    'wereadSync': {'zh': '微信读书笔记同步', 'en': 'WeRead Highlights Sync'},
+    'wereadSyncDescription': {
+      'zh': '把微信读书的划线与想法增量导入本地，一条划线一条笔记',
+      'en':
+          'Import WeRead highlights and thoughts incrementally, one note per highlight',
+    },
     'knowledgeGraph': {'zh': '知识图谱', 'en': 'Knowledge Graph'},
     'activityLog': {'zh': '活动记录', 'en': 'Activity Log'},
     'notificationCenter': {'zh': '通知中心', 'en': 'Notification Center'},

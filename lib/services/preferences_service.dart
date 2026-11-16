@@ -28,6 +28,7 @@ class PreferencesService {
   static const String _iflytekApiKeySecureKey = 'iflytek_api_key';
   static const String _iflytekApiSecretSecureKey = 'iflytek_api_secret';
   static const String _webDavPasswordSecureKey = 'webdav_password';
+  static const String _wereadApiKeySecureKey = 'weread_api_key';
 
   // 🎯 大厂标准：服务器选择偏好（登录/注册页共享）
   static const String _useCustomServerKey = 'use_custom_server';
@@ -369,6 +370,22 @@ class PreferencesService {
 
   Future<void> deleteWebDavPassword() async =>
       _storage.delete(key: _webDavPasswordSecureKey);
+
+  // 微信读书 Agent API Key（`wrk-` 开头），与账号身份绑定，只能走安全存储。
+  Future<void> saveWeReadApiKey(String apiKey) async {
+    final key = apiKey.trim();
+    if (key.isEmpty) {
+      await _storage.delete(key: _wereadApiKeySecureKey);
+      return;
+    }
+    await _storage.write(key: _wereadApiKeySecureKey, value: key);
+  }
+
+  Future<String?> getWeReadApiKey() async =>
+      _storage.read(key: _wereadApiKeySecureKey);
+
+  Future<void> deleteWeReadApiKey() async =>
+      _storage.delete(key: _wereadApiKeySecureKey);
 
   // ========================================
   // 🎯 大厂标准：服务器选择偏好管理（登录/注册页共享）

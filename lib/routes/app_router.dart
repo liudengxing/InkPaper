@@ -38,6 +38,7 @@ import 'package:inkpaper/screens/tag_notes_screen.dart';
 import 'package:inkpaper/screens/tags_screen.dart';
 import 'package:inkpaper/screens/user_preferences_screen.dart'; // 🧠 用户偏好可视化
 import 'package:inkpaper/screens/webdav_settings_screen.dart';
+import 'package:inkpaper/screens/weread_sync_screen.dart';
 import 'package:inkpaper/utils/tag_path_utils.dart';
 
 const bool _screenshotMode = bool.fromEnvironment('INKPAPER_SCREENSHOT_MODE');
@@ -705,6 +706,17 @@ class AppRouter {
               context: context,
               state: state,
               child: const NotionSettingsScreen(),
+            ),
+          ),
+
+          // 微信读书笔记同步（实验室）
+          GoRoute(
+            path: 'weread-sync',
+            name: 'wereadSync',
+            pageBuilder: (context, state) => buildSlideTransition(
+              context: context,
+              state: state,
+              child: const WeReadSyncScreen(),
             ),
           ),
         ],

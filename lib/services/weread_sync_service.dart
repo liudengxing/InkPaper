@@ -161,6 +161,8 @@ class WeReadSyncService {
   static const String _prefKeyLastFinished = 'weread_last_finished';
   static const String _prefKeyFinished = 'weread_sync_finished';
   static const String _prefKeyPeriodReview = 'weread_period_review';
+  static const String _prefKeyHighlights = 'weread_sync_highlights';
+  static const String _prefKeyReviews = 'weread_sync_reviews';
 
   final WeReadApiService _api;
   final DatabaseService _database;
@@ -184,7 +186,29 @@ class WeReadSyncService {
     await prefs.setBool(_prefKeyAutoSync, enabled);
   }
 
-  /// 是否同步「读完档案」（一本书一条，记录读完时间与阅读天数），默认开启。
+  /// 是否同步「划线」（书里的划线原文），默认开启。
+  Future<bool> isHighlightSyncEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_prefKeyHighlights) ?? true;
+  }
+
+  Future<void> setHighlightSyncEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefKeyHighlights, enabled);
+  }
+
+  /// 是否同步「想法 / 点评」（对划线写的想法、整本书评、章节点评），默认开启。
+  Future<bool> isReviewSyncEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_prefKeyReviews) ?? true;
+  }
+
+  Future<void> setReviewSyncEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefKeyReviews, enabled);
+  }
+
+  /// 读完档案（一本书一条，记录读完时间与阅读天数），默认开启。
   Future<bool> isFinishedSyncEnabled() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_prefKeyFinished) ?? true;
@@ -205,6 +229,14 @@ class WeReadSyncService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefKeyPeriodReview, enabled);
   }
+
+  /// 读当前生效的生成项开关组合。设置页里每一项都是独立开关。
+  Future<WeReadSyncOptions> loadOptions() async => WeReadSyncOptions(
+        highlights: await isHighlightSyncEnabled(),
+        reviews: await isReviewSyncEnabled(),
+        finished: await isFinishedSyncEnabled(),
+        periodReview: await isPeriodReviewEnabled(),
+      );
 
   Future<String?> getApiKey() => _preferences.getWeReadApiKey();
 
@@ -286,8 +318,22 @@ class WeReadSyncService {
     }
 
     _running = true;
+    final options = await loadOptions();
+    if (options.isEmpty) {
+      _running = false;
+      throw const WeReadApiException('所有生成项都关闭了，请先在设置里打开至少一项');
+    }
+
     final state = await _readState();
-    final watermarks = _readWatermarks(state);
+    // 开关组合变了（比如从「只同步划线」改成「划线 + 想法」），之前按书推进的
+    // 水位只覆盖了旧组合，清掉重扫一遍。已导入的笔记靠 id 去重，不会重复。
+    final previousSignature = state['detail']?.toString();
+    final watermarks =
+        options.hasBookDetails && previousSignature != options.detailSignature
+            ? <String, _BookWatermark>{}
+            : _readWatermarks(state);
+    final detailSignature =
+        options.hasBookDetails ? options.detailSignature : previousSignature;
     final finishedMiss = _readFinishedMiss(state);
     final previousPeriods = _readPeriods(state);
     final now = DateTime.now();
@@ -295,61 +341,71 @@ class WeReadSyncService {
     _api.apiKey = apiKey;
 
     try {
-      final notebooks = await _api.fetchNotebooks();
+      // 只开「阅读完成情况」时也要拿笔记本列表（候选从里面挑），
+      // 只开「阅读回顾」则连列表都不用拉。
+      final notebooks = options.hasBookDetails || options.finished
+          ? await _api.fetchNotebooks()
+          : const <WeReadNotebook>[];
 
       final candidates = <Note>[];
       final failures = <String>[];
       var booksFetched = 0;
       var booksSkipped = 0;
 
-      for (var index = 0; index < notebooks.length; index++) {
-        final notebook = notebooks[index];
-        final previous = watermarks[notebook.bookId];
+      // 第一阶段：逐本拉明细，生成划线 / 想法。两个开关都关时整段跳过。
+      if (options.hasBookDetails) {
+        for (var index = 0; index < notebooks.length; index++) {
+          final notebook = notebooks[index];
+          final previous = watermarks[notebook.bookId];
+
+          onProgress?.call(
+            WeReadSyncProgress(
+              booksDone: index,
+              booksTotal: notebooks.length,
+              currentBookTitle: notebook.title,
+            ),
+          );
+
+          if (previous != null && previous.matches(notebook)) {
+            booksSkipped++;
+            continue;
+          }
+
+          try {
+            final notes = await _buildNotesFor(notebook, options: options);
+            candidates.addAll(notes);
+            booksFetched++;
+            // 只有成功拉到明细才推进水位，失败的书下一轮会重试。
+            watermarks[notebook.bookId] = _BookWatermark(
+              sort: notebook.sort,
+              total: notebook.totalNotes,
+              syncedAt: now.millisecondsSinceEpoch,
+            );
+          } on WeReadUpgradeRequiredException {
+            rethrow;
+          } on Object catch (error) {
+            final title =
+                notebook.title.isEmpty ? notebook.bookId : notebook.title;
+            failures.add('《$title》$error');
+            _logger.warning(
+              '单本同步失败',
+              data: {'book': title, 'error': '$error'},
+            );
+          }
+        }
 
         onProgress?.call(
           WeReadSyncProgress(
-            booksDone: index,
+            booksDone: notebooks.length,
             booksTotal: notebooks.length,
-            currentBookTitle: notebook.title,
           ),
         );
-
-        if (previous != null && previous.matches(notebook)) {
-          booksSkipped++;
-          continue;
-        }
-
-        try {
-          final notes = await _buildNotesFor(notebook);
-          candidates.addAll(notes);
-          booksFetched++;
-          // 只有成功拉到明细才推进水位，失败的书下一轮会重试。
-          watermarks[notebook.bookId] = _BookWatermark(
-            sort: notebook.sort,
-            total: notebook.totalNotes,
-            syncedAt: now.millisecondsSinceEpoch,
-          );
-        } on WeReadUpgradeRequiredException {
-          rethrow;
-        } on Object catch (error) {
-          final title =
-              notebook.title.isEmpty ? notebook.bookId : notebook.title;
-          failures.add('《$title》$error');
-          _logger.warning('单本同步失败', data: {'book': title, 'error': '$error'});
-        }
       }
-
-      onProgress?.call(
-        WeReadSyncProgress(
-          booksDone: notebooks.length,
-          booksTotal: notebooks.length,
-        ),
-      );
 
       // 第二阶段：读完档案。失败不影响划线结果，所以整体包一层。
       var finishedProbed = 0;
       var finishedMissed = <String, int>{};
-      if (await isFinishedSyncEnabled()) {
+      if (options.finished) {
         final outcome = await _syncFinishedBooks(
           notebooks: notebooks,
           previousMiss: finishedMiss,
@@ -365,7 +421,7 @@ class WeReadSyncService {
 
       // 第三阶段：每周 / 每月阅读回顾。统计接口失败只影响这一条，不回滚前面。
       var periods = previousPeriods;
-      if (await isPeriodReviewEnabled()) {
+      if (options.periodReview) {
         final outcome = await _syncPeriodReports(
           previous: previousPeriods,
           failures: failures,
@@ -389,6 +445,7 @@ class WeReadSyncService {
         watermarks: watermarks,
         finishedMiss: finishedMissed,
         periods: periods,
+        detailSignature: detailSignature,
         lastSyncAt: now,
       );
       final finishedImported = fresh
@@ -436,7 +493,7 @@ class WeReadSyncService {
     }
   }
 
-  /// 开屏自动同步：开关关闭、还没配 Key、没到间隔都直接跳过。
+  /// 开屏自动同步：开关关闭、生成项全关、还没配 Key、没到间隔都直接跳过。
   ///
   /// 任何异常都吞掉并记日志 —— 开屏路径不允许因为一个实验功能把用户体验带崩。
   Future<WeReadSyncResult?> autoSyncIfDue({
@@ -444,6 +501,10 @@ class WeReadSyncService {
   }) async {
     try {
       if (!await isAutoSyncEnabled()) {
+        return null;
+      }
+      // 生成项全关就没什么可写的，别白跑一趟。
+      if ((await loadOptions()).isEmpty) {
         return null;
       }
       final apiKey = await getApiKey();
@@ -764,7 +825,13 @@ class WeReadSyncService {
   }
 
   /// 把一本书的划线 + 想法组装成待写入的笔记。
-  Future<List<Note>> _buildNotesFor(WeReadNotebook notebook) async {
+  ///
+  /// [options] 里关掉的项不会生成：关划线只出想法（挂不上划线的想法会单独成条），
+  /// 关想法只出划线，两个都关则连明细都不请求。
+  Future<List<Note>> _buildNotesFor(
+    WeReadNotebook notebook, {
+    required WeReadSyncOptions options,
+  }) async {
     final detail = await _api.fetchBookNotes(notebook.bookId);
     if (detail.isEmpty) {
       return const [];
@@ -776,47 +843,54 @@ class WeReadSyncService {
     // 想法按「章节 + 位置范围」归到划线上。range 是同一条原文的稳定标识，
     // 比正文匹配可靠（同一段原文可能被划两次，正文完全一样）。
     final reviewsByAnchor = <String, List<WeReadReview>>{};
-    for (final review in detail.reviews) {
-      if (!review.isInline) {
-        continue;
+    if (options.reviews) {
+      for (final review in detail.reviews) {
+        if (!review.isInline) {
+          continue;
+        }
+        reviewsByAnchor
+            .putIfAbsent(_anchor(review.chapterUid, review.range), () => [])
+            .add(review);
       }
-      reviewsByAnchor
-          .putIfAbsent(_anchor(review.chapterUid, review.range), () => [])
-          .add(review);
     }
 
     final matchedReviewIds = <String>{};
-    for (final highlight in detail.highlights) {
-      final key = _anchor(highlight.chapterUid, highlight.range);
-      final inline = reviewsByAnchor[key] ?? const <WeReadReview>[];
-      for (final review in inline) {
-        matchedReviewIds.add(review.reviewId);
-      }
-      final note = builder.buildHighlightNote(
-        notebook: notebook,
-        highlight: highlight,
-        chapterTitle: chapterTitles[highlight.chapterUid],
-        inlineReviews: inline,
-      );
-      if (note != null) {
-        notes.add(note);
+    if (options.highlights) {
+      for (final highlight in detail.highlights) {
+        final key = _anchor(highlight.chapterUid, highlight.range);
+        final inline = reviewsByAnchor[key] ?? const <WeReadReview>[];
+        for (final review in inline) {
+          matchedReviewIds.add(review.reviewId);
+        }
+        final note = builder.buildHighlightNote(
+          notebook: notebook,
+          highlight: highlight,
+          chapterTitle: chapterTitles[highlight.chapterUid],
+          inlineReviews: inline,
+        );
+        if (note != null) {
+          notes.add(note);
+        }
       }
     }
 
     // 没有对应划线的想法（整本书评、章节点评、独立想法）单独成条。
-    for (final review in detail.reviews) {
-      if (matchedReviewIds.contains(review.reviewId)) {
-        continue;
-      }
-      final note = builder.buildReviewNote(
-        notebook: notebook,
-        review: review,
-        chapterTitle: review.chapterUid == null
-            ? review.chapterName
-            : chapterTitles[review.chapterUid!] ?? review.chapterName,
-      );
-      if (note != null) {
-        notes.add(note);
+    // 关掉划线时，原本挂在划线上的想法也走这里单独成条，不会连带丢内容。
+    if (options.reviews) {
+      for (final review in detail.reviews) {
+        if (matchedReviewIds.contains(review.reviewId)) {
+          continue;
+        }
+        final note = builder.buildReviewNote(
+          notebook: notebook,
+          review: review,
+          chapterTitle: review.chapterUid == null
+              ? review.chapterName
+              : chapterTitles[review.chapterUid!] ?? review.chapterName,
+        );
+        if (note != null) {
+          notes.add(note);
+        }
       }
     }
 
@@ -913,17 +987,19 @@ class WeReadSyncService {
     required Map<String, _BookWatermark> watermarks,
     required Map<String, int> finishedMiss,
     required Map<String, String> periods,
+    required String? detailSignature,
     required DateTime lastSyncAt,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final payload = <String, dynamic>{
-      'v': 3,
+      'v': 4,
       'lastSyncAt': lastSyncAt.millisecondsSinceEpoch,
       'books': {
         for (final entry in watermarks.entries) entry.key: entry.value.toJson(),
       },
       'finishedMiss': finishedMiss,
       'periods': periods,
+      if (detailSignature != null) 'detail': detailSignature,
     };
     await prefs.setString(_prefKeyState, jsonEncode(payload));
   }

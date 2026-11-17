@@ -481,6 +481,41 @@ class WeReadSyncResult {
   }
 }
 
+/// 本轮同步要生成哪些内容。
+///
+/// 设置页里每个生成项都是独立开关，关掉的项这一轮既不请求也不写笔记；
+/// 之后重新打开时会自动重扫一遍（靠笔记 id 去重，已导入的不会重复）。
+class WeReadSyncOptions {
+  const WeReadSyncOptions({
+    this.highlights = true,
+    this.reviews = true,
+    this.finished = true,
+    this.periodReview = true,
+  });
+
+  /// 同步划线（书里的划线原文）。
+  final bool highlights;
+
+  /// 同步想法/点评（对划线写的想法、整本书评、章节点评）。
+  final bool reviews;
+
+  /// 阅读完成情况（读完的书生成一条档案笔记）。
+  final bool finished;
+
+  /// 每周 / 每月阅读回顾。
+  final bool periodReview;
+
+  /// 划线或想法任一开启，才需要逐本拉书籍明细。
+  bool get hasBookDetails => highlights || reviews;
+
+  /// 四个开关全关 —— 这一轮没有任何可生成的内容。
+  bool get isEmpty => !highlights && !reviews && !finished && !periodReview;
+
+  /// 明细阶段的开关签名。签名变了说明「要拿的内容种类」变了，
+  /// 之前按书推进的水位不再可信，需要清掉重扫。
+  String get detailSignature => '${highlights ? 1 : 0}${reviews ? 1 : 0}';
+}
+
 String _asString(Object? value) {
   if (value == null) {
     return '';

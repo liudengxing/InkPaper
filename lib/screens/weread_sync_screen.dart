@@ -32,6 +32,8 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
   bool _verifying = false;
   bool _syncing = false;
   bool _autoSync = true;
+  bool _syncHighlights = true;
+  bool _syncReviews = true;
   bool _syncFinished = true;
   bool _periodReview = true;
 
@@ -60,6 +62,8 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
   Future<void> _loadState() async {
     final apiKey = await _service.getApiKey();
     final autoSync = await _service.isAutoSyncEnabled();
+    final syncHighlights = await _service.isHighlightSyncEnabled();
+    final syncReviews = await _service.isReviewSyncEnabled();
     final syncFinished = await _service.isFinishedSyncEnabled();
     final periodReview = await _service.isPeriodReviewEnabled();
     final lastSyncAt = await _service.lastSyncAt();
@@ -73,6 +77,8 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
       _keyConfigured = apiKey != null && apiKey.trim().isNotEmpty;
       _apiKeyController.text = apiKey ?? '';
       _autoSync = autoSync;
+      _syncHighlights = syncHighlights;
+      _syncReviews = syncReviews;
       _syncFinished = syncFinished;
       _periodReview = periodReview;
       _lastSyncAt = lastSyncAt;
@@ -135,6 +141,10 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
     }
     if (!_keyConfigured) {
       setState(() => _keyError = '请先填入并保存 API Key');
+      return;
+    }
+    if (!_syncHighlights && !_syncReviews && !_syncFinished && !_periodReview) {
+      _showMessage('所有生成项都关掉了，先在下面打开至少一项');
       return;
     }
 
@@ -279,7 +289,7 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
                   isDarkMode: isDarkMode,
                 ),
                 const SizedBox(height: 16),
-                _buildAutoSyncCard(
+                _buildSyncOptionsCard(
                   context: context,
                   cardColor: cardColor,
                   textColor: textColor,
@@ -314,6 +324,8 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
         '把微信读书里的划线和想法增量拉进来：一条划线一条笔记，带 '
         '#微信读书 与书名标签。同步用确定性 id 去重，重复跑不会产生副本；'
         '你删掉的笔记也不会被下一次同步复活。\n\n'
+        '下面每一项都能单独开关，关掉的项同步时不请求、也不生成；重新打开后'
+        '会自动补上，已经导入过的不会重复。\n\n'
         '读完的书另外生成一条「读完档案」：封面、读完时间、阅读天数、'
         '累计阅读时长。阅读天数按「开始阅读 → 读完」的自然日跨度算，'
         '所以起止日期会一起写出来。\n\n'
@@ -441,7 +453,7 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
         ),
       );
 
-  Widget _buildAutoSyncCard({
+  Widget _buildSyncOptionsCard({
     required BuildContext context,
     required Color cardColor,
     required Color textColor,
@@ -482,10 +494,10 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
           Divider(height: 1, color: dividerColor),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            value: _syncFinished,
+            value: _syncHighlights,
             activeThumbColor: iconColor,
             title: Text(
-              '同步读完档案',
+              '同步划线',
               style: TextStyle(
                 color: textColor,
                 fontSize: 15,
@@ -493,7 +505,51 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
               ),
             ),
             subtitle: Text(
-              '读完的书生成一条笔记：封面、读完时间、阅读天数',
+              '书里划过的原文，一条划线生成一条笔记',
+              style: TextStyle(color: secondaryTextColor, fontSize: 12.5),
+            ),
+            onChanged: (value) async {
+              setState(() => _syncHighlights = value);
+              await _service.setHighlightSyncEnabled(value);
+            },
+          ),
+          Divider(height: 1, color: dividerColor),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _syncReviews,
+            activeThumbColor: iconColor,
+            title: Text(
+              '同步笔记（想法 / 点评）',
+              style: TextStyle(
+                color: textColor,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            subtitle: Text(
+              '对划线写的想法、整本书评和章节点评，关掉划线时单独成条',
+              style: TextStyle(color: secondaryTextColor, fontSize: 12.5),
+            ),
+            onChanged: (value) async {
+              setState(() => _syncReviews = value);
+              await _service.setReviewSyncEnabled(value);
+            },
+          ),
+          Divider(height: 1, color: dividerColor),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _syncFinished,
+            activeThumbColor: iconColor,
+            title: Text(
+              '同步阅读完成情况',
+              style: TextStyle(
+                color: textColor,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            subtitle: Text(
+              '读完的书生成一条档案笔记：封面、读完时间、阅读天数',
               style: TextStyle(color: secondaryTextColor, fontSize: 12.5),
             ),
             onChanged: (value) async {
@@ -515,7 +571,7 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
               ),
             ),
             subtitle: Text(
-              '每周一整理上一周、每月 1 日整理上个月的阅读情况，各生成一条笔记',
+              '上一周 / 上个月的阅读情况各生成一条笔记，没读的那期不生成',
               style: TextStyle(color: secondaryTextColor, fontSize: 12.5),
             ),
             onChanged: (value) async {

@@ -53,12 +53,16 @@ class _FakeApi extends WeReadApiService {
   final List<String> progressRequests = [];
   final List<({String mode, DateTime baseTime})> periodRequests = [];
 
+  int notebookRequests = 0;
+
   @override
   Future<List<WeReadNotebook>> fetchNotebooks({
     int pageSize = 100,
     int maxPages = 50,
-  }) async =>
-      notebooks;
+  }) async {
+    notebookRequests++;
+    return notebooks;
+  }
 
   @override
   Future<WeReadBookNotes> fetchBookNotes(String bookId) async {
@@ -678,6 +682,135 @@ void main() {
 
       expect(api.periodRequests, isEmpty);
       expect(result.periodImported, 0);
+    });
+  });
+
+  group('WS 生成项开关', () {
+    /// 直接改偏好值，模拟用户在设置页拨开关。
+    Future<void> setSwitch(String key, bool value) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(key, value);
+    }
+
+    WeReadReview inlineReview({String id = 'rv1', String content = '这段说得好'}) =>
+        WeReadReview(
+          reviewId: id,
+          content: content,
+          createTime: 1735689600,
+          abstractText: '划线原文',
+          range: '1-2',
+          chapterUid: 1,
+        );
+
+    test('WS-22 只开划线：想法不生成', () async {
+      final api = _FakeApi(
+        notebooks: [_notebook(reviews: 1)],
+        details: {
+          'b1': _detail(reviews: [inlineReview()]),
+        },
+      );
+      await setSwitch('weread_sync_reviews', false);
+
+      final written = <Note>[];
+      await _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {},
+        api: api,
+      ).sync(persist: (notes) async => written.addAll(notes));
+
+      expect(written.map((note) => note.id), ['local_wr_bm_bm1']);
+      expect(written.single.content, isNot(contains('这段说得好')));
+    });
+
+    test('WS-23 只开想法：划线不生成，挂不上划线的想法单独成条', () async {
+      final api = _FakeApi(
+        notebooks: [_notebook(reviews: 1)],
+        details: {
+          'b1': _detail(reviews: [inlineReview()]),
+        },
+      );
+      await setSwitch('weread_sync_highlights', false);
+
+      final written = <Note>[];
+      await _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {},
+        api: api,
+      ).sync(persist: (notes) async => written.addAll(notes));
+
+      expect(written.map((note) => note.id), ['local_wr_rv_rv1']);
+      expect(written.single.content, contains('这段说得好'));
+    });
+
+    test('WS-24 生成项全关：手动同步报错，开屏自动同步直接跳过', () async {
+      await setSwitch('weread_sync_highlights', false);
+      await setSwitch('weread_sync_reviews', false);
+      await setSwitch('weread_sync_finished', false);
+      await setSwitch('weread_period_review', false);
+
+      final api = _FakeApi(notebooks: [_notebook()]);
+      final service = _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {},
+        api: api,
+      );
+
+      await expectLater(
+        service.sync(persist: (notes) async {}),
+        throwsA(isA<WeReadApiException>()),
+      );
+      final auto = await service.autoSyncIfDue(
+        persist: (notes) async {},
+      );
+      expect(auto, isNull);
+      // 什么都没请求出去。
+      expect(api.notebookRequests, 0);
+      expect(api.detailRequests, isEmpty);
+    });
+
+    test('WS-25 开关组合变了要清掉水位重扫', () async {
+      final api = _FakeApi(
+        notebooks: [_notebook(reviews: 1)],
+        details: {
+          'b1': _detail(reviews: [inlineReview()]),
+        },
+      );
+      final service = _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {},
+        api: api,
+      );
+
+      await setSwitch('weread_sync_reviews', false);
+      await service.sync(persist: (notes) async {});
+      expect(api.detailRequests, ['b1']);
+
+      // 开关没变时第二次同步沿用旧水位，不重复拉。
+      await service.sync(persist: (notes) async {});
+      expect(api.detailRequests, ['b1']);
+
+      // 打开想法 = 要拿的内容种类变了，水位作废，整本重扫一次。
+      await setSwitch('weread_sync_reviews', true);
+      await service.sync(persist: (notes) async {});
+      expect(api.detailRequests, ['b1', 'b1']);
+    });
+
+    test('WS-26 只开阅读回顾：不拉笔记本列表，只打统计接口', () async {
+      await setSwitch('weread_sync_highlights', false);
+      await setSwitch('weread_sync_reviews', false);
+      await setSwitch('weread_sync_finished', false);
+
+      final api = _FakeApi(notebooks: [_notebook()]);
+      final result = await _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {},
+        api: api,
+      ).sync(persist: (notes) async {});
+
+      expect(api.notebookRequests, 0);
+      expect(api.detailRequests, isEmpty);
+      expect(api.periodRequests, hasLength(2));
+      expect(result.booksTotal, 0);
     });
   });
 }

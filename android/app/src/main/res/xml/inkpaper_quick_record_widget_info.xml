@@ -2,9 +2,11 @@
 <!-- 快速记录 · 2×2（带语音热区） -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/inkpaper_quick_record_widget_description"
+    android:icon="@mipmap/ic_widget_app_compose"
     android:initialLayout="@layout/inkpaper_quick_record_widget"
     android:minWidth="110dp"
     android:minHeight="110dp"
+    android:previewImage="@drawable/preview_quick_record"
     android:previewLayout="@layout/inkpaper_quick_record_widget"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="2"

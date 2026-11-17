@@ -83,7 +83,8 @@ abstract class BaseStatsWidgetProvider : BaseInkPaperWidgetProvider() {
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
-    /// 格子墙：一周铺一行七格；一个月按周对齐，最多六行。
+    /// 格子墙：一周四列（7 天铺成 4+3 两行）；一个月按周对齐，七列最多六行。
+    /// 一周强行铺一行七格的话，2×2 里每格只剩十来个 dp，看不出深浅。
     /// 今天那一格描边，让「今天还没写」这件事一眼可见。
     private fun drawGrid(
         counts: IntArray,
@@ -95,23 +96,25 @@ abstract class BaseStatsWidgetProvider : BaseInkPaperWidgetProvider() {
         if (counts.isEmpty()) return bitmap
 
         val offset = if (period == WidgetStatsPeriod.MONTH) firstWeekday - 1 else 0
-        val columns = 7
+        val columns = if (period == WidgetStatsPeriod.WEEK) 4 else 7
         val rows = ceil((offset + counts.size).toFloat() / columns).toInt().coerceAtLeast(1)
         val gap = bitmapWidth * 0.018f
-        // 列宽跟画布铺满，行高按可用高度平分；只有单行（一周）时才取正方形，
-        // 否则七格会被拉成又高又窄的条。
-        val cellWidth = (bitmapWidth - gap * (columns - 1)) / columns
-        val rowSpace = (bitmapHeight - gap * (rows - 1)) / rows
-        val cellHeight = if (rows == 1) min(cellWidth, rowSpace) else rowSpace
-        val radius = min(cellWidth, cellHeight) * 0.26f
+        // 格子恒为正方形：取「按宽度平分」和「按高度平分」的较小值，
+        // 再整体居中，避免格子被拉成又窄又高的条或又扁又宽的砖。
+        val cellByWidth = (bitmapWidth - gap * (columns - 1)) / columns
+        val cellByHeight = (bitmapHeight - gap * (rows - 1)) / rows
+        val cell = min(cellByWidth, cellByHeight)
+        val radius = cell * 0.26f
 
-        val gridHeight = cellHeight * rows + gap * (rows - 1)
+        val gridWidth = cell * columns + gap * (columns - 1)
+        val gridHeight = cell * rows + gap * (rows - 1)
+        val startX = (bitmapWidth - gridWidth) / 2f
         val startY = (bitmapHeight - gridHeight) / 2f
 
         val fill = Paint(Paint.ANTI_ALIAS_FLAG)
         val todayStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = max(2f, min(cellWidth, cellHeight) * 0.09f)
+            strokeWidth = max(2f, cell * 0.09f)
             color = Color.parseColor("#1F6B52")
         }
 
@@ -119,9 +122,9 @@ abstract class BaseStatsWidgetProvider : BaseInkPaperWidgetProvider() {
             val slot = index + offset
             val column = slot % columns
             val row = slot / columns
-            val left = column * (cellWidth + gap)
-            val top = startY + row * (cellHeight + gap)
-            val rect = RectF(left, top, left + cellWidth, top + cellHeight)
+            val left = startX + column * (cell + gap)
+            val top = startY + row * (cell + gap)
+            val rect = RectF(left, top, left + cell, top + cell)
             fill.color = levelColor(count)
             canvas.drawRoundRect(rect, radius, radius, fill)
             if (index == todayIndex) {

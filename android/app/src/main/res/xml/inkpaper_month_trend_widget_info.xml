@@ -2,9 +2,11 @@
 <!-- 月趋势 · 4×2 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/inkpaper_month_trend_widget_description"
+    android:icon="@mipmap/ic_widget_app_month_bar"
     android:initialLayout="@layout/inkpaper_widget_stats_wide"
     android:minWidth="250dp"
     android:minHeight="110dp"
+    android:previewImage="@drawable/preview_month_trend"
     android:previewLayout="@layout/inkpaper_widget_stats_wide"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="4"

@@ -2,9 +2,11 @@
 <!-- 周统计 · 2×2 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/inkpaper_week_stats_widget_description"
+    android:icon="@mipmap/ic_widget_app_week_grid"
     android:initialLayout="@layout/inkpaper_widget_stats_small"
     android:minWidth="110dp"
     android:minHeight="110dp"
+    android:previewImage="@drawable/preview_week_stats"
     android:previewLayout="@layout/inkpaper_widget_stats_small"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="2"

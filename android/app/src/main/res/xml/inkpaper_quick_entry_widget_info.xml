@@ -2,9 +2,11 @@
 <!-- 快捷入口 · 2×2 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/inkpaper_quick_entry_widget_description"
+    android:icon="@mipmap/ic_widget_app_entry"
     android:initialLayout="@layout/inkpaper_quick_entry_widget"
     android:minWidth="110dp"
     android:minHeight="110dp"
+    android:previewImage="@drawable/preview_quick_entry"
     android:previewLayout="@layout/inkpaper_quick_entry_widget"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="2"

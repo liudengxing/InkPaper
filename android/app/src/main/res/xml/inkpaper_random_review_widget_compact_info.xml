@@ -2,9 +2,11 @@
 <!-- 随机回顾 2×2 方形变体：默认占 2×2 格，横竖都可继续拉伸 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/inkpaper_random_review_widget_compact_description"
+    android:icon="@mipmap/ic_widget_app_review"
     android:initialLayout="@layout/inkpaper_random_review_widget_preview"
     android:minWidth="110dp"
     android:minHeight="110dp"
+    android:previewImage="@drawable/preview_review_compact"
     android:previewLayout="@layout/inkpaper_random_review_widget_preview"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="2"

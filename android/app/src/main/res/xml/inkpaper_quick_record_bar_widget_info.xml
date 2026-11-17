@@ -2,9 +2,11 @@
 <!-- 快速记录 · 4×1 细条 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/inkpaper_quick_record_bar_widget_description"
+    android:icon="@mipmap/ic_widget_app_compose"
     android:initialLayout="@layout/inkpaper_quick_record_bar_widget"
     android:minWidth="250dp"
     android:minHeight="40dp"
+    android:previewImage="@drawable/preview_quick_record_bar"
     android:previewLayout="@layout/inkpaper_quick_record_bar_widget"
     android:resizeMode="horizontal"
     android:targetCellWidth="4"

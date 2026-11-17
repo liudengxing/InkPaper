@@ -20,8 +20,11 @@ void main() {
         createdAt: createdAt,
         updatedAt: createdAt,
         isPinned: isPinned,
-        rowStatus: 'NORMAL',
       );
+
+  Map<String, Object?> asMap(Object? value) => value! as Map<String, Object?>;
+
+  List<int> asInts(Object? value) => (value! as List<Object?>).cast<int>();
 
   Map<String, Object?> build(List<Note> notes) =>
       WidgetSnapshotService.debugBuildSnapshot(
@@ -35,9 +38,9 @@ void main() {
     test('WS-S01 周统计按周一起算，todayIndex 指向今天', () {
       final now = DateTime.now();
       final snapshot = build(<Note>[]);
-      final week = (snapshot['stats'] as Map)['week'] as Map;
+      final week = asMap(asMap(snapshot['stats'])['week']);
 
-      expect((week['days'] as List).length, 7);
+      expect(asInts(week['days']).length, 7);
       expect(week['todayIndex'], now.weekday - 1);
     });
 
@@ -47,28 +50,29 @@ void main() {
       final snapshot = build(<Note>[
         note(id: 'a', content: '一', createdAt: today),
         note(
-            id: 'b',
-            content: '二',
-            createdAt: today.add(const Duration(hours: 1))),
+          id: 'b',
+          content: '二',
+          createdAt: today.add(const Duration(hours: 1)),
+        ),
         note(
-            id: 'c',
-            content: '三',
-            createdAt: today.add(const Duration(hours: 2))),
+          id: 'c',
+          content: '三',
+          createdAt: today.add(const Duration(hours: 2)),
+        ),
       ]);
-      final week = (snapshot['stats'] as Map)['week'] as Map;
-      final days = (week['days'] as List).cast<int>();
+      final week = asMap(asMap(snapshot['stats'])['week']);
 
-      expect(days[now.weekday - 1], 3);
+      expect(asInts(week['days'])[now.weekday - 1], 3);
       expect(week['total'], 3);
     });
 
     test('WS-S03 月统计的格子数等于当月天数，并带上 1 号是周几', () {
       final now = DateTime.now();
       final snapshot = build(<Note>[]);
-      final month = (snapshot['stats'] as Map)['month'] as Map;
+      final month = asMap(asMap(snapshot['stats'])['month']);
 
       expect(
-        (month['days'] as List).length,
+        asInts(month['days']).length,
         DateTime(now.year, now.month + 1, 0).day,
       );
       expect(month['firstWeekday'], DateTime(now.year, now.month).weekday);
@@ -76,19 +80,25 @@ void main() {
 
     test('WS-S04 月统计能把不同日期的笔记分到各自格子', () {
       final now = DateTime.now();
-      final first = DateTime(now.year, now.month, 1, 8);
-      final second = DateTime(now.year, now.month, 1, 20);
       final snapshot = build(<Note>[
-        note(id: 'a', content: '一号早', createdAt: first),
-        note(id: 'b', content: '一号晚', createdAt: second),
+        note(
+          id: 'a',
+          content: '一号早',
+          createdAt: DateTime(now.year, now.month, 1, 8),
+        ),
+        note(
+          id: 'b',
+          content: '一号晚',
+          createdAt: DateTime(now.year, now.month, 1, 20),
+        ),
       ]);
-      final days = ((snapshot['stats'] as Map)['month'] as Map)['days'] as List;
+      final days = asInts(asMap(asMap(snapshot['stats'])['month'])['days']);
 
       expect(days.first, 2);
       expect(days.skip(1).every((count) => count == 0), isTrue);
     });
 
-    test('WS-S05 没有软删以外的过滤会漏，置顶笔记单独进 pinnedNote', () {
+    test('WS-S05 置顶笔记单独进 pinnedNote，并带上长预览', () {
       final now = DateTime.now();
       final snapshot = build(<Note>[
         note(
@@ -103,11 +113,11 @@ void main() {
           createdAt: now.subtract(const Duration(days: 1)),
         ),
       ]);
-      final pinned = snapshot['pinnedNote'] as Map?;
+      final pinned = snapshot['pinnedNote'];
 
       expect(pinned, isNotNull);
-      expect(pinned!['id'], 'pinned');
-      expect(pinned['previewLong'], contains('置顶这条'));
+      expect(asMap(pinned)['id'], 'pinned');
+      expect(asMap(pinned)['previewLong'], contains('置顶这条'));
     });
 
     test('WS-S06 没有置顶笔记时 pinnedNote 为 null，不留空壳', () {
@@ -129,9 +139,9 @@ void main() {
           rowStatus: 'ARCHIVED',
         ),
       ]);
-      final stats = snapshot['stats'] as Map;
+      final stats = asMap(snapshot['stats']);
 
-      expect((stats['week'] as Map)['total'], 0);
+      expect(asMap(stats['week'])['total'], 0);
       expect(snapshot['pinnedNote'], isNull);
     });
   });

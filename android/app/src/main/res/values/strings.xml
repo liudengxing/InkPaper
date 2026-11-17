@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- 小部件名称：显示在系统「小组件」选择器里（receiver 的 android:label） -->
-    <string name="inkpaper_quick_note_widget_name">快速记录</string>
+    <string name="inkpaper_quick_note_widget_name">快速记录 · 横条</string>
     <string name="inkpaper_random_review_widget_name">随机回顾笔记</string>
     <string name="inkpaper_random_review_widget_compact_name">随机回顾笔记 · 方形</string>
     <string name="inkpaper_week_stats_widget_name">周统计</string>

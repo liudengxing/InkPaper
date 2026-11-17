@@ -4,8 +4,22 @@
     <string name="inkpaper_quick_note_widget_name">快速记录</string>
     <string name="inkpaper_random_review_widget_name">随机回顾笔记</string>
     <string name="inkpaper_random_review_widget_compact_name">随机回顾笔记 · 方形</string>
+    <string name="inkpaper_week_stats_widget_name">周统计</string>
+    <string name="inkpaper_week_trend_widget_name">周趋势</string>
+    <string name="inkpaper_month_stats_widget_name">月统计</string>
+    <string name="inkpaper_month_trend_widget_name">月趋势</string>
+    <string name="inkpaper_random_review_widget_large_name">随机回顾笔记 · 大卡</string>
+    <string name="inkpaper_pinned_widget_name">置顶笔记</string>
+    <string name="inkpaper_pinned_widget_compact_name">置顶笔记 · 横条</string>
     <!-- 小部件描述：选择器里名称下方的详情信息 -->
     <string name="inkpaper_quick_note_widget_description">随手记一条笔记或待办，支持常用标签直达</string>
     <string name="inkpaper_random_review_widget_description">翻出一条旧笔记，标着「去年今日」这类时间，点一下就能换一条</string>
     <string name="inkpaper_random_review_widget_compact_description">2×2 方形的随机回顾，功能与横条版一致</string>
+    <string name="inkpaper_week_stats_widget_description">这一周每天的记录分布，七格一眼看完</string>
+    <string name="inkpaper_week_trend_widget_description">这一周每天的记录量，柱状更好比高低</string>
+    <string name="inkpaper_month_stats_widget_description">整月的记录分布，按周对齐的格子墙</string>
+    <string name="inkpaper_month_trend_widget_description">整月每天的记录量，柱状更好比高低</string>
+    <string name="inkpaper_random_review_widget_large_description">4×4 大卡，一条长笔记能一屏读完</string>
+    <string name="inkpaper_pinned_widget_description">把置顶的那条笔记常驻桌面，点开就是它</string>
+    <string name="inkpaper_pinned_widget_compact_description">4×2 的置顶笔记，只露开头三行</string>
 </resources>

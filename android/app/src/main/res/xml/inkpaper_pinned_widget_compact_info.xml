@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 置顶笔记 · 4×2 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/inkpaper_pinned_widget_compact_description"
+    android:initialLayout="@layout/inkpaper_pinned_widget_compact"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:previewLayout="@layout/inkpaper_pinned_widget_compact"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

@@ -183,6 +183,94 @@
                 android:resource="@xml/inkpaper_random_review_widget_compact_info" />
         </receiver>
 
+        <!-- 🧩 随机回顾 4×4 大卡：同一套渲染，正文换大号行布局 -->
+        <receiver
+            android:name=".InkPaperRandomReviewLargeWidgetProvider"
+            android:exported="true"
+            android:label="@string/inkpaper_random_review_widget_large_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/inkpaper_random_review_widget_large_info" />
+        </receiver>
+
+        <!-- 🧩 置顶笔记：4×4 与 4×2 两档 -->
+        <receiver
+            android:name=".InkPaperPinnedWidgetProvider"
+            android:exported="true"
+            android:label="@string/inkpaper_pinned_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/inkpaper_pinned_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".InkPaperPinnedCompactWidgetProvider"
+            android:exported="true"
+            android:label="@string/inkpaper_pinned_widget_compact_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/inkpaper_pinned_widget_compact_info" />
+        </receiver>
+
+        <!-- 🧩 统计类：周/月 × 格子/柱状。四个 Provider 共用一套出图逻辑，
+             差异只在 period / style / 画布尺寸 -->
+        <receiver
+            android:name=".InkPaperWeekStatsWidgetProvider"
+            android:exported="true"
+            android:label="@string/inkpaper_week_stats_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/inkpaper_week_stats_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".InkPaperWeekTrendWidgetProvider"
+            android:exported="true"
+            android:label="@string/inkpaper_week_trend_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/inkpaper_week_trend_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".InkPaperMonthStatsWidgetProvider"
+            android:exported="true"
+            android:label="@string/inkpaper_month_stats_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/inkpaper_month_stats_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".InkPaperMonthTrendWidgetProvider"
+            android:exported="true"
+            android:label="@string/inkpaper_month_trend_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/inkpaper_month_trend_widget_info" />
+        </receiver>
+
         <!-- 🧩 随机回顾预览文本的滚动数据源（RemoteViews 集合视图） -->
         <service
             android:name=".InkPaperReviewListService"

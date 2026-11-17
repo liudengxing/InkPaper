@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 随机回顾 · 4×4 大卡。
+     层级和 4×2 横条完全一致（语境标签 → 正文 → 时间·标签 + 落款），
+     只是每一层都放大：标签 13sp、正文 16.5sp、时间 11.5sp，
+     留白也从 16/12 提到 20/16 —— 4×4 是「坐下来读完一条」的尺寸，
+     挤在一起就白给了这块面积。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/inkpaper_widget_glass_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/inkpaper_widget_background">
+
+    <ImageView
+        android:id="@+id/inkpaper_widget_glass"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/inkpaper_widget_review_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/inkpaper_widget_age"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:letterSpacing="0.06"
+                android:maxLines="1"
+                android:text="去年今日"
+                android:textColor="@color/inkpaper_widget_accent"
+                android:textSize="13sp" />
+
+            <ImageButton
+                android:id="@+id/inkpaper_widget_shuffle"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="换一条"
+                android:padding="7dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_shuffle"
+                android:tint="@color/inkpaper_widget_muted" />
+        </LinearLayout>
+
+        <ListView
+            android:id="@+id/inkpaper_widget_review_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="10dp"
+            android:layout_weight="1"
+            android:cacheColorHint="@android:color/transparent"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:listSelector="@android:color/transparent"
+            android:requiresFadingEdge="none"
+            android:scrollbars="none" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/inkpaper_widget_review_time"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="2026-11-14 08:30"
+                android:textColor="@color/inkpaper_widget_muted"
+                android:textSize="11.5sp" />
+
+            <TextView
+                android:id="@+id/inkpaper_widget_brand"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:includeFontPadding="false"
+                android:letterSpacing="0.04"
+                android:maxLines="1"
+                android:text="InkPaper"
+                android:textColor="@color/inkpaper_widget_brand"
+                android:textSize="10.5sp" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

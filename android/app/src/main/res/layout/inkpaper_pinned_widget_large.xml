@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 置顶笔记 · 4×4。
+     对应 flomo 的「置顶」小组件：桌面上常驻最想反复看的那一条。
+     结构比回顾更朴素 —— 没有「换一条」，因为没有可换的：置顶就是置顶。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/inkpaper_widget_glass_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/inkpaper_widget_background">
+
+    <ImageView
+        android:id="@+id/inkpaper_widget_glass"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="14dp">
+
+        <TextView
+            android:id="@+id/inkpaper_widget_pinned_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.06"
+            android:maxLines="1"
+            android:text="置顶"
+            android:textColor="@color/inkpaper_widget_accent"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/inkpaper_widget_pinned_text"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="10dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:lineSpacingExtra="5dp"
+            android:maxLines="8"
+            android:text="长按一条笔记选「置顶」，它就会固定在这里。"
+            android:textColor="@color/inkpaper_widget_text"
+            android:textSize="16.5sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/inkpaper_widget_pinned_time"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="2026-11-14 08:30"
+                android:textColor="@color/inkpaper_widget_muted"
+                android:textSize="11.5sp" />
+
+            <TextView
+                android:id="@+id/inkpaper_widget_brand"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:includeFontPadding="false"
+                android:letterSpacing="0.04"
+                android:maxLines="1"
+                android:text="InkPaper"
+                android:textColor="@color/inkpaper_widget_brand"
+                android:textSize="10.5sp" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

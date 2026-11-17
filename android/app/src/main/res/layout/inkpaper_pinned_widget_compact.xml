@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 置顶笔记 · 4×2。只露开头三行，时间塞进标题行右侧，
+     没有单独一行底部信息 —— 4×2 的高度全给正文更划算。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/inkpaper_widget_glass_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/inkpaper_widget_background">
+
+    <ImageView
+        android:id="@+id/inkpaper_widget_glass"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="11dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/inkpaper_widget_pinned_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:letterSpacing="0.06"
+                android:maxLines="1"
+                android:text="置顶"
+                android:textColor="@color/inkpaper_widget_accent"
+                android:textSize="11.5sp" />
+
+            <TextView
+                android:id="@+id/inkpaper_widget_pinned_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="2026-11-14"
+                android:textColor="@color/inkpaper_widget_muted"
+                android:textSize="10.5sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/inkpaper_widget_pinned_text"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="7dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:lineSpacingExtra="3dp"
+            android:maxLines="3"
+            android:text="长按一条笔记选「置顶」，它就会固定在这里。"
+            android:textColor="@color/inkpaper_widget_text"
+            android:textSize="14.5sp" />
+    </LinearLayout>
+</FrameLayout>

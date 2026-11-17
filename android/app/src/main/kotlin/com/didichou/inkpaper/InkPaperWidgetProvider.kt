@@ -61,6 +61,21 @@ abstract class BaseInkPaperWidgetProvider : AppWidgetProvider() {
         return PendingIntent.getActivity(context, requestCode, intent, flags)
     }
 
+    /// 统计类组件没有对应的深链页面，点了就把 App 拉到前台。
+    protected fun launchAppPendingIntent(context: Context, requestCode: Int): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val immutableFlag =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_IMMUTABLE
+            } else {
+                0
+            }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or immutableFlag
+        return PendingIntent.getActivity(context, requestCode, intent, flags)
+    }
+
     /// 真玻璃背景：壁纸模糊位图可用则铺上（WallpaperGlass 烘焙，
     /// 已含圆角/底色/高光/暗边），拿不到壁纸就保持手绘玻璃兜底。
     protected fun applyGlassBackground(context: Context, views: RemoteViews) {
@@ -197,6 +212,10 @@ open class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
         cancelReviewUpdate(context)
     }
 
+    /// 4×4 大卡：正文行更大、预览更长。其他尺寸用默认值。
+    protected open val largeVariant: Boolean
+        get() = false
+
     open override fun updateWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -240,6 +259,8 @@ open class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
             Intent(context, InkPaperReviewListService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 putExtra(InkPaperReviewListService.EXTRA_REVIEW_ID, review?.optString("id").orEmpty())
+                // 4×4 大卡用更大的字号与更长的正文，行布局跟着换
+                putExtra(InkPaperReviewListService.EXTRA_LARGE_ROW, largeVariant)
                 data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
             }
         views.setRemoteAdapter(R.id.inkpaper_widget_review_list, adapterIntent)
@@ -362,10 +383,11 @@ open class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
         )
     }
 
-    /// 随机回顾的全部变体（横条 + 方形），定时刷新与逐个更新都要覆盖到。
+    /// 随机回顾的全部变体（横条 + 方形 + 4×4 大卡），定时刷新与逐个更新都要覆盖到。
     private fun reviewComponents(context: Context) = arrayOf(
         ComponentName(context, InkPaperRandomReviewWidgetProvider::class.java),
         ComponentName(context, InkPaperRandomReviewCompactWidgetProvider::class.java),
+        ComponentName(context, InkPaperRandomReviewLargeWidgetProvider::class.java),
     )
 
     private fun updateAllReviewWidgets(context: Context) {
@@ -458,6 +480,24 @@ class InkPaperRandomReviewCompactWidgetProvider : InkPaperRandomReviewWidgetProv
     }
 }
 
+/// 随机回顾 · 4×4 大卡：一屏能读完一条长笔记，字号与行距各抬一档。
+class InkPaperRandomReviewLargeWidgetProvider : InkPaperRandomReviewWidgetProvider() {
+    override val largeVariant = true
+
+    override fun updateWidget(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int
+    ) {
+        updateReviewWidget(
+            context,
+            appWidgetManager,
+            appWidgetId,
+            R.layout.inkpaper_random_review_widget_large,
+        )
+    }
+}
+
 /// 随机回顾预览文本的滚动数据源：RemoteViews 里只有集合视图
 /// （ListView/GridView/Stack）能滚动，「单行长条目」是各家小部件
 /// 实现长文本滚动的通用做法。
@@ -468,6 +508,9 @@ class InkPaperReviewListService : RemoteViewsService() {
     companion object {
         /// Provider 已选定的笔记 id：正文、时间行、点击跳转必须同一条
         const val EXTRA_REVIEW_ID = "inkpaper.reviewId"
+
+        /// 4×4 大卡标记：换更大的行布局和更长的正文
+        const val EXTRA_LARGE_ROW = "inkpaper.reviewLargeRow"
     }
 }
 
@@ -518,9 +561,21 @@ class InkPaperReviewListFactory(
     override fun getCount(): Int = 1
 
     override fun getViewAt(position: Int): RemoteViews {
-        val views = RemoteViews(context.packageName, R.layout.inkpaper_widget_review_row)
-        val text = review?.optString("preview")?.takeIf { it.isNotBlank() }
-            ?: if (hasSnapshot) "暂无可回顾笔记" else "打开 InkPaper 同步小组件"
+        val largeRow = intent.getBooleanExtra(InkPaperReviewListService.EXTRA_LARGE_ROW, false)
+        val views = RemoteViews(
+            context.packageName,
+            if (largeRow) {
+                R.layout.inkpaper_widget_review_row_large
+            } else {
+                R.layout.inkpaper_widget_review_row
+            }
+        )
+        val text = if (largeRow) {
+            review?.optString("previewLong")?.takeIf { it.isNotBlank() }
+                ?: review?.optString("preview")?.takeIf { it.isNotBlank() }
+        } else {
+            review?.optString("preview")?.takeIf { it.isNotBlank() }
+        } ?: if (hasSnapshot) "暂无可回顾笔记" else "打开 InkPaper 同步小组件"
         views.setTextViewText(R.id.inkpaper_widget_review_row_text, text)
         // 有笔记 → 点行进笔记；空状态 → 进随机回顾页兜底
         val reviewId = review?.optString("id").orEmpty()

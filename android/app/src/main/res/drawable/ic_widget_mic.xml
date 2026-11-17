@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 「说一句」：麦克风轮廓 + 底部小支架。24dp 网格、1.8dp 描边。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M12,3.4 A2.6,2.6 0 0,1 14.6,6 L14.6,12 A2.6,2.6 0 0,1 12,14.6 A2.6,2.6 0 0,1 9.4,12 L9.4,6 A2.6,2.6 0 0,1 12,3.4 Z"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8" />
+
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M5.6,11.4 A6.4,6.4 0 0,0 18.4,11.4"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.8" />
+
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M12,17.8 L12,20.6"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.8" />
+</vector>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 快速记录 · 4×1 细条。
+     一条假输入框：看着像能打字，点下去直接进编辑态。
+     flomo 做了白/暗两套 Provider，这里只做一套 —— InkPaper 的小部件统一
+     是白玻璃底，再拆一套深色反而和旁边几个组件打架。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/inkpaper_widget_glass_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/inkpaper_widget_background">
+
+    <ImageView
+        android:id="@+id/inkpaper_widget_glass"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp">
+
+        <ImageView
+            android:id="@+id/inkpaper_widget_bar_icon"
+            android:layout_width="17dp"
+            android:layout_height="17dp"
+            android:contentDescription="@null"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_widget_compose"
+            android:tint="@color/inkpaper_widget_accent" />
+
+        <TextView
+            android:id="@+id/inkpaper_widget_bar_hint"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="9dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="记点什么…"
+            android:textColor="@color/inkpaper_widget_muted"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/inkpaper_widget_bar_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="今日 0 条"
+            android:textColor="@color/inkpaper_widget_brand"
+            android:textSize="10.5sp" />
+    </LinearLayout>
+</FrameLayout>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 「回顾」：四角星，表示翻出一条旧的。24dp 网格、1.6dp 描边。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M12,3.6 L14.1,9.9 L20.4,12 L14.1,14.1 L12,20.4 L9.9,14.1 L3.6,12 L9.9,9.9 Z"
+        android:strokeColor="#FF000000"
+        android:strokeLineJoin="round"
+        android:strokeWidth="1.6" />
+</vector>

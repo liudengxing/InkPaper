@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 快速记录 · 2×2（带语音）。
+     对应 flomo 的「快速记录 · 2×2」：上格写字、下格说话，两块都是热区。
+     语音那块走 inkpaper://quick-note?voice=1，编辑态起来后直接开始录音
+     （编辑器本来就有 startWithSpeech，不需要另开一套录音链路）。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/inkpaper_widget_glass_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/inkpaper_widget_background">
+
+    <ImageView
+        android:id="@+id/inkpaper_widget_glass"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="9dp">
+
+        <LinearLayout
+            android:id="@+id/inkpaper_widget_record_text"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@drawable/inkpaper_widget_chip"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_compose"
+                android:tint="@color/inkpaper_widget_accent" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="记一条"
+                android:textColor="@color/inkpaper_widget_accent"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/inkpaper_widget_record_voice"
+            android:layout_width="match_parent"
+            android:layout_height="34dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/inkpaper_widget_chip"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_mic"
+                android:tint="@color/inkpaper_widget_accent" />
+
+            <TextView
+                android:id="@+id/inkpaper_widget_record_voice_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="说一句"
+                android:textColor="@color/inkpaper_widget_accent"
+                android:textSize="12.5sp" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

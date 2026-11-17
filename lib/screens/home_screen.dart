@@ -49,11 +49,15 @@ class HomeScreen extends StatefulWidget {
     this.openQuickNote = false,
     this.quickNoteTag,
     this.quickNoteActionToken,
+    this.quickNoteVoice = false,
   });
   final String? sharedContent;
   final bool openQuickNote;
   final String? quickNoteTag;
   final String? quickNoteActionToken;
+
+  /// 桌面组件「快速记录 · 语音」拉起来的：直接进编辑态并开始录音。
+  final bool quickNoteVoice;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -158,7 +162,10 @@ class _HomeScreenState extends State<HomeScreen>
         _hasShownEditorInThisSession = true;
         Future.delayed(const Duration(milliseconds: 220), () {
           if (mounted) {
-            _showAddNoteFormWithContent(_quickNoteInitialContent());
+            _showAddNoteFormWithContent(
+              _quickNoteInitialContent(),
+              startWithSpeech: widget.quickNoteVoice,
+            );
           }
         });
       } else {
@@ -187,7 +194,10 @@ class _HomeScreenState extends State<HomeScreen>
     _hasShownEditorInThisSession = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _showAddNoteFormWithContent(_quickNoteInitialContent());
+        _showAddNoteFormWithContent(
+          _quickNoteInitialContent(),
+          startWithSpeech: widget.quickNoteVoice,
+        );
       }
     });
   }
@@ -796,10 +806,14 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // 🔥 显示添加笔记表单（带初始内容）- 用于分享接收
-  void _showAddNoteFormWithContent(String initialContent) {
+  void _showAddNoteFormWithContent(
+    String initialContent, {
+    bool startWithSpeech = false,
+  }) {
     _showComposerSheet(
       NoteEditor(
         initialContent: initialContent, // 🔥 预填充分享的内容
+        startWithSpeech: startWithSpeech,
         onSave: (content) async {
           if (content.trim().isNotEmpty) {
             try {

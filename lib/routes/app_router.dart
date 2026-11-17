@@ -275,6 +275,9 @@ class AppRouter {
           final quickNoteTag = state.uri.queryParameters['tag'];
           final quickNoteActionToken =
               state.uri.queryParameters['quickNoteAction'];
+          // 桌面组件「快速记录 · 语音」：进编辑态后直接开始录音
+          final quickNoteVoice =
+              state.uri.queryParameters['quickNoteVoice'] == '1';
 
           // 桌面端使用NoTransitionPage，移动端使用动画
           return buildSlideTransition(
@@ -286,6 +289,7 @@ class AppRouter {
               openQuickNote: shouldOpenQuickNote,
               quickNoteTag: quickNoteTag,
               quickNoteActionToken: quickNoteActionToken,
+              quickNoteVoice: quickNoteVoice,
             ),
           );
         },

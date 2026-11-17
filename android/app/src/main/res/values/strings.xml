@@ -11,6 +11,9 @@
     <string name="inkpaper_random_review_widget_large_name">随机回顾笔记 · 大卡</string>
     <string name="inkpaper_pinned_widget_name">置顶笔记</string>
     <string name="inkpaper_pinned_widget_compact_name">置顶笔记 · 横条</string>
+    <string name="inkpaper_quick_entry_widget_name">快捷入口</string>
+    <string name="inkpaper_quick_record_widget_name">快速记录 · 方形</string>
+    <string name="inkpaper_quick_record_bar_widget_name">快速记录 · 细条</string>
     <!-- 小部件描述：选择器里名称下方的详情信息 -->
     <string name="inkpaper_quick_note_widget_description">随手记一条笔记或待办，支持常用标签直达</string>
     <string name="inkpaper_random_review_widget_description">翻出一条旧笔记，标着「去年今日」这类时间，点一下就能换一条</string>
@@ -22,4 +25,7 @@
     <string name="inkpaper_random_review_widget_large_description">4×4 大卡，一条长笔记能一屏读完</string>
     <string name="inkpaper_pinned_widget_description">把置顶的那条笔记常驻桌面，点开就是它</string>
     <string name="inkpaper_pinned_widget_compact_description">4×2 的置顶笔记，只露开头三行</string>
+    <string name="inkpaper_quick_entry_widget_description">记一条、随机回顾、两个最常用标签，四个格子各管一件事</string>
+    <string name="inkpaper_quick_record_widget_description">2×2 快速记录，上格写字、下格直接说话</string>
+    <string name="inkpaper_quick_record_bar_widget_description">4×1 细条，点一下就能开始记</string>
 </resources>

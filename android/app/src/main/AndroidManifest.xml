@@ -271,6 +271,43 @@
                 android:resource="@xml/inkpaper_month_trend_widget_info" />
         </receiver>
 
+        <!-- 🧩 快捷入口（2×2）、快速记录方形（2×2 带语音）、快速记录细条（4×1） -->
+        <receiver
+            android:name=".InkPaperQuickEntryWidgetProvider"
+            android:exported="true"
+            android:label="@string/inkpaper_quick_entry_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/inkpaper_quick_entry_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".InkPaperQuickRecordWidgetProvider"
+            android:exported="true"
+            android:label="@string/inkpaper_quick_record_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/inkpaper_quick_record_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".InkPaperQuickRecordBarWidgetProvider"
+            android:exported="true"
+            android:label="@string/inkpaper_quick_record_bar_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/inkpaper_quick_record_bar_widget_info" />
+        </receiver>
+
         <!-- 🧩 随机回顾预览文本的滚动数据源（RemoteViews 集合视图） -->
         <service
             android:name=".InkPaperReviewListService"

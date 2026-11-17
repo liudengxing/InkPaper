@@ -549,6 +549,8 @@ void _handleInkPaperDeepLink(AppRouter appRouter, String rawUrl) {
           queryParameters: <String, String>{
             'quickNote': '1',
             'quickNoteAction': DateTime.now().millisecondsSinceEpoch.toString(),
+            // 桌面组件「快速记录 · 语音」会带 voice=1，进编辑态直接开始录音
+            if (uri.queryParameters['voice'] == '1') 'quickNoteVoice': '1',
             if (quickNoteTag != null) 'tag': quickNoteTag,
           },
         ).toString(),

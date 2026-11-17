@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 快捷入口 · 2×2。
+     对应 flomo 的「快捷入口」：四个常去的动作摆成 2×2，点一下直达。
+     RemoteViews 不能用普通 View 当热区，所以四个格子都是 ImageButton
+     （图标 + contentDescription，文案交给系统无障碍朗读）。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/inkpaper_widget_glass_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/inkpaper_widget_background">
+
+    <ImageView
+        android:id="@+id/inkpaper_widget_glass"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="9dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/inkpaper_widget_entry_compose"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="5dp"
+                android:layout_weight="1"
+                android:background="@drawable/inkpaper_widget_chip"
+                android:contentDescription="记一条"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_compose"
+                android:tint="@color/inkpaper_widget_accent" />
+
+            <ImageButton
+                android:id="@+id/inkpaper_widget_entry_review"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:layout_weight="1"
+                android:background="@drawable/inkpaper_widget_chip"
+                android:contentDescription="随机回顾"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_review"
+                android:tint="@color/inkpaper_widget_accent" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="10dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/inkpaper_widget_entry_tag_1"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="5dp"
+                android:layout_weight="1"
+                android:background="@drawable/inkpaper_widget_chip"
+                android:contentDescription="常用标签"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_tag"
+                android:tint="@color/inkpaper_widget_accent" />
+
+            <ImageButton
+                android:id="@+id/inkpaper_widget_entry_tag_2"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="5dp"
+                android:layout_weight="1"
+                android:background="@drawable/inkpaper_widget_chip"
+                android:contentDescription="常用标签"
+                android:padding="12dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_tag"
+                android:tint="@color/inkpaper_widget_accent" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

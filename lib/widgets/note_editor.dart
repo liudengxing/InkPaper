@@ -24,6 +24,7 @@ import 'package:inkpaper/utils/media_paths.dart';
 import 'package:inkpaper/utils/note_image_anchor.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_input_helper.dart';
+import 'package:inkpaper/utils/text_style_helper.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:inkpaper/widgets/capsule_text_selection_toolbar.dart';
 import 'package:inkpaper/widgets/memo_editing_controller.dart';
@@ -1773,15 +1774,15 @@ class _NoteEditorState extends State<NoteEditor>
                                                   context,
                                                 )?.editorPlaceholder ??
                                                 '现在的想法是...',
-                                            // 全局主题给输入框设了 filled:true，
+                                            // 全局主题给输入框设了 filled:true,
                                             // 玻璃卡片上会糊出一块实心白，这里关掉
                                             filled: false,
                                             border: InputBorder.none,
                                             contentPadding: EdgeInsets.zero,
-                                            hintStyle: TextStyle(
-                                              fontSize: 16,
+                                            hintStyle: AppTextStyles.bodyLarge(
+                                              context,
+                                              height: 1.6,
                                               color: hintTextColor,
-                                              height: 1.5,
                                             ),
                                             enabledBorder: InputBorder.none,
                                             focusedBorder: InputBorder.none,
@@ -1808,10 +1809,14 @@ class _NoteEditorState extends State<NoteEditor>
                                                   .contextMenuButtonItems,
                                             );
                                           },
-                                          style: TextStyle(
-                                            fontSize: 16,
+                                          // 正文样式与详情页 NotePreviewText
+                                          // 同一套 bodyLarge：编辑态与浏览态
+                                          // 字号、行高、字距完全一致，否则切换
+                                          // 时整段文本重排、肉眼看是闪一下。
+                                          style: AppTextStyles.bodyLarge(
+                                            context,
+                                            height: 1.6,
                                             color: textColor,
-                                            height: 1.5,
                                           ),
                                         ),
                                       ),

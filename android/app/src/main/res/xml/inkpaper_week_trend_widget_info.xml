@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 周趋势 · 2×2 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/inkpaper_week_trend_widget_description"
+    android:initialLayout="@layout/inkpaper_widget_stats_small"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:previewLayout="@layout/inkpaper_widget_stats_small"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

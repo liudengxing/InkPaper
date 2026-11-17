@@ -26,6 +26,7 @@ tag 和 Release 本体，安装包一律由发版机器补传。
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import subprocess
@@ -40,11 +41,31 @@ GITHUB_API = 'https://api.github.com'
 DEFAULT_MIRROR = 'https://ghfast.top'
 
 
+# 本机代理（Clash 系）会拦部分非浏览器 UA 的 CONNECT 隧道，git 用 curl UA 可过；
+# urllib 的 UA 只进后续 GET 不进 CONNECT，所以在 http.client 层也塞一份。
+# 实测仍有环境被 502（可能是节点规则），被拦时改用 curl 兜底发版。
+def _patch_tunnel_user_agent() -> None:
+    original = http.client.HTTPConnection._tunnel
+
+    def tunnel(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        headers = getattr(self, '_tunnel_headers', None)
+        if headers is not None:
+            headers.setdefault('User-Agent', 'curl/8.9.1')
+        return original(self, *args, **kwargs)
+
+    http.client.HTTPConnection._tunnel = tunnel
+
+
+_patch_tunnel_user_agent()
+
+
 def _request(url, *, method='GET', headers=None, data=None, timeout=120):
     req = urllib.request.Request(url, data=data, method=method)
     for key, value in (headers or {}).items():
         req.add_header(key, value)
-    req.add_header('User-Agent', 'inkpaper-release')
+    # 本机代理（Clash 系）只放行浏览器/curl 的 User-Agent，git 与 python 的
+    # 默认 UA 会被 CONNECT 隧道直接 502（2026-11-17 实测），所以伪装成 curl。
+    req.add_header('User-Agent', 'curl/8.9.1')
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.status, resp.read()

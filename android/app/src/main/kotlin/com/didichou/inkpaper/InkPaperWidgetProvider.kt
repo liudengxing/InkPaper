@@ -81,18 +81,35 @@ abstract class BaseInkPaperWidgetProvider : AppWidgetProvider() {
         const val PREFS_NAME = "inkpaper_widget"
         const val SNAPSHOT_KEY = "inkpaper_widget_snapshot"
 
-        /// 按当前时间桶从快照里选出要展示的回顾笔记。Provider（时间行/调度）
-        /// 与 ListView 工厂（预览文本）共用同一套选择逻辑，保证两边同一条。
-        fun selectReviewNote(snapshot: JSONObject?): JSONObject? {
+        /// 「换一条」的手动偏移量。和定时轮换用的时间桶分开存：
+        /// 时间桶照常按小时走，用户点出的偏移叠在上面。
+        const val REVIEW_OFFSET_KEY = "review_offset"
+
+        fun reviewOffset(context: Context): Int = context
+            .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getInt(REVIEW_OFFSET_KEY, 0)
+
+        fun bumpReviewOffset(context: Context): Int {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val next = prefs.getInt(REVIEW_OFFSET_KEY, 0) + 1
+            prefs.edit().putInt(REVIEW_OFFSET_KEY, next).apply()
+            return next
+        }
+
+        /// 按当前时间桶（叠加上「换一条」的偏移）从快照里选出要展示的回顾笔记。
+        /// Provider（时间行/调度）与 ListView 工厂（预览文本）共用同一套选择逻辑，
+        /// 保证两边同一条。
+        fun selectReviewNote(snapshot: JSONObject?, offset: Int = 0): JSONObject? {
             val reviewNotes = snapshot?.optJSONArray("reviewNotes") ?: return null
             val reviewCount = reviewNotes.length()
             if (reviewCount == 0) return null
             val refreshMinutes =
-                snapshot?.optJSONObject("reviewConfig")?.optInt("refreshIntervalMinutes", 60)
+                snapshot.optJSONObject("reviewConfig")?.optInt("refreshIntervalMinutes", 60)
                     ?: 60
             val intervalMillis = refreshMinutes.coerceIn(15, 1440) * 60_000L
             val bucket = System.currentTimeMillis() / intervalMillis
-            return reviewNotes.optJSONObject((bucket % reviewCount.toLong()).toInt())
+            val index = (bucket + offset.toLong()).mod(reviewCount.toLong())
+            return reviewNotes.optJSONObject(index.toInt())
         }
     }
 }
@@ -160,6 +177,13 @@ open class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
             scheduleReviewUpdate(context)
             return
         }
+        // 「换一条」：偏移 +1 后立刻重画。不重新调度定时器，手动换不该
+        // 打乱原有的刷新节奏。
+        if (intent?.action == ACTION_SHUFFLE_REVIEW) {
+            bumpReviewOffset(context)
+            updateAllReviewWidgets(context)
+            return
+        }
         super.onReceive(context, intent)
     }
 
@@ -198,8 +222,14 @@ open class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
         val views = RemoteViews(context.packageName, layoutRes)
         val reviewConfig = snapshot?.optJSONObject("reviewConfig")
         val refreshMinutes = reviewConfig?.optInt("refreshIntervalMinutes", 60) ?: 60
-        val rangeDays = reviewConfig?.optInt("rangeDays", 0) ?: 0
-        val review = selectReviewNote(snapshot)
+        val review = selectReviewNote(snapshot, reviewOffset(context))
+
+        // 顶部语境标签：「去年今日」「3 天前」这类，由 Dart 侧算好（那边才有
+        // 正确的本地时间口径）。没笔记时退回组件名，别留空白。
+        views.setTextViewText(
+            R.id.inkpaper_widget_age,
+            review?.optString("ageLabel")?.takeIf { it.isNotBlank() } ?: "随机回顾"
+        )
 
         // 预览文本改由 RemoteViewsFactory 提供：单行长条目 ListView，
         // 文本超出小部件可视区时可以上下滚动（RemoteViews 里 ScrollView/
@@ -219,16 +249,17 @@ open class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
             R.id.inkpaper_widget_review_list,
             templatePendingIntent(context)
         )
-        val reviewTime = formatWidgetTime(review)
-        if (reviewTime == null) {
+        val caption = formatCaption(review)
+        if (caption == null) {
             views.setViewVisibility(R.id.inkpaper_widget_review_time, View.GONE)
         } else {
             views.setViewVisibility(R.id.inkpaper_widget_review_time, View.VISIBLE)
-            views.setTextViewText(R.id.inkpaper_widget_review_time, reviewTime)
+            views.setTextViewText(R.id.inkpaper_widget_review_time, caption)
         }
-        views.setTextViewText(
-            R.id.inkpaper_widget_status,
-            "${formatRefresh(refreshMinutes)} · ${formatRange(rangeDays)}"
+        // 「换一条」：点一下立刻换下一条，不用等定时刷新。
+        views.setOnClickPendingIntent(
+            R.id.inkpaper_widget_shuffle,
+            shufflePendingIntent(context)
         )
         // 整块点击 → 直接打开「小部件上正在显示的这条笔记」。
         // 不再跳随机回顾列表页：那个页面进来会重新抽一批，跟这里显示的对不上，
@@ -291,18 +322,45 @@ open class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
         return iso.substring(0, 10) + " " + iso.substring(11, 16)
     }
 
-    private fun formatRefresh(minutes: Int): String =
-        if (minutes < 60) "${minutes}分钟刷新" else "${minutes / 60}小时刷新"
-
-    private fun formatRange(days: Int): String =
-        when (days) {
-            0 -> "全部"
-            30 -> "近30天"
-            90 -> "近90天"
-            180 -> "近半年"
-            365 -> "近一年"
-            else -> "${days}天"
+    /// 底部一行：「时间 · #标签」。标签是内容语义的一部分（这条在讲什么），
+    /// 比「1小时刷新 · 全部」这类配置信息对用户有意义，所以替换掉后者；
+    /// 刷新频率与范围仍可在设置页看到。
+    private fun formatCaption(note: JSONObject?): String? {
+        val time = formatWidgetTime(note) ?: return null
+        val tags = note?.optJSONArray("tags") ?: return time
+        val tagText = buildString {
+            for (index in 0 until tags.length()) {
+                val tag = tags.optString(index).trim()
+                if (tag.isEmpty()) continue
+                if (isNotEmpty()) append(' ')
+                append(if (tag.startsWith("#")) tag else "#$tag")
+            }
         }
+        return if (tagText.isEmpty()) time else "$time · $tagText"
+    }
+
+    /// 「换一条」的广播：偏移量 +1 后立刻重画所有回顾组件。
+    ///
+    /// 用一个自增偏移量而不是重新抽签：候选列表是 App 侧落进快照的，
+    /// 原生手里只有这一份，偏移量能在同一份候选里轮转，点几次换几次，
+    /// 不会撞见同一条，也不用为了换一条去唤醒 App。
+    private fun shufflePendingIntent(context: Context): PendingIntent {
+        val intent = Intent(context, InkPaperRandomReviewWidgetProvider::class.java).apply {
+            action = ACTION_SHUFFLE_REVIEW
+        }
+        val immutableFlag =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_IMMUTABLE
+            } else {
+                0
+            }
+        return PendingIntent.getBroadcast(
+            context,
+            93,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or immutableFlag
+        )
+    }
 
     /// 随机回顾的全部变体（横条 + 方形），定时刷新与逐个更新都要覆盖到。
     private fun reviewComponents(context: Context) = arrayOf(
@@ -376,6 +434,10 @@ open class InkPaperRandomReviewWidgetProvider : BaseInkPaperWidgetProvider() {
     companion object {
         private const val ACTION_RANDOM_REVIEW_TICK =
             "com.didichou.inkpaper.action.RANDOM_REVIEW_WIDGET_TICK"
+
+        /// 「换一条」按钮的广播动作（小部件内部用，不导出）。
+        const val ACTION_SHUFFLE_REVIEW =
+            "com.didichou.inkpaper.action.SHUFFLE_REVIEW"
     }
 }
 
@@ -432,10 +494,13 @@ class InkPaperReviewListFactory(
         }
         hasSnapshot = snapshot != null && snapshot.optString("generatedAt").isNotBlank()
         // 优先用 Provider 传进来的 id（保证与时间行、点击目标同一条），
-        // 老版本传不进来时才按时间桶自己算一次
+        // 老版本传不进来时才按同样的时间桶 + 偏移自己算一次
         val wantedId = intent.getStringExtra(InkPaperReviewListService.EXTRA_REVIEW_ID).orEmpty()
         review = findReviewById(snapshot, wantedId)
-            ?: BaseInkPaperWidgetProvider.selectReviewNote(snapshot)
+            ?: BaseInkPaperWidgetProvider.selectReviewNote(
+                snapshot,
+                BaseInkPaperWidgetProvider.reviewOffset(context)
+            )
     }
 
     private fun findReviewById(snapshot: JSONObject?, id: String): JSONObject? {

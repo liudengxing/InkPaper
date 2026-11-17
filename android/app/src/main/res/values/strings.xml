@@ -6,6 +6,6 @@
     <string name="inkpaper_random_review_widget_compact_name">随机回顾笔记 · 方形</string>
     <!-- 小部件描述：选择器里名称下方的详情信息 -->
     <string name="inkpaper_quick_note_widget_description">随手记一条笔记或待办，支持常用标签直达</string>
-    <string name="inkpaper_random_review_widget_description">定时随机抽一条旧笔记，帮你温故知新</string>
-    <string name="inkpaper_random_review_widget_compact_description">默认占 2×2 格的随机回顾，功能与横条版一致</string>
+    <string name="inkpaper_random_review_widget_description">翻出一条旧笔记，标着「去年今日」这类时间，点一下就能换一条</string>
+    <string name="inkpaper_random_review_widget_compact_description">2×2 方形的随机回顾，功能与横条版一致</string>
 </resources>

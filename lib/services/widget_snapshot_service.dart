@@ -214,6 +214,10 @@ abstract final class WidgetSnapshotService {
       // 桌面小部件直接展示这个本地时间文案。格式化放在 Dart 侧做：
       // 原生只裁剪 ISO 字符串，一旦序列化成 UTC 就会显示错时区。
       'createdAtLabel': formatWidgetTime(note.createdAt),
+      // 回顾小组件顶部的「时间语境」标签（今天 / 昨天 / 去年今日…）。
+      // 说清「多久以前」比裸时间戳更能唤起回忆，对应 flomo 桌面组件的
+      // 「去年今日」那一层标注。
+      'ageLabel': formatReviewAgeLabel(note.createdAt),
       'updatedAt': note.updatedAt.toIso8601String(),
       'displayTime': note.displayTime.toIso8601String(),
     };
@@ -255,5 +259,61 @@ abstract final class WidgetSnapshotService {
       return normalized;
     }
     return '${normalized.substring(0, maxLength).trimRight()}...';
+  }
+
+  /// 回顾小组件顶部的「时间语境」标签。
+  ///
+  /// 回顾类组件最关键的一层信息不是精确时间，而是「这条来自多久以前」：
+  /// 今天 / 昨天 / 3 天前 / 上周 / 去年今日 / 2 年前的今天 / 3 个月前 / 2025 年 6 月。
+  /// 周年是最有触动的一类，单独给说法。
+  ///
+  /// [now] 只给测试用；生产走当前时间。和 [formatWidgetTime] 一样按字段值
+  /// 比较，不做时区换算。
+  static String formatReviewAgeLabel(DateTime time, {DateTime? now}) {
+    final current = now ?? DateTime.now();
+    // 只比日期不看时分：同一天写的都算「今天」。
+    final day = DateTime(time.year, time.month, time.day);
+    final today = DateTime(current.year, current.month, current.day);
+    final days = today.difference(day).inDays;
+
+    if (days <= 0) {
+      // 伪 UTC 的历史数据可能落在「未来」，负值一并按今天处理。
+      final minutes = current.difference(time).inMinutes;
+      if (minutes >= 0 && minutes < 60) {
+        return '刚刚';
+      }
+      if (minutes >= 60 && minutes < 24 * 60) {
+        return '${minutes ~/ 60} 小时前';
+      }
+      return '今天';
+    }
+    if (days == 1) {
+      return '昨天';
+    }
+    // 周年优先于「N 天前」：去年今日 ≈ 365 天，不会被前面的分支吃掉，
+    // 但这里放在日期分支之前，语义更直白。
+    if (time.month == current.month && time.day == current.day) {
+      final years = current.year - time.year;
+      return years <= 1 ? '去年今日' : '$years 年前的今天';
+    }
+    if (days < 7) {
+      return '$days 天前';
+    }
+    if (days < 14) {
+      return '上周';
+    }
+    if (days < 30) {
+      return '${days ~/ 7} 周前';
+    }
+    if (days < 365) {
+      final months = days ~/ 30;
+      return months <= 1 ? '上个月' : '$months 个月前';
+    }
+    final years = current.year - time.year;
+    if (years <= 1) {
+      return '去年';
+    }
+    // 跨年太久的不再说「N 年前」，直接给年月更有信息量。
+    return years >= 3 ? '${time.year} 年 ${time.month} 月' : '$years 年前';
   }
 }

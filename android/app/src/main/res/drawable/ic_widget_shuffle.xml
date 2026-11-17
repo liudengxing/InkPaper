@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 「换一条」：270° 细圆弧 + 朝右的小箭头，24dp 网格、1.9dp 描边。
+     做细做小是刻意的：它在顶栏只是辅助动作，不能抢正文的注意力。
+     颜色不写死，由 ImageView 的 tint 给（跟随小部件的次要文字色）。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- 从右侧中点顺时针绕一圈到顶部，留出右上缺口给箭头 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M20,12 A8,8 0 1,1 12,4"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.9" />
+
+    <!-- 缺口处的箭头，指向顺时针前进方向 -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M11,0.8L16.2,4L11,7.2Z" />
+</vector>

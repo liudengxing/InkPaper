@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 真玻璃结构 + 可滚动预览：
-     - FrameLayout 兜底手绘玻璃，其上为壁纸模糊位图（WallpaperGlass）
-     - 预览文本用「单行长条目 ListView」实现：RemoteViews 不支持
-       ScrollView/TextView 滚动，集合视图是唯一能滚的容器，这是各家
-       小部件实现长文本滚动的通用做法 -->
+<!-- 随机回顾 · 4×2 横条。
+     信息层级参考 flomo 每日回顾小组件，自上而下三层：
+       1. 语境标签（去年今日 / 3 天前）+「换一条」—— 说清这条来自多久以前
+       2. 正文 —— 主视觉，行距放宽；超长时可上下滚动
+       3. 时间 · 标签 + 品牌落款 —— 最弱的一层，只做定位
+     玻璃沿用 inkpaper_widget_background（手绘 5 层兜底），
+     拿得到壁纸时再铺 WallpaperGlass 烘焙的模糊位图。 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/inkpaper_widget_glass_root"
     android:layout_width="match_parent"
@@ -22,31 +24,52 @@
         android:id="@+id/inkpaper_widget_review_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="center_vertical"
         android:orientation="vertical"
-        android:padding="14dp">
+        android:paddingStart="16dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="11dp">
 
-        <!-- 整块可点（container 的 PendingIntent 在 Provider 里按当前显
-             示的笔记设置），所以不再单设「打开」按钮：按钮跳的是随机回顾
-             列表页，那里会重新抽一批，跟小部件上这条对不上 -->
-        <TextView
-            android:id="@+id/inkpaper_widget_title"
+        <!-- 顶部行：左「多久以前」，右「换一条」。整块点击由 container 的
+             PendingIntent 负责打开当前这条笔记，按钮只负责换下一条 -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:includeFontPadding="false"
-            android:maxLines="1"
-            android:text="随机回顾"
-            android:textColor="@color/inkpaper_widget_text"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <!-- 单行长条目：条目高度由文本撑开，超出小部件可视区时 ListView 可上下滚动 -->
+            <TextView
+                android:id="@+id/inkpaper_widget_age"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:letterSpacing="0.06"
+                android:maxLines="1"
+                android:text="去年今日"
+                android:textColor="@color/inkpaper_widget_accent"
+                android:textSize="11.5sp" />
+
+            <ImageButton
+                android:id="@+id/inkpaper_widget_shuffle"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="换一条"
+                android:padding="6dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_shuffle"
+                android:tint="@color/inkpaper_widget_muted" />
+        </LinearLayout>
+
+        <!-- 单行长条目：条目高度由文本撑开，超出小部件可视区时 ListView 可上下滚动
+             （RemoteViews 里 ScrollView / TextView 都不支持滚动，集合视图是唯一解） -->
         <ListView
             android:id="@+id/inkpaper_widget_review_list"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="7dp"
             android:layout_weight="1"
             android:cacheColorHint="@android:color/transparent"
             android:divider="@null"
@@ -55,28 +78,37 @@
             android:requiresFadingEdge="none"
             android:scrollbars="none" />
 
-        <TextView
-            android:id="@+id/inkpaper_widget_review_time"
+        <!-- 底部行：时间 · 标签（弱） + 品牌落款（最弱） -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:ellipsize="end"
-            android:includeFontPadding="false"
-            android:maxLines="1"
-            android:text="2026-11-14 08:30"
-            android:textColor="@color/inkpaper_widget_muted"
-            android:textSize="11sp" />
+            android:layout_marginTop="7dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/inkpaper_widget_status"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:ellipsize="end"
-            android:includeFontPadding="false"
-            android:maxLines="1"
-            android:text="1小时刷新 · 全部"
-            android:textColor="@color/inkpaper_widget_muted"
-            android:textSize="11sp" />
+            <TextView
+                android:id="@+id/inkpaper_widget_review_time"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="2026-11-14 08:30"
+                android:textColor="@color/inkpaper_widget_muted"
+                android:textSize="10.5sp" />
+
+            <TextView
+                android:id="@+id/inkpaper_widget_brand"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:includeFontPadding="false"
+                android:letterSpacing="0.04"
+                android:maxLines="1"
+                android:text="InkPaper"
+                android:textColor="@color/inkpaper_widget_brand"
+                android:textSize="9.5sp" />
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

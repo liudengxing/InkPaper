@@ -150,8 +150,34 @@ abstract final class WidgetSnapshotService {
     );
     final unsyncedCount = visibleNotes.where((note) => !note.isSynced).length;
 
+    // 统计小组件（周/月）要的是「每天各记了几条」。按 displayTime 的字段值
+    // 取日期，和首页热力图、时间标签同一口径——不 toLocal。
+    final dayCounts = <String, int>{};
+    for (final note in visibleNotes) {
+      final time = note.displayTime;
+      final key = _dayKey(DateTime(time.year, time.month, time.day));
+      dayCounts[key] = (dayCounts[key] ?? 0) + 1;
+    }
+
+    // 一周按周一起算，todayIndex 让原生那边给今天描个边。
+    final weekStart =
+        todayStart.subtract(Duration(days: todayStart.weekday - 1));
+    final weekDays = List<int>.generate(
+      7,
+      (index) => dayCounts[_dayKey(weekStart.add(Duration(days: index)))] ?? 0,
+    );
+    // 月份格子墙要按周对齐，所以带上这个月 1 号是周几（1=周一…7=周日）。
+    final monthStart = DateTime(now.year, now.month);
+    final monthLength = DateTime(now.year, now.month + 1, 0).day;
+    final monthDays = List<int>.generate(
+      monthLength,
+      (index) =>
+          dayCounts[_dayKey(DateTime(now.year, now.month, index + 1))] ?? 0,
+    );
+    final pinnedNote = _firstPinnedNote(visibleNotes);
+
     return <String, Object?>{
-      'schemaVersion': 1,
+      'schemaVersion': 2,
       'generatedAt': now.toIso8601String(),
       'today': <String, Object?>{
         'notes': todayNotes.length,
@@ -175,6 +201,19 @@ abstract final class WidgetSnapshotService {
         'rangeDays': reviewRangeDays < 0 ? 0 : reviewRangeDays,
       },
       'reviewNotes': reviewNotes.map(_noteSnapshot).toList(),
+      'stats': <String, Object?>{
+        'week': <String, Object?>{
+          'days': weekDays,
+          'total': weekDays.fold<int>(0, (sum, count) => sum + count),
+          'todayIndex': todayStart.weekday - 1,
+        },
+        'month': <String, Object?>{
+          'days': monthDays,
+          'total': monthDays.fold<int>(0, (sum, count) => sum + count),
+          'firstWeekday': monthStart.weekday,
+        },
+      },
+      'pinnedNote': pinnedNote == null ? null : _noteSnapshot(pinnedNote),
       'privacyMode': false,
     };
   }
@@ -190,6 +229,21 @@ abstract final class WidgetSnapshotService {
           : reviewRangeDays,
       random: Random(),
     );
+  }
+
+  static Note? _firstPinnedNote(List<Note> notes) {
+    for (final note in notes) {
+      if (note.isPinned) {
+        return note;
+      }
+    }
+    return null;
+  }
+
+  /// 统计格子的分组键（yyyy-MM-dd）。
+  static String _dayKey(DateTime day) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${day.year}-${two(day.month)}-${two(day.day)}';
   }
 
   static bool _isWidgetVisibleNote(Note note) {
@@ -209,6 +263,9 @@ abstract final class WidgetSnapshotService {
     return <String, Object?>{
       'id': note.id,
       'preview': preview,
+      // 4×4 大尺寸（置顶 / 回顾）用更长的一段，120 字在 4×4 里只够铺两行。
+      'previewLong':
+          visibleText.isNotEmpty ? _trimPreview(visibleText, 400) : preview,
       'tags': note.tags.take(3).toList(),
       'createdAt': note.createdAt.toIso8601String(),
       // 桌面小部件直接展示这个本地时间文案。格式化放在 Dart 侧做：

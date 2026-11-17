@@ -12,6 +12,8 @@ import android.widget.RemoteViews
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /// 统计组件的四种组合：周/月 × 格子/柱状。
 ///
@@ -58,7 +60,6 @@ abstract class BaseStatsWidgetProvider : BaseInkPaperWidgetProvider() {
         val counts = IntArray(days?.length() ?: 0) { days?.optInt(it, 0) ?: 0 }
         val total = stats?.optInt("total", counts.sum()) ?: counts.sum()
         val todayIndex = stats?.optInt("todayIndex", -1) ?: -1
-        val firstWeekday = stats?.optInt("firstWeekday", 1) ?: 1
 
         views.setTextViewText(
             R.id.inkpaper_widget_stats_title,
@@ -71,7 +72,7 @@ abstract class BaseStatsWidgetProvider : BaseInkPaperWidgetProvider() {
         )
 
         val chart = when (style) {
-            WidgetChartStyle.GRID -> drawGrid(counts, todayIndex, firstWeekday)
+            WidgetChartStyle.GRID -> drawGrid(counts, todayIndex)
             WidgetChartStyle.BAR -> drawBars(counts, todayIndex)
         }
         views.setImageViewBitmap(R.id.inkpaper_widget_stats_chart, chart)
@@ -83,21 +84,27 @@ abstract class BaseStatsWidgetProvider : BaseInkPaperWidgetProvider() {
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
-    /// 格子墙：一周四列（7 天铺成 4+3 两行）；一个月按周对齐，七列最多六行。
-    /// 一周强行铺一行七格的话，2×2 里每格只剩十来个 dp，看不出深浅。
+    /// 格子墙：一周四列（7 天铺成 4+3 两行）；一个月按画布比例反推列数。
     /// 今天那一格描边，让「今天还没写」这件事一眼可见。
     private fun drawGrid(
         counts: IntArray,
-        todayIndex: Int,
-        firstWeekday: Int
+        todayIndex: Int
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         if (counts.isEmpty()) return bitmap
 
-        val offset = if (period == WidgetStatsPeriod.MONTH) firstWeekday - 1 else 0
-        val columns = if (period == WidgetStatsPeriod.WEEK) 4 else 7
-        val rows = ceil((offset + counts.size).toFloat() / columns).toInt().coerceAtLeast(1)
+        // 一个月不能硬按日历排成 7 列 6 行：4×2 的图表区是扁长的（3.6:1），
+        // 7×6 的网格塞进去只占中间三分之一宽，格子缩到二十几像素，深浅完全
+        // 看不出来——11 月就是这样被看成了「一片空白」。改成按画布比例反推列数，
+        // 31 天会落到 11 列 × 3 行，格子接近正方形又铺满整块。
+        // 这个尺寸下本来也读不出「几号是周几」，按周对齐没有收益。
+        val columns = if (period == WidgetStatsPeriod.WEEK) {
+            4
+        } else {
+            monthColumns(counts.size)
+        }
+        val rows = ceil(counts.size.toFloat() / columns).toInt().coerceAtLeast(1)
         val gap = bitmapWidth * 0.018f
         // 格子恒为正方形：取「按宽度平分」和「按高度平分」的较小值，
         // 再整体居中，避免格子被拉成又窄又高的条或又扁又宽的砖。
@@ -119,9 +126,8 @@ abstract class BaseStatsWidgetProvider : BaseInkPaperWidgetProvider() {
         }
 
         counts.forEachIndexed { index, count ->
-            val slot = index + offset
-            val column = slot % columns
-            val row = slot / columns
+            val column = index % columns
+            val row = index / columns
             val left = startX + column * (cell + gap)
             val top = startY + row * (cell + gap)
             val rect = RectF(left, top, left + cell, top + cell)
@@ -132,6 +138,13 @@ abstract class BaseStatsWidgetProvider : BaseInkPaperWidgetProvider() {
             }
         }
         return bitmap
+    }
+
+    /// 让格子尽量接近正方形又铺满画布：cols ≈ sqrt(格数 × 宽高比)。
+    /// 30 天落在 3.6:1 的画布上是 11 列，2×2 那种方画布上会回到 6 列。
+    private fun monthColumns(count: Int): Int {
+        val aspect = bitmapWidth.toFloat() / bitmapHeight
+        return sqrt(count * aspect).roundToInt().coerceIn(4, 14)
     }
 
     /// 柱状：天数多的时候一根柱子只有十几像素，所以不画圆角也不画描边，
@@ -169,8 +182,10 @@ abstract class BaseStatsWidgetProvider : BaseInkPaperWidgetProvider() {
     }
 
     /// 五档色阶，和应用内热力图同一套绿：0 条是最浅的底格。
+    /// 底格不能照搬应用里的 #EBEDF0——组件卡片是 78% 白，那个灰在白底上等于隐形，
+    /// 整面格子墙会看起来像没渲染出来。这里加深到 #DCE2DF，既保留「空」的观感又能看见。
     private fun levelColor(count: Int): Int = when {
-        count <= 0 -> Color.parseColor("#E7EAE8")
+        count <= 0 -> Color.parseColor("#DCE2DF")
         count == 1 -> Color.parseColor("#C3DED4")
         count == 2 -> Color.parseColor("#8FC7B2")
         count <= 4 -> Color.parseColor("#5CAE90")

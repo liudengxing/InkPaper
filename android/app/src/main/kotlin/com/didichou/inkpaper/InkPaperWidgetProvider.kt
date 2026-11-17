@@ -598,3 +598,41 @@ class InkPaperReviewListFactory(
 
     override fun hasStableIds(): Boolean = false
 }
+
+/// 全部桌面组件的登记表。
+///
+/// 快照一变就得把它们整体重绘一遍：漏掉哪一个，那个组件就会停在「上次被添加 /
+/// 上次开机」那一刻的画面。统计组件最容易露馅——数据明明写进快照了，桌面上还是
+/// 一片空白，因为从来没人通知它重画。
+///
+/// 新增组件时**必须**在这里补一行；只在 AndroidManifest 里注册是不够的，
+/// manifest 决定「能不能被添加到桌面」，这张表决定「添加之后会不会跟着数据更新」。
+internal val inkPaperWidgetProviders: List<Class<out BaseInkPaperWidgetProvider>> = listOf(
+    InkPaperQuickNoteWidgetProvider::class.java,
+    InkPaperRandomReviewWidgetProvider::class.java,
+    InkPaperRandomReviewCompactWidgetProvider::class.java,
+    InkPaperRandomReviewLargeWidgetProvider::class.java,
+    InkPaperPinnedWidgetProvider::class.java,
+    InkPaperPinnedCompactWidgetProvider::class.java,
+    InkPaperWeekStatsWidgetProvider::class.java,
+    InkPaperWeekTrendWidgetProvider::class.java,
+    InkPaperMonthStatsWidgetProvider::class.java,
+    InkPaperMonthTrendWidgetProvider::class.java,
+    InkPaperQuickEntryWidgetProvider::class.java,
+    InkPaperQuickRecordWidgetProvider::class.java,
+    InkPaperQuickRecordBarWidgetProvider::class.java,
+)
+
+/// 快照更新后重绘所有桌面组件。桌面上没有实例的组件直接跳过，不发无谓广播。
+internal fun updateAllInkPaperWidgets(context: Context) {
+    val manager = AppWidgetManager.getInstance(context)
+    for (provider in inkPaperWidgetProviders) {
+        val ids = manager.getAppWidgetIds(ComponentName(context, provider))
+        if (ids.isEmpty()) continue
+        val intent = Intent(context, provider).apply {
+            action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+        }
+        context.sendBroadcast(intent)
+    }
+}

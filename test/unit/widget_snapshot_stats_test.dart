@@ -66,7 +66,7 @@ void main() {
       expect(week['total'], 3);
     });
 
-    test('WS-S03 月统计的格子数等于当月天数，并带上 1 号是周几', () {
+    test('WS-S03 月统计的格子数等于当月天数，并带上 1 号是周几与今天的位置', () {
       final now = DateTime.now();
       final snapshot = build(<Note>[]);
       final month = asMap(asMap(snapshot['stats'])['month']);
@@ -76,6 +76,8 @@ void main() {
         DateTime(now.year, now.month + 1, 0).day,
       );
       expect(month['firstWeekday'], DateTime(now.year, now.month).weekday);
+      // 月格子墙是顺序铺的，今天那格要能描边，所以必须带出今天的下标。
+      expect(month['todayIndex'], now.day - 1);
     });
 
     test('WS-S04 月统计能把不同日期的笔记分到各自格子', () {

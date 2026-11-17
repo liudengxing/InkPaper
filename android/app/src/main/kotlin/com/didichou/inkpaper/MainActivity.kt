@@ -2,10 +2,8 @@ package com.didichou.inkpaper
 
 import android.app.AlarmManager
 import android.app.PendingIntent
-import android.appwidget.AppWidgetManager
 import android.content.ActivityNotFoundException
 import android.content.ClipData
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -307,24 +305,11 @@ class MainActivity: FlutterActivity() {
                 .putString(key, snapshot)
                 .apply()
 
-            notifyWidgetProvider(InkPaperQuickNoteWidgetProvider::class.java)
-            notifyWidgetProvider(InkPaperRandomReviewWidgetProvider::class.java)
-            notifyWidgetProvider(InkPaperRandomReviewCompactWidgetProvider::class.java)
+            // 之前这里只通知了快速记录与随机回顾，统计、置顶、快捷入口几个组件
+            // 收不到消息，快照里的数据永远送不到桌面——月统计看起来就是一片空白。
+            updateAllInkPaperWidgets(this)
         } catch (e: Exception) {
             ReleaseLog.e("MainActivity", "❌ 保存小组件快照失败: ${e.message}")
-        }
-    }
-
-    private fun notifyWidgetProvider(providerClass: Class<*>) {
-        val appWidgetManager = AppWidgetManager.getInstance(this)
-        val componentName = ComponentName(this, providerClass)
-        val widgetIds = appWidgetManager.getAppWidgetIds(componentName)
-        if (widgetIds.isNotEmpty()) {
-            val updateIntent = Intent(this, providerClass).apply {
-                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds)
-            }
-            sendBroadcast(updateIntent)
         }
     }
     

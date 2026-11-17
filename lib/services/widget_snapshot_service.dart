@@ -210,6 +210,8 @@ abstract final class WidgetSnapshotService {
         'month': <String, Object?>{
           'days': monthDays,
           'total': monthDays.fold<int>(0, (sum, count) => sum + count),
+          // 月格子墙是顺序铺的，今天的格子就是「几号 - 1」，原生那边直接描边。
+          'todayIndex': now.day - 1,
           'firstWeekday': monthStart.weekday,
         },
       },

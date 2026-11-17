@@ -469,7 +469,7 @@ class _HelpScreenState extends State<HelpScreen> {
 
   String _gettingStartedOverview() => _helpText(
         zh: '''
-InkPaper-墨鸣笔记是一款面向 Memos 用户的 Android 笔记应用。它保留 Memos 的开放数据结构，同时强化移动端记录、离线发布、图片查看、标签整理、WebDAV 备份和 AI 辅助能力。
+InkPaper 是一款面向 Memos 用户的 Android 笔记应用。它保留 Memos 的开放数据结构，同时强化移动端记录、离线发布、图片查看、标签整理、WebDAV 备份和 AI 辅助能力。
 
 ### 当前核心能力
 - **快速记录**：主页直接创建、编辑、删除和搜索笔记

@@ -2272,7 +2272,7 @@ class ShareUtils {
       await Share.shareXFiles(
         [XFile(file.path)],
         text:
-            '📝 来自墨鸣笔记的分享\n\n${content.length > 100 ? '${content.substring(0, 100)}...' : content}',
+            '📝 来自 InkPaper 的分享\n\n${content.length > 100 ? '${content.substring(0, 100)}...' : content}',
       );
 
       return true;

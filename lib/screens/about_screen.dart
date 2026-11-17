@@ -84,7 +84,7 @@ class AboutScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     AppLocalizationsSimple.of(context)?.appIntroduction ??
-                        'InkPaper-墨鸣笔记是一款面向个人记录与知识沉淀的 Android 笔记应用。它保留轻量记录的速度，也提供标签、搜索、回顾、备份和同步能力，让零散内容逐步沉淀成可回看的资料库。',
+                        'InkPaper 是一款面向个人记录与知识沉淀的 Android 笔记应用。它保留轻量记录的速度，也提供标签、搜索、回顾、备份和同步能力，让零散内容逐步沉淀成可回看的资料库。',
                     style: const TextStyle(
                       fontSize: 15,
                       height: 1.6,

@@ -1,6 +1,6 @@
 # 小纸 InkPaper 架构解析与架构图
 
-> 分析对象：`InkPaper` 仓库（Flutter 包名 `inkpaper`，应用名「小纸」/「InkPaper-墨鸣笔记」，v1.1.13+10113）
+> 分析对象：`InkPaper` 仓库（Flutter 包名 `inkpaper`，应用名 `InkPaper`，v1.1.13+10113）
 > 分析方法：对仓库做**只读静态分析**（源码阅读 + 依赖关系提取 + 构建/清单核对），不修改任何业务代码
 > 分析时间：2026-10 · 分析范围：`lib/` 162 个 Dart 文件、`android/` 4 个 Kotlin 文件、平台工程、CI 工作流
 
@@ -26,7 +26,7 @@
 
 | 项 | 值 | 出处 |
 |---|---|---|
-| 产品名 | 小纸（InkPaper），应用内标题 `InkPaper-墨鸣笔记` | `README.md:1`、`lib/main.dart:685` |
+| 产品名 | 小纸（InkPaper），应用内标题 `InkPaper` | `README.md:1`、`lib/main.dart:685` |
 | Flutter 包名 | `inkpaper` | `pubspec.yaml:1` |
 | Android applicationId / namespace | `com.didichou.inkpaper` | `android/app/build.gradle:33,52` |
 | 版本 | `1.1.13+10113`（单一真源） | `pubspec.yaml:6` |

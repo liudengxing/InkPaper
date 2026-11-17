@@ -2321,9 +2321,9 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
   // 分享文件到系统文件应用
   Future<void> _shareToFilesApp(String fileName, Uint8List fileBytes) async {
     final l10n = AppLocalizationsSimple.of(context);
-    final backupShareSubject = l10n?.backupShareSubject ?? 'InkPaper-墨鸣笔记备份';
+    final backupShareSubject = l10n?.backupShareSubject ?? 'InkPaper 备份';
     final backupShareText =
-        l10n?.backupShareText(fileName) ?? '墨鸣笔记导出备份：$fileName';
+        l10n?.backupShareText(fileName) ?? 'InkPaper 导出备份：$fileName';
     final fileSharedToSave =
         l10n?.fileSharedToSave ?? '文件已通过分享发送，您可以选择保存到文件管理器';
     final shareFailed = l10n?.shareFailed ?? '分享失败';

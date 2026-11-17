@@ -1748,9 +1748,9 @@ class Translations {
       'zh': '保存到应用目录失败',
       'en': 'Failed to save to app directory',
     },
-    'backupShareSubject': {'zh': 'InkPaper-墨鸣笔记备份', 'en': 'InkPaper Backup'},
+    'backupShareSubject': {'zh': 'InkPaper 备份', 'en': 'InkPaper Backup'},
     'backupShareText': {
-      'zh': '墨鸣笔记导出备份：{fileName}',
+      'zh': 'InkPaper 导出备份：{fileName}',
       'en': 'InkPaper backup export: {fileName}',
     },
     'fileSharedToSave': {

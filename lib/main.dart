@@ -755,7 +755,9 @@ class _MyAppState extends State<MyApp> {
               key: ValueKey(
                 'app_${themeSelection}_$locale',
               ), // 主题和语言需要重建；字体缩放交给MediaQuery局部生效，避免路由树抖动
-              title: 'InkPaper-墨鸣笔记',
+              // 这个标题会成为 Android 最近任务（后台卡片）里显示的应用名，
+              // 必须是纯品牌名，不要再拼任何中文别名后缀。
+              title: Config.AppConfig.appName,
               themeMode: appThemeMode,
               theme: theme,
               darkTheme: darkTheme,

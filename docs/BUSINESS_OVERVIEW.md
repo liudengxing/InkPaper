@@ -8,7 +8,7 @@
 
 ## 1. 产品一句话
 
-**InkPaper（墨鸣笔记）**：本地优先的笔记应用。核心是「纯文本 + Markdown + 本地图片」的快速记录，可选连自己的 Memos 服务器做多端同步；AI 侧提供「问笔记」（拿全库笔记当资料对话）与「周/月回顾」（AI 总结近期笔记）。
+**InkPaper**：本地优先的笔记应用。核心是「纯文本 + Markdown + 本地图片」的快速记录，可选连自己的 Memos 服务器做多端同步；AI 侧提供「问笔记」（拿全库笔记当资料对话）与「周/月回顾」（AI 总结近期笔记）。
 
 - 平台范围：只做 Android（仓库内只有 `android/` 一个平台工程），全部迭代在真机
 - 数据主权：默认不登录也能用，全部数据在本机 `notes.db`；登录 Memos 后才双向同步
@@ -206,7 +206,7 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
 | 项 | 值 |
 | --- | --- |
 | 包名 / applicationId | `com.didichou.inkpaper` |
-| 展示名 | `InkPaper` / 全称 `InkPaper-墨鸣笔记` |
+| 展示名 | `InkPaper` |
 | 深链 | `inkpaper://`（分享回传 `inkpaper://share`） |
 | 数据库 | `notes.db`，schema v12，视图 `active_notes` |
 | 默认 WebDAV 路径 | `/InkPaper/` |

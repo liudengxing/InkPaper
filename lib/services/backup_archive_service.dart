@@ -445,7 +445,7 @@ class BackupArchiveService {
       ..writeln('<!DOCTYPE html>')
       ..writeln('<html lang="zh"><head>')
       ..writeln('<meta charset="UTF-8">')
-      ..writeln('<title>InkPaper-墨鸣笔记备份</title>')
+      ..writeln('<title>InkPaper 备份</title>')
       ..writeln('<style>')
       ..writeln(
         'body { font-family: -apple-system, "PingFang SC", Arial, sans-serif;'
@@ -472,7 +472,7 @@ class BackupArchiveService {
       )
       ..writeln('</style>')
       ..writeln('</head><body>')
-      ..writeln('<h1>InkPaper-墨鸣笔记备份</h1>')
+      ..writeln('<h1>InkPaper 备份</h1>')
       ..writeln('<p>导出时间: ${formatter.format(exportedAt)}</p>')
       ..writeln('<p>笔记总数: ${notes.length}</p>');
 

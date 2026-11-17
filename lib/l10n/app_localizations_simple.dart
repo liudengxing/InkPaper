@@ -1964,9 +1964,9 @@ class AppLocalizationsSimple {
   String get saveToAppDirectoryFailed =>
       _t('saveToAppDirectoryFailed', fallback: '保存到应用目录失败');
   String get backupShareSubject =>
-      _t('backupShareSubject', fallback: 'InkPaper-墨鸣笔记备份');
+      _t('backupShareSubject', fallback: 'InkPaper 备份');
   String backupShareText(String fileName) =>
-      _t('backupShareText', fallback: '墨鸣笔记导出备份：{fileName}')
+      _t('backupShareText', fallback: 'InkPaper 导出备份：{fileName}')
           .replaceAll('{fileName}', fileName);
   String get fileSharedToSave =>
       _t('fileSharedToSave', fallback: '文件已通过分享发送，您可以选择保存到文件管理器');

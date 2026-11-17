@@ -23,6 +23,10 @@ class WeReadNoteBuilder {
   /// 「读完档案」笔记的 id 前缀。
   static const String finishedIdPrefix = 'local_wr_fin_';
 
+  /// 「周报 / 月报」笔记的 id 前缀：一个自然周期只生成一条。
+  static const String weeklyIdPrefix = 'local_wr_week_';
+  static const String monthlyIdPrefix = 'local_wr_month_';
+
   static String bookmarkNoteId(String bookmarkId) =>
       '$bookmarkIdPrefix$bookmarkId';
 
@@ -31,11 +35,22 @@ class WeReadNoteBuilder {
   /// 一本书的读完档案笔记 id。一本书只会有一条，重复同步靠它去重。
   static String finishedNoteId(String bookId) => '$finishedIdPrefix$bookId';
 
+  /// 某一自然周的周报笔记 id，如 `local_wr_week_20261110`。
+  static String weeklyNoteId(DateTime weekStart) =>
+      '$weeklyIdPrefix${weekStart.year}'
+      '${_two(weekStart.month)}${_two(weekStart.day)}';
+
+  /// 某一自然月的月报笔记 id，如 `local_wr_month_202610`。
+  static String monthlyNoteId(DateTime monthStart) =>
+      '$monthlyIdPrefix${monthStart.year}${_two(monthStart.month)}';
+
   /// 判断一个笔记 id 是不是微信读书同步生成的。
   static bool isWeReadNoteId(String noteId) =>
       noteId.startsWith(bookmarkIdPrefix) ||
       noteId.startsWith(reviewIdPrefix) ||
-      noteId.startsWith(finishedIdPrefix);
+      noteId.startsWith(finishedIdPrefix) ||
+      noteId.startsWith(weeklyIdPrefix) ||
+      noteId.startsWith(monthlyIdPrefix);
 
   /// 「读完档案」→ 笔记。
   ///
@@ -97,6 +112,81 @@ class WeReadNoteBuilder {
 
   /// 读完那一刻的标签，和书名标签一起用可以只看读完的书。
   static const String finishedTag = '读完';
+
+  /// 周报 / 月报的标签，点标签就能连着看每一期的阅读回顾。
+  static const String weeklyTag = '周报';
+  static const String monthlyTag = '月报';
+
+  /// 周报 / 月报 → 笔记。
+  ///
+  /// 阅读时长为 0 的周期直接返回 null：用户那一周根本没打开书，生成一条
+  /// 「读了 0 分钟」的空笔记只是噪音。id 由周期起点确定性生成，同一期重复
+  /// 同步天然命中去重。
+  Note? buildPeriodNote({
+    required bool weekly,
+    required WeReadPeriodStats stats,
+  }) {
+    if (stats.isEmpty) {
+      return null;
+    }
+
+    final endDay = stats.end.subtract(const Duration(days: 1));
+    final headline = weekly
+        ? '${_formatMonthDay(stats.start)} ~ ${_formatMonthDay(endDay)} 的阅读回顾'
+        : '${stats.start.year} 年 ${stats.start.month} 月阅读回顾';
+
+    final parts = <String>[headline, _periodBullets(stats)];
+    if (stats.books.isNotEmpty) {
+      final top = stats.books.take(5).map((book) {
+        final duration = formatReadingDuration(book.readTime);
+        final title = book.title.trim();
+        final author = book.author.trim();
+        final name = author.isEmpty ? '《$title》' : '《$title》（$author）';
+        return duration.isEmpty ? '- $name' : '- $name $duration';
+      }).join('\n');
+      parts.add('**读得最多**\n$top');
+    }
+    parts.add(weekly ? '—— 微信读书 · 每周回顾' : '—— 微信读书 · 每月回顾');
+
+    final tag = weekly ? weeklyTag : monthlyTag;
+    final content = '${parts.join('\n\n')}\n\n#$sourceTag #$tag';
+    final id = weekly ? weeklyNoteId(stats.start) : monthlyNoteId(stats.start);
+    // 笔记时间落在周期最后一刻：首页按时间排序时，回顾正好排在那一周/月之后。
+    final time = stats.end.subtract(const Duration(seconds: 1));
+    return Note(
+      id: id,
+      content: content,
+      tags: Note.extractTagsFromContent(content),
+      createdAt: time,
+      updatedAt: time,
+    );
+  }
+
+  /// 回顾笔记的统计条目：时长、有效阅读天数、读过/读完/笔记数。
+  ///
+  /// `/readdata/detail` 的 `readStat` 文案本身就是「12本」「30条」，直接
+  /// 用它的写法，不要自己再拼单位。`阅读` 也是天数（和 readDays 重复），略过。
+  String _periodBullets(WeReadPeriodStats stats) {
+    final lines = <String>[
+      '- 阅读时长：${formatReadingDuration(stats.totalReadTime)}',
+    ];
+    if (stats.readDays > 0) {
+      lines.add('- 有效阅读：${stats.readDays} 天');
+    }
+    final counts = <String>[
+      if (stats.stats['读过'] != null) '读过 ${stats.stats['读过']}',
+      if (stats.stats['读完'] != null) '读完 ${stats.stats['读完']}',
+      if (stats.stats['笔记'] != null) '笔记 ${stats.stats['笔记']}',
+    ];
+    if (counts.isNotEmpty) {
+      lines.add('- ${counts.join(' · ')}');
+    }
+    return lines.join('\n');
+  }
+
+  /// `MM-DD`，回顾标题里用，跨年也不会产生歧义（标题带年份的是月报）。
+  static String _formatMonthDay(DateTime time) =>
+      '${_two(time.month)}-${_two(time.day)}';
 
   String _finishedHeadline(String title, String author) {
     final cleanTitle = title.trim();

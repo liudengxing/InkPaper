@@ -17,6 +17,9 @@ enum WeReadSyncPhase {
 
   /// 逐本查阅读进度，给读完的书建档案笔记。
   finished,
+
+  /// 拉上一周 / 上个月的阅读统计，生成回顾笔记。
+  periodReview,
 }
 
 /// 同步进度（界面用它画「正在拉取《xxx》3/12」）。
@@ -120,6 +123,19 @@ class _FinishedOutcome {
   final Map<String, int> missed;
 }
 
+/// 一轮「阅读回顾」的结果：待写入的笔记 + 推进后的水位。
+class _PeriodOutcome {
+  const _PeriodOutcome({required this.notes, this.week, this.month});
+
+  final List<Note> notes;
+
+  /// 已处理到的最新周（`YYYY-MM-DD`，周一），null 表示还没处理过。
+  final String? week;
+
+  /// 已处理到的最新月（`YYYY-MM`），null 表示还没处理过。
+  final String? month;
+}
+
 /// 微信读书 → InkPaper 的笔记同步。
 ///
 /// 幂等靠两条：① 笔记 id 由 bookmarkId / reviewId 确定性生成；② 写库前用
@@ -144,6 +160,7 @@ class WeReadSyncService {
   static const String _prefKeyLastImported = 'weread_last_imported';
   static const String _prefKeyLastFinished = 'weread_last_finished';
   static const String _prefKeyFinished = 'weread_sync_finished';
+  static const String _prefKeyPeriodReview = 'weread_period_review';
 
   final WeReadApiService _api;
   final DatabaseService _database;
@@ -176,6 +193,17 @@ class WeReadSyncService {
   Future<void> setFinishedSyncEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefKeyFinished, enabled);
+  }
+
+  /// 是否同步「每周 / 每月阅读回顾」（一周、一月各一条），默认开启。
+  Future<bool> isPeriodReviewEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_prefKeyPeriodReview) ?? true;
+  }
+
+  Future<void> setPeriodReviewEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefKeyPeriodReview, enabled);
   }
 
   Future<String?> getApiKey() => _preferences.getWeReadApiKey();
@@ -261,6 +289,7 @@ class WeReadSyncService {
     final state = await _readState();
     final watermarks = _readWatermarks(state);
     final finishedMiss = _readFinishedMiss(state);
+    final previousPeriods = _readPeriods(state);
     final now = DateTime.now();
 
     _api.apiKey = apiKey;
@@ -334,6 +363,22 @@ class WeReadSyncService {
         finishedMissed = {...finishedMiss, ...outcome.missed};
       }
 
+      // 第三阶段：每周 / 每月阅读回顾。统计接口失败只影响这一条，不回滚前面。
+      var periods = previousPeriods;
+      if (await isPeriodReviewEnabled()) {
+        final outcome = await _syncPeriodReports(
+          previous: previousPeriods,
+          failures: failures,
+          onProgress: onProgress,
+        );
+        candidates.addAll(outcome.notes);
+        periods = {
+          ...previousPeriods,
+          if (outcome.week != null) 'week': outcome.week!,
+          if (outcome.month != null) 'month': outcome.month!,
+        };
+      }
+
       final fresh = await _filterUnimported(candidates);
       final skippedDuplicates = candidates.length - fresh.length;
       if (fresh.isNotEmpty) {
@@ -343,11 +388,19 @@ class WeReadSyncService {
       await _saveState(
         watermarks: watermarks,
         finishedMiss: finishedMissed,
+        periods: periods,
         lastSyncAt: now,
       );
       final finishedImported = fresh
           .where(
             (note) => note.id.startsWith(WeReadNoteBuilder.finishedIdPrefix),
+          )
+          .length;
+      final periodImported = fresh
+          .where(
+            (note) =>
+                note.id.startsWith(WeReadNoteBuilder.weeklyIdPrefix) ||
+                note.id.startsWith(WeReadNoteBuilder.monthlyIdPrefix),
           )
           .length;
       final prefs = await SharedPreferences.getInstance();
@@ -362,6 +415,7 @@ class WeReadSyncService {
         skippedDuplicates: skippedDuplicates,
         finishedCandidates: finishedProbed,
         finishedImported: finishedImported,
+        periodImported: periodImported,
         failures: failures,
       );
       _logger.info(
@@ -372,6 +426,7 @@ class WeReadSyncService {
           'skipped': booksSkipped,
           'finishedProbed': finishedProbed,
           'finishedImported': result.finishedImported,
+          'periodImported': periodImported,
           'failures': failures.length,
         },
       );
@@ -407,6 +462,184 @@ class WeReadSyncService {
       return null;
     }
   }
+
+  /// 每周 / 每月阅读回顾：拉上一个已结束的自然周与自然月的统计，各建一条笔记。
+  ///
+  /// 触发时机不绑死「周一 0 点」，而是「这个周期结束后第一次同步」——用户
+  /// 周一没开 App，周三打开照样补上上周的回顾。断档多期时最多回溯 6 周 /
+  /// 3 个月，更早的不再补，避免一次同步打十几个统计请求。
+  ///
+  /// 阅读时长为 0 的周期不建笔记，但水位照常前进，下次不再重复查。
+  Future<_PeriodOutcome> _syncPeriodReports({
+    required Map<String, String> previous,
+    required List<String> failures,
+    void Function(WeReadSyncProgress progress)? onProgress,
+  }) async {
+    final now = DateTime.now();
+    final weekStarts = _pendingPeriods(
+      latest: _startOfWeek(now).subtract(const Duration(days: 7)),
+      lastProcessed: _parseDayKey(previous['week']),
+      next: (start) => DateTime(start.year, start.month, start.day + 7),
+      maxBacklog: 6,
+    );
+    final monthStarts = _pendingPeriods(
+      latest: DateTime(now.year, now.month - 1),
+      lastProcessed: _parseMonthKey(previous['month']),
+      next: (start) => DateTime(start.year, start.month + 1),
+      maxBacklog: 3,
+    );
+    if (weekStarts.isEmpty && monthStarts.isEmpty) {
+      return _PeriodOutcome(
+        notes: const [],
+        week: previous['week'],
+        month: previous['month'],
+      );
+    }
+
+    final existing = await existingNoteIds({
+      for (final start in weekStarts) WeReadNoteBuilder.weeklyNoteId(start),
+      for (final start in monthStarts) WeReadNoteBuilder.monthlyNoteId(start),
+    });
+
+    onProgress?.call(
+      const WeReadSyncProgress(
+        booksDone: 0,
+        booksTotal: 0,
+        phase: WeReadSyncPhase.periodReview,
+      ),
+    );
+
+    final notes = <Note>[];
+    var weekMark = previous['week'];
+    var monthMark = previous['month'];
+
+    for (final start in weekStarts) {
+      if (!existing.contains(WeReadNoteBuilder.weeklyNoteId(start))) {
+        try {
+          final stats = await _api.fetchPeriodStats(
+            mode: 'weekly',
+            baseTime: start,
+          );
+          final note = builder.buildPeriodNote(weekly: true, stats: stats);
+          if (note != null) {
+            notes.add(note);
+          }
+        } on WeReadUpgradeRequiredException {
+          rethrow;
+        } on Object catch (error) {
+          failures.add('阅读周报 $error');
+          _logger.warning(
+            '周报拉取失败',
+            data: {'period': _dayKey(start), 'error': '$error'},
+          );
+          break;
+        }
+      }
+      weekMark = _dayKey(start);
+    }
+
+    for (final start in monthStarts) {
+      if (!existing.contains(WeReadNoteBuilder.monthlyNoteId(start))) {
+        try {
+          final stats = await _api.fetchPeriodStats(
+            mode: 'monthly',
+            baseTime: start,
+          );
+          final note = builder.buildPeriodNote(weekly: false, stats: stats);
+          if (note != null) {
+            notes.add(note);
+          }
+        } on WeReadUpgradeRequiredException {
+          rethrow;
+        } on Object catch (error) {
+          failures.add('阅读月报 $error');
+          _logger.warning(
+            '月报拉取失败',
+            data: {'period': _monthKey(start), 'error': '$error'},
+          );
+          break;
+        }
+      }
+      monthMark = _monthKey(start);
+    }
+
+    _logger.info(
+      '阅读回顾完成',
+      data: {
+        'weeks': weekStarts.length,
+        'months': monthStarts.length,
+        'notes': notes.length,
+      },
+    );
+    return _PeriodOutcome(notes: notes, week: weekMark, month: monthMark);
+  }
+
+  /// 本周周一 00:00（本地时区）。服务端的 weekly 也按周一归一分桶。
+  static DateTime _startOfWeek(DateTime time) {
+    final day = DateTime(time.year, time.month, time.day);
+    return day.subtract(Duration(days: day.weekday - 1));
+  }
+
+  /// 从上次处理到的周期往后数，返回还没处理的周期（升序）。
+  ///
+  /// 没有水位记录时只取最近一期——新装/重置的用户不该一次性收到半年的回顾。
+  static List<DateTime> _pendingPeriods({
+    required DateTime latest,
+    required DateTime? lastProcessed,
+    required DateTime Function(DateTime start) next,
+    required int maxBacklog,
+  }) {
+    if (lastProcessed == null) {
+      return [latest];
+    }
+    if (!lastProcessed.isBefore(latest)) {
+      return const [];
+    }
+    final pending = <DateTime>[];
+    var cursor = next(lastProcessed);
+    while (!cursor.isAfter(latest) && pending.length < 400) {
+      pending.add(cursor);
+      cursor = next(cursor);
+    }
+    if (pending.length <= maxBacklog) {
+      return pending;
+    }
+    return pending.sublist(pending.length - maxBacklog);
+  }
+
+  static String _dayKey(DateTime time) =>
+      '${time.year}-${_two(time.month)}-${_two(time.day)}';
+
+  static String _monthKey(DateTime time) => '${time.year}-${_two(time.month)}';
+
+  static DateTime? _parseDayKey(String? raw) {
+    final parts = (raw ?? '').split('-');
+    if (parts.length != 3) {
+      return null;
+    }
+    final year = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final day = int.tryParse(parts[2]);
+    if (year == null || month == null || day == null) {
+      return null;
+    }
+    return DateTime(year, month, day);
+  }
+
+  static DateTime? _parseMonthKey(String? raw) {
+    final parts = (raw ?? '').split('-');
+    if (parts.length != 2) {
+      return null;
+    }
+    final year = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    if (year == null || month == null) {
+      return null;
+    }
+    return DateTime(year, month);
+  }
+
+  static String _two(int value) => value.toString().padLeft(2, '0');
 
   /// 读完档案阶段：候选 → 去重 → 逐本查进度 → 建笔记。
   ///
@@ -660,19 +893,37 @@ class WeReadSyncService {
     return result;
   }
 
+  /// 已处理到的周 / 月水位：`{week: '2026-11-10', month: '2026-10'}`。
+  Map<String, String> _readPeriods(Map<String, dynamic> state) {
+    final raw = state['periods'];
+    if (raw is! Map) {
+      return {};
+    }
+    final result = <String, String>{};
+    raw.forEach((key, value) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty) {
+        result[key.toString()] = text;
+      }
+    });
+    return result;
+  }
+
   Future<void> _saveState({
     required Map<String, _BookWatermark> watermarks,
     required Map<String, int> finishedMiss,
+    required Map<String, String> periods,
     required DateTime lastSyncAt,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final payload = <String, dynamic>{
-      'v': 2,
+      'v': 3,
       'lastSyncAt': lastSyncAt.millisecondsSinceEpoch,
       'books': {
         for (final entry in watermarks.entries) entry.key: entry.value.toJson(),
       },
       'finishedMiss': finishedMiss,
+      'periods': periods,
     };
     await prefs.setString(_prefKeyState, jsonEncode(payload));
   }

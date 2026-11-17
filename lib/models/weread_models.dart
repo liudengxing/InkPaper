@@ -302,6 +302,123 @@ class WeReadBookNotes {
   bool get isEmpty => highlights.isEmpty && reviews.isEmpty;
 }
 
+/// 一个统计周期里读得最多的一本书/一张专辑（`/readdata/detail` 的
+/// `readLongest` 一项）。电子书取 `book`，有声内容取 `albumInfo`。
+class WeReadPeriodBook {
+  const WeReadPeriodBook({
+    required this.title,
+    this.author = '',
+    this.readTime = 0,
+  });
+
+  factory WeReadPeriodBook.fromJson(Map<String, dynamic> json) {
+    final rawBook = json['book'];
+    final rawAlbum = json['albumInfo'];
+    final book = rawBook is Map ? Map<String, dynamic>.from(rawBook) : null;
+    final album = rawAlbum is Map ? Map<String, dynamic>.from(rawAlbum) : null;
+    // 电子书书名在 book.title，有声内容在 albumInfo.name。
+    final title = (book == null ? '' : _asString(book['title'])).trim();
+    final albumName = (album == null ? '' : _asString(album['name'])).trim();
+    final author = (book == null ? '' : _asString(book['author'])).trim();
+    final albumAuthor =
+        (album == null ? '' : _asString(album['author'])).trim();
+    return WeReadPeriodBook(
+      title: title.isNotEmpty ? title : albumName,
+      author: author.isNotEmpty ? author : albumAuthor,
+      readTime: _asInt(json['readTime']),
+    );
+  }
+
+  final String title;
+  final String author;
+
+  /// 该周期内在本书上的阅读/收听时长（秒）。
+  final int readTime;
+}
+
+/// 一个自然周期（周/月）的阅读统计，来自 `/readdata/detail`。
+///
+/// 注意：[totalReadTime] 的单位是**秒**，不是分钟；[readDays] 是「单日
+/// 阅读满 1 分钟」才算一天的有效阅读天数，不是自然日。
+class WeReadPeriodStats {
+  const WeReadPeriodStats({
+    required this.start,
+    required this.end,
+    required this.totalReadTime,
+    required this.readDays,
+    this.books = const [],
+    this.stats = const {},
+  });
+
+  factory WeReadPeriodStats.fromJson(
+    Map<String, dynamic> json, {
+    required DateTime start,
+    required DateTime end,
+  }) {
+    final books = <WeReadPeriodBook>[];
+    final rawBooks = json['readLongest'];
+    if (rawBooks is List) {
+      for (final raw in rawBooks) {
+        if (raw is! Map) {
+          continue;
+        }
+        final book = WeReadPeriodBook.fromJson(Map<String, dynamic>.from(raw));
+        if (book.title.isEmpty) {
+          continue;
+        }
+        books.add(book);
+      }
+    }
+    books.sort((a, b) => b.readTime.compareTo(a.readTime));
+
+    // readStat 形如 [{stat: '读过', counts: '12本'}, …]，直接收成「名称 → 文案」。
+    final stats = <String, String>{};
+    final rawStats = json['readStat'];
+    if (rawStats is List) {
+      for (final raw in rawStats) {
+        if (raw is! Map) {
+          continue;
+        }
+        final name = _asString(raw['stat']).trim();
+        final counts = _asString(raw['counts']).trim();
+        if (name.isNotEmpty && counts.isNotEmpty) {
+          stats[name] = counts;
+        }
+      }
+    }
+
+    return WeReadPeriodStats(
+      start: start,
+      end: end,
+      totalReadTime: _asInt(json['totalReadTime']),
+      readDays: _asInt(json['readDays']),
+      books: books,
+      stats: stats,
+    );
+  }
+
+  /// 周期起点（含）。
+  final DateTime start;
+
+  /// 周期终点（不含）。
+  final DateTime end;
+
+  /// 周期内阅读 + 收听总时长（秒）。
+  final int totalReadTime;
+
+  /// 有效阅读天数（单日满 1 分钟）。
+  final int readDays;
+
+  /// 读得最多的书/有声内容，按时长降序。
+  final List<WeReadPeriodBook> books;
+
+  /// 阅读统计摘要，如 `{读过: 12本, 读完: 2本, 笔记: 30条}`。
+  final Map<String, String> stats;
+
+  /// 时长为 0 就是这一期没读过，不生成回顾笔记。
+  bool get isEmpty => totalReadTime <= 0;
+}
+
 /// 一轮同步的统计结果。
 class WeReadSyncResult {
   const WeReadSyncResult({
@@ -312,6 +429,7 @@ class WeReadSyncResult {
     this.skippedDuplicates = 0,
     this.finishedCandidates = 0,
     this.finishedImported = 0,
+    this.periodImported = 0,
     this.failures = const [],
   });
 
@@ -336,18 +454,25 @@ class WeReadSyncResult {
   /// 新增的读完档案笔记数。
   final int finishedImported;
 
+  /// 新增的阅读周报/月报条数。
+  final int periodImported;
+
   /// 单本失败的书名与原因，不阻断整轮同步。
   final List<String> failures;
 
   bool get isEmpty => imported == 0 && skippedDuplicates == 0;
 
   String get summary {
-    final finishedHint = finishedImported > 0 ? '、$finishedImported 本读完档案' : '';
+    final hints = <String>[
+      if (finishedImported > 0) '$finishedImported 本读完档案',
+      if (periodImported > 0) '$periodImported 条阅读回顾',
+    ];
+    final extraHint = hints.isEmpty ? '' : '、${hints.join('、')}';
     if (imported > 0) {
-      return '新增 $imported 条笔记$finishedHint';
+      return '新增 $imported 条笔记$extraHint';
     }
-    if (finishedImported > 0) {
-      return '新增 $finishedImported 本读完档案';
+    if (hints.isNotEmpty) {
+      return '新增 ${hints.join('、')}';
     }
     if (skippedDuplicates > 0) {
       return '已是最新，$skippedDuplicates 条已导入过';

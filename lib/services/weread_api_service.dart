@@ -226,6 +226,30 @@ class WeReadApiService {
     return books;
   }
 
+  /// 拉某个自然周期的阅读统计（周报 / 月报）。
+  ///
+  /// `baseTime` 传周期内任一时间戳即可，服务端会归一到周一 00:00 或月初
+  /// 00:00。回包的 `totalReadTime` 单位是**秒**；`readDays` 只算「单日阅读满
+  /// 1 分钟」的天。周期终点由服务端回来的 `baseTime` 推出来（周 +7 天、
+  /// 月到下个月 1 日），这样服务端的归一口径和我们一致。
+  Future<WeReadPeriodStats> fetchPeriodStats({
+    required String mode,
+    required DateTime baseTime,
+  }) async {
+    final data = await _post('/readdata/detail', {
+      'mode': mode,
+      'baseTime': baseTime.millisecondsSinceEpoch ~/ 1000,
+    });
+    final normalized = _asInt(data['baseTime']);
+    final start = normalized > 0
+        ? DateTime.fromMillisecondsSinceEpoch(normalized * 1000)
+        : DateTime(baseTime.year, baseTime.month, baseTime.day);
+    final end = mode == 'weekly'
+        ? DateTime(start.year, start.month, start.day + 7)
+        : DateTime(start.year, start.month + 1);
+    return WeReadPeriodStats.fromJson(data, start: start, end: end);
+  }
+
   /// 拉取单本书的全部个人想法/点评。
   ///
   /// 参数名是 `bookid`（小写 d），和 `/book/bookmarklist` 的 `bookId` 不一致，

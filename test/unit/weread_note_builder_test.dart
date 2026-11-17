@@ -356,4 +356,93 @@ void main() {
       expect(WeReadNoteBuilder.formatReadingDuration(7260), '2 小时 1 分钟');
     });
   });
+
+  group('WP 阅读回顾', () {
+    WeReadPeriodStats statsOf({
+      required DateTime start,
+      required DateTime end,
+      int totalReadTime = 7560,
+      int readDays = 4,
+    }) =>
+        WeReadPeriodStats(
+          start: start,
+          end: end,
+          totalReadTime: totalReadTime,
+          readDays: readDays,
+          books: const [
+            WeReadPeriodBook(title: '长安的荔枝', author: '马伯庸', readTime: 4800),
+            WeReadPeriodBook(title: '深度工作', author: '纽波特', readTime: 2400),
+          ],
+          stats: const {'读过': '2本', '读完': '1本', '笔记': '12条'},
+        );
+
+    test('WP-01 周报：标题带区间、排行与标签', () {
+      final note = builder.buildPeriodNote(
+        weekly: true,
+        stats: statsOf(
+          start: DateTime(2026, 11, 9),
+          end: DateTime(2026, 11, 16),
+        ),
+      );
+
+      expect(note!.id, 'local_wr_week_20261109');
+      expect(note.content, contains('11-09 ~ 11-15 的阅读回顾'));
+      expect(note.content, contains('阅读时长：2 小时 6 分钟'));
+      expect(note.content, contains('有效阅读：4 天'));
+      expect(note.content, contains('读过 2本 · 读完 1本 · 笔记 12条'));
+      expect(note.content, contains('- 《长安的荔枝》（马伯庸） 1 小时 20 分钟'));
+      expect(note.content, contains('#周报'));
+      expect(note.tags, contains('周报'));
+      // 时间落在周期最后一刻，首页排序会排在那周之后。
+      expect(note.createdAt, DateTime(2026, 11, 15, 23, 59, 59));
+    });
+
+    test('WP-02 月报：标题带年月，标签是月报', () {
+      final note = builder.buildPeriodNote(
+        weekly: false,
+        stats: statsOf(
+          start: DateTime(2026, 10),
+          end: DateTime(2026, 11),
+        ),
+      );
+
+      expect(note!.id, 'local_wr_month_202610');
+      expect(note.content, contains('2026 年 10 月阅读回顾'));
+      expect(note.content, contains('#月报'));
+      expect(note.tags, contains('月报'));
+    });
+
+    test('WP-03 阅读时长为 0 不生成笔记', () {
+      final note = builder.buildPeriodNote(
+        weekly: true,
+        stats: statsOf(
+          start: DateTime(2026, 11, 9),
+          end: DateTime(2026, 11, 16),
+          totalReadTime: 0,
+        ),
+      );
+
+      expect(note, isNull);
+    });
+
+    test('WP-04 同一周期重复生成 id 稳定', () {
+      final first = builder.buildPeriodNote(
+        weekly: true,
+        stats: statsOf(
+          start: DateTime(2026, 11, 9),
+          end: DateTime(2026, 11, 16),
+        ),
+      );
+      final second = builder.buildPeriodNote(
+        weekly: true,
+        stats: statsOf(
+          start: DateTime(2026, 11, 9),
+          end: DateTime(2026, 11, 16),
+          totalReadTime: 600,
+        ),
+      );
+
+      expect(second!.id, first!.id);
+    });
+  });
 }

@@ -342,4 +342,103 @@ void main() {
       );
     });
   });
+
+  group('WA 阅读统计', () {
+    test('WA-12 readdata 传 mode 与 baseTime，回包解析成周期统计', () async {
+      final recorder = _Recorder();
+      final weekStart = DateTime(2026, 11, 9);
+      final api = WeReadApiService(
+        apiKey: 'wrk-test',
+        client: MockClient((request) async {
+          recorder.bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return _json({
+            'baseTime': weekStart.millisecondsSinceEpoch ~/ 1000,
+            'totalReadTime': 7200,
+            'readDays': 3,
+            'readLongest': [
+              {
+                'book': {'title': '长安的荔枝', 'author': '马伯庸'},
+                'readTime': 3600,
+              },
+              {
+                'albumInfo': {'name': '某有声专辑', 'author': '某主播'},
+                'readTime': 1200,
+              },
+              {
+                'book': {'title': '没读多久的书'},
+                'readTime': 60,
+              },
+            ],
+            'readStat': [
+              {'stat': '读过', 'counts': '2本'},
+              {'stat': '读完', 'counts': '1本'},
+              {'stat': '笔记', 'counts': '12条'},
+            ],
+          });
+        }),
+      );
+
+      final stats = await api.fetchPeriodStats(
+        mode: 'weekly',
+        baseTime: DateTime(2026, 11, 12, 9),
+      );
+
+      expect(recorder.last['api_name'], '/readdata/detail');
+      expect(recorder.last['mode'], 'weekly');
+      expect(
+        recorder.last['baseTime'],
+        DateTime(2026, 11, 12, 9).millisecondsSinceEpoch ~/ 1000,
+      );
+      expect(stats.start, weekStart);
+      expect(stats.end.difference(stats.start).inDays, 7);
+      expect(stats.totalReadTime, 7200);
+      expect(stats.readDays, 3);
+      expect(stats.books.first.title, '长安的荔枝');
+      expect(stats.books[1].title, '某有声专辑');
+      expect(stats.stats['读完'], '1本');
+      expect(stats.isEmpty, isFalse);
+    });
+
+    test('WA-13 月报终点是下个月 1 日，跨年也不会错位', () async {
+      final api = WeReadApiService(
+        apiKey: 'wrk-test',
+        client: MockClient(
+          (request) async => _json({
+            'baseTime': DateTime(2026, 12).millisecondsSinceEpoch ~/ 1000,
+            'totalReadTime': 600,
+            'readDays': 1,
+          }),
+        ),
+      );
+
+      final stats = await api.fetchPeriodStats(
+        mode: 'monthly',
+        baseTime: DateTime(2026, 12, 20),
+      );
+
+      expect(stats.start, DateTime(2026, 12));
+      expect(stats.end, DateTime(2027));
+    });
+
+    test('WA-14 时长为 0 视为空周期，不生成回顾', () async {
+      final api = WeReadApiService(
+        apiKey: 'wrk-test',
+        client: MockClient(
+          (request) async => _json({
+            'baseTime': DateTime(2026, 11, 9).millisecondsSinceEpoch ~/ 1000,
+            'totalReadTime': 0,
+            'readDays': 0,
+          }),
+        ),
+      );
+
+      final stats = await api.fetchPeriodStats(
+        mode: 'weekly',
+        baseTime: DateTime(2026, 11, 9),
+      );
+
+      expect(stats.isEmpty, isTrue);
+      expect(stats.books, isEmpty);
+    });
+  });
 }

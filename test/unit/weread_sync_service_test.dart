@@ -37,6 +37,7 @@ class _FakeApi extends WeReadApiService {
     this.details = const {},
     this.shelf = const [],
     this.progresses = const {},
+    this.periodHandler,
   });
 
   final List<WeReadNotebook> notebooks;
@@ -44,8 +45,13 @@ class _FakeApi extends WeReadApiService {
   final List<WeReadShelfBook> shelf;
   final Map<String, WeReadBookProgress> progresses;
 
+  /// 周期统计回包。不传时一律回「阅读 0 秒」，等价于这一期没读书。
+  final WeReadPeriodStats Function(String mode, DateTime baseTime)?
+      periodHandler;
+
   final List<String> detailRequests = [];
   final List<String> progressRequests = [];
+  final List<({String mode, DateTime baseTime})> periodRequests = [];
 
   @override
   Future<List<WeReadNotebook>> fetchNotebooks({
@@ -71,6 +77,27 @@ class _FakeApi extends WeReadApiService {
   Future<WeReadBookProgress?> fetchProgress(String bookId) async {
     progressRequests.add(bookId);
     return progresses[bookId];
+  }
+
+  @override
+  Future<WeReadPeriodStats> fetchPeriodStats({
+    required String mode,
+    required DateTime baseTime,
+  }) async {
+    periodRequests.add((mode: mode, baseTime: baseTime));
+    final end = mode == 'weekly'
+        ? DateTime(baseTime.year, baseTime.month, baseTime.day + 7)
+        : DateTime(baseTime.year, baseTime.month + 1);
+    final handler = periodHandler;
+    if (handler == null) {
+      return WeReadPeriodStats(
+        start: baseTime,
+        end: end,
+        totalReadTime: 0,
+        readDays: 0,
+      );
+    }
+    return handler(mode, baseTime);
   }
 }
 
@@ -546,6 +573,111 @@ void main() {
       ).sync(persist: (notes) async {});
 
       expect(api.progressRequests, isEmpty);
+    });
+  });
+
+  group('WS 阅读回顾', () {
+    /// 上个自然周的周一、上个自然月的 1 号 —— 与服务的口径一致。
+    DateTime lastWeekStart() {
+      final today = DateTime.now();
+      final monday = DateTime(today.year, today.month, today.day)
+          .subtract(Duration(days: today.weekday - 1));
+      return monday.subtract(const Duration(days: 7));
+    }
+
+    DateTime lastMonthStart() {
+      final today = DateTime.now();
+      return DateTime(today.year, today.month - 1);
+    }
+
+    WeReadPeriodStats statsOf(
+      String mode,
+      DateTime baseTime, {
+      required int totalReadTime,
+    }) {
+      final end = mode == 'weekly'
+          ? DateTime(baseTime.year, baseTime.month, baseTime.day + 7)
+          : DateTime(baseTime.year, baseTime.month + 1);
+      return WeReadPeriodStats(
+        start: baseTime,
+        end: end,
+        totalReadTime: totalReadTime,
+        readDays: totalReadTime > 0 ? 3 : 0,
+        books: totalReadTime > 0
+            ? const [
+                WeReadPeriodBook(title: '长安的荔枝', author: '马伯庸', readTime: 1800),
+              ]
+            : const [],
+        stats: totalReadTime > 0 ? const {'读过': '2本'} : const {},
+      );
+    }
+
+    test('WS-19 首次同步生成上周周报与上月月报', () async {
+      final api = _FakeApi(
+        periodHandler: (mode, baseTime) =>
+            statsOf(mode, baseTime, totalReadTime: 3600),
+      );
+
+      final written = <Note>[];
+      final result = await _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {},
+        api: api,
+      ).sync(persist: (notes) async => written.addAll(notes));
+
+      expect(api.periodRequests.map((r) => r.mode), ['weekly', 'monthly']);
+      expect(api.periodRequests.first.baseTime, lastWeekStart());
+      expect(api.periodRequests.last.baseTime, lastMonthStart());
+      expect(
+        written.map((note) => note.id),
+        [
+          WeReadNoteBuilder.weeklyNoteId(lastWeekStart()),
+          WeReadNoteBuilder.monthlyNoteId(lastMonthStart()),
+        ],
+      );
+      expect(result.periodImported, 2);
+      expect(result.summary, contains('2 条阅读回顾'));
+    });
+
+    test('WS-20 阅读时长为 0 不建笔记，但水位前进不再重复查', () async {
+      final api = _FakeApi(
+        periodHandler: (mode, baseTime) =>
+            statsOf(mode, baseTime, totalReadTime: 0),
+      );
+      final service = _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {},
+        api: api,
+      );
+
+      final written = <Note>[];
+      final first =
+          await service.sync(persist: (notes) async => written.addAll(notes));
+      expect(first.periodImported, 0);
+      expect(written, isEmpty);
+      expect(api.periodRequests, hasLength(2));
+
+      await service.sync(persist: (notes) async {});
+      // 水位已推到最新周期，第二次同步不再请求统计接口。
+      expect(api.periodRequests, hasLength(2));
+    });
+
+    test('WS-21 库里已有该期回顾时跳过请求，只推进水位', () async {
+      final weekId = WeReadNoteBuilder.weeklyNoteId(lastWeekStart());
+      final monthId = WeReadNoteBuilder.monthlyNoteId(lastMonthStart());
+      final api = _FakeApi(
+        periodHandler: (mode, baseTime) =>
+            statsOf(mode, baseTime, totalReadTime: 3600),
+      );
+
+      final result = await _TestSyncService(
+        apiKey: 'wrk-test',
+        existingIds: {weekId, monthId},
+        api: api,
+      ).sync(persist: (notes) async {});
+
+      expect(api.periodRequests, isEmpty);
+      expect(result.periodImported, 0);
     });
   });
 }

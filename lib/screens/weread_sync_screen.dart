@@ -33,6 +33,7 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
   bool _syncing = false;
   bool _autoSync = true;
   bool _syncFinished = true;
+  bool _periodReview = true;
 
   String? _keyError;
   String? _keySuccess;
@@ -60,6 +61,7 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
     final apiKey = await _service.getApiKey();
     final autoSync = await _service.isAutoSyncEnabled();
     final syncFinished = await _service.isFinishedSyncEnabled();
+    final periodReview = await _service.isPeriodReviewEnabled();
     final lastSyncAt = await _service.lastSyncAt();
     final tracked = await _service.trackedBookCount();
     final lastImported = await _service.lastImportedCount();
@@ -72,6 +74,7 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
       _apiKeyController.text = apiKey ?? '';
       _autoSync = autoSync;
       _syncFinished = syncFinished;
+      _periodReview = periodReview;
       _lastSyncAt = lastSyncAt;
       _trackedBooks = tracked;
       _lastImported = lastImported;
@@ -498,6 +501,28 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
               await _service.setFinishedSyncEnabled(value);
             },
           ),
+          Divider(height: 1, color: dividerColor),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _periodReview,
+            activeThumbColor: iconColor,
+            title: Text(
+              '同步每周和每月回顾',
+              style: TextStyle(
+                color: textColor,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            subtitle: Text(
+              '每周一整理上一周、每月 1 日整理上个月的阅读情况，各生成一条笔记',
+              style: TextStyle(color: secondaryTextColor, fontSize: 12.5),
+            ),
+            onChanged: (value) async {
+              setState(() => _periodReview = value);
+              await _service.setPeriodReviewEnabled(value);
+            },
+          ),
         ],
       ),
     );
@@ -629,6 +654,9 @@ class _WeReadSyncScreenState extends State<WeReadSyncScreen> {
   String _progressText() {
     final progress = _progress;
     final isFinishedPhase = progress?.phase == WeReadSyncPhase.finished;
+    if (progress?.phase == WeReadSyncPhase.periodReview) {
+      return '正在整理阅读回顾…';
+    }
     if (progress == null || progress.booksTotal == 0) {
       return isFinishedPhase ? '正在读取读完书籍…' : '正在拉取笔记本列表…';
     }

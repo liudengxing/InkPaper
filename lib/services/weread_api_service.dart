@@ -42,7 +42,9 @@ class WeReadApiService {
   static const String gatewayUrl = 'https://i.weread.qq.com/api/agent/gateway';
 
   /// 与服务端约定的 skill 版本，每次请求都要上报，用于服务端判断是否要升级。
-  static const String skillVersion = '1.0.5';
+  /// 服务端要求升级时会回 `upgrade_info`（含最新版本与下载地址），此时同步会
+  /// 整体失败——所以这里必须跟官方 skill 保持同版本（2026-11-17：1.0.5 → 1.0.6）。
+  static const String skillVersion = '1.0.6';
 
   /// 网络读取超时。网关正常在 1 秒内返回，25 秒足够兜住偶发慢请求。
   final Duration timeout;
@@ -355,12 +357,27 @@ class WeReadApiService {
 
     final upgradeInfo = data['upgrade_info'];
     if (upgradeInfo is Map) {
-      final message = upgradeInfo['message']?.toString();
-      throw WeReadUpgradeRequiredException(
-        message == null || message.isEmpty
-            ? '微信读书要求升级同步组件，请稍后再试'
-            : '微信读书要求升级同步组件：$message',
-      );
+      // 服务端要求升级同步组件时，回包里除了给人看的 message，还有版本号与
+      // 下载地址。全部透出来——只显示 message 的话用户看到「去 upgrade_url
+      // 下载」这种字样，却不知道地址是什么（2026-11-17 真机实测）。
+      final info = Map<String, dynamic>.from(upgradeInfo);
+      _logger.warning('微信读书要求升级同步组件', data: info);
+      final message = info['message']?.toString().trim() ?? '';
+      final latest = <String?>[
+        info['latest_version']?.toString(),
+        info['skill_version']?.toString(),
+        info['version']?.toString(),
+      ].firstWhere((v) => v != null && v.trim().isNotEmpty, orElse: () => null);
+      final url = <String?>[
+        info['upgrade_url']?.toString(),
+        info['url']?.toString(),
+      ].firstWhere((v) => v != null && v.trim().isNotEmpty, orElse: () => null);
+      final parts = <String>[
+        if (message.isEmpty) '微信读书要求升级同步组件' else message,
+        if (latest != null) '服务端版本 $latest',
+        if (url != null) '下载地址 $url',
+      ];
+      throw WeReadUpgradeRequiredException(parts.join('；'));
     }
 
     final errcode = _asInt(data['errcode']);

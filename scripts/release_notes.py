@@ -77,6 +77,9 @@ def split_categories(body: str) -> list[tuple[str, list[str]]]:
 
     for line in body.splitlines():
         stripped = line.strip()
+        # 版本之间的 `---` 分隔线会跟着正文一起被切进来，别当成条目
+        if re.fullmatch(r"[-*_]{3,}", stripped):
+            continue
         heading = re.fullmatch(r"###\s+(.+)", stripped)
         if heading:
             flush()

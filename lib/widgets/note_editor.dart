@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/screens/image_viewer_screen.dart';
 import 'package:inkpaper/services/ai_enhanced_service.dart';
 import 'package:inkpaper/services/draft_service.dart';
 import 'package:inkpaper/services/local_reference_service.dart';
@@ -2879,7 +2880,12 @@ class _NoteEditorState extends State<NoteEditor>
         // 那一格变淡。
         childWhenDragging: Opacity(
           opacity: 0.25,
-          child: _buildGridTile(image, index, showDelete: false),
+          child: _buildGridTile(
+            image,
+            index,
+            showDelete: false,
+            interactive: false,
+          ),
         ),
         feedback: Material(
           color: Colors.transparent,
@@ -2888,7 +2894,12 @@ class _NoteEditorState extends State<NoteEditor>
           child: SizedBox(
             width: tileSize,
             height: tileSize,
-            child: _buildGridTile(image, index, showDelete: false),
+            child: _buildGridTile(
+              image,
+              index,
+              showDelete: false,
+              interactive: false,
+            ),
           ),
         ),
         onDragStarted: () => setState(() {
@@ -2991,8 +3002,36 @@ class _NoteEditorState extends State<NoteEditor>
     int index, {
     bool showDelete = true,
     bool highlighted = false,
-  }) =>
-      DecoratedBox(
+    bool interactive = true,
+  }) {
+    // 点一下看大图。视频有独立的播放卡，这里不接管，否则会打开一个只能看
+    // 封面的图片查看器；下标按「过滤掉视频后的图片序列」算，与查看器翻页一致。
+    // 拖拽幽灵和占位拿不到点击，interactive:false 时连列表都不建——拖拽时
+    // 九个格子每帧重建，多余的列表分配会实打实吃掉帧率。
+    var viewerIndex = -1;
+    var viewerPaths = const <String>[];
+    if (interactive &&
+        !image.isVideo &&
+        _imageList.any((item) => identical(item, image))) {
+      viewerPaths = <String>[
+        for (final item in _imageList)
+          if (!item.isVideo) item.path,
+      ];
+      viewerIndex = <_ImageItem>[
+        for (final item in _imageList)
+          if (!item.isVideo) item,
+      ].indexWhere((item) => identical(item, image));
+    }
+
+    return GestureDetector(
+      onTap: viewerIndex < 0
+          ? null
+          : () => ImageViewerScreen.open(
+                context,
+                imagePaths: viewerPaths,
+                initialIndex: viewerIndex,
+              ),
+      child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
@@ -3037,7 +3076,9 @@ class _NoteEditorState extends State<NoteEditor>
             ],
           ),
         ),
-      );
+      ),
+    );
+  }
 
   /// 把第 [from] 张图片移动到第 [to] 个位置。
   ///

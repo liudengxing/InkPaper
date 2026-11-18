@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/screens/image_viewer_screen.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -408,6 +409,29 @@ void main() {
         find.descendant(of: imageSection, matching: find.byIcon(Icons.close)),
         findsNWidgets(3),
       );
+    });
+
+    testWidgets('FSG-06 点图片格子打开大图查看器，从被点的那张开始', (tester) async {
+      usePhoneCanvas(tester);
+      await openFullscreenEditor(tester, 3);
+
+      await tester.tap(find.byType(AnimatedSlide).last);
+      // 查看器有加载动画（无限转圈）与 180ms 解码定时器，pumpAndSettle 会卡死，
+      // 用定长 pump 越过淡入转场即可。
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 220));
+
+      final viewer =
+          tester.widget<ImageViewerScreen>(find.byType(ImageViewerScreen));
+      expect(viewer.imagePaths.length, 3, reason: '查看器要能左右翻这三张图');
+      expect(viewer.initialIndex, 2, reason: '点第三格就该从第三张开始');
+
+      // 关掉查看器，同时让内部的 550ms Live 播放定时器跑完，避免 pending timer
+      await tester.pump(const Duration(seconds: 1));
+      Navigator.of(tester.element(find.byType(ImageViewerScreen))).pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byType(ImageViewerScreen), findsNothing);
     });
   });
 }

@@ -63,8 +63,12 @@ dart tool/inkpaper.dart all            # 构建当前宿主可构建的全部 de
 
 ```bash
 dart tool/inkpaper.dart build android-debug
-adb install -r build/app/outputs/flutter-apk/app-debug.apk
+adb push build/app/outputs/flutter-apk/app-debug.apk /data/local/tmp/inkpaper.apk
+adb shell pm install -r -d /data/local/tmp/inkpaper.apk
 ```
+
+> 不要用 `adb install -r`：本机实测 streamed 安装会静默失败（返回 Success 但设备上还是旧包）。
+> `pm install -r -d` 里的 `-d` 允许降级安装，所以本地版本号比设备低也能覆盖。
 
 发布构建需要 `android/key.properties` 指向密钥库，缺少时 Gradle 会直接报错而不是静默降级：
 

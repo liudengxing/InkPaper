@@ -38,13 +38,15 @@ dart tool/inkpaper.dart build android-debug | android-release
 - 用户可见文案走 AppLocalizationsSimple 的 zh/en，不在 widget 里硬写中文。
 
 ## 真机（Android）
-- adb connect 192.168.0.108:35819（小米 HyperOS 23127PN0CC，1200×2670），命令里显式加 -s 192.168.0.108:35819。
-- 装机 install -r build/app/outputs/flutter-apk/app-release.apk；启停 am force-stop / am start -n com.didichou.inkpaper/.MainActivity。
+- 设备小米 HyperOS 23127PN0CC（1200×2670）。**无线调试端口每次开机都可能变**，先 `adb pair 192.168.0.108:<配对端口> <6位码>` 再 `adb connect 192.168.0.108:<主端口>`，后续命令显式加 `-s 192.168.0.108:<主端口>`。
+- 装机不要用 `adb install -r`（会静默失败）：`adb push ... /data/local/tmp/inkpaper.apk` + `adb shell pm install -r -d /data/local/tmp/inkpaper.apk`；启停 am force-stop / am start -n com.didichou.inkpaper/.MainActivity。
 - 截图用 shell screencap -p /sdcard/x.png 再 adb pull；不要用 exec-out 重定向（会破坏二进制）。
 - 该机 logcat 读不到内容，排查靠 dumpsys + 截图；release 包不可 run-as，读数据库/偏好设置要先装 debug 包。
 - 没有可用设备就明说「未真机验证」，不要假装验证过。
 
 ## 文档索引（需要时读，不要通读）
+- docs/development/LESSONS_LEARNED.md：**踩坑与经验（开工前扫一遍）**，症状 → 原因 → 处理
+- docs/development/troubleshooting.md：故障速查表（按症状一行一条）
 - docs/HANDOFF.md：现状、代码地图、未解决问题、新窗口 Prompt
 - docs/BUSINESS_OVERVIEW.md：业务流程、参数速查、真机调试参数
 - BLOCKERS.md：未解决 / 待决策（VOICE-001 / ORIENT-001 / PERF-IMG-001 / DOC-001）

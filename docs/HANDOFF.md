@@ -1,13 +1,14 @@
 # 交接文档（HANDOFF）
 
 > 面向「接着改代码的人 / 新开的 AI 窗口」。目标：读完这一篇就能开工，不用翻聊天记录。
-> 最后更新：2026-11-09 · 版本 `1.1.64+10160`
+> 最后更新：2026-11-19 · 版本 `1.1.117+10217`
 >
 > 配套文档：
+> - **`docs/development/LESSONS_LEARNED.md`** — 踩坑与经验（构建、时间戳、小组件、同步、发版），开工前先扫一遍
 > - **`docs/BUSINESS_OVERVIEW.md`** — 业务框架、13 条业务流程、参数速查、真机调试参数（改具体功能前必读）
 > - `PROGRESS.md` — 逐条工作记录（最新在最前）
 > - `BLOCKERS.md` — 未解决 / 待决策条目
-> - `CHANGELOG.md` — 对外发布日志（**目前落后，只到 1.1.13**）
+> - `CHANGELOG.md` — 对外发布日志（已跟到 1.1.117）
 
 ---
 
@@ -45,7 +46,8 @@ adb connect 192.168.0.108:<主端口>
 
 export MSYS_NO_PATHCONV=1        # Git Bash 必需，否则 /sdcard/x.png 被改写成 Windows 路径
 D="-s 192.168.0.108:<主端口>"
-adb $D install -r build/app/outputs/flutter-apk/app-release.apk
+adb $D push build/app/outputs/flutter-apk/app-release.apk /data/local/tmp/inkpaper.apk
+adb $D shell pm install -r -d /data/local/tmp/inkpaper.apk   # 不要用 install -r，streamed 安装会静默失败
 adb $D shell am force-stop com.didichou.inkpaper
 adb $D shell am start -n com.didichou.inkpaper/.MainActivity
 adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out 直接重定向（会破坏二进制）
@@ -153,13 +155,13 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 
 6. 相似笔记权重微调（基于真实使用体感，而不是单测分数）。
 7. 桌面小组件与提醒的真机回归（精确闹钟权限、厂商自启动白名单、13+ POST_NOTIFICATIONS）。
-8. 文档收尾：`CHANGELOG.md` 补齐或归档、`_backup/` 清理、`docs/README.md` 索引同步。
+8. 文档收尾：`CHANGELOG.md` 已补齐到 1.1.117、`docs/README.md` 索引已同步、踩坑经验已沉淀到 `docs/development/LESSONS_LEARNED.md`；剩下 `_backup/` 清理。
 
 ---
 
 ## 7. 硬性约定（新窗口必读）
 
-1. **改代码就升版本**：`pubspec.yaml` 的 `version: x.y.z+N`，patch +1、`N` 同步 +1（例：`1.1.62+10158` → `1.1.63+10159`），否则真机 `install -r` 会报 `INSTALL_FAILED_VERSION_DOWNGRADE`。
+1. **版本号只在推真机 / 发版时升**（2026-11-14 起的攒批约定）：平时改代码只本地 `git commit`，不动 `pubspec.yaml`、不装真机。用户说「推送到真机」或「推一版」时，才统一升版本（`version: x.y.z+N`，patch 与 `N` 同步 +1，例：`1.1.116+10216` → `1.1.117+10217`）+ 补 `CHANGELOG` + 一次装机。装机用 `pm install -r -d`，`-d` 允许降级，所以平时不升版本也不会撞 `INSTALL_FAILED_VERSION_DOWNGRADE`。
 2. **构建/测试只走 `dart tool/inkpaper.dart`**，不要手写零散 `flutter build`。
 3. **提交粒度**：一个连贯改动一个 commit；不相关模块（CI / 业务代码 / 文档）拆开提交；只 `git add` 本次涉及的文件（仓库长期有大量未提交改动）；信息用 Conventional Commits + 中文，如 `fix(voice): ...`。
 4. **不动 git config**，不用 `--amend` / `--force`，除非用户明确要求。
@@ -176,7 +178,7 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 
 ```text
 你在 InkPaper 仓库继续开发：F:\VibeCoding Project\InkPaper
-（Flutter 笔记应用，包名 com.didichou.inkpaper，深链 inkpaper://，当前版本见 pubspec.yaml，写作时 1.1.64+10160）
+（Flutter 笔记应用，包名 com.didichou.inkpaper，深链 inkpaper://，当前版本见 pubspec.yaml，写作时 1.1.117+10217）
 
 【这是个什么项目】
 本地优先的笔记应用：纯文本/Markdown + 本地图片，数据全在本机 notes.db（schema v12，查询一律走 active_notes 视图）；
@@ -194,7 +196,7 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 <要改什么 / 期望行为 / 验收标准；bug 附复现步骤与设备型号>
 
 【硬性约束】
-- 改任何代码后，pubspec.yaml 的 version patch +1、versionCode +1（1.1.62+10158 → 1.1.63+10159），否则真机覆盖安装会报 VERSION_DOWNGRADE。
+- 平时只本地 commit，不动版本号、不装真机；接到「推送到真机 / 推一版」才统一升版本（1.1.116+10216 → 1.1.117+10217），补 CHANGELOG，再装机。
 - 构建/测试只用 dart tool/inkpaper.dart（analyze / test / build android-debug / build android-release），不要手写零散 flutter 命令。
 - 最小改动：不顺手重构无关文件、不动公开 API、不引入新依赖（确实需要先说明理由）。
 - 不改数据契约：notes 表字段、rowStatus 语义、displayTime 的三种时间口径都别擅自动（见 BUSINESS_OVERVIEW §3）。
@@ -203,7 +205,7 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 
 【真机参数（Android）】
 - 设备：小米 14 / HyperOS 23127PN0CC，1200×2670。**无线调试端口每次关开都会变**，先 `adb pair IP:配对端口 6位码` 再 `adb connect IP:主端口`；命令里显式 -s。
-- 装机：adb -s … install -r build/app/outputs/flutter-apk/app-release.apk（release 需要 android/key.properties）。
+- 装机：adb -s … push <apk> /data/local/tmp/inkpaper.apk → adb -s … shell pm install -r -d /data/local/tmp/inkpaper.apk（不要用 install -r，会静默失败；release 需要 android/key.properties）。
 - 启停：adb -s … shell am force-stop com.didichou.inkpaper / am start -n com.didichou.inkpaper/.MainActivity。
 - 操作：adb -s … shell input tap X Y / input swipe X1 Y1 X2 Y2 120（坐标=设备像素）；精确坐标用 `uiautomator dump` 取 bounds，别拿截图手算。
 - 截图：adb -s … shell screencap -p /sdcard/x.png → adb -s … pull /sdcard/x.png 本地路径；不要用 exec-out 重定向（会破坏二进制）。Git Bash 必须先 `export MSYS_NO_PATHCONV=1`；**截图存 /sdcard/ 会进相册，验完删掉**。

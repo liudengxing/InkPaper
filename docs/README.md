@@ -22,9 +22,10 @@ This directory contains project documentation for users and maintainers.
 
 ## Development
 
+- **踩坑与经验 / Lessons Learned: [development/LESSONS_LEARNED.md](development/LESSONS_LEARNED.md)** —— 本项目真实踩过的坑，改代码前扫一眼能省几小时
 - [Project Structure and Build Guide](PROJECT_STRUCTURE_AND_BUILD.md)
 - [Debugging](development/debugging.md)
-- [Troubleshooting](development/troubleshooting.md)
+- [Troubleshooting 故障速查](development/troubleshooting.md)
 - [API Reference](api/README.md)
 - [API Reference Chinese](api/README.zh.md)
 

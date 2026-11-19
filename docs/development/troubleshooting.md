@@ -1,586 +1,133 @@
-# Troubleshooting Guide
+# 故障速查（Troubleshooting）
 
-Common issues and their solutions for InkPaper development.
-
----
-
-## 📋 Table of Contents
-
-- [Build Issues](#build-issues)
-- [Runtime Issues](#runtime-issues)
-- [Platform-Specific Issues](#platform-specific-issues)
-- [Dependency Issues](#dependency-issues)
-- [Database Issues](#database-issues)
-- [Network Issues](#network-issues)
-- [Performance Issues](#performance-issues)
+> 按症状查，一条一行。**详细原因与背景见 [踩坑与经验](LESSONS_LEARNED.md)**（`§` 是那里的章节号）。
+> 本页只保留本项目真实发生过的问题；通用 Flutter 报错请查 [Flutter 官方文档](https://docs.flutter.dev/) 或 Stack Overflow。
 
 ---
 
-## 🏗️ Build Issues
+## 构建 / 环境
 
-### Error: Flutter SDK not found
-
-**Problem**:
-```
-Flutter SDK not found. Define location with flutter.sdk in the local.properties file.
-```
-
-**Solution**:
-```bash
-# Check Flutter installation
-flutter doctor
-
-# Set Flutter SDK path (Android)
-# Create/edit android/local.properties
-flutter.sdk=/path/to/flutter
-
-# Windows example
-flutter.sdk=C:\\flutter
-```
-
-### Error: Gradle build failed
-
-**Problem**:
-```
-FAILURE: Build failed with an exception.
-```
-
-**Solutions**:
-```bash
-# 1. Clean build
-cd android
-./gradlew clean
-cd ..
-flutter clean
-flutter pub get
-
-# 2. Update Gradle wrapper
-cd android
-./gradlew wrapper --gradle-version 8.12
-cd ..
-
-# 3. Clear Gradle cache
-rm -rf ~/.gradle/caches/
-
-# 4. Check Java version
-java -version
-# Should be JDK 11 or 21
-```
-
-### Error: Duplicate class found
-
-**Problem**:
-```
-Duplicate class found in modules
-```
-
-**Solution**:
-```gradle
-// android/app/build.gradle
-// Add to dependencies
-configurations {
-    all {
-        exclude group: 'com.android.support', module: 'support-v4'
-    }
-}
-```
+| 症状 | 最可能原因 | 处理 |
+| --- | --- | --- |
+| Gradle `insufficient memory` / `Chunk::new` / Dart `Could not start thread DartWorker` | 矿机占满内存 | 提权跑 `F:/WaKuang/bin/pause-miner.bat`，构建完 `resume-miner.bat`（§1.1） |
+| `flutter test` 报 `Invalid WebSocket upgrade request` | 本地代理拦截 tester 的 WebSocket | `NO_PROXY=127.0.0.1,localhost no_proxy=...` 前缀跑测试（§1.2） |
+| CI `Android` job 红在下载 `gradle-8.14.3-all.zip` 504 | CDN 抖动 | 重跑 job，别改依赖（§1.3） |
+| 改了 Kotlin 只想验编译 | — | `cd android && ./gradlew :app:compileReleaseKotlin -x compileFlutterBuildRelease`（§1.4） |
+| `adb install -r` 说成功但版本没变 | streamed 安装静默失败 | 改 `adb push` + `pm install -r -d`（§1.5） |
+| `dart format` 说 0 changed，analyze 报尾随逗号 | 两个检查互不相干 | 补 `,` 后重跑 `dart tool/inkpaper.dart analyze`（§2.1） |
 
 ---
 
-## 🏃 Runtime Issues
+## 测试
 
-### Error: MissingPluginException
-
-**Problem**:
-```
-MissingPluginException(No implementation found for method...)
-```
-
-**Solutions**:
-```bash
-# 1. Hot restart (R) instead of hot reload (r)
-
-# 2. Full rebuild
-flutter clean
-flutter pub get
-flutter run
-
-# 3. Check plugin registration
-# android/app/src/main/AndroidManifest.xml
-```
-
-### Error: Null check operator used on null value
-
-**Problem**:
-```
-Null check operator used on a null value
-```
-
-**Solution**:
-```dart
-// Before (causes error)
-String value = nullableValue!;
-
-// After (safe)
-String value = nullableValue ?? 'default';
-
-// Or check first
-if (nullableValue != null) {
-  String value = nullableValue;
-}
-```
-
-### Error: RenderBox was not laid out
-
-**Problem**:
-```
-RenderBox was not laid out: RenderRepaintBoundary#xxxxx
-```
-
-**Solution**:
-```dart
-// Wrap in Expanded or Flexible
-Column(
-  children: [
-    Expanded(
-      child: ListView(...), // Now has bounded height
-    ),
-  ],
-)
-
-// Or give specific height
-SizedBox(
-  height: 300,
-  child: ListView(...),
-)
-```
+| 症状 | 最可能原因 | 处理 |
+| --- | --- | --- |
+| `pumpAndSettle timed out` | 页面有无限动画（查看器转圈） | 改定长 `pump(...)`（§2.5） |
+| `A Timer is still pending` | 组件里有兜底 `Future.delayed` | 测试末尾 `pump(Duration(seconds: 5))`（§2.5） |
+| 测试里构造中文响应体抛异常 | `http.Response(String)` 按 latin1 解码 | 用 `http.Response.bytes(utf8.encode(...), 200)`（§2.4） |
+| 玻璃组件在测试里长得不对 | 测试环境是 FakeGlass，无 Impeller | 只验结构，观感上真机（§2.6） |
 
 ---
 
-## 📱 Platform-Specific Issues
+## 运行 / UI
 
-### Android: App crashes on startup
-
-**Problem**: App crashes immediately after launch
-
-**Debug Steps**:
-```bash
-# View logcat
-adb logcat | grep -E "AndroidRuntime|flutter"
-
-# Common issues:
-# 1. Minimum SDK version too low
-# 2. Missing permissions
-# 3. ProGuard issues
-```
-
-**Solutions**:
-```gradle
-// android/app/build.gradle
-android {
-    defaultConfig {
-        minSdkVersion 23 // Check this
-    }
-}
-
-// If using ProGuard
-buildTypes {
-    release {
-        minifyEnabled false // Try disabling temporarily
-    }
-}
-```
-
-### Android: Permission denied errors
-
-**Problem**:
-```
-java.lang.SecurityException: Permission denied
-```
-
-**Solution**:
-Use the Android system photo picker, file picker, MediaStore, or app-specific
-storage APIs instead of broad external-storage access. Do not add
-legacy external storage flags or broad Android 13+ photo/video permissions for
-store builds unless the feature is policy-eligible and has a clear user-facing
-need.
+| 症状 | 最可能原因 | 处理 |
+| --- | --- | --- |
+| 详情页正文点不进编辑态 | 用了 `SelectableText` / `SelectionArea` | 正文必须 `Text.rich`（§5.1） |
+| 进编辑页闪一下 | 编辑页自定义了字号，与详情页不一致 | 共用 `AppTextStyles.bodyLarge(...)`（§5.3） |
+| 编辑页九宫格点图没反应 | `_buildGridTile` 缺 `onTap` | 走 `ImageViewerScreen.open`（§5.4） |
+| 撤销 SnackBar 样式改不动 | 视觉由玻璃层给，SnackBar 只是透明容器 | 改 `LiquidGlassLayer` 参数（§5.5） |
 
 ---
 
-## 📦 Dependency Issues
+## 时间显示
 
-### Error: Version solving failed
-
-**Problem**:
-```
-Because package_a depends on package_b ^1.0.0...
-version solving failed.
-```
-
-**Solutions**:
-```bash
-# 1. Update dependencies
-flutter pub upgrade
-
-# 2. Try overriding version
-# pubspec.yaml
-dependency_overrides:
-  package_b: ^2.0.0
-
-# 3. Check for incompatible constraints
-flutter pub deps
-```
-
-### Error: Package not found
-
-**Problem**:
-```
-Could not resolve package 'package_name'
-```
-
-**Solutions**:
-```bash
-# 1. Run pub get
-flutter pub get
-
-# 2. Clean and get
-flutter clean
-flutter pub get
-
-# 3. Check internet connection
-ping pub.dev
-
-# 4. Use VPN if pub.dev is blocked
-
-# 5. Try pub cache repair
-flutter pub cache repair
-```
+| 症状 | 最可能原因 | 处理 |
+| --- | --- | --- |
+| 时间比实际晚 8 小时 | 多调了一次 `toLocal()` | 删掉，按 `createdAt` 原值格式化（§3.1） |
+| 跨来源笔记排序在 8 小时窗口内错位 | 伪 UTC 的绝对时刻偏差，已知遗留问题 | 暂不修，动 `_parseTimestamp` 前先评估 WebDAV 冲突影响（§3.2） |
 
 ---
 
-## 🗄️ Database Issues
+## 备份 / 媒体
 
-### Error: Database is locked
-
-**Problem**:
-```
-SqliteException: database is locked
-```
-
-**Solution**:
-```dart
-// Use singleton pattern
-class DatabaseService {
-  static Database? _database;
-  static final _lock = Lock();
-  
-  Future<Database> get database async {
-    if (_database != null) return _database!;
-    
-    return await _lock.synchronized(() async {
-      if (_database != null) return _database!;
-      _database = await _initDatabase();
-      return _database!;
-    });
-  }
-}
-```
-
-### Error: Table doesn't exist
-
-**Problem**:
-```
-SqliteException: no such table: table_name
-```
-
-**Solutions**:
-```dart
-// 1. Check database version and migration
-@override
-Future<void> _onCreate(Database db, int version) async {
-  await db.execute('''
-    CREATE TABLE notes (
-      id TEXT PRIMARY KEY,
-      content TEXT,
-      createdAt INTEGER
-    )
-  ''');
-}
-
-// 2. For existing apps, use migration
-@override
-Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-  if (oldVersion < 2) {
-    await db.execute('CREATE TABLE new_table ...');
-  }
-}
-
-// 3. During development, delete and recreate database
-await deleteDatabase(path);
-```
-
-### Error: Column doesn't exist
-
-**Problem**:
-```
-SqliteException: no such column: new_column
-```
-
-**Solution**:
-```dart
-// Add migration
-Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-  if (oldVersion < 2) {
-    await db.execute('ALTER TABLE notes ADD COLUMN tags TEXT');
-  }
-}
-
-// Update version in openDatabase
-await openDatabase(
-  path,
-  version: 2, // Increment version
-  onCreate: _onCreate,
-  onUpgrade: _onUpgrade,
-);
-```
+| 症状 | 最可能原因 | 处理 |
+| --- | --- | --- |
+| WebDAV 上同一视频存了两份 | 流式哈希与整块哈希不一致 | 文件名必须用整块 sha1（§4.1） |
+| 备份大文件时 OOM | 整块 `read()` 进内存 | 只走 `writeFromFile` / `read2File`（§4.2） |
+| 服务端附件恢复后打不开 | `/o/r/<uid>` 无扩展名 | 用 resourceList 的 `filename` 补扩展名（§4.3） |
+| 本地 ZIP 备份漏东西 / OOM | 单段超 150MB 或合计超 200MB | 超限跳过并计数，别赌（§4.4） |
+| 视频被当成图片塞进 ZIP | `![alt](path)` 图片分支没排除视频 | 先过 `MediaPaths.isVideoMarkdown`（§4.4） |
+| GIF / HEIC 缩略图黑图或取错帧 | 没传 `frame: 0`；HEIC 没设 SRGB | 见 §4.5 |
+| 缩略图生成直接崩 | MethodChannel 被丢进 `compute()` | 只能在主 isolate 调（§4.5） |
+| Live 图插入后没有动态部分 | `pickMultiImage()` 带了 quality/maxWidth | 去掉这两个参数（§4.6） |
 
 ---
 
-## 🌐 Network Issues
+## Android 小组件
 
-### Error: Certificate verification failed
-
-**Problem**:
-```
-HandshakeException: Handshake error in client
-```
-
-**Solutions**:
-```dart
-// 1. Check server certificate is valid
-// 2. For self-signed certs in development ONLY:
-class MyHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback = 
-          (X509Certificate cert, String host, int port) => true;
-  }
-}
-
-// In main.dart (DEVELOPMENT ONLY)
-if (kDebugMode) {
-  HttpOverrides.global = MyHttpOverrides();
-}
-```
-
-### Error: Connection timeout
-
-**Problem**:
-```
-SocketException: OS Error: Connection timed out
-```
-
-**Solutions**:
-```dart
-// Increase timeout
-final response = await http
-    .get(uri)
-    .timeout(
-      Duration(seconds: 30),
-      onTimeout: () {
-        throw TimeoutException('Connection timed out');
-      },
-    );
-
-// Add retry logic
-Future<http.Response> _retryRequest(
-  Future<http.Response> Function() request,
-  {int maxRetries = 3}
-) async {
-  for (int i = 0; i < maxRetries; i++) {
-    try {
-      return await request();
-    } catch (e) {
-      if (i == maxRetries - 1) rethrow;
-      await Future.delayed(Duration(seconds: 2 * (i + 1)));
-    }
-  }
-  throw Exception('Max retries exceeded');
-}
-```
-
-### Error: 401 Unauthorized
-
-**Problem**: API returns 401 error
-
-**Solutions**:
-```dart
-// 1. Check token is being sent
-final response = await http.get(
-  uri,
-  headers: {
-    'Authorization': 'Bearer $token',
-  },
-);
-
-// 2. Check token hasn't expired
-if (response.statusCode == 401) {
-  // Refresh token or re-login
-  await refreshToken();
-  // Retry request
-}
-
-// 3. Verify token format is correct
-print('Token: $token'); // Debug
-```
+| 症状 | 最可能原因 | 处理 |
+| --- | --- | --- |
+| 改了布局/背景毫无变化 | launcher 缓存 | `am force-stop com.miui.home` 再按 HOME（§6.1） |
+| 新增的小组件不刷新 | 三处登记缺一处 | manifest + `inkPaperWidgetProviders` + `updateAllInkPaperWidgets()`（§6.2） |
+| 小组件整块空白 | 快照字段缺失（曾缺 `todayIndex`） | 先核对 `widget_snapshot_service.dart` 字段（§6.3） |
+| ListView 有深色背景块 | RemoteViews 缺透明属性 | 补 `cacheColorHint` / `listSelector`（§6.4） |
+| 截图看着有重影 | 缩放插值造成的假象 | NEAREST 放大原始像素再看（§6.5） |
 
 ---
 
-## ⚡ Performance Issues
+## 微信读书同步
 
-### Issue: Slow scrolling / janky animations
-
-**Problem**: UI stutters during scrolling
-
-**Solutions**:
-```dart
-// 1. Use const constructors
-const Text('Hello');
-
-// 2. Use RepaintBoundary
-ListView.builder(
-  itemBuilder: (context, index) {
-    return RepaintBoundary(
-      child: NoteCard(note: notes[index]),
-    );
-  },
-)
-
-// 3. Use AutomaticKeepAliveClientMixin for tabs
-class MyTabView extends StatefulWidget {
-  @override
-  _MyTabViewState createState() => _MyTabViewState();
-}
-
-class _MyTabViewState extends State<MyTabView>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
-  
-  @override
-  Widget build(BuildContext context) {
-    super.build(context); // Don't forget this!
-    return Container();
-  }
-}
-
-// 4. Optimize images
-CachedNetworkImage(
-  imageUrl: url,
-  memCacheWidth: 400, // Resize for display
-  fit: BoxFit.cover,
-)
-```
-
-### Issue: High memory usage
-
-**Problem**: App uses too much memory
-
-**Solutions**:
-```dart
-// 1. Dispose controllers
-@override
-void dispose() {
-  _controller.dispose();
-  _scrollController.dispose();
-  _subscription.cancel();
-  super.dispose();
-}
-
-// 2. Use ListView.builder instead of ListView
-// Bad
-ListView(children: notes.map((n) => NoteCard(n)).toList())
-
-// Good
-ListView.builder(
-  itemCount: notes.length,
-  itemBuilder: (context, i) => NoteCard(notes[i]),
-)
-
-// 3. Clear image cache periodically
-imageCache.clear();
-imageCache.clearLiveImages();
-```
-
-### Issue: Slow app startup
-
-**Problem**: App takes long to start
-
-**Solutions**:
-```dart
-// 1. Lazy load heavy resources
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: SplashScreen(), // Show splash immediately
-      onGenerateRoute: (settings) {
-        // Load heavy resources here
-      },
-    );
-  }
-}
-
-// 2. Initialize services asynchronously
-Future<void> _initServices() async {
-  await Future.wait([
-    DatabaseService().initialize(),
-    PreferencesService().initialize(),
-    // ... other services
-  ]);
-}
-
-// 3. Use deferred loading for large packages
-import 'package:large_package/large_package.dart' deferred as large;
-
-// Load when needed
-await large.loadLibrary();
-large.useFeature();
-```
+| 症状 | 最可能原因 | 处理 |
+| --- | --- | --- |
+| 分页永远停在第一页 | 业务参数被包进了 `params` | 平铺到 body 顶层（§7） |
+| 某接口一直报参数错 | `bookId` / `bookid` 大小写 | 按接口分别处理（§7） |
+| 整次同步失败 | `skill_version` 落后官方 | 按 `upgrade_info.upgrade_url` 升级后重试（§7） |
+| 读完的书没生成档案 | 用了 `markedStatus` / `finishReading` / `finish` | 只认 `getprogress` 的 `finishTime > 0`（§7） |
+| 用户删掉的微信读书笔记又回来了 | 去重没查软删行 | 走 `getExistingNoteIds`（§7） |
+| 周报时长差 60 倍 | `totalReadTime` 单位是秒 | 别当分钟用（§7） |
 
 ---
 
-## 🆘 Getting Help
+## 发版 / Git / 网络
 
-If you can't find a solution here:
-
-1. **Check Logs**: Always check Flutter logs first
-   ```bash
-   flutter logs
-   ```
-
-2. **Search Issues**: Look for similar issues
-   - [InkPaper Issues](https://github.com/liudengxing/InkPaper/issues)
-   - [Flutter Issues](https://github.com/flutter/flutter/issues)
-   - [Stack Overflow](https://stackoverflow.com/questions/tagged/flutter)
-
-3. **Ask for Help**:
-   - 📧 Email: rsbgbn@126.com
-   - 💬 [GitHub Discussions](https://github.com/liudengxing/InkPaper/discussions)
-   - 🐛 [Report Bug](https://github.com/liudengxing/InkPaper/issues/new)
-
-4. **Provide Information**:
-   - Flutter version (`flutter --version`)
-   - Error message and stack trace
-   - Steps to reproduce
-   - Android version and device model
-   - What you've tried
+| 症状 | 最可能原因 | 处理 |
+| --- | --- | --- |
+| `git push` 卡住或 502 | 代理形态变了 | 先探形态再选参数（§8.1） |
+| curl 报 `CRYPT_E_NO_REVOCATION_CHECK` | schannel 走 Watt Toolkit 反代 | 加 `--ssl-no-revoke` / `http.schannelCheckRevoke=false`（§8.1） |
+| Release 附件下载 0 字节 | 反代对大文件 GET 挂死 | 走 `https://ghfast.top/https://github.com/...`（§8.1） |
+| API 调用报路径不存在 | Git Bash 把 `/rate_limit` 改写了 | `MSYS_NO_PATHCONV=1`（§8.8） |
+| `release` 卡在 `git ls-remote` | 断网 | 本地打 tag + `push_tag.py`（§8.4） |
+| Gitee `PATCH /releases/{id}` 失败 | 只带了 `tag_name` 或只带了 `name` | 两个都带（§8.5） |
+| App 点检查更新 404 | Release 已建但 APK 还没传完 | 尽快补传，见 §8.5 的警告 |
+| Gitee 上 APK 一直没有 | 指望 CI 上传 | CI 速率不允许，必须本地 `--sync-gitee` / `release-gitee`（§8.6） |
+| 发版说明多出一条 `- ---` | 段落切分没去分隔线 | 见 §8.9 |
+| 想看 CI 失败原因但没 token | job logs 需要鉴权 | 读 Checks annotation（`scripts/ci_annotate.sh`，§8.10） |
 
 ---
+
+## 真机 / adb
+
+| 症状 | 最可能原因 | 处理 |
+| --- | --- | --- |
+| `adb connect` 被拒 | 端口变了 / 没配对 | 先 `adb pair`，端口未知就扫 30000–65535（§9） |
+| ping 不通但设备在线 | HyperOS 息屏丢 ICMP | 属正常，看 ARP 和 adb 状态（§9） |
+| `adb pull` 路径被改写 | MSYS 路径转换 | 本地路径写 `Z:/Temp/x.png`，或关掉转换（§9） |
+| `input text` 输入被吞 | 默认输入法是微信输入法插件 | 临时切搜狗 IME（§9） |
+| 按返回键直接退出了页面 | 键盘没弹时 keyevent 4 就是返回 | 别用它收键盘（§9） |
+| release 包读不到数据库 | 不可 `run-as` | 装 debug 包再查（§9） |
+
+---
+
+## 找不到答案时
+
+1. 先跑 `dart tool/inkpaper.dart doctor`，排除环境问题。
+2. 翻 [踩坑与经验](LESSONS_LEARNED.md) 对应章节，确认是不是已验证过的老问题。
+3. 查 [未决问题](../../BLOCKERS.md)，可能是已知未修的。
+4. 还没有就开 issue，附：Flutter 版本、完整报错、复现步骤、设备型号 / Android 版本。
 
 <div align="center">
 
-[Back to Development Docs](README.md) | [Debugging Guide](debugging.md)
+[返回文档索引](../README.md) · [踩坑与经验](LESSONS_LEARNED.md) · [调试指南](debugging.md)
 
 </div>

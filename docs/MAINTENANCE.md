@@ -7,7 +7,7 @@ This document describes the project workflow for versioning, checks, builds, and
 `pubspec.yaml` is the source of truth for the application version.
 
 ```yaml
-version: 1.1.13+10113
+version: 1.1.117+10217
 ```
 
 Do not duplicate the app version in platform files or Dart code. Flutter passes the version into the Android build metadata.
@@ -23,9 +23,9 @@ dart tool/inkpaper.dart verify --coverage
 dart tool/inkpaper.dart store-check
 dart tool/inkpaper.dart build android-debug
 dart tool/inkpaper.dart build android-release
-dart tool/inkpaper.dart release v1.1.13
-dart tool/inkpaper.dart release v1.1.13 --sync-gitee
-dart tool/inkpaper.dart release-gitee v1.1.13
+dart tool/inkpaper.dart release v1.1.117
+dart tool/inkpaper.dart release v1.1.117 --sync-gitee
+dart tool/inkpaper.dart release-gitee v1.1.117
 ```
 
 The project ships Android only. Builds need an Android SDK and JDK 17; no other
@@ -35,8 +35,13 @@ platform targets exist in the repository.
 that: it waits for CI to build the APK, then copies the artifact to the Gitee
 mirror (about half an hour; Ctrl-C and run `release-gitee` later if needed).
 The APK is not uploaded from CI because runners reach Gitee at roughly 10 KB/s.
-`release-gitee` needs Python 3 and reads the Gitee token from `GITEE_TOKEN` or
-`.git/gitee_token`.
+`release-gitee` needs Python 3 and resolves the Gitee token in this order:
+`GITEE_TOKEN` environment variable, Windows Credential Manager
+(`git:https://gitee.com`), then a local file. Never commit a token to the repo.
+
+GitHub-side operations (push fallback, CI status, release assets) are shared
+across projects through the `github-release-ops` skill (`gho` command); the
+repo-level configuration lives in `.workbuddy/github.yaml`.
 
 The shell entrypoint remains available for compatibility:
 
@@ -83,7 +88,7 @@ Release flow:
 5. Run `dart tool/inkpaper.dart release vX.Y.Z`.
 6. Wait for the GitHub Actions Release workflow to finish.
 
-The tag must match the version in `pubspec.yaml`. For `version: 1.1.13+10113`, the release tag is `v1.1.13`.
+The tag must match the version in `pubspec.yaml`. For `version: 1.1.117+10217`, the release tag is `v1.1.117`.
 
 GitHub Actions publishes the release assets after all release jobs pass.
 
@@ -101,6 +106,19 @@ certificate fingerprint and APK/AAB package certificates before publishing.
 
 GitHub Releases host the test and manual-install APK. The Google Play
 submission package is the signed AAB produced by the release workflow.
+
+## Documentation
+
+Keep these in sync when behavior changes:
+
+- [`docs/development/LESSONS_LEARNED.md`](development/LESSONS_LEARNED.md) — every
+  non-obvious trap hit during development (build, timestamps, widgets, sync,
+  release). Add an entry whenever a bug takes more than a few minutes to
+  diagnose; write it as symptom → cause → fix.
+- [`docs/development/troubleshooting.md`](development/troubleshooting.md) — one-line
+  symptom index pointing into the lessons file.
+- [`CHANGELOG.md`](../CHANGELOG.md) / [`CHANGELOG.en.md`](../CHANGELOG.en.md) —
+  user-facing only, no implementation detail.
 
 ## Security
 

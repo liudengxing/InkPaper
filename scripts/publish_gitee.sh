@@ -6,12 +6,19 @@
 #
 #   GITEE_TOKEN=xxx TAG=v1.1.76 bash scripts/publish_gitee.sh
 #
+# GITEE_TOKEN 不填时自动从系统凭据管理器取（target 为 git:https://gitee.com），
+# CI 里仍通过 secrets 注入。
+#
 # 可选环境变量：GITEE_OWNER（默认 liudengxing233）、GITEE_REPO（默认 ink-paper）、
 # DIST_DIR（默认 dist，放 *.apk 与 release_notes.md；AAB 不上传，见第 3 步注释）、
 # MIRROR_ONLY=1（只同步代码与标签，不碰 Release，CI 每次 push main 时用）。
 set -euo pipefail
 
-: "${GITEE_TOKEN:?GITEE_TOKEN is required}"
+if [ -z "${GITEE_TOKEN:-}" ]; then
+  GITEE_TOKEN="$(printf 'protocol=https\nhost=gitee.com\n\n' \
+    | git credential fill 2>/dev/null | sed -n 's/^password=//p' || true)"
+fi
+: "${GITEE_TOKEN:?GITEE_TOKEN is required（也可先 git credential approve 存入 git:https://gitee.com）}"
 mirror_only="${MIRROR_ONLY:-0}"
 if [ "$mirror_only" != "1" ]; then
   : "${TAG:?TAG is required}"

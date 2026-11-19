@@ -6,7 +6,8 @@
 50 MB 的 APK 要跑一个多小时，所以 CI 里的 `publish_gitee.sh` 只负责代码、
 tag 和 Release 本体，安装包一律由发版机器补传。
 
-用法（令牌按「环境变量 → .git/gitee_token → ~/.gitee_token」顺序自动查找）：
+用法（令牌按「环境变量 → 系统凭据管理器 → .git/gitee_token → ~/.gitee_token」
+顺序自动查找；凭据管理器里的 target 是 git:https://gitee.com）：
 
     python3 scripts/gitee_release.py --tag v1.1.85 \\
         --notes-from-github --apk-from-github
@@ -124,13 +125,20 @@ def gitee_upload(token, owner, repo, release_id, path):
         return status, raw.decode('utf-8', 'replace')
 
 
-def _git_credential_token(repo_slug):
-    """从 git 凭据管理器取 GitHub 令牌，避免匿名 60 次/小时的额度。"""
-    owner = repo_slug.split('/')[0]
+def _credential_password(host, username=''):
+    """从 git 凭据管理器取指定主机的密码/令牌。
+
+    GitHub 与 Gitee 的令牌都存在 Windows 凭据管理器里（target 形如
+    git:https://github.com），这里统一按主机名取，避免仓库里再放明文。
+    """
+    prompt = 'protocol=https\nhost=%s\n' % host
+    if username:
+        prompt += 'username=%s\n' % username
+    prompt += '\n'
     try:
         proc = subprocess.run(
             ['git', 'credential', 'fill'],
-            input='protocol=https\nhost=github.com\nusername=%s\n\n' % owner,
+            input=prompt,
             capture_output=True,
             text=True,
             timeout=20,
@@ -143,12 +151,21 @@ def _git_credential_token(repo_slug):
     return ''
 
 
+def _git_credential_token(repo_slug):
+    """从 git 凭据管理器取 GitHub 令牌，避免匿名 60 次/小时的额度。"""
+    return _credential_password('github.com', repo_slug.split('/')[0])
+
+
 def resolve_gitee_token(args):
     if args.token:
         return args.token, '--token'
     env = os.environ.get('GITEE_TOKEN', '').strip()
     if env:
         return env, '环境变量 GITEE_TOKEN'
+    # 首选系统凭据管理器：仓库里不再落明文令牌。
+    stored = _credential_password('gitee.com')
+    if stored:
+        return stored, 'git 凭据管理器'
     candidates = [args.token_file] if args.token_file else []
     candidates += [
         os.path.join('.git', 'gitee_token'),

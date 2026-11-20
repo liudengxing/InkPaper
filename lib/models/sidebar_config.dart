@@ -38,7 +38,7 @@ enum SidebarMenuItem {
   allTags('all_tags', '全部标签', '/tags', Icons.local_offer_outlined, true),
   periodicReview(
     'periodic_review',
-    '回顾',
+    '周期回顾',
     '/periodic-review',
     Icons.auto_stories_rounded,
     true,

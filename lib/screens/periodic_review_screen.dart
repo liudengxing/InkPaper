@@ -173,7 +173,7 @@ class _PeriodicReviewScreenState extends State<PeriodicReviewScreen> {
         ),
         centerTitle: true,
         title: Text(
-          l10n?.periodicReview ?? '回顾',
+          l10n?.periodicReview ?? '周期回顾',
           style: TextStyle(
             color: textColor,
             fontWeight: FontWeight.w600,

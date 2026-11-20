@@ -18,6 +18,7 @@ import 'package:inkpaper/utils/tag_path_utils.dart';
 import 'package:inkpaper/utils/text_style_helper.dart';
 import 'package:inkpaper/widgets/cached_avatar.dart';
 import 'package:inkpaper/widgets/heatmap.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -236,89 +237,106 @@ class _SidebarState extends State<Sidebar> {
     VoidCallback? onTapExtra,
   }) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final brightness = isDarkMode ? Brightness.dark : Brightness.light;
+    final accentColor =
+        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
     // 🎯 大厂标准：图标和文字使用统一颜色
     final itemColor = isSelected
-        ? (isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor)
+        ? accentColor
         : (isDarkMode
             ? AppTheme.darkTextPrimaryColor.withValues(alpha: 0.85)
             : AppTheme.textPrimaryColor.withValues(alpha: 0.85));
-    final bgColor = isSelected
-        ? (isDarkMode
-            ? AppTheme.primaryLightColor.withValues(alpha: 0.15)
-            : AppTheme.primaryColor.withValues(alpha: 0.1))
-        : Colors.transparent;
 
-    final menuItem = Container(
-      // flomo 风格：菜单块更窄更贴边，圆角放大到 16
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: isSelected
-            ? [
-                BoxShadow(
-                  color: (isDarkMode
-                          ? AppTheme.primaryLightColor
-                          : AppTheme.primaryColor)
-                      .withValues(alpha: 0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            // 有图片 / 有视频和「全部笔记」共用 `/` 路由，切换筛选只能靠这里
-            // 补一次；放在导航之前，进页面时列表已经是筛过的数据。
-            onTapExtra?.call();
-            // 如果不是当前选中项，才执行导航
-            if (!isSelected) {
-              // 🎯 使用新的丝滑导航方法
-              _navigateWithSmoothTransition(
-                context: context,
-                path: path,
-                isPushRoute: isPushRoute,
-              );
-            } else {
-              // 🔧 如果是当前页面，只在移动端（drawer模式）关闭侧边栏
-              // 桌面端不需要关闭，避免调用pop导致导航栈为空
-              if (widget.isDrawer) {
-                Navigator.of(context).pop();
-              }
+    // 选中态用玻璃胶囊：材质走 iOS 27 regular，倒角折射 / glint / 暗边
+    // 全由 liquid_glass_renderer 算，不再手搓半透明底色。
+    // 侧边栏自身是接近纯白（深色主题近黑）的平面，玻璃采样不到花色，观感
+    // 主要落在高光与内阴影上，所以着色交给 appearance.tint 的品牌色；
+    // 中性色会和底色几乎分不出来。
+    const shapeRadius = 16.0;
+    final radius = BorderRadius.circular(shapeRadius);
+
+    final content = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: () {
+          // 有图片 / 有视频和「全部笔记」共用 `/` 路由，切换筛选只能靠这里
+          // 补一次；放在导航之前，进页面时列表已经是筛过的数据。
+          onTapExtra?.call();
+          // 如果不是当前选中项，才执行导航
+          if (!isSelected) {
+            // 🎯 使用新的丝滑导航方法
+            _navigateWithSmoothTransition(
+              context: context,
+              path: path,
+              isPushRoute: isPushRoute,
+            );
+          } else {
+            // 🔧 如果是当前页面，只在移动端（drawer模式）关闭侧边栏
+            // 桌面端不需要关闭，避免调用pop导致导航栈为空
+            if (widget.isDrawer) {
+              Navigator.of(context).pop();
             }
-          },
-          splashColor:
-              (isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor)
-                  .withValues(alpha: 0.1),
-          highlightColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Icon(
-                  icon,
+          }
+        },
+        splashColor: accentColor.withValues(alpha: 0.1),
+        highlightColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, color: itemColor, size: 22),
+              const SizedBox(width: 16),
+              Text(
+                title,
+                style: AppTextStyles.titleMedium(
+                  context,
                   color: itemColor,
-                  size: 22,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                 ),
-                const SizedBox(width: 16),
-                Text(
-                  title,
-                  style: AppTextStyles.titleMedium(
-                    context,
-                    color: itemColor,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
+
+    // flomo 风格：菜单块更窄更贴边，圆角放大到 16
+    const itemMargin = EdgeInsets.symmetric(horizontal: 10, vertical: 2);
+
+    final Widget menuItem;
+    if (!isSelected) {
+      menuItem = Container(margin: itemMargin, child: content);
+    } else {
+      menuItem = Container(
+        margin: itemMargin,
+        child: LiquidGlassLayer(
+          // 48dp 高的胶囊用默认 20/60 的倒角太陡，边缘会把图标糊成放大镜，
+          // 收窄到 10/28；tintAmount 压到 0.18，颜色交给 appearance.tint。
+          settings: LiquidGlassSettings.ios27Regular(
+            brightness: brightness,
+            tintAmount: 0.18,
+          ).copyWith(refractionHeight: 10, refractionAmount: 28),
+          defaultAppearance: LiquidGlassAppearance.ios27Regular(
+            brightness: brightness,
+            tint: accentColor.withValues(alpha: isDarkMode ? 0.26 : 0.15),
+          ),
+          child: LiquidGlass(
+            shape: const LiquidRoundedSuperellipse(borderRadius: shapeRadius),
+            shadows: [
+              BoxShadow(
+                color: isDarkMode
+                    ? const Color(0x66000000)
+                    : const Color(0x1F000000),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+            child: content,
+          ),
+        ),
+      );
+    }
 
     // 使用动画包装菜单项
     if (!_animationsEnabled) {
@@ -1321,7 +1339,7 @@ class _SidebarState extends State<Sidebar> {
       case 'all_tags':
         return l10n?.allTags ?? '全部标签';
       case 'periodic_review':
-        return l10n?.periodicReview ?? '回顾';
+        return l10n?.periodicReview ?? '周期回顾';
       case 'knowledge_graph':
         return l10n?.knowledgeGraph ?? '知识图谱';
       case 'settings':

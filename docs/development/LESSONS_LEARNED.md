@@ -282,6 +282,13 @@ Kotlin 小组件只裁 ISO 字符串，不要交给 `SimpleDateFormat`（它会�
 
 `SnackBarUtils.showAction` 的 SnackBar 只当**透明容器**，真正视觉由 `LiquidGlassLayer + LiquidGlass` 给（`ios27Regular`、tint 0.35、refraction 14/40、圆角 26）。改样式别去动 SnackBar 自带的 backgroundColor。
 
+**玻璃的两个反直觉点**（侧边栏选中态踩到）：
+
+1. **它采样的是身后真实的像素。** 底部输入条能出效果，是因为 `Scaffold.extendBody` 让列表从下面穿过；侧边栏底是接近纯白的平面，采样不到任何花样，折射等于零。这时候观感只剩「高光边 + 内阴影」，**必须靠 `appearance.tint` 给品牌色**（`accentColor` alpha 0.15/深色 0.26），用中性色会和底色糊成同一块。
+2. **只给选中的那颗铺玻璃。** 侧边栏有 7 个菜单项，每个 `LiquidGlassLayer` 都要读一次背景，铺满必掉帧。用 `LiquidGlass`（需要祖先 layer）而不是 `LiquidGlass.auto`，未选中项保持扁平。
+
+另外 `FadeTransition` 包在 `LiquidGlassLayer` **外面**时整体会一起淡入（OpacityLayer 作用在合成结果上）；包在里面（`LiquidGlass(child: Opacity(...))`）时只有内容淡、玻璃不淡 —— SnackBar 那条渐变 tint 就是为后者补的。
+
 ---
 
 ### 5.6 分页缓存不能当全量数据源

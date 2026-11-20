@@ -582,7 +582,7 @@ class AppLocalizationsSimple {
   String get itemsNote => _t('itemsNote', fallback: '条笔记');
 
   // ===== 周回顾 / 月回顾 =====
-  String get periodicReview => _t('periodicReview', fallback: '回顾');
+  String get periodicReview => _t('periodicReview', fallback: '周期回顾');
   String get askNotes => _t('askNotes', fallback: '问笔记');
   String get askNotesHint => _t('askNotesHint', fallback: '问问你的笔记…');
   String get reviewGenerating => _t('reviewGenerating', fallback: '正在生成回顾…');

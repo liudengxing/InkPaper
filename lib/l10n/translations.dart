@@ -921,7 +921,7 @@ class Translations {
     'syncSuccess': {'zh': '同步成功', 'en': 'Sync successful'},
     'refreshSuccess': {'zh': '刷新成功', 'en': 'Refresh successful'},
     'refreshFailed': {'zh': '刷新失败', 'en': 'Refresh failed'},
-    'periodicReview': {'zh': '回顾', 'en': 'Review'},
+    'periodicReview': {'zh': '周期回顾', 'en': 'Periodic Review'},
     'askNotes': {'zh': '问笔记', 'en': 'Ask notes'},
     'askNotesHint': {'zh': '问问你的笔记…', 'en': 'Ask your notes…'},
     'reviewGenerating': {'zh': '正在生成回顾…', 'en': 'Generating review…'},

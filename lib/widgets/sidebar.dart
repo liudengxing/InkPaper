@@ -238,9 +238,8 @@ class _SidebarState extends State<Sidebar> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final accentColor =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
-    // 选中态用玻璃胶囊：材质走 iOS 27 regular，倒角折射 / glint / 暗边
-    // 全由 liquid_glass_renderer 算，不再手搓半透明底色。
-    // 有色胶囊上再用品牌色写字会糊成一片，浅色主题下把文字压深。
+    // 选中态只是抽屉毛玻璃上的一层薄色标记，没有实色底。
+    // 浅色主题的薄荷绿当字色对比不够，压深到 lerp 0.42 才读得清。
     final selectedItemColor =
         isDarkMode ? accentColor : Color.lerp(accentColor, Colors.black, 0.42)!;
     // 🎯 大厂标准：图标和文字使用统一颜色
@@ -306,65 +305,22 @@ class _SidebarState extends State<Sidebar> {
     if (!isSelected) {
       menuItem = Container(margin: itemMargin, child: content);
     } else {
-      // 选中态是「玻璃胶囊」，但**不用** liquid_glass_renderer：
-      // 它采样的是图层背后的像素，而抽屉背后是半透明遮罩 + 白底，实测
-      // 会得到发灰的板子，改 tintAmount / 颜色模型都救不回来（分别试过
-      // ios27 0.18 / 0.30、direct 模型、背后垫渐变，真机截图摆在
-      // docs 的记录里）。这里手搓同样的光学层次：品牌色渐变打底 + 顶部
-      // 白色高光带 + 描边 + 外阴影，观感一致且不受背后内容影响。
+      // 选中态只留一层薄色 + 细描边，不再手搓玻璃。
+      // 抽屉本身已经是毛玻璃（Drawer 透明 + BackdropFilter 采真实页面），
+      // 底部垫着笔记列表的模糊轮廓；这里再叠渐变、高光带、外阴影，等于
+      // 在玻璃上又贴一层假玻璃，两层质感互相打架，选中项反而变成一块实心板。
+      // 撤掉那三层后，抽屉自己的材质负责「玻璃」，这里只负责「选中」。
       menuItem = Container(
         key: const ValueKey('sidebarSelectedCapsule'),
         margin: itemMargin,
         decoration: BoxDecoration(
           borderRadius: radius,
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              accentColor.withValues(alpha: isDarkMode ? 0.42 : 0.30),
-              accentColor.withValues(alpha: isDarkMode ? 0.28 : 0.16),
-            ],
-          ),
+          color: accentColor.withValues(alpha: isDarkMode ? 0.18 : 0.12),
           border: Border.all(
-            color: accentColor.withValues(alpha: isDarkMode ? 0.34 : 0.22),
+            color: accentColor.withValues(alpha: isDarkMode ? 0.30 : 0.20),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: isDarkMode
-                  ? const Color(0x66000000)
-                  : accentColor.withValues(alpha: 0.18),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
-        child: Stack(
-          children: [
-            // 顶部那道白色高光：玻璃感的主要来源，别删。
-            Positioned(
-              left: 8,
-              right: 8,
-              top: 0,
-              height: 22,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(14),
-                  ),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white.withValues(alpha: isDarkMode ? 0.18 : 0.55),
-                      Colors.white.withValues(alpha: 0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            content,
-          ],
-        ),
+        child: content,
       );
     }
 

@@ -6,6 +6,7 @@ This directory contains project documentation for users and maintainers.
 
 - New users: [Getting Started](user-guide/getting-started.md)
 - **Resuming development / handing over: [HANDOFF](HANDOFF.md)**
+- **需求池 / Feature backlog: [REQUIREMENTS](REQUIREMENTS.md)** —— 用户口述的需求登记处，开工前先看这里有哪些待做
 - **Business flows, parameters and device setup: [Business Overview](BUSINESS_OVERVIEW.md)**
 - **IDE project instructions (paste into settings): [Project Instructions](PROJECT_INSTRUCTIONS.md)**
 - Project structure and builds: [Project Structure and Build Guide](PROJECT_STRUCTURE_AND_BUILD.md)

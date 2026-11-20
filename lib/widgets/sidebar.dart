@@ -21,6 +21,23 @@ import 'package:inkpaper/widgets/heatmap.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// 侧边栏每一行菜单共用的几何参数。
+///
+/// 「全部标签」是单独实现的可展开项，早先自己写了一套 16 / 16 / 8 的参数，
+/// 结果图标比其它项右移 8dp、圆角只有一半、行间距还大 3dp。两处都从这里取，
+/// 不允许再各写一套 —— 加新菜单项时也一样，否则肉眼一看就是错位。
+const EdgeInsets _sidebarRowMargin = EdgeInsets.symmetric(
+  horizontal: 10,
+  vertical: 1,
+);
+const EdgeInsets _sidebarRowPadding = EdgeInsets.symmetric(
+  horizontal: 14,
+  vertical: 9,
+);
+const double _sidebarRowRadius = 16;
+const double _sidebarIconSize = 22;
+const double _sidebarIconGap = 16;
+
 // 添加一个动画过渡效果组件
 class AnimatedMenuWidget extends StatefulWidget {
   const AnimatedMenuWidget({
@@ -113,8 +130,11 @@ class _SidebarState extends State<Sidebar> {
   // 🎯 热力图显示状态现在从AppConfig读取（统一管理）
   bool _isLoading = true; // 是否正在加载偏好设置
   bool _animationsEnabled = true;
-  bool _blurEnabled = true;
+  bool _blurEnabled = false;
   bool _tagsExpanded = false;
+  // 「有图片 / 有视频」是「全部笔记」的下级菜单，默认收起。抽屉每次重建
+  // 都会复位：这两个只是筛选入口，不需要像标签那样记住展开状态。
+  bool _mediaFilterExpanded = false;
   bool _navigationPending = false;
   final Set<String> _expandedTagPaths = {};
   Future<Map<String, dynamic>>? _tagTreeFuture;
@@ -160,9 +180,9 @@ class _SidebarState extends State<Sidebar> {
       }
     });
 
-    // 抽屉整体做毛玻璃：BackdropFilter 要真正模糊到页面内容，必须开着。
-    // 模糊只在抽屉展开时存在，收起后不再参与合成，代价可接受。
-    _blurEnabled = true;
+    // BackdropFilter 在低端机/抽屉切换场景非常容易造成掉帧。
+    // 这里默认关闭模糊（保留半透明背景），后续如需可做成设置开关。
+    _blurEnabled = false;
   }
 
   // 🎯 大厂级丝滑导航：侧边栏与页面切换的黄金节奏（精确调试版）
@@ -224,6 +244,74 @@ class _SidebarState extends State<Sidebar> {
     });
   }
 
+  /// 选中项的「玻璃胶囊」。
+  ///
+  /// 不用 liquid_glass_renderer：它采样的是图层背后的像素，而抽屉背后是
+  /// 半透明遮罩 + 白底，实测只会得到发灰的板子，改 `tintAmount`
+  /// （0.18 / 0.30）、换 `direct` 颜色模型、在背后垫渐变都救不回来。
+  /// 2026-11-21 也试过把整个抽屉改成毛玻璃再让它采样，真机观感仍不如预期，
+  /// 已整体回退。这里手搓同样的光学层次：品牌色渐变打底 + 顶部白色高光带
+  /// + 描边 + 外阴影，观感一致且不受背后内容影响。
+  Widget _selectedCapsule({
+    required Widget child,
+    required bool isDarkMode,
+    required Color accentColor,
+    required BorderRadius radius,
+  }) =>
+      DecoratedBox(
+        key: const ValueKey('sidebarSelectedCapsule'),
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              accentColor.withValues(alpha: isDarkMode ? 0.42 : 0.30),
+              accentColor.withValues(alpha: isDarkMode ? 0.28 : 0.16),
+            ],
+          ),
+          border: Border.all(
+            color: accentColor.withValues(alpha: isDarkMode ? 0.34 : 0.22),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDarkMode
+                  ? const Color(0x66000000)
+                  : accentColor.withValues(alpha: 0.18),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            // 顶部那道白色高光：玻璃感的主要来源，别删。
+            Positioned(
+              left: 8,
+              right: 8,
+              top: 0,
+              height: 22,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(14),
+                  ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: isDarkMode ? 0.18 : 0.55),
+                      Colors.white.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            child,
+          ],
+        ),
+      );
+
   // 构建菜单项
   Widget _buildMenuItem({
     required BuildContext context,
@@ -249,8 +337,7 @@ class _SidebarState extends State<Sidebar> {
             ? AppTheme.darkTextPrimaryColor.withValues(alpha: 0.85)
             : AppTheme.textPrimaryColor.withValues(alpha: 0.85));
 
-    const shapeRadius = 16.0;
-    final radius = BorderRadius.circular(shapeRadius);
+    final radius = BorderRadius.circular(_sidebarRowRadius);
 
     final content = Material(
       color: Colors.transparent,
@@ -279,11 +366,11 @@ class _SidebarState extends State<Sidebar> {
         splashColor: accentColor.withValues(alpha: 0.1),
         highlightColor: Colors.transparent,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: _sidebarRowPadding,
           child: Row(
             children: [
-              Icon(icon, color: itemColor, size: 22),
-              const SizedBox(width: 16),
+              Icon(icon, color: itemColor, size: _sidebarIconSize),
+              const SizedBox(width: _sidebarIconGap),
               Text(
                 title,
                 style: AppTextStyles.titleMedium(
@@ -299,28 +386,20 @@ class _SidebarState extends State<Sidebar> {
     );
 
     // flomo 风格：菜单块更窄更贴边，圆角放大到 16
-    const itemMargin = EdgeInsets.symmetric(horizontal: 10, vertical: 2);
+    const itemMargin = _sidebarRowMargin;
 
     final Widget menuItem;
     if (!isSelected) {
       menuItem = Container(margin: itemMargin, child: content);
     } else {
-      // 选中态只留一层薄色 + 细描边，不再手搓玻璃。
-      // 抽屉本身已经是毛玻璃（Drawer 透明 + BackdropFilter 采真实页面），
-      // 底部垫着笔记列表的模糊轮廓；这里再叠渐变、高光带、外阴影，等于
-      // 在玻璃上又贴一层假玻璃，两层质感互相打架，选中项反而变成一块实心板。
-      // 撤掉那三层后，抽屉自己的材质负责「玻璃」，这里只负责「选中」。
       menuItem = Container(
-        key: const ValueKey('sidebarSelectedCapsule'),
         margin: itemMargin,
-        decoration: BoxDecoration(
-          borderRadius: radius,
-          color: accentColor.withValues(alpha: isDarkMode ? 0.18 : 0.12),
-          border: Border.all(
-            color: accentColor.withValues(alpha: isDarkMode ? 0.30 : 0.20),
-          ),
+        child: _selectedCapsule(
+          child: content,
+          isDarkMode: isDarkMode,
+          accentColor: accentColor,
+          radius: radius,
         ),
-        child: content,
       );
     }
 
@@ -408,6 +487,241 @@ class _SidebarState extends State<Sidebar> {
         },
       );
 
+  /// 切到某个媒体筛选并进入笔记列表。
+  ///
+  /// 「全部笔记 / 有图片 / 有视频」本来就是同一条 `/` 路由上的三种筛选，
+  /// 只有在已经在首页时才不需要导航，否则先切筛选再走页面切换。
+  void _openMediaFilter(BuildContext context, NoteMediaFilter filter) {
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    final onHome = GoRouterState.of(context).matchedLocation == '/';
+    unawaited(provider.setMediaFilter(filter));
+    if (onHome) {
+      if (widget.isDrawer) {
+        Navigator.of(context).pop();
+      }
+      return;
+    }
+    _navigateWithSmoothTransition(
+      context: context,
+      path: '/',
+    );
+  }
+
+  /// 「全部笔记」父项 + 下级「有图片 / 有视频」。
+  ///
+  /// 三项共用 `/` 路由，平铺在侧栏等于用三个同级入口表达同一条路线上的
+  /// 三种筛选，读起来像三个独立页面。收成父子后：父项负责进列表，子项
+  /// 负责切筛选。展开状态不持久化，抽屉重建即收起。
+  Widget _buildNotesExpandableItem({
+    required BuildContext context,
+    required SidebarMenuItem menuItem,
+    required String currentPath,
+    required NoteMediaFilter activeFilter,
+    required List<SidebarMenuItem> filters,
+    required int index,
+  }) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final accentColor =
+        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
+    // 有子筛选时父项不套胶囊：否则父项和子项会同时高亮，两层绿块叠在一起。
+    // 这时父项只负责「说明我在哪个筛选下」，高亮交给子项。
+    final onHome = currentPath == menuItem.path;
+    final showCapsule = onHome && activeFilter == NoteMediaFilter.all;
+    final itemColor = showCapsule
+        ? (isDarkMode
+            ? accentColor
+            : Color.lerp(accentColor, Colors.black, 0.42)!)
+        : (isDarkMode
+            ? AppTheme.darkTextPrimaryColor.withValues(alpha: 0.85)
+            : AppTheme.textPrimaryColor.withValues(alpha: 0.85));
+    final mutedColor = isDarkMode ? Colors.grey[500] : const Color(0xFF7A818C);
+    const radius = BorderRadius.all(Radius.circular(16));
+    const itemMargin = EdgeInsets.symmetric(horizontal: 10, vertical: 1);
+
+    // 收起时父项右侧标出当前是哪一档，否则用户看不到「自己在有图片里」。
+    String? activeFilterLabel;
+    for (final filter in filters) {
+      if (filter.mediaFilter == activeFilter) {
+        activeFilterLabel = filter.getLocalizedLabel(context);
+        break;
+      }
+    }
+
+    final row = Row(
+      children: [
+        Expanded(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: radius,
+              onTap: () => _openMediaFilter(context, NoteMediaFilter.all),
+              splashColor: accentColor.withValues(alpha: 0.1),
+              highlightColor: Colors.transparent,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                child: Row(
+                  children: [
+                    Icon(menuItem.icon as IconData, color: itemColor, size: 22),
+                    const SizedBox(width: 16),
+                    Text(
+                      _getMenuItemTitle(context, menuItem),
+                      style: AppTextStyles.titleMedium(
+                        context,
+                        color: itemColor,
+                        fontWeight:
+                            showCapsule ? FontWeight.w600 : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (filters.isNotEmpty)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: const ValueKey('sidebarMediaFilterToggle'),
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => setState(
+                () => _mediaFilterExpanded = !_mediaFilterExpanded,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(6, 8, 10, 8),
+                child: Row(
+                  children: [
+                    if (activeFilterLabel != null && !_mediaFilterExpanded)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: Text(
+                          activeFilterLabel,
+                          style: AppTextStyles.titleSmall(
+                            context,
+                            color: showCapsule ? itemColor : accentColor,
+                          ),
+                        ),
+                      ),
+                    Icon(
+                      _mediaFilterExpanded
+                          ? Icons.keyboard_arrow_down_rounded
+                          : Icons.chevron_right_rounded,
+                      size: 18,
+                      color: mutedColor,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+
+    final header = showCapsule
+        ? Container(
+            margin: itemMargin,
+            child: _selectedCapsule(
+              child: row,
+              isDarkMode: isDarkMode,
+              accentColor: accentColor,
+              radius: radius,
+            ),
+          )
+        : Container(margin: itemMargin, child: row);
+
+    // 子项沿用「全部标签」那套层级线索：整体右缩进 + 左侧一条竖线。
+    final body = !_mediaFilterExpanded
+        ? const SizedBox.shrink()
+        : Container(
+            margin: const EdgeInsets.fromLTRB(26, 0, 10, 4),
+            padding: const EdgeInsets.only(left: 10),
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(
+                  color: isDarkMode
+                      ? AppTheme.darkDividerColor.withValues(alpha: 0.7)
+                      : const Color(0xFFE6E8EC),
+                ),
+              ),
+            ),
+            child: Column(
+              children: [
+                for (final filter in filters)
+                  _buildMediaFilterChild(
+                    context: context,
+                    isDarkMode: isDarkMode,
+                    item: filter,
+                    activeFilter: activeFilter,
+                  ),
+              ],
+            ),
+          );
+
+    final combined = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [header, body],
+    );
+    if (!_animationsEnabled) {
+      return combined;
+    }
+    return AnimatedMenuWidget(index: index, child: combined);
+  }
+
+  Widget _buildMediaFilterChild({
+    required BuildContext context,
+    required bool isDarkMode,
+    required SidebarMenuItem item,
+    required NoteMediaFilter activeFilter,
+  }) {
+    final accentColor =
+        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
+    final isSelected = item.mediaFilter == activeFilter;
+    final color = isSelected
+        ? (isDarkMode
+            ? accentColor
+            : Color.lerp(accentColor, Colors.black, 0.42)!)
+        : (isDarkMode
+            ? AppTheme.darkTextPrimaryColor.withValues(alpha: 0.8)
+            : AppTheme.textPrimaryColor.withValues(alpha: 0.8));
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 1),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: isSelected
+            ? accentColor.withValues(alpha: isDarkMode ? 0.16 : 0.10)
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _openMediaFilter(context, item.mediaFilter!),
+          splashColor: accentColor.withValues(alpha: 0.08),
+          highlightColor: Colors.transparent,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                Icon(item.icon as IconData, size: 17, color: color),
+                const SizedBox(width: 12),
+                Text(
+                  item.getLocalizedLabel(context),
+                  style: AppTextStyles.titleSmall(
+                    context,
+                    color: color,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAllTagsExpandableItem({
     required BuildContext context,
     required bool isDarkMode,
@@ -421,77 +735,96 @@ class _SidebarState extends State<Sidebar> {
 
     final isSelected = currentPath == menuItem.path ||
         currentPath.startsWith('${menuItem.path}/');
+    final activeColor = _tagActiveColor(isDarkMode);
+    // 选中态铺的是品牌色渐变胶囊，文字要和普通菜单项一样压深才够对比度，
+    // 否则浅色主题下是「浅绿字压在浅绿底」。
+    final selectedRowColor =
+        isDarkMode ? activeColor : Color.lerp(activeColor, Colors.black, 0.42)!;
     final itemColor = isSelected
-        ? _tagActiveColor(isDarkMode)
+        ? selectedRowColor
         : (isDarkMode
             ? AppTheme.darkTextPrimaryColor.withValues(alpha: 0.85)
             : AppTheme.textPrimaryColor.withValues(alpha: 0.85));
 
     final tagCount = _cachedTagCount;
-    final header = Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color:
-            isSelected ? _tagSelectedBgColor(isDarkMode) : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: () => setState(() => _tagsExpanded = !_tagsExpanded),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Icon(menuItem.icon as IconData, color: itemColor, size: 20),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    _getMenuItemTitle(context, menuItem),
-                    style: AppTextStyles.titleMedium(
-                      context,
-                      color: itemColor,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w500,
-                    ),
+    // 和上面的普通菜单项共用同一套几何参数（见文件顶部常量）。
+    final content = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(_sidebarRowRadius),
+        onTap: () => setState(() => _tagsExpanded = !_tagsExpanded),
+        child: Padding(
+          padding: _sidebarRowPadding,
+          child: Row(
+            children: [
+              Icon(
+                menuItem.icon as IconData,
+                color: itemColor,
+                size: _sidebarIconSize,
+              ),
+              const SizedBox(width: _sidebarIconGap),
+              Expanded(
+                child: Text(
+                  _getMenuItemTitle(context, menuItem),
+                  style: AppTextStyles.titleMedium(
+                    context,
+                    color: itemColor,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   ),
                 ),
-                _buildHeaderTagCount(
-                  context: context,
-                  count: tagCount,
-                  isDarkMode: isDarkMode,
-                  isSelected: isSelected,
-                ),
-                const SizedBox(width: 8),
-                Tooltip(
-                  message: _tagsExpanded
-                      ? _localizedText(context, zh: '收起标签', en: 'Collapse tags')
-                      : _localizedText(context, zh: '展开标签', en: 'Expand tags'),
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      _tagsExpanded
-                          ? Icons.keyboard_arrow_down_rounded
-                          : Icons.chevron_right_rounded,
-                      size: 18,
-                      color: isSelected
-                          ? _tagActiveColor(isDarkMode)
-                          : (isDarkMode ? Colors.grey[500] : Colors.grey[500]),
-                    ),
+              ),
+              _buildHeaderTagCount(
+                context: context,
+                count: tagCount,
+                selectedColor: selectedRowColor,
+                isSelected: isSelected,
+              ),
+              const SizedBox(width: 8),
+              Tooltip(
+                message: _tagsExpanded
+                    ? _localizedText(context, zh: '收起标签', en: 'Collapse tags')
+                    : _localizedText(context, zh: '展开标签', en: 'Expand tags'),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    _tagsExpanded
+                        ? Icons.keyboard_arrow_down_rounded
+                        : Icons.chevron_right_rounded,
+                    size: 18,
+                    color: isSelected
+                        ? selectedRowColor
+                        : (isDarkMode ? Colors.grey[500] : Colors.grey[500]),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
 
+    final header = Container(
+      margin: _sidebarRowMargin,
+      child: isSelected
+          ? _selectedCapsule(
+              child: content,
+              isDarkMode: isDarkMode,
+              accentColor: activeColor,
+              radius: BorderRadius.circular(_sidebarRowRadius),
+            )
+          : content,
+    );
+
     final body = !_tagsExpanded
         ? const SizedBox.shrink()
         : Container(
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            // 层级线对齐父行的图标列，子项文字才和父项文字落在同一条竖线上。
+            margin: EdgeInsets.fromLTRB(
+              _sidebarRowMargin.left + _sidebarRowPadding.left,
+              0,
+              16,
+              10,
+            ),
             padding: const EdgeInsets.fromLTRB(0, 4, 0, 4),
             decoration: BoxDecoration(
               border: Border(
@@ -759,12 +1092,13 @@ class _SidebarState extends State<Sidebar> {
   Widget _buildHeaderTagCount({
     required BuildContext context,
     required int count,
-    required bool isDarkMode,
+    required Color selectedColor,
     required bool isSelected,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isSelected
-        ? _tagActiveColor(isDarkMode)
-        : (isDarkMode ? Colors.grey[500]! : const Color(0xFF7A818C));
+        ? selectedColor
+        : (isDark ? Colors.grey[500]! : const Color(0xFF7A818C));
     final label = _localizedText(
       context,
       zh: '$count 个',
@@ -1034,6 +1368,8 @@ class _SidebarState extends State<Sidebar> {
   Color _tagActiveColor(bool isDarkMode) =>
       isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
 
+  /// 标签树子行（不是「全部标签」这一行）的选中底色。
+  /// 「全部标签」选中时和其它菜单项一样走 [_selectedCapsule]。
   Color _tagSelectedBgColor(bool isDarkMode) =>
       isDarkMode ? const Color(0xFF17352E) : const Color(0xFFE9F6F1);
 
@@ -1047,7 +1383,8 @@ class _SidebarState extends State<Sidebar> {
   /// 侧边栏选中态。
   ///
   /// 「全部笔记 / 有图片 / 有视频」共用 `/` 这一条路由，只能靠当前媒体筛选
-  /// 区分；其余菜单项还是按路径判断。
+  /// 区分；其余菜单项还是按路径判断。父项「全部笔记」现在不看筛选，只要
+  /// 在首页就算选中，子项自己再按 [NoteMediaFilter] 分。
   bool _isMenuItemSelected(
     SidebarMenuItem item,
     String currentPath,
@@ -1078,9 +1415,34 @@ class _SidebarState extends State<Sidebar> {
     // 「全部标签」固定排在最后（flomo：标签区收尾就是全部标签入口）
     SidebarMenuItem? allTagsItem;
 
+    // 「有图片 / 有视频」不再是顶层项，收进「全部笔记」的下级菜单。
+    // 只认可见的那几个，用户在设置里关掉的就不会出现在子菜单里。
+    final mediaFilters = visibleMenuItems
+        .where(
+          (item) => item.id == 'image_gallery' || item.id == 'video_gallery',
+        )
+        .toList();
+
     for (final menuItem in visibleMenuItems) {
       if (menuItem.id == 'all_tags') {
         allTagsItem = menuItem;
+        continue;
+      }
+      if (menuItem.id == 'image_gallery' || menuItem.id == 'video_gallery') {
+        continue;
+      }
+
+      if (menuItem.id == 'all_notes') {
+        items.add(
+          _buildNotesExpandableItem(
+            context: context,
+            menuItem: menuItem,
+            currentPath: currentPath,
+            activeFilter: activeMediaFilter,
+            filters: mediaFilters,
+            index: menuIndex++,
+          ),
+        );
         continue;
       }
 
@@ -1640,490 +2002,464 @@ class _SidebarState extends State<Sidebar> {
       // - 手机：屏幕宽度的 80%
       // - 最大不超过 360dp（Material Design 3 规范）
       width: min(MediaQuery.of(context).size.width * 0.8, 360),
-      // 抽屉自身不填色：只有背后 Scaffold 的 drawerScrimColor 也是透明，
-      // BackdropFilter 才能采到页面真实内容（笔记列表的文字与缩略图）。
-      // 采不到内容时玻璃就是一块纯色板 —— 之前选中胶囊发灰就是同一根因。
-      backgroundColor: Colors.transparent,
+      backgroundColor: isDarkMode ? AppTheme.darkSurfaceColor : Colors.white,
       elevation: 0,
       shape: const RoundedRectangleBorder(),
       child: ClipRRect(
         child: BackdropFilter(
+          // 模糊很吃性能：默认关闭，用 0 达到“无模糊但结构不改”
           filter: _blurEnabled
-              ? ImageFilter.blur(sigmaX: 14, sigmaY: 14)
+              ? ImageFilter.blur(sigmaX: 8, sigmaY: 8)
               : ImageFilter.blur(),
-          // 半透明底负责可读性：太厚看不到背后内容，玻璃感就没了；
-          // 太薄则菜单文字压在笔记标题上，深色壁纸下会糊成一片。
-          // 去掉 scrim 后抽屉右缘没有分界，补一条 0.5dp 细边。
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: isDarkMode
-                  ? const Color(0xC41A1A1C)
-                  : const Color(0xBFFFFFFF),
-              border: Border(
-                right: BorderSide(
-                  color: isDarkMode
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : Colors.black.withValues(alpha: 0.06),
-                  width: 0.5,
-                ),
-              ),
-            ),
-            child: SafeArea(
-              child: RepaintBoundary(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 用户信息区域 - 与热力图同样的宽度和样式
-                      // 🎯 个人中心组件 - 受 showProfile 与登录状态共同控制
-                      if (showProfileCard)
-                        AnimatedMenuWidget(
-                          index: 0,
-                          child: Container(
-                            margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: backgroundColor,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow:
-                                  AppTheme.neuCardShadow(isDark: isDarkMode),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(12),
-                                      splashColor: (isDarkMode
-                                              ? AppTheme.primaryLightColor
-                                              : AppTheme.primaryColor)
-                                          .withValues(alpha: 0.1),
-                                      highlightColor: (isDarkMode
-                                              ? AppTheme.primaryLightColor
-                                              : AppTheme.primaryColor)
-                                          .withValues(alpha: 0.05),
-                                      onTap: () {
-                                        // 点击个人信息栏跳转到账户信息页面
-                                        if (widget.isDrawer) {
-                                          Navigator.pop(context); // 移动端关闭侧边栏
+          child: SafeArea(
+            child: RepaintBoundary(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 用户信息区域 - 与热力图同样的宽度和样式
+                    // 🎯 个人中心组件 - 受 showProfile 与登录状态共同控制
+                    if (showProfileCard)
+                      AnimatedMenuWidget(
+                        index: 0,
+                        child: Container(
+                          margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: backgroundColor,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow:
+                                AppTheme.neuCardShadow(isDark: isDarkMode),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(12),
+                                    splashColor: (isDarkMode
+                                            ? AppTheme.primaryLightColor
+                                            : AppTheme.primaryColor)
+                                        .withValues(alpha: 0.1),
+                                    highlightColor: (isDarkMode
+                                            ? AppTheme.primaryLightColor
+                                            : AppTheme.primaryColor)
+                                        .withValues(alpha: 0.05),
+                                    onTap: () {
+                                      // 点击个人信息栏跳转到账户信息页面
+                                      if (widget.isDrawer) {
+                                        Navigator.pop(context); // 移动端关闭侧边栏
+                                      }
+                                      // 添加短暂延迟避免Navigator锁定
+                                      Future.delayed(
+                                          Duration(
+                                            milliseconds:
+                                                widget.isDrawer ? 300 : 50,
+                                          ), () {
+                                        if (context.mounted) {
+                                          context.go('/account-info');
                                         }
-                                        // 添加短暂延迟避免Navigator锁定
-                                        Future.delayed(
-                                            Duration(
-                                              milliseconds:
-                                                  widget.isDrawer ? 300 : 50,
-                                            ), () {
-                                          if (context.mounted) {
-                                            context.go('/account-info');
-                                          }
-                                        });
-                                      },
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 4,
-                                          horizontal: 4,
-                                        ),
-                                        child: Consumer<AppProvider>(
-                                          builder:
-                                              (context, appProvider, child) {
-                                            final currentUser =
-                                                appProvider.user;
-                                            return Row(
-                                              children: [
-                                                // 用户头像 - 支持真实头像显示
-                                                Container(
-                                                  width: 40,
-                                                  height: 40,
-                                                  decoration: BoxDecoration(
-                                                    shape: BoxShape.circle,
-                                                    color: AppTheme.primaryColor
-                                                        .withValues(alpha: 0.1),
-                                                    border: Border.all(
-                                                      color: AppTheme
-                                                          .primaryColor
-                                                          .withValues(
-                                                        alpha: 0.2,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  child: ClipOval(
-                                                    child: _buildSidebarAvatar(
-                                                      user!,
-                                                      context,
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Text(
-                                                        currentUser?.nickname
-                                                                    ?.isNotEmpty ??
-                                                                false
-                                                            ? currentUser!
-                                                                .nickname!
-                                                            : (currentUser
-                                                                    ?.username ??
-                                                                ''),
-                                                        style: AppTextStyles
-                                                            .titleMedium(
-                                                          context,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: isDarkMode
-                                                              ? AppTheme
-                                                                  .darkTextPrimaryColor
-                                                              : AppTheme
-                                                                  .textPrimaryColor,
-                                                        ),
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                      Row(
-                                                        children: [
-                                                          Container(
-                                                            width: 8,
-                                                            height: 8,
-                                                            decoration:
-                                                                BoxDecoration(
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                              color: appProvider
-                                                                      .isLoggedIn
-                                                                  ? Colors.green
-                                                                  : Colors.red,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 4,
-                                                          ),
-                                                          Text(
-                                                            appProvider
-                                                                    .isLoggedIn
-                                                                ? (AppLocalizationsSimple
-                                                                        .of(
-                                                                      context,
-                                                                    )?.online ??
-                                                                    '在线')
-                                                                : (AppLocalizationsSimple
-                                                                        .of(
-                                                                      context,
-                                                                    )?.offline ??
-                                                                    '离线'),
-                                                            style: AppTextStyles
-                                                                .bodySmall(
-                                                              context,
-                                                              color: appProvider
-                                                                      .isLoggedIn
-                                                                  ? Colors.green
-                                                                  : Colors.red,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                // 箭头图标提示
-                                                Icon(
-                                                  Icons
-                                                      .arrow_forward_ios_rounded,
-                                                  size: 14,
-                                                  color: isDarkMode
-                                                      ? AppTheme
-                                                          .darkTextSecondaryColor
-                                                      : AppTheme
-                                                          .textSecondaryColor,
-                                                ),
-                                              ],
-                                            );
-                                          },
-                                        ),
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 4,
+                                        horizontal: 4,
                                       ),
-                                    ),
-                                  ),
-                                ),
-
-                                // 右侧：通知和设置图标
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // 只监听未读数，避免整个按钮随 AppProvider 大范围重建
-                                    Builder(
-                                      builder: (context) {
-                                        // 🎨 iOS风格通知按钮
-                                        return Stack(
-                                          clipBehavior: Clip.none,
-                                          children: [
-                                            IconButton(
-                                              icon: Icon(
-                                                Icons.notifications_outlined,
-                                                color: isDarkMode
-                                                    ? AppTheme.primaryLightColor
-                                                    : AppTheme.primaryColor,
+                                      child: Consumer<AppProvider>(
+                                        builder: (context, appProvider, child) {
+                                          final currentUser = appProvider.user;
+                                          return Row(
+                                            children: [
+                                              // 用户头像 - 支持真实头像显示
+                                              Container(
+                                                width: 40,
+                                                height: 40,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  color: AppTheme.primaryColor
+                                                      .withValues(alpha: 0.1),
+                                                  border: Border.all(
+                                                    color: AppTheme.primaryColor
+                                                        .withValues(
+                                                      alpha: 0.2,
+                                                    ),
+                                                  ),
+                                                ),
+                                                child: ClipOval(
+                                                  child: _buildSidebarAvatar(
+                                                    user!,
+                                                    context,
+                                                  ),
+                                                ),
                                               ),
-                                              onPressed: () {
-                                                // 使用统一的丝滑导航方法
-                                                _navigateWithSmoothTransition(
-                                                  context: context,
-                                                  path: '/notifications',
-                                                  isPushRoute: true,
-                                                );
-                                              },
-                                            ),
-                                            // iOS风格数字徽章
-                                            if (unreadCount > 0)
-                                              Positioned(
-                                                right: 8,
-                                                top: 8,
-                                                child: Container(
-                                                  padding: EdgeInsets.symmetric(
-                                                    horizontal:
-                                                        unreadCount > 9 ? 6 : 5,
-                                                    vertical: 2,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(
-                                                      0xFFFF3B30,
-                                                    ), // iOS红色
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                      10,
-                                                    ),
-                                                    border: Border.all(
-                                                      color: isDarkMode
-                                                          ? const Color(
-                                                              0xFF1C1C1E,
-                                                            )
-                                                          : Colors.white,
-                                                      width: 1.5,
-                                                    ),
-                                                  ),
-                                                  constraints:
-                                                      const BoxConstraints(
-                                                    minWidth: 18,
-                                                    minHeight: 18,
-                                                  ),
-                                                  child: Center(
-                                                    child: Text(
-                                                      unreadCount > 99
-                                                          ? '99+'
-                                                          : unreadCount
-                                                              .toString(),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      currentUser?.nickname
+                                                                  ?.isNotEmpty ??
+                                                              false
+                                                          ? currentUser!
+                                                              .nickname!
+                                                          : (currentUser
+                                                                  ?.username ??
+                                                              ''),
                                                       style: AppTextStyles
-                                                          .labelSmall(
+                                                          .titleMedium(
                                                         context,
                                                         fontWeight:
                                                             FontWeight.w600,
-                                                        color: Colors.white,
-                                                        height: 1.2,
+                                                        color: isDarkMode
+                                                            ? AppTheme
+                                                                .darkTextPrimaryColor
+                                                            : AppTheme
+                                                                .textPrimaryColor,
                                                       ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                    Row(
+                                                      children: [
+                                                        Container(
+                                                          width: 8,
+                                                          height: 8,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            shape:
+                                                                BoxShape.circle,
+                                                            color: appProvider
+                                                                    .isLoggedIn
+                                                                ? Colors.green
+                                                                : Colors.red,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 4,
+                                                        ),
+                                                        Text(
+                                                          appProvider.isLoggedIn
+                                                              ? (AppLocalizationsSimple
+                                                                      .of(
+                                                                    context,
+                                                                  )?.online ??
+                                                                  '在线')
+                                                              : (AppLocalizationsSimple
+                                                                      .of(
+                                                                    context,
+                                                                  )?.offline ??
+                                                                  '离线'),
+                                                          style: AppTextStyles
+                                                              .bodySmall(
+                                                            context,
+                                                            color: appProvider
+                                                                    .isLoggedIn
+                                                                ? Colors.green
+                                                                : Colors.red,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              // 箭头图标提示
+                                              Icon(
+                                                Icons.arrow_forward_ios_rounded,
+                                                size: 14,
+                                                color: isDarkMode
+                                                    ? AppTheme
+                                                        .darkTextSecondaryColor
+                                                    : AppTheme
+                                                        .textSecondaryColor,
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              // 右侧：通知和设置图标
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // 只监听未读数，避免整个按钮随 AppProvider 大范围重建
+                                  Builder(
+                                    builder: (context) {
+                                      // 🎨 iOS风格通知按钮
+                                      return Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.notifications_outlined,
+                                              color: isDarkMode
+                                                  ? AppTheme.primaryLightColor
+                                                  : AppTheme.primaryColor,
+                                            ),
+                                            onPressed: () {
+                                              // 使用统一的丝滑导航方法
+                                              _navigateWithSmoothTransition(
+                                                context: context,
+                                                path: '/notifications',
+                                                isPushRoute: true,
+                                              );
+                                            },
+                                          ),
+                                          // iOS风格数字徽章
+                                          if (unreadCount > 0)
+                                            Positioned(
+                                              right: 8,
+                                              top: 8,
+                                              child: Container(
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal:
+                                                      unreadCount > 9 ? 6 : 5,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFFFF3B30,
+                                                  ), // iOS红色
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                    10,
+                                                  ),
+                                                  border: Border.all(
+                                                    color: isDarkMode
+                                                        ? const Color(
+                                                            0xFF1C1C1E,
+                                                          )
+                                                        : Colors.white,
+                                                    width: 1.5,
+                                                  ),
+                                                ),
+                                                constraints:
+                                                    const BoxConstraints(
+                                                  minWidth: 18,
+                                                  minHeight: 18,
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    unreadCount > 99
+                                                        ? '99+'
+                                                        : unreadCount
+                                                            .toString(),
+                                                    style: AppTextStyles
+                                                        .labelSmall(
+                                                      context,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.white,
+                                                      height: 1.2,
                                                     ),
                                                   ),
                                                 ),
                                               ),
-                                          ],
-                                        );
-                                      },
-                                    ),
-                                    // 🎨 设置按钮
-                                    IconButton(
-                                      icon: Icon(
-                                        Icons.settings_outlined,
-                                        color: isDarkMode
-                                            ? AppTheme.primaryLightColor
-                                            : AppTheme.primaryColor,
-                                      ),
-                                      onPressed: () {
-                                        // 使用统一的丝滑导航方法
-                                        _navigateWithSmoothTransition(
-                                          context: context,
-                                          path: '/settings',
-                                          isPushRoute: true,
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                      // 热力图 - 极简版（参考GitHub/Notion设计）- 整体控制显示/隐藏
-                      if (!_isLoading && sidebarConfig.showHeatmap)
-                        AnimatedMenuWidget(
-                          index: 1,
-                          child: Padding(
-                            // flomo 风格：热力图不再套卡片方框，直接铺在抽屉背景上
-                            // 没有个人中心卡片时顶部留一点呼吸空间，否则贴着状态栏
-                            padding: EdgeInsets.fromLTRB(
-                              20,
-                              showProfileCard ? 0 : 12,
-                              20,
-                              8,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(3),
-                                      decoration: BoxDecoration(
-                                        color: (isDarkMode
-                                                ? AppTheme.primaryLightColor
-                                                : AppTheme.primaryColor)
-                                            .withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Icon(
-                                        Icons.insights_rounded,
-                                        size: 11,
-                                        color: isDarkMode
-                                            ? AppTheme.primaryLightColor
-                                            : AppTheme.primaryColor,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 5),
-                                    Expanded(
-                                      child: Text(
-                                        AppLocalizationsSimple.of(context)
-                                                ?.activityLog ??
-                                            '活动记录',
-                                        style: AppTextStyles.custom(
-                                          context,
-                                          13,
-                                          fontWeight: FontWeight.w600,
-                                          color: isDarkMode
-                                              ? AppTheme.darkTextPrimaryColor
-                                              : AppTheme.textPrimaryColor,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                // 热力图
-                                const SizedBox(height: 8),
-                                RepaintBoundary(
-                                  child: Heatmap(
-                                    notes: notes,
-                                    totalNotes: totalNotes,
-                                    // 26 列小方格下 grid 颜色太淡会糊成一片，
-                                    // 无活动格调深一档保证点阵可读
-                                    cellColor: isDarkMode
-                                        ? const Color(0xFF3A3A3C)
-                                        : const Color(0xFFE6E8EB),
-                                    activeColor: isDarkMode
-                                        ? AppTheme.primaryLightColor
-                                            .withValues(alpha: 0.9)
-                                        : AppTheme.primaryColor
-                                            .withValues(alpha: 0.9),
+                                            ),
+                                        ],
+                                      );
+                                    },
                                   ),
-                                ),
-                              ],
-                            ),
+                                  // 🎨 设置按钮
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.settings_outlined,
+                                      color: isDarkMode
+                                          ? AppTheme.primaryLightColor
+                                          : AppTheme.primaryColor,
+                                    ),
+                                    onPressed: () {
+                                      // 使用统一的丝滑导航方法
+                                      _navigateWithSmoothTransition(
+                                        context: context,
+                                        path: '/settings',
+                                        isPushRoute: true,
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
+                      ),
 
-                      // 分类标题
+                    // 热力图 - 极简版（参考GitHub/Notion设计）- 整体控制显示/隐藏
+                    if (!_isLoading && sidebarConfig.showHeatmap)
                       AnimatedMenuWidget(
-                        index: 2,
+                        index: 1,
                         child: Padding(
-                          // 与菜单块内容左对齐（margin 10 + 内边距 14）
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 8,
+                          // flomo 风格：热力图不再套卡片方框，直接铺在抽屉背景上
+                          // 没有个人中心卡片时顶部留一点呼吸空间，否则贴着状态栏
+                          padding: EdgeInsets.fromLTRB(
+                            20,
+                            showProfileCard ? 0 : 12,
+                            20,
+                            8,
                           ),
-                          child: Text(
-                            AppLocalizationsSimple.of(context)?.functionMenu ??
-                                '功能菜单',
-                            style: AppTextStyles.bodyMedium(
-                              context,
-                              fontWeight: FontWeight.w600,
-                              color: isDarkMode
-                                  ? AppTheme.darkTextPrimaryColor
-                                      .withValues(alpha: 0.8) // 使用更亮的颜色提高对比度
-                                  : AppTheme.textSecondaryColor,
-                              letterSpacing: 0.5,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: BoxDecoration(
+                                      color: (isDarkMode
+                                              ? AppTheme.primaryLightColor
+                                              : AppTheme.primaryColor)
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Icon(
+                                      Icons.insights_rounded,
+                                      size: 11,
+                                      color: isDarkMode
+                                          ? AppTheme.primaryLightColor
+                                          : AppTheme.primaryColor,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(
+                                      AppLocalizationsSimple.of(context)
+                                              ?.activityLog ??
+                                          '活动记录',
+                                      style: AppTextStyles.custom(
+                                        context,
+                                        13,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDarkMode
+                                            ? AppTheme.darkTextPrimaryColor
+                                            : AppTheme.textPrimaryColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              // 热力图
+                              const SizedBox(height: 8),
+                              RepaintBoundary(
+                                child: Heatmap(
+                                  notes: notes,
+                                  totalNotes: totalNotes,
+                                  // 26 列小方格下 grid 颜色太淡会糊成一片，
+                                  // 无活动格调深一档保证点阵可读
+                                  cellColor: isDarkMode
+                                      ? const Color(0xFF3A3A3C)
+                                      : const Color(0xFFE6E8EB),
+                                  activeColor: isDarkMode
+                                      ? AppTheme.primaryLightColor
+                                          .withValues(alpha: 0.9)
+                                      : AppTheme.primaryColor
+                                          .withValues(alpha: 0.9),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
 
-                      // 🎯 动态菜单区（根据用户配置生成）
-                      // 参考Apple/Notion：允许用户自定义侧边栏显示
-                      ..._buildDynamicMenuItems(
-                        context,
-                        currentPath,
-                        sidebarConfig,
-                        notes,
+                    // 分类标题
+                    AnimatedMenuWidget(
+                      index: 2,
+                      child: Padding(
+                        // 与菜单块内容左对齐（margin 10 + 内边距 14）
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 8,
+                        ),
+                        child: Text(
+                          AppLocalizationsSimple.of(context)?.functionMenu ??
+                              '功能菜单',
+                          style: AppTextStyles.bodyMedium(
+                            context,
+                            fontWeight: FontWeight.w600,
+                            color: isDarkMode
+                                ? AppTheme.darkTextPrimaryColor
+                                    .withValues(alpha: 0.8) // 使用更亮的颜色提高对比度
+                                : AppTheme.textSecondaryColor,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                       ),
+                    ),
 
-                      // 添加间距，使退出登录按钮位于底部
-                      const SizedBox(height: 32),
+                    // 🎯 动态菜单区（根据用户配置生成）
+                    // 参考Apple/Notion：允许用户自定义侧边栏显示
+                    ..._buildDynamicMenuItems(
+                      context,
+                      currentPath,
+                      sidebarConfig,
+                      notes,
+                    ),
 
-                      // 退出登录按钮，只在登录模式下显示
-                      if (isLoggedIn)
-                        AnimatedMenuWidget(
-                          index: 8,
-                          child: Container(
-                            margin: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
+                    // 添加间距，使退出登录按钮位于底部
+                    const SizedBox(height: 32),
+
+                    // 退出登录按钮，只在登录模式下显示
+                    if (isLoggedIn)
+                      AnimatedMenuWidget(
+                        index: 8,
+                        child: Container(
+                          margin: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
                               borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
-                                onTap: () {
-                                  // 显示退出登录对话框
-                                  _showLogoutDialog(context);
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    border:
-                                        Border.all(color: Colors.red.shade200),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.logout_rounded,
+                              onTap: () {
+                                // 显示退出登录对话框
+                                _showLogoutDialog(context);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  border:
+                                      Border.all(color: Colors.red.shade200),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.logout_rounded,
+                                      color: Colors.red.shade400,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      AppLocalizationsSimple.of(context)
+                                              ?.logoutButton ??
+                                          '退出登录',
+                                      style: AppTextStyles.titleMedium(
+                                        context,
                                         color: Colors.red.shade400,
-                                        size: 20,
+                                        fontWeight: FontWeight.w500,
                                       ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        AppLocalizationsSimple.of(context)
-                                                ?.logoutButton ??
-                                            '退出登录',
-                                        style: AppTextStyles.titleMedium(
-                                          context,
-                                          color: Colors.red.shade400,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
               ),
             ),

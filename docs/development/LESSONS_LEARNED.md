@@ -53,6 +53,42 @@ cd android && ./gradlew --stop     # 清掉残留 daemon，通常能收回几百
 把情况说明给用户，由他决定，不要自己动手停矿机。CI 上不需要这一步。
 **别把 OOM 当成代码问题去查依赖。**
 
+### 1.1.1 `Could not create service of type FileAccessTimeJournal`
+
+**症状**
+
+`flutter build` / `dart tool/inkpaper.dart build` 一两秒就失败，Flutter 只说
+「Gradle threw an error while downloading artifacts from the network」，**这句是误导**。
+加 `--stacktrace` 才看得到真因：
+
+```
+Could not create service of type FileAccessTimeJournal
+Caused by: java.io.FileNotFoundException:
+  ...\gradle-home\caches\8.14.3\fileHashes\fileHashes.lock (拒绝访问)
+```
+
+**原因**：不是网络，是 **`GRADLE_USER_HOME` 里两个 daemon 抢同一个缓存锁**。
+Windows 把「文件被占用」也报成 `拒绝访问`，所以看起来像权限问题。常见于：
+
+- 上一次构建的 daemon 卡在 `STOPREQUESTED` 状态（`./gradlew --status` 能看到）；
+- daemon 之间 JVM 参数不一致（`incompatible`），新构建只能另起一个 JVM 去抢锁。
+
+**处理**
+
+```bash
+cd android && ./gradlew --stop        # 常规手段，但卡死的 daemon 它清不掉
+# 不行就按 PID 杀掉所有 java.exe（Gradle/ Kotlin 守护进程都是 java.exe）
+./gradlew assembleRelease --no-daemon # 绕开 daemon 复用，一定能过
+```
+
+判断锁是否真的放开了，用 PowerShell 独占打开锁文件试一次，比看进程列表可靠：
+
+```powershell
+[System.IO.File]::Open("...\journal-1\journal-1.lock",'Open','ReadWrite','None')
+```
+
+能打开说明没进程占用。**别急着怀疑 ACL**（这次 ACL 一直是好的），也别重装 Gradle。
+
 ### 1.2 测试被代理拦掉
 
 **症状**
@@ -358,65 +394,41 @@ Kotlin 小组件只裁 ISO 字符串，不要交给 `SimpleDateFormat`（它会�
 
 真渲染器留给「背后确实有内容」的地方（底部输入条、SnackBar）。
 
-> **后续（2026-11-21）**：这套手搓现在也撤了。抽屉整体改成毛玻璃后（§5.5.2），
-> 选中项只需要一层薄色。本节的价值不在那四行参数，而在「先判断背后有什么，
-> 再决定要不要用真渲染器」这个顺序。
+> **后续（2026-11-21）**：当天试过把它撤成薄色块、配合整抽屉毛玻璃（§5.5.2），
+> 真机观感反而更差 —— 选中感明显变弱，最终**又退回本节这套手搓参数**。
+> 这四行目前仍是最优解。
 
 **方法论教训**：这种纯视觉问题不要连续盲猜参数（这次白跑了 3 个 3 分钟构建）。做个临时「对照页」把 5 个候选并排渲染、一次装机截图对比，一轮就能定稿；定稿后把对照页和路由一起删掉。
 
 ---
 
-### 5.5.2 让玻璃成立的不是「底色」，是「背后有东西」（2026-11-21）
+### 5.5.2 整抽屉毛玻璃：试过，回退了（2026-11-21）
 
-**症状**：把抽屉底色改成纯白再上玻璃，还是白板 —— 只是从「灰板」变成「白板」。
+**结论先行**：抽屉毛玻璃技术上做得出来，但真机观感不如原来那块实心底 + 手搓胶囊，
+已整体回退。**别再试了**，除非产品方向明确要求「侧栏悬浮在内容之上」。
 
-**根因**：玻璃观感来自三件事，全都需要背后有**高频细节**：明暗对比、色彩透出、
-边缘折射。纯色和柔和渐变都是低频，采出来一个值，模糊和折射都无处发生。
-另外 `Drawer` 打开时 `Scaffold` 会盖一层 `drawerScrimColor`（默认 `Colors.black54`），
-玻璃采到的其实是「内容 × 0.46 + 黑」，这才是 §5.5.1 里那种中灰的真正来源。
+**为什么一开始做不出来**：玻璃观感来自三件事，全部要求背后有**高频细节** —— 明暗
+对比、色彩透出、边缘折射。`Drawer` 打开时 `Scaffold` 会盖一层 `drawerScrimColor`
+（默认 `Colors.black54`），玻璃采到的其实是「内容 × 0.46 + 黑」，这才是 §5.5.1
+那种中灰的真正来源。把抽屉底色改成纯白也没用，纯白是低频的极端，模糊和折射都无处
+发生。
 
-**能成立的做法**：让玻璃背后是**真实页面**，把玻璃放到抽屉层而不只是选中项：
+**当时做出来的办法**（留档，不要再照抄）：
 
-```dart
-// 每个挂了 const Sidebar() 的 Scaffold 都要加，共 10 处
-drawerScrimColor: Colors.transparent,
-```
+- 10 处挂 `const Sidebar()` 的 Scaffold 全部 `drawerScrimColor: Colors.transparent`
+- `Drawer(backgroundColor: Colors.transparent)` + `BackdropFilter(sigma 14)`
+  + 内层半透明底（浅 `0xBFFFFFFF` / 深 `0xC41A1A1C`）+ 右缘 0.5dp 细边
+- `_blurEnabled` 默认 `true`（原来 false，等于挂着个空 BackdropFilter）
 
-```dart
-Drawer(
-  backgroundColor: Colors.transparent,      // 自己不填色，才能采到 body
-  elevation: 0,
-  shape: const RoundedRectangleBorder(),
-  child: ClipRRect(
-    child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-      // 半透明底负责可读性：太厚看不到背后，玻璃感没了；太薄文字压在
-      // 笔记标题上会糊成一片。实测浅色 0xBFFFFFFF / 深色 0xC41A1A1C。
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDarkMode ? const Color(0xC41A1A1C) : const Color(0xBFFFFFFF),
-          // 去掉 scrim 后抽屉右缘没有分界，补 0.5dp 细边
-          border: Border(right: BorderSide(color: ..., width: 0.5)),
-        ),
-        child: SafeArea(child: ...),
-      ),
-    ),
-  ),
-)
-```
+**为什么回退**：
 
-配套：`_blurEnabled` 默认改为 `true`（原来为了省性能默认 false，等于白挂一个
-`BackdropFilter`）。
-
-**选中项要跟着退（2026-11-21 定稿）**：抽屉变成真毛玻璃后，§5.5.1 那套手搓的
-渐变 + 顶部高光带 + 外阴影就成了「玻璃上再贴一层假玻璃」，两层质感互相打架，
-选中项反而变成一块实心板。现在只留 `accentColor` 0.12（深色 0.18）薄底 +
-0.20 描边，让抽屉自己的材质负责玻璃，选中项只负责「选中」。测试锁住
-`gradient == null` 和 `color.a < 0.3`，防止以后又退回实心板。
-
-**代价与边界**：抽屉视觉从「推出一块板」变成「悬浮在内容上」，打开时能隐约看到笔记；
-菜单文字压在内容上，白色底的 alpha 要在浅色/深色壁纸下各看一次。性能上模糊只在展开
-期间参与合成，小米 14 无掉帧。
+1. 抽屉从「推出一块板」变成「悬浮在内容上」，笔记列表的模糊轮廓一直铺在菜单底下，
+   扫读时持续干扰视线，找菜单项比原来慢。
+2. 菜单文字压在动态内容上，白底 alpha 要在浅色/深色壁纸下各调一次，怎么调都有一头
+   不好看（浅了发灰、深了失去玻璃感）。
+3. 选中项必须从手搓胶囊退成薄色块，否则两层玻璃打架、选中项变实心板 —— 选中感
+   明显变弱，这是最直接的退步。
+4. 净收益只有「有质感」，代价是可读性和选中辨识度。每天要开几十次的入口，后者更重要。
 
 **顺带踩的坑**：给 Drawer 多套一层容器后整段代码缩进 +2，`dart format` 把原本一行
 的 `BorderRadius.circular(10)` 拆成多行却**不会补尾随逗号**，直接触发
@@ -450,6 +462,31 @@ Drawer(
 - 侧边栏与标题下拉共用同一个 `NoteMediaFilter`，都指向首页 `/`，只是切换筛选。
 - 侧边栏选中态要结合当前筛选判断（三项共用 `/` 路由，光比路径会同时高亮）。
 - 画册仍然保留，挂在筛选态的右上角，作为「看图」的快捷方式。
+
+### 5.8 侧边栏每一行的几何参数只能有一份
+
+**症状**：「全部标签」的图标比上面几项往右错 8dp，圆角只有一半，行间距也大 3dp。
+
+**原因**：`_buildAllTagsExpandableItem` 是单独实现的可展开项，自己写了一套
+`margin 16 / padding 16 / radius 8 / icon 20`，而 `_buildMenuItem` 用的是
+`10 / 14 / 16 / 22`。两处互不相干，改一边不会同步另一边。
+
+**处理**：文件顶部统一 `_sidebarRowMargin` / `_sidebarRowPadding` /
+`_sidebarRowRadius` / `_sidebarIconSize` / `_sidebarIconGap`，两处都从常量取。
+以后加新的特殊行（可展开、带徽标、带开关）也只覆盖「额外那部分」，不要重写整行。
+
+**测试**：`SBG-06` 直接比对两行文字左边缘的 `dx`，差超过 0.5 就失败。
+
+> 测这类位置时**必须 `pumpAndSettle`**：菜单项外面包着 `AnimatedMenuWidget`
+> 的 `SlideTransition`（`Offset(-0.3, 0)`），动画没播完时整行是负偏移，
+> 会把「动画中」误判成「布局错位」。我第一次就是这么误报的。
+
+### 5.9 文案里的「选中色」要跟着底色走
+
+「全部标签」选中态改成和普通菜单项一样的品牌色渐变胶囊之后，文字仍然是原来的
+高饱和品牌色，浅色主题下变成「浅绿字压浅绿底」。凡是给某行换了底色，都要顺手
+检查它上面所有前景色（标题、计数徽标、展开箭头、图标）是否还够对比度 ——
+它们往往是分散在几个小部件里的，不会跟着一起变。
 
 ---
 

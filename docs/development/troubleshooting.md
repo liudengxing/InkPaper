@@ -10,6 +10,7 @@
 | 症状 | 最可能原因 | 处理 |
 | --- | --- | --- |
 | Gradle `insufficient memory` / `Chunk::new` / Dart `Could not start thread DartWorker` | 内存被矿机等常驻进程挤满（矿机**不许暂停**） | 先 `cd android && ./gradlew --stop`；不够就少开并行、等回落，别停矿机（§1.1） |
+| 构建 1 秒失败，Flutter 报 `Gradle threw an error while downloading artifacts from the network` | **不是网络**，是 daemon 抢 `fileHashes.lock`（Windows 把占用报成「拒绝访问」） | `--stacktrace` 确认后杀光 `java.exe`，再 `./gradlew assembleRelease --no-daemon`（§1.1.1） |
 | `flutter test` 报 `Invalid WebSocket upgrade request` | 本地代理拦截 tester 的 WebSocket | `NO_PROXY=127.0.0.1,localhost no_proxy=...` 前缀跑测试（§1.2） |
 | CI `Android` job 红在下载 `gradle-8.14.3-all.zip` 504 | CDN 抖动 | 重跑 job，别改依赖（§1.3） |
 | 改了 Kotlin 只想验编译 | — | `cd android && ./gradlew :app:compileReleaseKotlin -x compileFlutterBuildRelease`（§1.4） |

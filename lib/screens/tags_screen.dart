@@ -234,9 +234,6 @@ class _TagsScreenState extends State<TagsScreen>
         textColor,
         iconColor,
       ),
-      // 遮罩留给抽屉自己的毛玻璃去做，不要压暗页面，
-      // 否则 BackdropFilter 采样到的是遮罩色而不是内容。
-      drawerScrimColor: Colors.transparent,
       drawer: const Sidebar(),
       // 🎯 大厂标准：侧滑区域设为屏幕20%（参考微信/支付宝）
       drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.2,
@@ -397,9 +394,6 @@ class _TagsScreenState extends State<TagsScreen>
         textColor,
         iconColor,
       ),
-      // 遮罩留给抽屉自己的毛玻璃去做，不要压暗页面，
-      // 否则 BackdropFilter 采样到的是遮罩色而不是内容。
-      drawerScrimColor: Colors.transparent,
       drawer: const Sidebar(),
       // 🎯 大厂标准：侧滑区域设为屏幕20%（参考微信/支付宝）
       drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.2,
@@ -561,9 +555,6 @@ class _TagsScreenState extends State<TagsScreen>
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: backgroundColor,
-      // 遮罩留给抽屉自己的毛玻璃去做，不要压暗页面，
-      // 否则 BackdropFilter 采样到的是遮罩色而不是内容。
-      drawerScrimColor: Colors.transparent,
       drawer: const Sidebar(),
       drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.2,
       appBar: _buildResponsiveAppBar(

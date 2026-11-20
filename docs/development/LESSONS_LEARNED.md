@@ -176,6 +176,28 @@ relations、`DateTime.parse` 四次）。**一条纯文字笔记也要过一遍�
 - 保存按钮要有 loading 态。只把 `onPressed` 置 null，用户看不到任何反馈，会把
   几百毫秒放大成「卡死」。
 
+### 2.9 `enum` 成员名和 l10n key 都会撞名
+
+**症状**：加「AI 洞察」时一次报了三个错——`A member named 'values' can't be declared
+in an enum`、`The type 'InsightLensIcon' used in the 'for' loop must implement
+'Iterable'`，以及 l10n 的 `duplicate_definition`。
+
+**原因**：
+
+- Dart 的 enum 自带隐式静态成员 `values`，任何成员叫 `values` 都会被拒；连带着
+  所有 `Xxx.values` 的遍历写法一起失效，第二个报错只是它的连带症状。
+- `app_localizations_simple.dart` 里早就有一个 `aiInsight` getter（指单条笔记的
+  AI 洞察，文案是「AI洞察」），我又加了一个同名 getter。功能名撞车是常事。
+
+**处理**：
+
+- enum 成员换名（`values` → `clarify`），但序列化用的 `key` 保持 `'values'`，
+  已存盘的配置才不会失效。
+- 新增 l10n key 前先 `grep -n "'<key>'" lib/l10n/*.dart`。既有的 key 优先复用，
+  只改文案值，不要再写一个同名 getter。
+
+一次 grep 的成本远低于跑一遍 analyze（本项目 30-75 秒）。
+
 ---
 
 ## 3. 时间显示口径（最容易反复踩）

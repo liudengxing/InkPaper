@@ -43,6 +43,13 @@ enum SidebarMenuItem {
     Icons.auto_stories_rounded,
     true,
   ),
+  aiInsight(
+    'ai_insight',
+    'AI 洞察',
+    '/ai-insight',
+    Icons.auto_awesome_outlined,
+    true,
+  ),
   knowledgeGraph(
     'knowledge_graph',
     '知识图谱',
@@ -90,6 +97,8 @@ enum SidebarMenuItem {
         return l10n?.allTags ?? label;
       case 'periodic_review':
         return l10n?.periodicReview ?? label;
+      case 'ai_insight':
+        return l10n?.aiInsight ?? label;
       case 'knowledge_graph':
         return l10n?.knowledgeGraph ?? label;
       case 'settings':
@@ -151,17 +160,19 @@ class SidebarConfig {
         }
       }
 
-      // 「回顾」固定在「设置」上面：早期版本是按"追加到末尾"迁移的，
-      // 老用户的配置里它排在设置之后，这里做一次性纠正。
-      final reviewId = SidebarMenuItem.periodicReview.id;
+      // 「周期回顾」「AI 洞察」固定在「设置」上面：新菜单是按"追加到末尾"
+      // 迁移的，老用户的配置里它们会落到设置之后，这里做一次性纠正。
       final settingsId = SidebarMenuItem.settings.id;
-      final reviewIndex = savedItemOrder.indexOf(reviewId);
-      final settingsIndex = savedItemOrder.indexOf(settingsId);
-      if (reviewIndex != -1 &&
-          settingsIndex != -1 &&
-          reviewIndex > settingsIndex) {
-        savedItemOrder.removeAt(reviewIndex);
-        savedItemOrder.insert(settingsIndex, reviewId);
+      for (final id in [
+        SidebarMenuItem.periodicReview.id,
+        SidebarMenuItem.aiInsight.id,
+      ]) {
+        final index = savedItemOrder.indexOf(id);
+        final settingsIndex = savedItemOrder.indexOf(settingsId);
+        if (index != -1 && settingsIndex != -1 && index > settingsIndex) {
+          savedItemOrder.removeAt(index);
+          savedItemOrder.insert(savedItemOrder.indexOf(settingsId), id);
+        }
       }
     }
 

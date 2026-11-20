@@ -255,6 +255,26 @@ class AppLocalizationsSimple {
   String get knowledgeGraph =>
       locale.languageCode == 'zh' ? '知识图谱' : 'Knowledge Graph';
 
+  // ===== AI 洞察 =====
+  String get aiInsight => _t('aiInsight', fallback: 'AI 洞察');
+  String get aiInsightScope => _t('aiInsightScope', fallback: '分析范围');
+  String get aiInsightScopeAll => _t('aiInsightScopeAll', fallback: '全部笔记');
+  String get aiInsightScope30 => _t('aiInsightScope30', fallback: '最近 30 天');
+  String get aiInsightScope90 => _t('aiInsightScope90', fallback: '最近 90 天');
+  String get aiInsightScopeYear => _t('aiInsightScopeYear', fallback: '最近一年');
+  String get aiInsightPickLens =>
+      _t('aiInsightPickLens', fallback: '选择一个视角，开始洞察');
+  String get aiInsightNewLens => _t('aiInsightNewLens', fallback: '新建视角');
+  String get aiInsightGenerating =>
+      _t('aiInsightGenerating', fallback: '正在通读你的笔记…');
+  String get aiInsightRegenerate => _t('aiInsightRegenerate', fallback: '重新生成');
+  String get aiInsightSwitchLens => _t('aiInsightSwitchLens', fallback: '换个视角');
+  String get aiInsightCopy => _t('aiInsightCopy', fallback: '复制全文');
+  String get aiInsightViewPrompt =>
+      _t('aiInsightViewPrompt', fallback: '查看提示词');
+  String get aiInsightEditPrompt =>
+      _t('aiInsightEditPrompt', fallback: '编辑提示词');
+
   // ===== 笔记相关 =====
   String get createNote => locale.languageCode == 'zh' ? '新建笔记' : 'Create Note';
   String get editNote => locale.languageCode == 'zh' ? '编辑笔记' : 'Edit Note';
@@ -740,7 +760,6 @@ class AppLocalizationsSimple {
   String get expandOptions => _t('expandOptions', fallback: '展开选项');
   String get notionTokenHint =>
       _t('notionTokenHint', fallback: '输入 Notion Integration Token');
-  String get aiInsight => _t('aiInsight', fallback: 'AI洞察');
   String get zoomIn => _t('zoomIn', fallback: '放大');
   String get zoomOut => _t('zoomOut', fallback: '缩小');
   String get reviewWidgetRefreshTitle =>

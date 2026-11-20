@@ -5,6 +5,7 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/screens/about_screen.dart';
 import 'package:inkpaper/screens/account_info_screen.dart';
+import 'package:inkpaper/screens/ai_insight_screen.dart';
 import 'package:inkpaper/screens/ai_settings_screen.dart';
 import 'package:inkpaper/screens/data_cleanup_screen.dart';
 import 'package:inkpaper/screens/draft_box_screen.dart';
@@ -517,6 +518,20 @@ class AppRouter {
             state: state,
             begin: const Offset(-0.15, 0),
             child: const PeriodicReviewScreen(),
+          );
+        },
+      ),
+
+      // 🎯 主功能页面 - AI 洞察（选一个视角，通读一批笔记做分析）
+      GoRoute(
+        path: '/ai-insight',
+        name: 'aiInsight',
+        pageBuilder: (context, state) {
+          return buildSlideTransition(
+            context: context,
+            state: state,
+            begin: const Offset(-0.15, 0),
+            child: const AiInsightScreen(),
           );
         },
       ),

@@ -59,7 +59,9 @@ void _expectVisiblePage(String path) {
     '/knowledge-graph',
     '/settings',
   ]) {
-    if (other == path) continue;
+    if (other == path) {
+      continue;
+    }
     expect(
       find.byKey(ValueKey('page:$other')),
       findsNothing,

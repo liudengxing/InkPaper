@@ -18,7 +18,6 @@ import 'package:inkpaper/utils/tag_path_utils.dart';
 import 'package:inkpaper/utils/text_style_helper.dart';
 import 'package:inkpaper/widgets/cached_avatar.dart';
 import 'package:inkpaper/widgets/heatmap.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -237,21 +236,20 @@ class _SidebarState extends State<Sidebar> {
     VoidCallback? onTapExtra,
   }) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final brightness = isDarkMode ? Brightness.dark : Brightness.light;
     final accentColor =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
+    // 选中态用玻璃胶囊：材质走 iOS 27 regular，倒角折射 / glint / 暗边
+    // 全由 liquid_glass_renderer 算，不再手搓半透明底色。
+    // 有色胶囊上再用品牌色写字会糊成一片，浅色主题下把文字压深。
+    final selectedItemColor =
+        isDarkMode ? accentColor : Color.lerp(accentColor, Colors.black, 0.42)!;
     // 🎯 大厂标准：图标和文字使用统一颜色
     final itemColor = isSelected
-        ? accentColor
+        ? selectedItemColor
         : (isDarkMode
             ? AppTheme.darkTextPrimaryColor.withValues(alpha: 0.85)
             : AppTheme.textPrimaryColor.withValues(alpha: 0.85));
 
-    // 选中态用玻璃胶囊：材质走 iOS 27 regular，倒角折射 / glint / 暗边
-    // 全由 liquid_glass_renderer 算，不再手搓半透明底色。
-    // 侧边栏自身是接近纯白（深色主题近黑）的平面，玻璃采样不到花色，观感
-    // 主要落在高光与内阴影上，所以着色交给 appearance.tint 的品牌色；
-    // 中性色会和底色几乎分不出来。
     const shapeRadius = 16.0;
     final radius = BorderRadius.circular(shapeRadius);
 
@@ -308,32 +306,64 @@ class _SidebarState extends State<Sidebar> {
     if (!isSelected) {
       menuItem = Container(margin: itemMargin, child: content);
     } else {
+      // 选中态是「玻璃胶囊」，但**不用** liquid_glass_renderer：
+      // 它采样的是图层背后的像素，而抽屉背后是半透明遮罩 + 白底，实测
+      // 会得到发灰的板子，改 tintAmount / 颜色模型都救不回来（分别试过
+      // ios27 0.18 / 0.30、direct 模型、背后垫渐变，真机截图摆在
+      // docs 的记录里）。这里手搓同样的光学层次：品牌色渐变打底 + 顶部
+      // 白色高光带 + 描边 + 外阴影，观感一致且不受背后内容影响。
       menuItem = Container(
+        key: const ValueKey('sidebarSelectedCapsule'),
         margin: itemMargin,
-        child: LiquidGlassLayer(
-          // 48dp 高的胶囊用默认 20/60 的倒角太陡，边缘会把图标糊成放大镜，
-          // 收窄到 10/28；tintAmount 压到 0.18，颜色交给 appearance.tint。
-          settings: LiquidGlassSettings.ios27Regular(
-            brightness: brightness,
-            tintAmount: 0.18,
-          ).copyWith(refractionHeight: 10, refractionAmount: 28),
-          defaultAppearance: LiquidGlassAppearance.ios27Regular(
-            brightness: brightness,
-            tint: accentColor.withValues(alpha: isDarkMode ? 0.26 : 0.15),
-          ),
-          child: LiquidGlass(
-            shape: const LiquidRoundedSuperellipse(borderRadius: shapeRadius),
-            shadows: [
-              BoxShadow(
-                color: isDarkMode
-                    ? const Color(0x66000000)
-                    : const Color(0x1F000000),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              accentColor.withValues(alpha: isDarkMode ? 0.42 : 0.30),
+              accentColor.withValues(alpha: isDarkMode ? 0.28 : 0.16),
             ],
-            child: content,
           ),
+          border: Border.all(
+            color: accentColor.withValues(alpha: isDarkMode ? 0.34 : 0.22),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDarkMode
+                  ? const Color(0x66000000)
+                  : accentColor.withValues(alpha: 0.18),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            // 顶部那道白色高光：玻璃感的主要来源，别删。
+            Positioned(
+              left: 8,
+              right: 8,
+              top: 0,
+              height: 22,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(14),
+                  ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: isDarkMode ? 0.18 : 0.55),
+                      Colors.white.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            content,
+          ],
         ),
       );
     }
@@ -1654,9 +1684,7 @@ class _SidebarState extends State<Sidebar> {
       // - 手机：屏幕宽度的 80%
       // - 最大不超过 360dp（Material Design 3 规范）
       width: min(MediaQuery.of(context).size.width * 0.8, 360),
-      backgroundColor: isDarkMode
-          ? AppTheme.darkSurfaceColor.withValues(alpha: 0.97) // 稍微调整不透明度
-          : Colors.white.withValues(alpha: 0.97), // 稍微调整不透明度
+      backgroundColor: isDarkMode ? AppTheme.darkSurfaceColor : Colors.white,
       elevation: 0,
       shape: const RoundedRectangleBorder(),
       child: ClipRRect(

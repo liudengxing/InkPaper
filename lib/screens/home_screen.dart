@@ -1679,7 +1679,12 @@ class _HomeScreenState extends State<HomeScreen>
                                       return Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          _buildOnThisDayCard(),
+                                          // 有图片 / 有视频是「只看某类媒体」的
+                                          // 视图，那条横幅展示的是任意旧笔记，
+                                          // 混进去等于筛选失效。
+                                          if (appProvider.mediaFilter ==
+                                              NoteMediaFilter.all)
+                                            _buildOnThisDayCard(),
                                           _buildNotificationBanner(),
                                         ],
                                       );

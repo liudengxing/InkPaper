@@ -282,12 +282,29 @@ Kotlin 小组件只裁 ISO 字符串，不要交给 `SimpleDateFormat`（它会�
 
 `SnackBarUtils.showAction` 的 SnackBar 只当**透明容器**，真正视觉由 `LiquidGlassLayer + LiquidGlass` 给（`ios27Regular`、tint 0.35、refraction 14/40、圆角 26）。改样式别去动 SnackBar 自带的 backgroundColor。
 
-**玻璃的两个反直觉点**（侧边栏选中态踩到）：
+**玻璃的两个反直觉点**：
 
-1. **它采样的是身后真实的像素。** 底部输入条能出效果，是因为 `Scaffold.extendBody` 让列表从下面穿过；侧边栏底是接近纯白的平面，采样不到任何花样，折射等于零。这时候观感只剩「高光边 + 内阴影」，**必须靠 `appearance.tint` 给品牌色**（`accentColor` alpha 0.15/深色 0.26），用中性色会和底色糊成同一块。
+1. **它采样的是身后真实的像素。** 底部输入条能出效果，是因为 `Scaffold.extendBody` 让列表从下面穿过；纯白/纯色平面背后没有花样，折射等于零，观感只剩「高光边 + 内阴影」。
 2. **只给选中的那颗铺玻璃。** 侧边栏有 7 个菜单项，每个 `LiquidGlassLayer` 都要读一次背景，铺满必掉帧。用 `LiquidGlass`（需要祖先 layer）而不是 `LiquidGlass.auto`，未选中项保持扁平。
 
-另外 `FadeTransition` 包在 `LiquidGlassLayer` **外面**时整体会一起淡入（OpacityLayer 作用在合成结果上）；包在里面（`LiquidGlass(child: Opacity(...))`）时只有内容淡、玻璃不淡 —— SnackBar 那条渐变 tint 就是为后者补的。
+`FadeTransition` 包在 `LiquidGlassLayer` **外面**时整体会一起淡入（OpacityLayer 作用在合成结果上）；包在里面（`LiquidGlass(child: Opacity(...))`）时只有内容淡、玻璃不淡 —— SnackBar 那条渐变 tint 就是为后者补的。
+
+### 5.5.1 抽屉里不要用真玻璃渲染器（侧边栏选中态，2026-11-20 定论）
+
+**症状**：选中项是一块发灰的板子，改 `tintAmount`（0.18 → 0.30）、改 `appearance.tint` alpha、换 `LiquidGlassColorModel.direct`、在背后垫品牌色渐变，四种组合真机上都只是「更绿一点的灰板」，最后一种甚至变成**深绿底 + 深色字**（几乎读不出字）。
+
+**根因**：`LiquidGlassLayer` 采样的「身后」在 Drawer 里是 **遮罩 + 半透明白**，不是设计稿上那块纯白。遮罩把采样值拉到中灰，`ios27` 颜色模型还会对低饱和背板去饱和，于是怎么加 tint 都往灰里走。在 `Scaffold(backgroundColor: Colors.white)` 的独立页面里同样的参数却是干净的薄荷绿 —— 差异只来自「背后是什么」。
+
+**结论**：纯色/近纯色背板上的选中态，**不要花时间调参**，直接手搓同样的光学层次，确定性最好：
+
+- 品牌色纵向渐变（浅色 0.30 → 0.16）
+- 顶部 22dp 的白色高光带（0.55 → 0），这是「玻璃感」的主要来源
+- 品牌色描边 0.22 + 外阴影（品牌色 0.18，blur 12，y 4）
+- 文字用 `Color.lerp(accent, Colors.black, 0.42)` 压深，否则绿字压绿底会糊
+
+真渲染器留给「背后确实有内容」的地方（底部输入条、SnackBar）。
+
+**方法论教训**：这种纯视觉问题不要连续盲猜参数（这次白跑了 3 个 3 分钟构建）。做个临时「对照页」把 5 个候选并排渲染、一次装机截图对比，一轮就能定稿；定稿后把对照页和路由一起删掉。
 
 ---
 
@@ -305,6 +322,9 @@ Kotlin 小组件只裁 ISO 字符串，不要交给 `SimpleDateFormat`（它会�
 - **精确规则不要抄进 SQL**。视频扩展名表、alt 约定（服务端 `/o/r/<uid>` 没扩展名）、
   图片/视频互斥，这些规则都在 `MediaPaths` 里，SQL 抄一份迟早和 Dart 侧对不上。
 - 筛选结果一次查全放内存，不走分页（`hasMoreData` 在筛选态直接返回 false）。
+- **顶部横条不认筛选**：进入「有图片」后「那年今日」卡片还挂着（它展示的是任意旧笔记，
+  可能是纯文字的），等于筛选失效。列表 index 0 处的横幅要在筛选态跳过，
+  仅 `NoteMediaFilter.all` 才渲染。
 
 ### 5.7「有图片 / 有视频」是筛选参数，不是相册
 

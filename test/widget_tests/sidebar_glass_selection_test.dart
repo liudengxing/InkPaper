@@ -3,12 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 侧边栏选中态是玻璃胶囊：`flutter test` 里是 FakeGlass，只能验结构，
-/// 观感（倒角折射、glint、品牌色深浅）必须在真机上看。
+/// 侧边栏选中态是手搓的玻璃胶囊（品牌色渐变 + 顶部高光 + 描边），不再走
+/// liquid_glass_renderer —— 那套采样的是图层背后的像素，抽屉里背后是半透明
+/// 遮罩，真机上只会得到发灰的板子。观感仍然只能在真机上看，这里验结构。
 Widget _wrap(String location) => ChangeNotifierProvider(
       create: (_) => AppProvider(),
       child: MaterialApp.router(
@@ -28,52 +28,51 @@ Widget _wrap(String location) => ChangeNotifierProvider(
       ),
     );
 
+const _capsule = ValueKey('sidebarSelectedCapsule');
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('SBG-01 选中项包在玻璃里，未选中项没有', (tester) async {
+  testWidgets('SBG-01 只有选中项带胶囊，且胶囊是渐变底', (tester) async {
     await tester.pumpWidget(_wrap('/'));
     // 级联入场动画最长 300 + index * 50ms，等它跑完
     await tester.pump(const Duration(milliseconds: 1200));
 
     expect(find.text('全部笔记'), findsOneWidget);
-    final selected = find.ancestor(
-      of: find.text('全部笔记'),
-      matching: find.byType(LiquidGlass),
+    expect(find.byKey(_capsule), findsOneWidget);
+    expect(
+      find.ancestor(of: find.text('全部笔记'), matching: find.byKey(_capsule)),
+      findsOneWidget,
     );
-    expect(selected, findsOneWidget);
 
-    // 未选中项不应该连带铺玻璃：侧边栏铺满 7 颗玻璃会直接掉帧
-    final unselected = find.ancestor(
-      of: find.text('随机回顾'),
-      matching: find.byType(LiquidGlass),
+    // 未选中项不应该连带铺胶囊
+    expect(
+      find.ancestor(of: find.text('随机回顾'), matching: find.byKey(_capsule)),
+      findsNothing,
     );
-    expect(unselected, findsNothing);
+
+    final container = tester.widget<Container>(find.byKey(_capsule));
+    final decoration = container.decoration! as BoxDecoration;
+    expect(decoration.gradient, isA<LinearGradient>());
+    expect(decoration.borderRadius, isNotNull);
 
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(seconds: 3));
   });
 
-  testWidgets('SBG-02 切到随机回顾后玻璃跟着选中项走', (tester) async {
+  testWidgets('SBG-02 切到随机回顾后胶囊跟着选中项走', (tester) async {
     await tester.pumpWidget(_wrap('/random-review'));
     await tester.pump(const Duration(milliseconds: 1200));
 
     expect(
-      find.ancestor(
-        of: find.text('随机回顾'),
-        matching: find.byType(LiquidGlass),
-      ),
+      find.ancestor(of: find.text('随机回顾'), matching: find.byKey(_capsule)),
       findsOneWidget,
     );
     expect(
-      find.ancestor(
-        of: find.text('全部笔记'),
-        matching: find.byType(LiquidGlass),
-      ),
+      find.ancestor(of: find.text('全部笔记'), matching: find.byKey(_capsule)),
       findsNothing,
     );
-    // 整棵树只有一颗玻璃，别让层级叠加
-    expect(find.byType(LiquidGlass), findsOneWidget);
+    expect(find.byKey(_capsule), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 3));
   });

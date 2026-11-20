@@ -47,6 +47,28 @@ void main() {
       }
     });
 
+    test('每个视角都写全内核、步骤、输出骨架与质量红线', () {
+      for (final lens in builtInInsightLenses) {
+        for (final section in <String>[
+          '这个视角的内核',
+          '分析步骤',
+          '输出（约',
+          '质量红线',
+        ]) {
+          expect(
+            lens.prompt,
+            contains(section),
+            reason: '${lens.id} 缺少「$section」',
+          );
+        }
+      }
+    });
+
+    test('统一规则把字数压到 500 左右并要求开头就给判断', () {
+      expect(AiInsightService.systemPrompt, contains('480-560 字'));
+      expect(AiInsightService.systemPrompt, contains('第一句就要是判断'));
+    });
+
     test('图标 key 可以往返，未知 key 落到 custom', () {
       expect(InsightLensIcon.fromKey('values'), InsightLensIcon.clarify);
       expect(InsightLensIcon.fromKey('什么也不是'), InsightLensIcon.custom);

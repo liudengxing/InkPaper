@@ -244,73 +244,30 @@ class _SidebarState extends State<Sidebar> {
     });
   }
 
-  /// 选中项的「玻璃胶囊」。
+  /// 选中行的底色与投影。
   ///
-  /// 不用 liquid_glass_renderer：它采样的是图层背后的像素，而抽屉背后是
-  /// 半透明遮罩 + 白底，实测只会得到发灰的板子，改 `tintAmount`
-  /// （0.18 / 0.30）、换 `direct` 颜色模型、在背后垫渐变都救不回来。
-  /// 2026-11-21 也试过把整个抽屉改成毛玻璃再让它采样，真机观感仍不如预期，
-  /// 已整体回退。这里手搓同样的光学层次：品牌色渐变打底 + 顶部白色高光带
-  /// + 描边 + 外阴影，观感一致且不受背后内容影响。
-  Widget _selectedCapsule({
-    required Widget child,
-    required bool isDarkMode,
-    required Color accentColor,
-    required BorderRadius radius,
-  }) =>
-      DecoratedBox(
-        key: const ValueKey('sidebarSelectedCapsule'),
-        decoration: BoxDecoration(
-          borderRadius: radius,
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              accentColor.withValues(alpha: isDarkMode ? 0.42 : 0.30),
-              accentColor.withValues(alpha: isDarkMode ? 0.28 : 0.16),
-            ],
-          ),
-          border: Border.all(
-            color: accentColor.withValues(alpha: isDarkMode ? 0.34 : 0.22),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: isDarkMode
-                  ? const Color(0x66000000)
-                  : accentColor.withValues(alpha: 0.18),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+  /// 1.1.118 之前一直是这样：一层极淡的品牌色底 + 一点点同色投影，字色直接
+  /// 用品牌绿。2026-11-21 中间试过「品牌色渐变胶囊 + 顶部白色高光 + 描边」
+  /// 的玻璃观感，真机上偏重、和白色抽屉不搭，用户否掉，已退回原样。
+  /// 别再往这里加渐变、高光、描边 —— 选中态就是一块很淡的色块。
+  BoxDecoration _selectedRowDecoration(
+    bool isDarkMode,
+    BorderRadius radius,
+  ) {
+    final accentColor =
+        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
+    return BoxDecoration(
+      color: accentColor.withValues(alpha: isDarkMode ? 0.15 : 0.10),
+      borderRadius: radius,
+      boxShadow: [
+        BoxShadow(
+          color: accentColor.withValues(alpha: 0.10),
+          blurRadius: 4,
+          offset: const Offset(0, 2),
         ),
-        child: Stack(
-          children: [
-            // 顶部那道白色高光：玻璃感的主要来源，别删。
-            Positioned(
-              left: 8,
-              right: 8,
-              top: 0,
-              height: 22,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(14),
-                  ),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white.withValues(alpha: isDarkMode ? 0.18 : 0.55),
-                      Colors.white.withValues(alpha: 0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            child,
-          ],
-        ),
-      );
+      ],
+    );
+  }
 
   // 构建菜单项
   Widget _buildMenuItem({
@@ -326,13 +283,9 @@ class _SidebarState extends State<Sidebar> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final accentColor =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
-    // 选中态只是抽屉毛玻璃上的一层薄色标记，没有实色底。
-    // 浅色主题的薄荷绿当字色对比不够，压深到 lerp 0.42 才读得清。
-    final selectedItemColor =
-        isDarkMode ? accentColor : Color.lerp(accentColor, Colors.black, 0.42)!;
-    // 🎯 大厂标准：图标和文字使用统一颜色
+    // 🎯 大厂标准：图标和文字使用统一颜色。选中就是品牌色本身，不再压深。
     final itemColor = isSelected
-        ? selectedItemColor
+        ? accentColor
         : (isDarkMode
             ? AppTheme.darkTextPrimaryColor.withValues(alpha: 0.85)
             : AppTheme.textPrimaryColor.withValues(alpha: 0.85));
@@ -386,22 +339,13 @@ class _SidebarState extends State<Sidebar> {
     );
 
     // flomo 风格：菜单块更窄更贴边，圆角放大到 16
-    const itemMargin = _sidebarRowMargin;
-
-    final Widget menuItem;
-    if (!isSelected) {
-      menuItem = Container(margin: itemMargin, child: content);
-    } else {
-      menuItem = Container(
-        margin: itemMargin,
-        child: _selectedCapsule(
-          child: content,
-          isDarkMode: isDarkMode,
-          accentColor: accentColor,
-          radius: radius,
-        ),
-      );
-    }
+    final menuItem = Container(
+      key: isSelected ? const ValueKey('sidebarSelectedRow') : null,
+      margin: _sidebarRowMargin,
+      decoration:
+          isSelected ? _selectedRowDecoration(isDarkMode, radius) : null,
+      child: content,
+    );
 
     // 使用动画包装菜单项
     if (!_animationsEnabled) {
@@ -523,20 +467,17 @@ class _SidebarState extends State<Sidebar> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final accentColor =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
-    // 有子筛选时父项不套胶囊：否则父项和子项会同时高亮，两层绿块叠在一起。
+    // 有子筛选时父项不铺底色：否则父项和子项会同时高亮，两层绿块叠在一起。
     // 这时父项只负责「说明我在哪个筛选下」，高亮交给子项。
     final onHome = currentPath == menuItem.path;
-    final showCapsule = onHome && activeFilter == NoteMediaFilter.all;
-    final itemColor = showCapsule
-        ? (isDarkMode
-            ? accentColor
-            : Color.lerp(accentColor, Colors.black, 0.42)!)
+    final showSelected = onHome && activeFilter == NoteMediaFilter.all;
+    final itemColor = showSelected
+        ? accentColor
         : (isDarkMode
             ? AppTheme.darkTextPrimaryColor.withValues(alpha: 0.85)
             : AppTheme.textPrimaryColor.withValues(alpha: 0.85));
     final mutedColor = isDarkMode ? Colors.grey[500] : const Color(0xFF7A818C);
-    const radius = BorderRadius.all(Radius.circular(16));
-    const itemMargin = EdgeInsets.symmetric(horizontal: 10, vertical: 1);
+    final radius = BorderRadius.circular(_sidebarRowRadius);
 
     // 收起时父项右侧标出当前是哪一档，否则用户看不到「自己在有图片里」。
     String? activeFilterLabel;
@@ -570,7 +511,7 @@ class _SidebarState extends State<Sidebar> {
                         context,
                         color: itemColor,
                         fontWeight:
-                            showCapsule ? FontWeight.w600 : FontWeight.w500,
+                            showSelected ? FontWeight.w600 : FontWeight.w500,
                       ),
                     ),
                   ],
@@ -599,7 +540,7 @@ class _SidebarState extends State<Sidebar> {
                           activeFilterLabel,
                           style: AppTextStyles.titleSmall(
                             context,
-                            color: showCapsule ? itemColor : accentColor,
+                            color: accentColor,
                           ),
                         ),
                       ),
@@ -618,17 +559,13 @@ class _SidebarState extends State<Sidebar> {
       ],
     );
 
-    final header = showCapsule
-        ? Container(
-            margin: itemMargin,
-            child: _selectedCapsule(
-              child: row,
-              isDarkMode: isDarkMode,
-              accentColor: accentColor,
-              radius: radius,
-            ),
-          )
-        : Container(margin: itemMargin, child: row);
+    final header = Container(
+      key: showSelected ? const ValueKey('sidebarSelectedRow') : null,
+      margin: _sidebarRowMargin,
+      decoration:
+          showSelected ? _selectedRowDecoration(isDarkMode, radius) : null,
+      child: row,
+    );
 
     // 子项沿用「全部标签」那套层级线索：整体右缩进 + 左侧一条竖线。
     final body = !_mediaFilterExpanded
@@ -678,9 +615,7 @@ class _SidebarState extends State<Sidebar> {
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
     final isSelected = item.mediaFilter == activeFilter;
     final color = isSelected
-        ? (isDarkMode
-            ? accentColor
-            : Color.lerp(accentColor, Colors.black, 0.42)!)
+        ? accentColor
         : (isDarkMode
             ? AppTheme.darkTextPrimaryColor.withValues(alpha: 0.8)
             : AppTheme.textPrimaryColor.withValues(alpha: 0.8));
@@ -736,12 +671,8 @@ class _SidebarState extends State<Sidebar> {
     final isSelected = currentPath == menuItem.path ||
         currentPath.startsWith('${menuItem.path}/');
     final activeColor = _tagActiveColor(isDarkMode);
-    // 选中态铺的是品牌色渐变胶囊，文字要和普通菜单项一样压深才够对比度，
-    // 否则浅色主题下是「浅绿字压在浅绿底」。
-    final selectedRowColor =
-        isDarkMode ? activeColor : Color.lerp(activeColor, Colors.black, 0.42)!;
     final itemColor = isSelected
-        ? selectedRowColor
+        ? activeColor
         : (isDarkMode
             ? AppTheme.darkTextPrimaryColor.withValues(alpha: 0.85)
             : AppTheme.textPrimaryColor.withValues(alpha: 0.85));
@@ -776,7 +707,7 @@ class _SidebarState extends State<Sidebar> {
               _buildHeaderTagCount(
                 context: context,
                 count: tagCount,
-                selectedColor: selectedRowColor,
+                selectedColor: activeColor,
                 isSelected: isSelected,
               ),
               const SizedBox(width: 8),
@@ -792,7 +723,7 @@ class _SidebarState extends State<Sidebar> {
                         : Icons.chevron_right_rounded,
                     size: 18,
                     color: isSelected
-                        ? selectedRowColor
+                        ? activeColor
                         : (isDarkMode ? Colors.grey[500] : Colors.grey[500]),
                   ),
                 ),
@@ -804,15 +735,15 @@ class _SidebarState extends State<Sidebar> {
     );
 
     final header = Container(
+      key: isSelected ? const ValueKey('sidebarSelectedRow') : null,
       margin: _sidebarRowMargin,
-      child: isSelected
-          ? _selectedCapsule(
-              child: content,
-              isDarkMode: isDarkMode,
-              accentColor: activeColor,
-              radius: BorderRadius.circular(_sidebarRowRadius),
+      decoration: isSelected
+          ? _selectedRowDecoration(
+              isDarkMode,
+              BorderRadius.circular(_sidebarRowRadius),
             )
-          : content,
+          : null,
+      child: content,
     );
 
     final body = !_tagsExpanded
@@ -1369,7 +1300,7 @@ class _SidebarState extends State<Sidebar> {
       isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
 
   /// 标签树子行（不是「全部标签」这一行）的选中底色。
-  /// 「全部标签」选中时和其它菜单项一样走 [_selectedCapsule]。
+  /// 「全部标签」那一行和其它菜单项一样走 [_selectedRowDecoration]。
   Color _tagSelectedBgColor(bool isDarkMode) =>
       isDarkMode ? const Color(0xFF17352E) : const Color(0xFFE9F6F1);
 

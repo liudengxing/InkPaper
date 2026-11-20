@@ -6,10 +6,9 @@ import 'package:inkpaper/widgets/sidebar.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 侧边栏选中态是手搓的玻璃胶囊（品牌色渐变 + 顶部高光 + 描边），不走
-/// liquid_glass_renderer —— 那套采样的是图层背后的像素，抽屉里背后是半透明
-/// 遮罩，真机上只会得到发灰的板子。整抽屉毛玻璃的尝试也已回退。观感仍然只能
-/// 在真机上看，这里验结构。
+/// 侧边栏选中态是一块很淡的品牌色底 + 同色小投影，字色就是品牌绿本身。
+/// 1.1.118 之后中间试过「品牌色渐变胶囊 + 顶部白色高光」的玻璃观感，真机上
+/// 偏重而且和白色抽屉不搭，用户否掉，已经退回原样。别再往选中态加渐变。
 Widget _wrap(String location) => ChangeNotifierProvider(
       create: (_) => AppProvider(),
       child: MaterialApp.router(
@@ -29,52 +28,62 @@ Widget _wrap(String location) => ChangeNotifierProvider(
       ),
     );
 
-const _capsule = ValueKey('sidebarSelectedCapsule');
+const _selectedRow = ValueKey('sidebarSelectedRow');
 const _mediaToggle = ValueKey('sidebarMediaFilterToggle');
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('SBG-01 只有选中项带胶囊，且胶囊是渐变底', (tester) async {
+  testWidgets('SBG-01 只有选中项带底色，且是淡品牌色 + 同色投影', (tester) async {
     await tester.pumpWidget(_wrap('/'));
     // 级联入场动画最长 300 + index * 50ms，等它跑完
     await tester.pump(const Duration(milliseconds: 1200));
 
     expect(find.text('全部笔记'), findsOneWidget);
-    expect(find.byKey(_capsule), findsOneWidget);
+    expect(find.byKey(_selectedRow), findsOneWidget);
     expect(
-      find.ancestor(of: find.text('全部笔记'), matching: find.byKey(_capsule)),
+      find.ancestor(
+        of: find.text('全部笔记'),
+        matching: find.byKey(_selectedRow),
+      ),
       findsOneWidget,
     );
 
-    // 未选中项不应该连带铺胶囊
+    // 未选中项不应该连带铺底色
     expect(
-      find.ancestor(of: find.text('随机回顾'), matching: find.byKey(_capsule)),
+      find.ancestor(of: find.text('随机回顾'), matching: find.byKey(_selectedRow)),
       findsNothing,
     );
 
-    final capsule = tester.widget<DecoratedBox>(find.byKey(_capsule));
-    final decoration = capsule.decoration as BoxDecoration;
-    expect(decoration.gradient, isA<LinearGradient>());
+    final row = tester.widget<Container>(find.byKey(_selectedRow));
+    final decoration = row.decoration! as BoxDecoration;
+    // 实色淡品牌色，不是渐变
+    expect(decoration.gradient, isNull);
+    expect(decoration.color, isNotNull);
+    expect(decoration.color!.a, lessThan(0.2));
     expect(decoration.borderRadius, isNotNull);
+    expect(decoration.boxShadow, isNotEmpty);
 
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(seconds: 3));
   });
 
-  testWidgets('SBG-02 切到随机回顾后胶囊跟着选中项走', (tester) async {
+  testWidgets('SBG-02 切到随机回顾后底色跟着选中项走', (tester) async {
     await tester.pumpWidget(_wrap('/random-review'));
     await tester.pump(const Duration(milliseconds: 1200));
 
     expect(
-      find.ancestor(of: find.text('随机回顾'), matching: find.byKey(_capsule)),
+      find.ancestor(
+        of: find.text('随机回顾'),
+        matching: find.byKey(_selectedRow),
+      ),
       findsOneWidget,
     );
     expect(
-      find.ancestor(of: find.text('全部笔记'), matching: find.byKey(_capsule)),
+      find.ancestor(of: find.text('全部笔记'), matching: find.byKey(_selectedRow)),
       findsNothing,
     );
-    expect(find.byKey(_capsule), findsOneWidget);
+    expect(find.byKey(_selectedRow), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 3));
   });

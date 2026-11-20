@@ -34,18 +34,24 @@ A fatal error has been detected by the Java Runtime Environment
 
 **原因**
 
-本机同时跑着 `SRBMiner-MULTI`（`F:/WaKuang`），占约 10G 内存，物理内存被挤到 36.8G/39.8G。
-Gradle 的 native 层拿不到连续内存就直接 abort，日志会落在 `android/hs_err_pid*.log`。
+本机同时跑着 `SRBMiner-MULTI`（`F:/WaKuang`），常驻约 4.5G 提交内存（加上 WorkBuddy
+自身 4.5G，32–34G 是常态）。挤到接近 39.8G 的上限时，Gradle 的 native 层拿不到连续
+内存就直接 abort，日志会落在 `android/hs_err_pid*.log`。
 
 **处理**
 
+> 🚫 **矿机不许暂停**（2026-11-21 用户明确要求）。以前的做法是提权跑
+> `pause-miner.bat`，但那会弹 UAC 打断用户，已经被否掉。
+
+现在只用无侵入的手段：
+
 ```bash
-# 提权执行，暂停 / 恢复矿机
-F:/WaKuang/bin/pause-miner.bat
-F:/WaKuang/bin/resume-miner.bat
+cd android && ./gradlew --stop     # 清掉残留 daemon，通常能收回几百 M 到 1G
 ```
 
-构建前扫一眼提交内存；CI 上不需要这一步。**别把 OOM 当成代码问题去查依赖。**
+再不够就少开并行任务（别同时跑 analyze + build）、等内存自然回落；确实扛不住时
+把情况说明给用户，由他决定，不要自己动手停矿机。CI 上不需要这一步。
+**别把 OOM 当成代码问题去查依赖。**
 
 ### 1.2 测试被代理拦掉
 

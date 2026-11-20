@@ -53,6 +53,10 @@ class AppLocalizationsSimple {
       );
   String get randomReview => _t('randomReview', fallback: '随机回顾');
   String get imageGallery => _t('imageGallery', fallback: '有图片');
+  String get videoGallery => _t('videoGallery', fallback: '有视频');
+  String get mediaFilter => _t('mediaFilter', fallback: '筛选');
+  String get noImageNotes => _t('noImageNotes', fallback: '还没有带图片的笔记');
+  String get noVideoNotes => _t('noVideoNotes', fallback: '还没有带视频的笔记');
   String get localAiPreferences =>
       _t('localAiPreferences', fallback: '本地 AI 学习偏好');
   String get localAiPreferencesDetail => _t(

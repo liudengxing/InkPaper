@@ -8,6 +8,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/note_media_filter.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/models/sort_order.dart';
 import 'package:inkpaper/providers/app_provider.dart';
@@ -38,7 +39,21 @@ typedef _FeedSnapshot = ({
   int totalCount,
   String loadMoreStage,
   bool isInitialized,
+  String mediaFilter,
+  bool isMediaFilterLoading,
 });
+
+/// 标题下拉的一次选择：排序或媒体筛选，二选一。
+///
+/// 菜单原本直接 `showMenu<SortOrder>`，加筛选后再开一个菜单就会出现两个
+/// 入口。合成一个选择对象后仍是同一张卡片，只是多了一组「筛选」。
+class _FeedMenuChoice {
+  const _FeedMenuChoice.sort(this.sortOrder) : filter = null;
+  const _FeedMenuChoice.filter(this.filter) : sortOrder = null;
+
+  final SortOrder? sortOrder;
+  final NoteMediaFilter? filter;
+}
 
 class HomeScreen extends StatefulWidget {
   // 🔥 接收分享的内容
@@ -579,7 +594,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // 排序选项：参照 flomo，点标题后在标题下方直接展开一列选项
-  Future<void> _showSortOptions() async {
+  Future<void> _showFeedOptions() async {
     final anchorBox = _titleAnchorKey.currentContext?.findRenderObject();
     final overlayBox = Overlay.of(context).context.findRenderObject();
     if (anchorBox is! RenderBox || overlayBox is! RenderBox) {
@@ -611,7 +626,7 @@ class _HomeScreenState extends State<HomeScreen>
         : Colors.black.withValues(alpha: 0.5);
 
     final l10n = AppLocalizationsSimple.of(context);
-    final selected = await showMenu<SortOrder>(
+    final selected = await showMenu<_FeedMenuChoice>(
       context: context,
       position: position,
       color: backgroundColor,
@@ -646,19 +661,78 @@ class _HomeScreenState extends State<HomeScreen>
           primaryColor,
           textColor,
         ),
+        const PopupMenuDivider(height: 1),
+        // 「有图片 / 有视频」是按媒体筛笔记，产出仍是笔记列表 ——
+        // 和 flomo 一致，不是独立相册。相册入口挪到筛选态右上角的按钮。
+        _buildSortMenuHeader(l10n?.mediaFilter ?? '筛选', headerColor),
+        _buildFilterMenuItem(
+          l10n?.allNotes ?? '全部笔记',
+          NoteMediaFilter.all,
+          primaryColor,
+          textColor,
+        ),
+        _buildFilterMenuItem(
+          l10n?.imageGallery ?? '有图片',
+          NoteMediaFilter.images,
+          primaryColor,
+          textColor,
+        ),
+        _buildFilterMenuItem(
+          l10n?.videoGallery ?? '有视频',
+          NoteMediaFilter.videos,
+          primaryColor,
+          textColor,
+        ),
       ],
     );
 
     if (selected == null || !mounted) {
       return;
     }
-    setState(() => _currentSortOrder = selected);
-    _applySorting();
+
+    if (selected.sortOrder != null) {
+      setState(() => _currentSortOrder = selected.sortOrder!);
+      _applySorting();
+      return;
+    }
+
+    final filter = selected.filter;
+    if (filter != null) {
+      await _applyMediaFilter(filter);
+    }
+  }
+
+  /// 切换媒体筛选。结果是一次性全量查询，切完把列表滚回顶部，
+  /// 否则用户会停在上一份列表的滚动位置，看起来像「筛完还是那些笔记」。
+  Future<void> _applyMediaFilter(NoteMediaFilter filter) async {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    if (appProvider.mediaFilter == filter) {
+      return;
+    }
+    await appProvider.setMediaFilter(filter);
+    if (!mounted || !_scrollController.hasClients) {
+      return;
+    }
+    _scrollController.jumpTo(0);
+  }
+
+  /// 标题文本：筛选态用筛选名，否则用品牌名。
+  String _feedTitleText() {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final l10n = AppLocalizationsSimple.of(context);
+    return switch (appProvider.mediaFilter) {
+      NoteMediaFilter.images => l10n?.imageGallery ?? '有图片',
+      NoteMediaFilter.videos => l10n?.videoGallery ?? '有视频',
+      NoteMediaFilter.all => AppConfig.appName,
+    };
   }
 
   /// 菜单头：只是标题，不可点击，也不会被选中
-  PopupMenuItem<SortOrder> _buildSortMenuHeader(String title, Color color) {
-    return PopupMenuItem<SortOrder>(
+  PopupMenuItem<_FeedMenuChoice> _buildSortMenuHeader(
+    String title,
+    Color color,
+  ) {
+    return PopupMenuItem<_FeedMenuChoice>(
       enabled: false,
       height: 34,
       padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 2),
@@ -674,7 +748,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  PopupMenuItem<SortOrder> _buildSortMenuItem(
+  PopupMenuItem<_FeedMenuChoice> _buildSortMenuItem(
     String title,
     SortOrder sortOrder,
     Color primaryColor,
@@ -682,8 +756,44 @@ class _HomeScreenState extends State<HomeScreen>
   ) {
     final isSelected = _currentSortOrder == sortOrder;
 
-    return PopupMenuItem<SortOrder>(
-      value: sortOrder,
+    return PopupMenuItem<_FeedMenuChoice>(
+      value: _FeedMenuChoice.sort(sortOrder),
+      height: 44,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 15,
+                color: isSelected ? primaryColor : textColor,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
+          if (isSelected)
+            Icon(
+              Icons.check_rounded,
+              color: primaryColor,
+              size: 18,
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 媒体筛选项（全部笔记 / 有图片 / 有视频）。
+  PopupMenuItem<_FeedMenuChoice> _buildFilterMenuItem(
+    String title,
+    NoteMediaFilter filter,
+    Color primaryColor,
+    Color textColor,
+  ) {
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final isSelected = appProvider.mediaFilter == filter;
+
+    return PopupMenuItem<_FeedMenuChoice>(
+      value: _FeedMenuChoice.filter(filter),
       height: 44,
       child: Row(
         children: [
@@ -984,6 +1094,44 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// 筛选态下的空态：这个口径下没有笔记，给一个回到「全部笔记」的口子。
+  Widget _buildMediaFilterEmptyState() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final secondaryTextColor = isDarkMode
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final l10n = AppLocalizationsSimple.of(context);
+    final isVideo = appProvider.mediaFilter == NoteMediaFilter.videos;
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isVideo
+                ? Icons.videocam_off_outlined
+                : Icons.photo_library_outlined,
+            size: 56,
+            color: secondaryTextColor.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isVideo
+                ? (l10n?.noVideoNotes ?? '还没有带视频的笔记')
+                : (l10n?.noImageNotes ?? '还没有带图片的笔记'),
+            style: TextStyle(fontSize: 15, color: secondaryTextColor),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => _applyMediaFilter(NoteMediaFilter.all),
+            child: Text(l10n?.allNotes ?? '全部笔记'),
+          ),
+        ],
       ),
     );
   }
@@ -1297,7 +1445,7 @@ class _HomeScreenState extends State<HomeScreen>
                 )
               : GestureDetector(
                   key: const ValueKey('home_title'),
-                  onTap: _showSortOptions,
+                  onTap: _showFeedOptions,
                   child: Container(
                     key: _titleAnchorKey,
                     // 文字与列表内容左边缘对齐，不再额外缩进
@@ -1309,12 +1457,18 @@ class _HomeScreenState extends State<HomeScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          AppConfig.appName,
-                          style: TextStyle(
-                            color: textColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 18,
+                        // 标题就是当前视图的名字：筛选态显示「有图片 / 有视频」，
+                        // 否则保持品牌名。用 Selector 只订阅筛选值，切换排序
+                        // 之类的通知不会连带重建标题。
+                        Selector<AppProvider, String>(
+                          selector: (_, provider) => provider.mediaFilter.name,
+                          builder: (context, _, __) => Text(
+                            _feedTitleText(),
+                            style: TextStyle(
+                              color: textColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 18,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 4),
@@ -1331,6 +1485,34 @@ class _HomeScreenState extends State<HomeScreen>
         centerTitle: false,
         actions: [
           if (!_isSearchActive) ...[
+            // 筛选到「有图片」时给一个画册入口：宫格浏览仍然是看图最快的
+            // 方式，只是不再占侧边栏一个独立菜单项。
+            Selector<AppProvider, bool>(
+              selector: (_, provider) =>
+                  provider.mediaFilter == NoteMediaFilter.images,
+              builder: (context, showGalleryEntry, _) => showGalleryEntry
+                  ? IconButton(
+                      icon: Container(
+                        padding: EdgeInsets.all(
+                          ResponsiveUtils.fontScaledSpacing(context, 8),
+                        ),
+                        decoration: BoxDecoration(
+                          color: backgroundColor,
+                          borderRadius: BorderRadius.circular(
+                            ResponsiveUtils.fontScaledBorderRadius(context, 8),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.photo_library_outlined,
+                          size: ResponsiveUtils.fontScaledIconSize(context, 20),
+                          color: iconColor,
+                        ),
+                      ),
+                      tooltip: '画册',
+                      onPressed: () => context.pushNamed('imageGallery'),
+                    )
+                  : const SizedBox.shrink(),
+            ),
             // 问笔记：把全库笔记当资料，跟 AI 对话。
             // 透明底的蓝色鲸鱼，和聊天页里的 AI 头像保持同一套视觉。
             IconButton(
@@ -1388,13 +1570,15 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       body: Selector<AppProvider, _FeedSnapshot>(
         selector: (_, provider) => (
-          notes: provider.notes,
+          notes: provider.feedNotes,
           hasMoreData: provider.hasMoreData,
           isLoadingMore: provider.isLoadingMore,
           loadedCount: provider.loadedNotesCount,
           totalCount: provider.totalNotesCount,
           loadMoreStage: provider.loadMoreState.name,
           isInitialized: provider.isInitialized,
+          mediaFilter: provider.mediaFilter.name,
+          isMediaFilterLoading: provider.isMediaFilterLoading,
         ),
         builder: (context, feed, child) {
           // 🚀 极速启动：不等loading，立即显示界面
@@ -1465,6 +1649,13 @@ class _HomeScreenState extends State<HomeScreen>
                                     // 首屏数据没就绪时给骨架，别先闪一条「欢迎笔记」
                                     else if (!appProvider.isInitialized)
                                       _buildFeedSkeleton()
+                                    // 筛选态还没查到结果：继续给骨架，别闪欢迎卡片
+                                    else if (feed.isMediaFilterLoading)
+                                      _buildFeedSkeleton()
+                                    // 筛出来是空的：明确告诉用户这个口径下没有笔记，
+                                    // 而不是落到「欢迎笔记」（那是给全新用户的）
+                                    else if (appProvider.isMediaFilterActive)
+                                      _buildMediaFilterEmptyState()
                                     // 确认本地一条笔记都没有时才展示欢迎笔记
                                     else
                                       _buildWelcomeNoteCard(),

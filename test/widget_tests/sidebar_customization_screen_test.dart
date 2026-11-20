@@ -69,11 +69,16 @@ void main() {
         matching: find.byIcon(Icons.drag_handle_rounded),
       );
 
-      // ReorderableDragStartListener 按下即开始拖动，需跨过一行高度才会换位
+      // ReorderableDragStartListener 按下即开始拖动，需跨过一行高度才会换位。
+      // 菜单项会随功能增加变长（「有视频」就是后加的），先把它滚进可视区再拖，
+      // 否则拖拽起点落在屏幕外，命中失败、换位根本没发生。
+      await tester.ensureVisible(handle);
+      await tester.pumpAndSettle();
       await tester.timedDrag(
         handle,
-        const Offset(0, 180),
+        const Offset(0, 140),
         const Duration(milliseconds: 600),
+        warnIfMissed: false,
       );
       await tester.pumpAndSettle();
 

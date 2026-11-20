@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/note_media_filter.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/models/sidebar_config.dart';
 import 'package:inkpaper/models/user_model.dart';
@@ -232,6 +233,7 @@ class _SidebarState extends State<Sidebar> {
     required bool isSelected,
     required int index, // 添加索引参数
     bool isPushRoute = false, // 🔥 新增参数：是否使用push而不是replace
+    VoidCallback? onTapExtra,
   }) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     // 🎯 大厂标准：图标和文字使用统一颜色
@@ -270,6 +272,9 @@ class _SidebarState extends State<Sidebar> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
+            // 有图片 / 有视频和「全部笔记」共用 `/` 路由，切换筛选只能靠这里
+            // 补一次；放在导航之前，进页面时列表已经是筛过的数据。
+            onTapExtra?.call();
             // 如果不是当前选中项，才执行导航
             if (!isSelected) {
               // 🎯 使用新的丝滑导航方法
@@ -1035,6 +1040,22 @@ class _SidebarState extends State<Sidebar> {
   }) =>
       Localizations.localeOf(context).languageCode == 'zh' ? zh : en;
 
+  /// 侧边栏选中态。
+  ///
+  /// 「全部笔记 / 有图片 / 有视频」共用 `/` 这一条路由，只能靠当前媒体筛选
+  /// 区分；其余菜单项还是按路径判断。
+  bool _isMenuItemSelected(
+    SidebarMenuItem item,
+    String currentPath,
+    NoteMediaFilter active,
+  ) {
+    if (currentPath != item.path) {
+      return false;
+    }
+    final filter = item.mediaFilter;
+    return filter == null || filter == active;
+  }
+
   // 🎯 动态生成菜单项（基于用户配置）
   List<Widget> _buildDynamicMenuItems(
     BuildContext context,
@@ -1044,6 +1065,8 @@ class _SidebarState extends State<Sidebar> {
   ) {
     final items = <Widget>[];
     final visibleMenuItems = config.getOrderedVisibleItems();
+    final activeMediaFilter =
+        Provider.of<AppProvider>(context, listen: false).mediaFilter;
 
     // 从索引3开始（0-2被头部占用）
     var menuIndex = 3;
@@ -1066,9 +1089,19 @@ class _SidebarState extends State<Sidebar> {
           icon: menuItem.icon as IconData,
           title: _getMenuItemTitle(context, menuItem),
           path: menuItem.path,
-          isSelected: currentPath == menuItem.path,
+          isSelected: _isMenuItemSelected(
+            menuItem,
+            currentPath,
+            activeMediaFilter,
+          ),
           index: menuIndex++,
           isPushRoute: isPushRoute,
+          onTapExtra: menuItem.mediaFilter == null
+              ? null
+              : () => unawaited(
+                    Provider.of<AppProvider>(context, listen: false)
+                        .setMediaFilter(menuItem.mediaFilter!),
+                  ),
         ),
       );
     }

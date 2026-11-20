@@ -5,8 +5,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/note_media_filter.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
@@ -16,12 +18,57 @@ import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:provider/provider.dart';
 
-/// 「有图片」画廊：宫格浏览所有带图笔记（参考 flomo 画廊视图）。
+/// 「有图片」画册：宫格浏览所有带图笔记（参考 flomo 画廊视图）。
 ///
 /// 相册按时间排列，记录的是「拍过什么」；这里的每一张图都连着一条笔记，
 /// 记录的是「当时在想什么」——点图直接进笔记详情。
-class ImageGalleryScreen extends StatelessWidget {
+///
+/// 数据源必须是**全库查询**：首页是 50 条一页的分页缓存，直接扫
+/// `appProvider.notes` 只会覆盖「滑到过的那几页」，后面的图全都不见了。
+/// 这正是这个页面以前「看起来只显示最近图片」的原因。
+class ImageGalleryScreen extends StatefulWidget {
   const ImageGalleryScreen({super.key});
+
+  @override
+  State<ImageGalleryScreen> createState() => _ImageGalleryScreenState();
+}
+
+/// 一张瓦片：哪条笔记的哪张图。
+typedef _GalleryTileEntry = ({Note note, String imagePath});
+
+class _ImageGalleryScreenState extends State<ImageGalleryScreen> {
+  late Future<List<_GalleryTileEntry>> _tilesFuture = _loadTiles();
+
+  Future<List<_GalleryTileEntry>> _loadTiles() async {
+    final notes = await DatabaseService().getNotesByMedia(
+      NoteMediaFilter.images,
+    );
+    return _collectTiles(notes);
+  }
+
+  Future<void> _reload() async {
+    final future = _loadTiles();
+    setState(() {
+      _tilesFuture = future;
+    });
+    await future;
+  }
+
+  /// 收集所有带图笔记的（笔记 × 图片）瓦片，按展示时间倒序。
+  ///
+  /// 直接解析正文 markdown 提取图片路径（与卡片九宫格同一入口），
+  /// 不往数据库加图片索引。
+  static List<_GalleryTileEntry> _collectTiles(List<Note> notes) {
+    final sorted = notes.toList()
+      ..sort((a, b) => b.displayTime.compareTo(a.displayTime));
+    final tiles = <_GalleryTileEntry>[];
+    for (final note in sorted) {
+      for (final path in MemosContentHelper.extractNoteImagePaths(note)) {
+        tiles.add((note: note, imagePath: path));
+      }
+    }
+    return tiles;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,9 +90,14 @@ class ImageGalleryScreen extends StatelessWidget {
         elevation: 0,
         iconTheme: IconThemeData(color: textColor),
       ),
-      body: Consumer<AppProvider>(
-        builder: (context, appProvider, _) {
-          final tiles = _collectTiles(appProvider.notes);
+      body: FutureBuilder<List<_GalleryTileEntry>>(
+        future: _tilesFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final tiles = snapshot.data ?? const <_GalleryTileEntry>[];
           if (tiles.isEmpty) {
             return Center(
               child: Column(
@@ -58,7 +110,8 @@ class ImageGalleryScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    '还没有带图片的笔记',
+                    AppLocalizationsSimple.of(context)?.noImageNotes ??
+                        '还没有带图片的笔记',
                     style: TextStyle(
                       fontSize: 14,
                       color: isDarkMode ? Colors.grey[500] : Colors.grey[600],
@@ -69,45 +122,32 @@ class ImageGalleryScreen extends StatelessWidget {
             );
           }
 
-          return GridView.builder(
-            padding: const EdgeInsets.all(2),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              mainAxisSpacing: 2,
-              crossAxisSpacing: 2,
+          return RefreshIndicator(
+            onRefresh: _reload,
+            color: AppTheme.primaryColor,
+            child: GridView.builder(
+              padding: const EdgeInsets.all(2),
+              physics: const AlwaysScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 2,
+                crossAxisSpacing: 2,
+              ),
+              itemCount: tiles.length,
+              itemBuilder: (context, index) {
+                final tile = tiles[index];
+                return _GalleryTile(
+                  key: ValueKey('${tile.note.id}-${tile.imagePath}'),
+                  noteId: tile.note.id,
+                  imagePath: tile.imagePath,
+                  onTap: () => context.push('/note/${tile.note.id}'),
+                );
+              },
             ),
-            itemCount: tiles.length,
-            itemBuilder: (context, index) {
-              final tile = tiles[index];
-              return _GalleryTile(
-                key: ValueKey('${tile.note.id}-${tile.imagePath}'),
-                noteId: tile.note.id,
-                imagePath: tile.imagePath,
-                onTap: () => context.push('/note/${tile.note.id}'),
-              );
-            },
           );
         },
       ),
     );
-  }
-
-  /// 收集所有带图笔记的（笔记 × 图片）瓦片，按展示时间倒序。
-  ///
-  /// 直接解析正文 markdown 提取图片路径（与卡片九宫格同一入口），
-  /// 不往数据库加图片索引。
-  static List<({Note note, String imagePath})> _collectTiles(
-    List<Note> notes,
-  ) {
-    final sorted = notes.toList()
-      ..sort((a, b) => b.displayTime.compareTo(a.displayTime));
-    final tiles = <({Note note, String imagePath})>[];
-    for (final note in sorted) {
-      for (final path in MemosContentHelper.extractNoteImagePaths(note)) {
-        tiles.add((note: note, imagePath: path));
-      }
-    }
-    return tiles;
   }
 }
 

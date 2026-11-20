@@ -763,21 +763,48 @@ class _NoteCardState extends State<NoteCard>
             ),
           );
         }
-        return Image.file(
-          File(filePath),
-          key: ValueKey(filePath), // 添加key强制刷新
-          fit: BoxFit.cover,
-          // 与网络图一致：按格子像素宽度解码，避免 4K 原图整张进内存
-          cacheWidth: memWidth,
-          gaplessPlayback: true,
-          filterQuality: FilterQuality.low,
-          errorBuilder: (context, error, stackTrace) {
-            if (kDebugMode) {
-              debugPrint('Local file image error: $error for $filePath');
+        // 缩略图还没好：正在生成就先占位，别当场解原图。
+        //
+        // 刚保存的带图笔记正好落在这一帧：原图 12MP 解码 150~250ms，和
+        // 编辑器关闭动画叠在一起，观感就是「点保存卡一下」。占位后由
+        // readyVersion 触发重建，缩略图一好立刻换上（通常几十毫秒）。
+        // 生成失败（HEIC 之类）会退回原图，不会一直空着。
+        return ValueListenableBuilder<int>(
+          valueListenable: ThumbCache.instance.readyVersion,
+          builder: (context, _, __) {
+            final ready = ThumbCache.instance.lookup(filePath, width: memWidth);
+            if (ready != null) {
+              return Image.file(
+                ready,
+                key: ValueKey(ready.path),
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                filterQuality: FilterQuality.low,
+              );
             }
-            // 如果图片文件不存在，尝试触发刷新来获取修复后的路径
-            return Center(
-              child: Icon(Icons.broken_image, color: Colors.grey[600]),
+            if (ThumbCache.instance.isPending(filePath, width: memWidth)) {
+              return Container(
+                color: Colors.grey[300],
+                child: const SizedBox(),
+              );
+            }
+            return Image.file(
+              File(filePath),
+              key: ValueKey(filePath), // 添加key强制刷新
+              fit: BoxFit.cover,
+              // 与网络图一致：按格子像素宽度解码，避免 4K 原图整张进内存
+              cacheWidth: memWidth,
+              gaplessPlayback: true,
+              filterQuality: FilterQuality.low,
+              errorBuilder: (context, error, stackTrace) {
+                if (kDebugMode) {
+                  debugPrint('Local file image error: $error for $filePath');
+                }
+                // 如果图片文件不存在，尝试触发刷新来获取修复后的路径
+                return Center(
+                  child: Icon(Icons.broken_image, color: Colors.grey[600]),
+                );
+              },
             );
           },
         );

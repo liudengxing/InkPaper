@@ -306,17 +306,20 @@ class ThumbCache {
     if (_giveUp.contains(name)) {
       return null;
     }
-    final source = File(abs);
-    if (!await source.exists()) {
-      return null;
-    }
     if (_inflight.contains(name)) {
       return null;
     }
     final bucket = bucketWidth(width);
+    // 先占住名额再 await：`await source.exists()` 会让出事件循环，期间同一个
+    // 格子可能在别的帧再 lookup 一次。名额晚一步登记，那边就看不到「正在
+    // 生成」，会退回去解原图 —— 正是要避免的那一帧。
     _inflight.add(name);
     var slot = false;
     try {
+      final source = File(abs);
+      if (!await source.exists()) {
+        return null;
+      }
       await _acquireEncodeSlot(lowPriority: lowPriority);
       slot = true;
       // 排队期间别的调用方可能已经把它生成好了，省掉一次重复解码
@@ -350,7 +353,35 @@ class ThumbCache {
         _releaseEncodeSlot();
       }
       _inflight.remove(name);
+      // 成功或失败都要通知：等在图上的格子靠它决定是换成缩略图还是退回原图。
+      readyVersion.value++;
     }
+  }
+
+  /// 缩略图生成完成的信号。
+  ///
+  /// 卡片在缩略图还没就绪时先占位，靠监听它决定何时换成真图。用一个自增
+  /// 计数而不是逐路径回调：一张 9 图笔记会同时起好几个任务，全局计数最省事，
+  /// 代价只是每次完成会让在屏卡片重建一次（卡片本身有预览缓存，很轻）。
+  final ValueNotifier<int> readyVersion = ValueNotifier<int>(0);
+
+  /// 这个路径的缩略图是不是正在生成（含排队等编码名额的）。
+  ///
+  /// 只用来决定「要不要先占位」：为 true 说明很快就会好，没必要当场解原图。
+  bool isPending(String sourcePath, {int width = defaultWidth}) {
+    final dirPath = _dirPath;
+    if (dirPath == null) {
+      return false;
+    }
+    final abs = _resolve(sourcePath);
+    if (abs == null) {
+      return false;
+    }
+    final name = fileNameFor(abs, width: width);
+    if (name == null) {
+      return false;
+    }
+    return _inflight.contains(name);
   }
 
   /// 后台补齐存量图（一次性扫完）。

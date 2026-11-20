@@ -16,6 +16,7 @@ import 'package:inkpaper/core/state/widget_store.dart';
 import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/models/cloud_verification_models.dart';
 import 'package:inkpaper/models/load_more_state.dart';
+import 'package:inkpaper/models/note_media_filter.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/models/reminder_notification_model.dart';
 import 'package:inkpaper/models/sort_order.dart';
@@ -200,6 +201,15 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     _scheduleWidgetSnapshotUpdate();
   }
 
+  /// 写入笔记后延迟多久刷新桌面小组件。
+  ///
+  /// 快照生成要遍历全部笔记（每条跑一次待办正则）并过一次平台通道，原生侧
+  /// 再把 13 个组件整体重绘。放在写入同一帧会和编辑器关闭动画抢主线程，
+  /// 表现为「点保存卡一下」。900ms 足够让关闭动画（约 200~300ms）和首页
+  /// 插入新卡片都跑完，用户已经回到列表时再静默重绘。
+  static const Duration _widgetSnapshotDelayAfterWrite =
+      Duration(milliseconds: 900);
+
   void _scheduleWidgetSnapshotUpdate({
     Duration delay = const Duration(milliseconds: 350),
   }) {
@@ -362,9 +372,71 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   // 🚀 大厂标准：细粒度状态访问
   bool get isLoadingMore => _notesStore.pagingState.loadMoreState.isLoading;
   bool get hasMoreData =>
+      !isMediaFilterActive &&
       _notesStore.pagingState.hasMoreData &&
       _notesStore.pagingState.loadMoreState != LoadMoreState.noMore;
   LoadMoreState get loadMoreState => _notesStore.pagingState.loadMoreState;
+
+  // ── 媒体筛选（「有图片」/「有视频」） ───────────────────────────────────
+  //
+  // 参考 flomo：这两个入口不是独立相册，而是「全部笔记」上的筛选参数，
+  // 筛完产出的仍然是笔记列表。筛出来的结果单独存一份完整列表（不走分页），
+  // 因为首页的 50 条分页缓存里根本没有没滑到过的笔记。
+  NoteMediaFilter _mediaFilter = NoteMediaFilter.all;
+  List<Note> _mediaFilteredNotes = const <Note>[];
+  bool _isMediaFilterLoading = false;
+
+  NoteMediaFilter get mediaFilter => _mediaFilter;
+  bool get isMediaFilterActive => _mediaFilter != NoteMediaFilter.all;
+  bool get isMediaFilterLoading => _isMediaFilterLoading;
+
+  /// 首页当前该展示的笔记：未筛选时用分页缓存，筛选时用全量查询结果。
+  List<Note> get feedNotes => isMediaFilterActive ? _mediaFilteredNotes : notes;
+
+  Future<void> setMediaFilter(NoteMediaFilter filter) async {
+    if (_mediaFilter == filter) {
+      return;
+    }
+    _mediaFilter = filter;
+    if (!isMediaFilterActive) {
+      _mediaFilteredNotes = const <Note>[];
+      _isMediaFilterLoading = false;
+      notifyListeners();
+      return;
+    }
+    _isMediaFilterLoading = true;
+    notifyListeners();
+    await _reloadMediaFilteredNotes();
+  }
+
+  Future<void> _reloadMediaFilteredNotes() async {
+    if (!isMediaFilterActive) {
+      return;
+    }
+    try {
+      final matched = await _databaseService.getNotesByMedia(_mediaFilter);
+      final visible = matched.where(_isVisibleNote).toList()
+        ..sort(noteComparator(_getCurrentSortOrder()));
+      if (!isMediaFilterActive || _mediaFilter == NoteMediaFilter.all) {
+        return;
+      }
+      _mediaFilteredNotes = List<Note>.unmodifiable(visible);
+    } on Object catch (e) {
+      debugPrint('AppProvider: 媒体筛选查询失败: $e');
+      _mediaFilteredNotes = const <Note>[];
+    } finally {
+      _isMediaFilterLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// 笔记增删改之后刷新筛选结果（只有筛选态才有成本，平时直接返回）。
+  void _refreshMediaFilterIfActive() {
+    if (!isMediaFilterActive) {
+      return;
+    }
+    unawaited(_reloadMediaFilteredNotes());
+  }
 
   // 🚀 大厂标准：性能指标访问
   int get totalNotesCount => _notesStore.totalNotesCount;
@@ -959,6 +1031,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       _refreshAllNoteTags();
 
       notifyListeners();
+      _refreshMediaFilterIfActive();
       _scheduleWidgetSnapshotUpdate();
 
       // 🚀 大厂标准：成功监控
@@ -1030,6 +1103,11 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   /// 🚀 大厂标准：加载更多笔记（滚动到底部时调用）
   /// 特性：并发控制 + 细粒度状态 + 性能监控
   Future<void> loadMoreNotes() async {
+    // 筛选态的结果是一次性查全的（见 getNotesByMedia），没有下一页可翻。
+    if (isMediaFilterActive) {
+      return;
+    }
+
     // 1️⃣ 并发控制：如果正在加载，返回现有的 Future
     if (_notesStore.loadMoreCompleter != null &&
         !_notesStore.loadMoreCompleter!.isCompleted) {
@@ -2448,6 +2526,13 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   // 排序笔记
   void sortNotes(SortOrder order) {
     _notesStore.notes.sort(noteComparator(order));
+    // 筛选态的列表是独立的一份，排序切换时也要跟着排，否则菜单里换了顺序
+    // 只有「全部笔记」在变，有图片/有视频那一屏还是老顺序。
+    if (isMediaFilterActive && _mediaFilteredNotes.isNotEmpty) {
+      final sorted = <Note>[..._mediaFilteredNotes]
+        ..sort(noteComparator(order));
+      _mediaFilteredNotes = List<Note>.unmodifiable(sorted);
+    }
     notifyListeners();
   }
 
@@ -2772,7 +2857,14 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
     _applyCurrentSort();
     notifyListeners();
-    _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
+    // 筛选态下这一条可能刚好进出集合（刚加了图 / 删光了图），重查一次。
+    // 未筛选时是空操作，不会额外查库。
+    _refreshMediaFilterIfActive();
+    // 为什么要等：小组件快照要 jsonEncode 全部笔记（每条跑一次待办正则）、
+    // 过一次平台通道，原生侧还会把 13 个组件整体 updateAppWidget。用
+    // Duration.zero 等于把这一坨压在「保存」同一帧，和编辑器的关闭动画抢
+    // 主线程，用户看到的就是点完保存要卡一下才关掉。挪到动画结束之后。
+    _scheduleWidgetSnapshotUpdate(delay: _widgetSnapshotDelayAfterWrite);
   }
 
   // 应用当前排序规则
@@ -2810,7 +2902,14 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
     _applyCurrentSort();
     notifyListeners();
-    _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
+    // 筛选态下这一条可能刚好进出集合（刚加了图 / 删光了图），重查一次。
+    // 未筛选时是空操作，不会额外查库。
+    _refreshMediaFilterIfActive();
+    // 为什么要等：小组件快照要 jsonEncode 全部笔记（每条跑一次待办正则）、
+    // 过一次平台通道，原生侧还会把 13 个组件整体 updateAppWidget。用
+    // Duration.zero 等于把这一坨压在「保存」同一帧，和编辑器的关闭动画抢
+    // 主线程，用户看到的就是点完保存要卡一下才关掉。挪到动画结束之后。
+    _scheduleWidgetSnapshotUpdate(delay: _widgetSnapshotDelayAfterWrite);
   }
 
   // 更新笔记
@@ -3081,6 +3180,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       _setTotalNotesCount(await _databaseService.getNotesCount());
       await _cleanupReferencesForDeletedNote(id);
       notifyListeners(); // ⚡ UI立即刷新
+      _refreshMediaFilterIfActive();
       _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
 
       debugPrint('AppProvider: ⚡ UI已更新（笔记已从列表移除）');
@@ -3232,6 +3332,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
           : _notesStore.lastDeletedIndex!.clamp(0, _notesStore.notes.length);
       _notesStore.notes.insert(restoreIndex, _notesStore.lastDeletedNote!);
       notifyListeners(); // ⚡ UI立即刷新
+      _refreshMediaFilterIfActive();
       _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
 
       debugPrint('AppProvider: ⚡ UI已更新（笔记已恢复到列表）');
@@ -3766,6 +3867,22 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
   // 处理笔记中的引用关系
   Future<void> _processNoteReferences(Note note) async {
+    // 绝大多数笔记正文里根本没有 `[[引用]]`，而
+    // `UnifiedReferenceManager.updateReferencesFromContent` 一进来就
+    // `getNotes()` 全表加载（每条还要反序列化 resourceList / relations），
+    // 保存一条纯文字笔记也要把整库过一遍。批量导入那边早就用
+    // `content.contains('[[')` 短路了，单条保存这条路径一直漏着。
+    //
+    // 不能只判 content：把已有的 `[[x]]` 删掉时正文虽然不再包含 `[[`，
+    // 但仍需要跑一次把旧关系清掉，所以还要看这条笔记身上有没有存着的引用。
+    final hasInlineReference = note.content.contains('[[');
+    final hasStoredReference = note.relations.any(
+      (relation) => relation['type'] == 'REFERENCE',
+    );
+    if (!hasInlineReference && !hasStoredReference) {
+      return;
+    }
+
     try {
       // 🚀 使用统一引用管理器（静默处理）
 

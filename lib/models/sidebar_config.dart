@@ -1,15 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/note_media_filter.dart';
 
 /// 侧边栏菜单项枚举
 enum SidebarMenuItem {
-  allNotes('all_notes', '全部笔记', '/', Icons.grid_view_rounded, false), // 不可隐藏
+  allNotes(
+    'all_notes',
+    '全部笔记',
+    '/',
+    Icons.grid_view_rounded,
+    false,
+    mediaFilter: NoteMediaFilter.all,
+  ), // 不可隐藏
   imageGallery(
     'image_gallery',
     '有图片',
-    '/image-gallery',
+    '/',
     Icons.photo_library_outlined,
     true,
+    mediaFilter: NoteMediaFilter.images,
+  ),
+  videoGallery(
+    'video_gallery',
+    '有视频',
+    '/',
+    Icons.video_library_outlined,
+    true,
+    mediaFilter: NoteMediaFilter.videos,
   ),
   randomReview(
     'random_review',
@@ -40,14 +57,22 @@ enum SidebarMenuItem {
     this.label,
     this.path,
     this.icon,
-    this.canHide,
-  );
+    this.canHide, {
+    this.mediaFilter,
+  });
 
   final String id;
   final String label;
   final String path;
   final dynamic icon; // IconData
   final bool canHide; // 是否可以隐藏
+
+  /// 这一项是不是「带筛选参数的首页」。
+  ///
+  /// 有图片 / 有视频不做独立页面：它们和「全部笔记」是同一条路由，只是
+  /// 进页面时把列表切到对应筛选（参考 flomo，产出的仍是笔记列表）。
+  /// 为 null 表示普通路由，点击后直接跳 [path]。
+  final NoteMediaFilter? mediaFilter;
 
   /// 获取国际化的标签文本
   String getLocalizedLabel(BuildContext context) {
@@ -57,6 +82,8 @@ enum SidebarMenuItem {
         return l10n?.allNotes ?? label;
       case 'image_gallery':
         return l10n?.imageGallery ?? label;
+      case 'video_gallery':
+        return l10n?.videoGallery ?? label;
       case 'random_review':
         return l10n?.randomReview ?? label;
       case 'all_tags':

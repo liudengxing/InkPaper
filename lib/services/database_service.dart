@@ -1,6 +1,7 @@
 import 'dart:convert'; // Added for jsonEncode and jsonDecode
 import 'package:flutter/foundation.dart';
 import 'package:inkpaper/config/app_config.dart';
+import 'package:inkpaper/models/note_media_filter.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
@@ -670,6 +671,41 @@ class DatabaseService {
     );
 
     return List.generate(maps.length, (i) => Note.fromMap(maps[i]));
+  }
+
+  /// 按媒体类型筛选笔记（「有图片」/「有视频」）。
+  ///
+  /// 首页是 50 条一页的分页缓存，没滑到的笔记根本不在内存里，所以画廊那套
+  /// 「扫 appProvider.notes」的做法天然只覆盖已加载的部分。这里直接查库：
+  ///
+  /// 1. 先用 `content LIKE '%!['`（图片和视频共用 markdown 写法）加
+  ///    resourceList 非空做粗筛，把候选压到「可能带媒体」的那部分；
+  /// 2. 再用 [NoteMediaFilter.matches] 精确判定，口径与卡片九宫格、详情页
+  ///    完全一致（视频在那边已经和图片互斥）。
+  ///
+  /// SQL 不做精确判定是有意的：视频扩展名、alt 约定、服务端无扩展名资源
+  /// 这几条规则散在 `MediaPaths` 里，抄一份到 SQL 里迟早和 Dart 侧对不上。
+  Future<List<Note>> getNotesByMedia(
+    NoteMediaFilter filter, {
+    String orderBy = 'createdAt DESC',
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    final List<Map<String, dynamic>> maps;
+    if (filter == NoteMediaFilter.all) {
+      maps = await db.query(viewActiveNotes, orderBy: orderBy);
+    } else {
+      maps = await db.query(
+        viewActiveNotes,
+        where: "(content LIKE '%![%' "
+            "OR (IFNULL(resourceList, '') <> '' "
+            "AND IFNULL(resourceList, '') <> '[]'))",
+        orderBy: orderBy,
+      );
+    }
+
+    final notes = maps.map(Note.fromMap);
+    return notes.where(filter.matches).toList();
   }
 
   /// 查询「往年同月同日」的笔记，按创建时间倒序（最近的年份在前）。

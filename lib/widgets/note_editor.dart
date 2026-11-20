@@ -2365,11 +2365,28 @@ class _NoteEditorState extends State<NoteEditor>
                                                   BorderRadius.circular(16),
                                             ),
                                             child: IconButton(
-                                              icon: const Icon(
-                                                Icons.send,
-                                                color: Colors.white,
-                                                size: 18,
-                                              ),
+                                              // 保存期间给个转圈：之前只是把按钮
+                                              // 置灰，用户点完看不到任何反馈，主观上
+                                              // 就会把几百毫秒的写入放大成「卡死」。
+                                              icon: _isSaving
+                                                  ? const SizedBox(
+                                                      width: 16,
+                                                      height: 16,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        valueColor:
+                                                            AlwaysStoppedAnimation<
+                                                                Color>(
+                                                          Colors.white,
+                                                        ),
+                                                      ),
+                                                    )
+                                                  : const Icon(
+                                                      Icons.send,
+                                                      color: Colors.white,
+                                                      size: 18,
+                                                    ),
                                               padding: EdgeInsets.zero,
                                               onPressed: (canSave && !_isSaving)
                                                   ? _saveNote

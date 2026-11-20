@@ -157,6 +157,27 @@ http.Response.bytes(utf8.encode(jsonEncode(payload)), 200)
 
 ---
 
+### 2.8 保存路径上不要做全表加载
+
+**症状**：点保存后要卡一下编辑器才关，笔记越多越明显。
+
+**根因**：`_processNoteReferences` 无条件调 `UnifiedReferenceManager.updateReferencesFromContent`，
+而它第一件事就是 `getNotes()` 把整库拉进内存（每条还要 `json.decode` resourceList /
+relations、`DateTime.parse` 四次）。**一条纯文字笔记也要过一遍整库。**
+
+**处理**：内容里没有 `[[`、并且这条笔记身上也没有已存的引用关系时直接 return。
+不能只判 content —— 删掉已有的 `[[x]]` 后正文不含 `[[`，但仍要跑一次清理旧关系。
+`createImportedNotes` 早就用 `contains('[[')` 短路了，单条保存这条路一直漏着。
+
+保存路径上的其他原则：
+
+- 桌面小组件快照别用 `Duration.zero`。快照要遍历全部笔记跑待办正则 + 过平台通道，
+  原生侧还会重绘 13 个组件，放在保存同一帧就是和关闭动画抢主线程。延后到 900ms。
+- 保存按钮要有 loading 态。只把 `onPressed` 置 null，用户看不到任何反馈，会把
+  几百毫秒放大成「卡死」。
+
+---
+
 ## 3. 时间显示口径（最容易反复踩）
 
 ### 3.1 Memos 存的是「伪 UTC」
@@ -260,6 +281,32 @@ Kotlin 小组件只裁 ISO 字符串，不要交给 `SimpleDateFormat`（它会�
 ### 5.5 撤销 SnackBar 的视觉不在 SnackBar 里
 
 `SnackBarUtils.showAction` 的 SnackBar 只当**透明容器**，真正视觉由 `LiquidGlassLayer + LiquidGlass` 给（`ios27Regular`、tint 0.35、refraction 14/40、圆角 26）。改样式别去动 SnackBar 自带的 backgroundColor。
+
+---
+
+### 5.6 分页缓存不能当全量数据源
+
+**症状**：「有图片」只显示最近滑过的那些图，早一点的笔记里的图全不见了。
+
+**根因**：首页是 **50 条一页** 的分页缓存（`getNotesPaged`），没滑到的页不在内存。
+画廊直接扫 `appProvider.notes`，等于只统计了已加载的部分。
+
+**处理**：任何「全量视角」的页面都必须自己查库。现在的做法：
+
+- `DatabaseService.getNotesByMedia(filter)`：SQL 先用 `content LIKE '%!['`
+  和 resourceList 非空做粗筛，再用 `NoteMediaFilter.matches` 精确判定。
+- **精确规则不要抄进 SQL**。视频扩展名表、alt 约定（服务端 `/o/r/<uid>` 没扩展名）、
+  图片/视频互斥，这些规则都在 `MediaPaths` 里，SQL 抄一份迟早和 Dart 侧对不上。
+- 筛选结果一次查全放内存，不走分页（`hasMoreData` 在筛选态直接返回 false）。
+
+### 5.7「有图片 / 有视频」是筛选参数，不是相册
+
+参考 flomo：菜单里的「有图片」产出的仍然是**笔记列表**，能点开、能编辑、能接着操作。
+做成独立相册页会让「看图」和「找笔记」割裂，而且相册页天然容易写成只扫内存列表。
+
+- 侧边栏与标题下拉共用同一个 `NoteMediaFilter`，都指向首页 `/`，只是切换筛选。
+- 侧边栏选中态要结合当前筛选判断（三项共用 `/` 路由，光比路径会同时高亮）。
+- 画册仍然保留，挂在筛选态的右上角，作为「看图」的快捷方式。
 
 ---
 

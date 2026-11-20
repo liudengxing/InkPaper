@@ -210,7 +210,6 @@ class _SidebarState extends State<Sidebar> {
   void _navigateWithSmoothTransition({
     required BuildContext context,
     required String path,
-    bool isPushRoute = false,
   }) {
     if (_navigationPending) {
       return;
@@ -219,6 +218,9 @@ class _SidebarState extends State<Sidebar> {
 
     final navigator = Navigator.of(context);
     final router = GoRouter.of(context);
+    // 侧边栏里除了「全部笔记」，进去的都是二级页。判断依据只能是当前
+    // location：抽屉还没关，这里读到的一定是上一页。
+    final fromHome = GoRouterState.of(context).matchedLocation == '/';
 
     // 1️⃣ 移动端：关闭侧边栏（触发收回动画）
     if (widget.isDrawer) {
@@ -231,12 +233,17 @@ class _SidebarState extends State<Sidebar> {
     final delay = widget.isDrawer ? 120 : 50;
     Future.delayed(Duration(milliseconds: delay), () {
       try {
-        if (isPushRoute) {
-          // 🎯 辅助页面（设置/帮助）：可返回
+        if (path == '/') {
+          // 回首页：栈清成只剩首页
+          router.go(path);
+        } else if (fromHome) {
+          // 用 push 而不是 go：go 会把栈替换成只有目标页，系统返回键直接
+          // 把 App 退到后台。push 之后栈是 [/, 目标页]，返回就回列表。
           router.push(path);
         } else {
-          // 🎯 主Tab页面（首页/标签/图谱）：平级切换，使用go而不是replace
-          router.go(path);
+          // 已经在二级页之间横跳：替换掉栈顶那一页，不让栈越叠越深
+          // （否则连点几个菜单，要按好几次返回才回到首页）。
+          router.pushReplacement(path);
         }
       } finally {
         _navigationPending = false;
@@ -277,7 +284,6 @@ class _SidebarState extends State<Sidebar> {
     required String path,
     required bool isSelected,
     required int index, // 添加索引参数
-    bool isPushRoute = false, // 🔥 新增参数：是否使用push而不是replace
     VoidCallback? onTapExtra,
   }) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -306,7 +312,6 @@ class _SidebarState extends State<Sidebar> {
             _navigateWithSmoothTransition(
               context: context,
               path: path,
-              isPushRoute: isPushRoute,
             );
           } else {
             // 🔧 如果是当前页面，只在移动端（drawer模式）关闭侧边栏
@@ -1377,9 +1382,6 @@ class _SidebarState extends State<Sidebar> {
         continue;
       }
 
-      // 决定是否使用 push 路由（辅助功能如"设置"）
-      final isPushRoute = menuItem.id == 'settings';
-
       items.add(
         _buildMenuItem(
           context: context,
@@ -1392,7 +1394,6 @@ class _SidebarState extends State<Sidebar> {
             activeMediaFilter,
           ),
           index: menuIndex++,
-          isPushRoute: isPushRoute,
           onTapExtra: menuItem.mediaFilter == null
               ? null
               : () => unawaited(
@@ -2141,7 +2142,6 @@ class _SidebarState extends State<Sidebar> {
                                               _navigateWithSmoothTransition(
                                                 context: context,
                                                 path: '/notifications',
-                                                isPushRoute: true,
                                               );
                                             },
                                           ),
@@ -2213,7 +2213,6 @@ class _SidebarState extends State<Sidebar> {
                                       _navigateWithSmoothTransition(
                                         context: context,
                                         path: '/settings',
-                                        isPushRoute: true,
                                       );
                                     },
                                   ),

@@ -163,6 +163,13 @@ hooks:
       name_windows: winsqlite3
       name: sqlite3
 
+# video_player_android 2.13.0 的 Kotlin 源码用了 `..<` 区间操作符，在 Flutter
+# 插件模板那套旧编译选项下报 `Unresolved reference: ..<`，Android 构建直接失败
+# —— 2026-11-21 的 CI 就是这么红的（本地锁着 2.12.2 没事，CI 解析到了 2.13.0）。
+# 钉在本地验证过的 2.12.2；要升级先本地跑通 `build android-release` 再放开。
+dependency_overrides:
+  video_player_android: 2.12.2
+
 flutter:
   uses-material-design: true
 

@@ -24,6 +24,11 @@ env:
   # 结果绑死在 dart_style 上：stable 一升级、格式化规则一变，CI 就会因为与代码
   # 无关的原因变红。升级时改这里一处即可（两个 workflow 各有一份）。
   FLUTTER_VERSION: 3.47.7
+  # 与 pubspec.lock 里记录的源保持一致。本地用 flutter-io.cn 镜像装包，
+  # lock 的 description.url 就写成镜像地址；CI 若用默认 pub.dev，pub 会
+  # 认为 lock 失效而重新解析，装到最新的 breaking 版本（2026-11-21 的
+  # video_player_android 2.13.0 就是这么进来的）。
+  PUB_HOSTED_URL: https://pub.flutter-io.cn
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   UMENG_ANDROID_APPKEY: ${{ secrets.UMENG_ANDROID_APPKEY }}
   UMENG_CHANNEL: ${{ secrets.UMENG_CHANNEL }}

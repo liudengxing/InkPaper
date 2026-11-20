@@ -497,6 +497,39 @@ Kotlin 小组件只裁 ISO 字符串，不要交给 `SimpleDateFormat`（它会�
 
 ---
 
+### 5.10 侧栏进二级页要用 push，不能一律 go
+
+**症状**：从侧边栏进「随机回顾 / 周期回顾 / 知识图谱 / AI 洞察」，按系统返回键
+不是回笔记列表，而是直接退出 App。
+
+**根因**：侧栏导航统一走 `router.go(path)`「平级切换」。`go()` 会按目标路径
+**重建整个匹配栈**，从 `/` 跳到 `/random-review` 之后栈里就只剩 `/random-review`
+一层 —— 没有可 pop 的路由，系统只能把 Activity 退到后台。
+
+**处理**（`_navigateWithSmoothTransition`，2026-11-21）：
+
+| 场景 | 做法 | 栈 |
+| --- | --- | --- |
+| 目标是 `/` | `go('/')` | `[/]`，清干净 |
+| 从 `/` 去二级页 | `push(path)` | `[/, 目标]` |
+| 已在二级页之间横跳 | `pushReplacement(path)` | `[/, 新目标]` |
+
+判断「从哪出发」用 `GoRouterState.of(context).matchedLocation == '/'`；抽屉还没关，
+这里读到的一定是上一页。用 `pushReplacement` 而不是 `replace`：`replace` 作用在
+`currentConfiguration` 上，对命令式 push 进来的页面不生效。
+
+**测试坑（两个，都静默失败）**：
+
+1. 别用 `router.routerDelegate.currentConfiguration.uri` 断言跳转结果。`push()` 是
+   命令式导航，不走 `RouteInformationProvider`，那个 uri 会一直停在旧值 —— 明明
+   `canPop()` 已经是 `true`，测出来却是「没跳转」。改成看顶层页面的 key：Navigator
+   会把被盖住的 route 置 offstage，`find` 默认跳过 offstage。
+2. 默认测试视口只有 **800×600**，侧栏下半截（知识图谱、设置）在屏幕外，`tap()` 打
+   不中**不会报错**，只表现为「点了没反应」。侧栏测试统一先把
+   `tester.view.physicalSize` 拉到 1080×2400。
+
+---
+
 ## 6. Android 小组件
 
 ### 6.1 改完小组件看不到变化

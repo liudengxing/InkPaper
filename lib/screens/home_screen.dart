@@ -1327,6 +1327,9 @@ class _HomeScreenState extends State<HomeScreen>
       backgroundColor: backgroundColor,
       // 🧊 列表延伸到底部，玻璃输入条才能模糊到下方的笔记内容
       extendBody: true,
+      // 遮罩留给抽屉自己的毛玻璃去做，不要压暗页面，
+      // 否则 BackdropFilter 采样到的是遮罩色而不是内容。
+      drawerScrimColor: Colors.transparent,
       drawer: const Sidebar(),
       drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.25,
       appBar: AppBar(

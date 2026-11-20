@@ -72,6 +72,9 @@ class _HelpScreenState extends State<HelpScreen> {
 
     return Scaffold(
       key: _scaffoldKey,
+      // 遮罩留给抽屉自己的毛玻璃去做，不要压暗页面，
+      // 否则 BackdropFilter 采样到的是遮罩色而不是内容。
+      drawerScrimColor: Colors.transparent,
       drawer: isSubPage ? null : const Sidebar(),
       drawerEdgeDragWidth:
           isSubPage ? null : MediaQuery.of(context).size.width * 0.2,

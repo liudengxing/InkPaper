@@ -356,6 +356,59 @@ Kotlin 小组件只裁 ISO 字符串，不要交给 `SimpleDateFormat`（它会�
 
 ---
 
+### 5.5.2 让玻璃成立的不是「底色」，是「背后有东西」（2026-11-21）
+
+**症状**：把抽屉底色改成纯白再上玻璃，还是白板 —— 只是从「灰板」变成「白板」。
+
+**根因**：玻璃观感来自三件事，全都需要背后有**高频细节**：明暗对比、色彩透出、
+边缘折射。纯色和柔和渐变都是低频，采出来一个值，模糊和折射都无处发生。
+另外 `Drawer` 打开时 `Scaffold` 会盖一层 `drawerScrimColor`（默认 `Colors.black54`），
+玻璃采到的其实是「内容 × 0.46 + 黑」，这才是 §5.5.1 里那种中灰的真正来源。
+
+**能成立的做法**：让玻璃背后是**真实页面**，把玻璃放到抽屉层而不只是选中项：
+
+```dart
+// 每个挂了 const Sidebar() 的 Scaffold 都要加，共 10 处
+drawerScrimColor: Colors.transparent,
+```
+
+```dart
+Drawer(
+  backgroundColor: Colors.transparent,      // 自己不填色，才能采到 body
+  elevation: 0,
+  shape: const RoundedRectangleBorder(),
+  child: ClipRRect(
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+      // 半透明底负责可读性：太厚看不到背后，玻璃感没了；太薄文字压在
+      // 笔记标题上会糊成一片。实测浅色 0xBFFFFFFF / 深色 0xC41A1A1C。
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDarkMode ? const Color(0xC41A1A1C) : const Color(0xBFFFFFFF),
+          // 去掉 scrim 后抽屉右缘没有分界，补 0.5dp 细边
+          border: Border(right: BorderSide(color: ..., width: 0.5)),
+        ),
+        child: SafeArea(child: ...),
+      ),
+    ),
+  ),
+)
+```
+
+配套：`_blurEnabled` 默认改为 `true`（原来为了省性能默认 false，等于白挂一个
+`BackdropFilter`）；选中项胶囊保持手搓（§5.5.1），品牌色叠在毛玻璃上像彩色磨砂贴片，
+不需要改成白色。
+
+**代价与边界**：抽屉视觉从「推出一块板」变成「悬浮在内容上」，打开时能隐约看到笔记；
+菜单文字压在内容上，白色底的 alpha 要在浅色/深色壁纸下各看一次。性能上模糊只在展开
+期间参与合成，小米 14 无掉帧。
+
+**顺带踩的坑**：给 Drawer 多套一层容器后整段代码缩进 +2，`dart format` 把原本一行
+的 `BorderRadius.circular(10)` 拆成多行却**不会补尾随逗号**，直接触发
+`require_trailing_commas`。深缩进改动后务必重跑 analyze，别信 format 的输出。
+
+---
+
 ### 5.6 分页缓存不能当全量数据源
 
 **症状**：「有图片」只显示最近滑过的那些图，早一点的笔记里的图全不见了。

@@ -113,7 +113,7 @@ class _SidebarState extends State<Sidebar> {
   // 🎯 热力图显示状态现在从AppConfig读取（统一管理）
   bool _isLoading = true; // 是否正在加载偏好设置
   bool _animationsEnabled = true;
-  bool _blurEnabled = false;
+  bool _blurEnabled = true;
   bool _tagsExpanded = false;
   bool _navigationPending = false;
   final Set<String> _expandedTagPaths = {};
@@ -160,9 +160,9 @@ class _SidebarState extends State<Sidebar> {
       }
     });
 
-    // BackdropFilter 在低端机/抽屉切换场景非常容易造成掉帧。
-    // 这里默认关闭模糊（保留半透明背景），后续如需可做成设置开关。
-    _blurEnabled = false;
+    // 抽屉整体做毛玻璃：BackdropFilter 要真正模糊到页面内容，必须开着。
+    // 模糊只在抽屉展开时存在，收起后不再参与合成，代价可接受。
+    _blurEnabled = true;
   }
 
   // 🎯 大厂级丝滑导航：侧边栏与页面切换的黄金节奏（精确调试版）
@@ -1684,462 +1684,490 @@ class _SidebarState extends State<Sidebar> {
       // - 手机：屏幕宽度的 80%
       // - 最大不超过 360dp（Material Design 3 规范）
       width: min(MediaQuery.of(context).size.width * 0.8, 360),
-      backgroundColor: isDarkMode ? AppTheme.darkSurfaceColor : Colors.white,
+      // 抽屉自身不填色：只有背后 Scaffold 的 drawerScrimColor 也是透明，
+      // BackdropFilter 才能采到页面真实内容（笔记列表的文字与缩略图）。
+      // 采不到内容时玻璃就是一块纯色板 —— 之前选中胶囊发灰就是同一根因。
+      backgroundColor: Colors.transparent,
       elevation: 0,
       shape: const RoundedRectangleBorder(),
       child: ClipRRect(
         child: BackdropFilter(
-          // 模糊很吃性能：默认关闭，用 0 达到“无模糊但结构不改”
           filter: _blurEnabled
-              ? ImageFilter.blur(sigmaX: 8, sigmaY: 8)
+              ? ImageFilter.blur(sigmaX: 14, sigmaY: 14)
               : ImageFilter.blur(),
-          child: SafeArea(
-            child: RepaintBoundary(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 用户信息区域 - 与热力图同样的宽度和样式
-                    // 🎯 个人中心组件 - 受 showProfile 与登录状态共同控制
-                    if (showProfileCard)
-                      AnimatedMenuWidget(
-                        index: 0,
-                        child: Container(
-                          margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: backgroundColor,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow:
-                                AppTheme.neuCardShadow(isDark: isDarkMode),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(12),
-                                    splashColor: (isDarkMode
-                                            ? AppTheme.primaryLightColor
-                                            : AppTheme.primaryColor)
-                                        .withValues(alpha: 0.1),
-                                    highlightColor: (isDarkMode
-                                            ? AppTheme.primaryLightColor
-                                            : AppTheme.primaryColor)
-                                        .withValues(alpha: 0.05),
-                                    onTap: () {
-                                      // 点击个人信息栏跳转到账户信息页面
-                                      if (widget.isDrawer) {
-                                        Navigator.pop(context); // 移动端关闭侧边栏
-                                      }
-                                      // 添加短暂延迟避免Navigator锁定
-                                      Future.delayed(
-                                          Duration(
-                                            milliseconds:
-                                                widget.isDrawer ? 300 : 50,
-                                          ), () {
-                                        if (context.mounted) {
-                                          context.go('/account-info');
-                                        }
-                                      });
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 4,
-                                        horizontal: 4,
-                                      ),
-                                      child: Consumer<AppProvider>(
-                                        builder: (context, appProvider, child) {
-                                          final currentUser = appProvider.user;
-                                          return Row(
-                                            children: [
-                                              // 用户头像 - 支持真实头像显示
-                                              Container(
-                                                width: 40,
-                                                height: 40,
-                                                decoration: BoxDecoration(
-                                                  shape: BoxShape.circle,
-                                                  color: AppTheme.primaryColor
-                                                      .withValues(alpha: 0.1),
-                                                  border: Border.all(
-                                                    color: AppTheme.primaryColor
-                                                        .withValues(
-                                                      alpha: 0.2,
-                                                    ),
-                                                  ),
-                                                ),
-                                                child: ClipOval(
-                                                  child: _buildSidebarAvatar(
-                                                    user!,
-                                                    context,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      currentUser?.nickname
-                                                                  ?.isNotEmpty ??
-                                                              false
-                                                          ? currentUser!
-                                                              .nickname!
-                                                          : (currentUser
-                                                                  ?.username ??
-                                                              ''),
-                                                      style: AppTextStyles
-                                                          .titleMedium(
-                                                        context,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: isDarkMode
-                                                            ? AppTheme
-                                                                .darkTextPrimaryColor
-                                                            : AppTheme
-                                                                .textPrimaryColor,
-                                                      ),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                    Row(
-                                                      children: [
-                                                        Container(
-                                                          width: 8,
-                                                          height: 8,
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            shape:
-                                                                BoxShape.circle,
-                                                            color: appProvider
-                                                                    .isLoggedIn
-                                                                ? Colors.green
-                                                                : Colors.red,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 4,
-                                                        ),
-                                                        Text(
-                                                          appProvider.isLoggedIn
-                                                              ? (AppLocalizationsSimple
-                                                                      .of(
-                                                                    context,
-                                                                  )?.online ??
-                                                                  '在线')
-                                                              : (AppLocalizationsSimple
-                                                                      .of(
-                                                                    context,
-                                                                  )?.offline ??
-                                                                  '离线'),
-                                                          style: AppTextStyles
-                                                              .bodySmall(
-                                                            context,
-                                                            color: appProvider
-                                                                    .isLoggedIn
-                                                                ? Colors.green
-                                                                : Colors.red,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              // 箭头图标提示
-                                              Icon(
-                                                Icons.arrow_forward_ios_rounded,
-                                                size: 14,
-                                                color: isDarkMode
-                                                    ? AppTheme
-                                                        .darkTextSecondaryColor
-                                                    : AppTheme
-                                                        .textSecondaryColor,
-                                              ),
-                                            ],
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              // 右侧：通知和设置图标
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // 只监听未读数，避免整个按钮随 AppProvider 大范围重建
-                                  Builder(
-                                    builder: (context) {
-                                      // 🎨 iOS风格通知按钮
-                                      return Stack(
-                                        clipBehavior: Clip.none,
-                                        children: [
-                                          IconButton(
-                                            icon: Icon(
-                                              Icons.notifications_outlined,
-                                              color: isDarkMode
-                                                  ? AppTheme.primaryLightColor
-                                                  : AppTheme.primaryColor,
-                                            ),
-                                            onPressed: () {
-                                              // 使用统一的丝滑导航方法
-                                              _navigateWithSmoothTransition(
-                                                context: context,
-                                                path: '/notifications',
-                                                isPushRoute: true,
-                                              );
-                                            },
-                                          ),
-                                          // iOS风格数字徽章
-                                          if (unreadCount > 0)
-                                            Positioned(
-                                              right: 8,
-                                              top: 8,
-                                              child: Container(
-                                                padding: EdgeInsets.symmetric(
-                                                  horizontal:
-                                                      unreadCount > 9 ? 6 : 5,
-                                                  vertical: 2,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: const Color(
-                                                    0xFFFF3B30,
-                                                  ), // iOS红色
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                  border: Border.all(
-                                                    color: isDarkMode
-                                                        ? const Color(
-                                                            0xFF1C1C1E,
-                                                          )
-                                                        : Colors.white,
-                                                    width: 1.5,
-                                                  ),
-                                                ),
-                                                constraints:
-                                                    const BoxConstraints(
-                                                  minWidth: 18,
-                                                  minHeight: 18,
-                                                ),
-                                                child: Center(
-                                                  child: Text(
-                                                    unreadCount > 99
-                                                        ? '99+'
-                                                        : unreadCount
-                                                            .toString(),
-                                                    style: AppTextStyles
-                                                        .labelSmall(
-                                                      context,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: Colors.white,
-                                                      height: 1.2,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      );
-                                    },
-                                  ),
-                                  // 🎨 设置按钮
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.settings_outlined,
-                                      color: isDarkMode
-                                          ? AppTheme.primaryLightColor
-                                          : AppTheme.primaryColor,
-                                    ),
-                                    onPressed: () {
-                                      // 使用统一的丝滑导航方法
-                                      _navigateWithSmoothTransition(
-                                        context: context,
-                                        path: '/settings',
-                                        isPushRoute: true,
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                    // 热力图 - 极简版（参考GitHub/Notion设计）- 整体控制显示/隐藏
-                    if (!_isLoading && sidebarConfig.showHeatmap)
-                      AnimatedMenuWidget(
-                        index: 1,
-                        child: Padding(
-                          // flomo 风格：热力图不再套卡片方框，直接铺在抽屉背景上
-                          // 没有个人中心卡片时顶部留一点呼吸空间，否则贴着状态栏
-                          padding: EdgeInsets.fromLTRB(
-                            20,
-                            showProfileCard ? 0 : 12,
-                            20,
-                            8,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(3),
-                                    decoration: BoxDecoration(
-                                      color: (isDarkMode
+          // 半透明底负责可读性：太厚看不到背后内容，玻璃感就没了；
+          // 太薄则菜单文字压在笔记标题上，深色壁纸下会糊成一片。
+          // 去掉 scrim 后抽屉右缘没有分界，补一条 0.5dp 细边。
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: isDarkMode
+                  ? const Color(0xC41A1A1C)
+                  : const Color(0xBFFFFFFF),
+              border: Border(
+                right: BorderSide(
+                  color: isDarkMode
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.06),
+                  width: 0.5,
+                ),
+              ),
+            ),
+            child: SafeArea(
+              child: RepaintBoundary(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 用户信息区域 - 与热力图同样的宽度和样式
+                      // 🎯 个人中心组件 - 受 showProfile 与登录状态共同控制
+                      if (showProfileCard)
+                        AnimatedMenuWidget(
+                          index: 0,
+                          child: Container(
+                            margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: backgroundColor,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow:
+                                  AppTheme.neuCardShadow(isDark: isDarkMode),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(12),
+                                      splashColor: (isDarkMode
                                               ? AppTheme.primaryLightColor
                                               : AppTheme.primaryColor)
                                           .withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Icon(
-                                      Icons.insights_rounded,
-                                      size: 11,
-                                      color: isDarkMode
-                                          ? AppTheme.primaryLightColor
-                                          : AppTheme.primaryColor,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Expanded(
-                                    child: Text(
-                                      AppLocalizationsSimple.of(context)
-                                              ?.activityLog ??
-                                          '活动记录',
-                                      style: AppTextStyles.custom(
-                                        context,
-                                        13,
-                                        fontWeight: FontWeight.w600,
-                                        color: isDarkMode
-                                            ? AppTheme.darkTextPrimaryColor
-                                            : AppTheme.textPrimaryColor,
+                                      highlightColor: (isDarkMode
+                                              ? AppTheme.primaryLightColor
+                                              : AppTheme.primaryColor)
+                                          .withValues(alpha: 0.05),
+                                      onTap: () {
+                                        // 点击个人信息栏跳转到账户信息页面
+                                        if (widget.isDrawer) {
+                                          Navigator.pop(context); // 移动端关闭侧边栏
+                                        }
+                                        // 添加短暂延迟避免Navigator锁定
+                                        Future.delayed(
+                                            Duration(
+                                              milliseconds:
+                                                  widget.isDrawer ? 300 : 50,
+                                            ), () {
+                                          if (context.mounted) {
+                                            context.go('/account-info');
+                                          }
+                                        });
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 4,
+                                          horizontal: 4,
+                                        ),
+                                        child: Consumer<AppProvider>(
+                                          builder:
+                                              (context, appProvider, child) {
+                                            final currentUser =
+                                                appProvider.user;
+                                            return Row(
+                                              children: [
+                                                // 用户头像 - 支持真实头像显示
+                                                Container(
+                                                  width: 40,
+                                                  height: 40,
+                                                  decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    color: AppTheme.primaryColor
+                                                        .withValues(alpha: 0.1),
+                                                    border: Border.all(
+                                                      color: AppTheme
+                                                          .primaryColor
+                                                          .withValues(
+                                                        alpha: 0.2,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  child: ClipOval(
+                                                    child: _buildSidebarAvatar(
+                                                      user!,
+                                                      context,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        currentUser?.nickname
+                                                                    ?.isNotEmpty ??
+                                                                false
+                                                            ? currentUser!
+                                                                .nickname!
+                                                            : (currentUser
+                                                                    ?.username ??
+                                                                ''),
+                                                        style: AppTextStyles
+                                                            .titleMedium(
+                                                          context,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          color: isDarkMode
+                                                              ? AppTheme
+                                                                  .darkTextPrimaryColor
+                                                              : AppTheme
+                                                                  .textPrimaryColor,
+                                                        ),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                      Row(
+                                                        children: [
+                                                          Container(
+                                                            width: 8,
+                                                            height: 8,
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              shape: BoxShape
+                                                                  .circle,
+                                                              color: appProvider
+                                                                      .isLoggedIn
+                                                                  ? Colors.green
+                                                                  : Colors.red,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 4,
+                                                          ),
+                                                          Text(
+                                                            appProvider
+                                                                    .isLoggedIn
+                                                                ? (AppLocalizationsSimple
+                                                                        .of(
+                                                                      context,
+                                                                    )?.online ??
+                                                                    '在线')
+                                                                : (AppLocalizationsSimple
+                                                                        .of(
+                                                                      context,
+                                                                    )?.offline ??
+                                                                    '离线'),
+                                                            style: AppTextStyles
+                                                                .bodySmall(
+                                                              context,
+                                                              color: appProvider
+                                                                      .isLoggedIn
+                                                                  ? Colors.green
+                                                                  : Colors.red,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                // 箭头图标提示
+                                                Icon(
+                                                  Icons
+                                                      .arrow_forward_ios_rounded,
+                                                  size: 14,
+                                                  color: isDarkMode
+                                                      ? AppTheme
+                                                          .darkTextSecondaryColor
+                                                      : AppTheme
+                                                          .textSecondaryColor,
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
-                              // 热力图
-                              const SizedBox(height: 8),
-                              RepaintBoundary(
-                                child: Heatmap(
-                                  notes: notes,
-                                  totalNotes: totalNotes,
-                                  // 26 列小方格下 grid 颜色太淡会糊成一片，
-                                  // 无活动格调深一档保证点阵可读
-                                  cellColor: isDarkMode
-                                      ? const Color(0xFF3A3A3C)
-                                      : const Color(0xFFE6E8EB),
-                                  activeColor: isDarkMode
-                                      ? AppTheme.primaryLightColor
-                                          .withValues(alpha: 0.9)
-                                      : AppTheme.primaryColor
-                                          .withValues(alpha: 0.9),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
 
-                    // 分类标题
-                    AnimatedMenuWidget(
-                      index: 2,
-                      child: Padding(
-                        // 与菜单块内容左对齐（margin 10 + 内边距 14）
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 8,
-                        ),
-                        child: Text(
-                          AppLocalizationsSimple.of(context)?.functionMenu ??
-                              '功能菜单',
-                          style: AppTextStyles.bodyMedium(
-                            context,
-                            fontWeight: FontWeight.w600,
-                            color: isDarkMode
-                                ? AppTheme.darkTextPrimaryColor
-                                    .withValues(alpha: 0.8) // 使用更亮的颜色提高对比度
-                                : AppTheme.textSecondaryColor,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // 🎯 动态菜单区（根据用户配置生成）
-                    // 参考Apple/Notion：允许用户自定义侧边栏显示
-                    ..._buildDynamicMenuItems(
-                      context,
-                      currentPath,
-                      sidebarConfig,
-                      notes,
-                    ),
-
-                    // 添加间距，使退出登录按钮位于底部
-                    const SizedBox(height: 32),
-
-                    // 退出登录按钮，只在登录模式下显示
-                    if (isLoggedIn)
-                      AnimatedMenuWidget(
-                        index: 8,
-                        child: Container(
-                          margin: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () {
-                                // 显示退出登录对话框
-                                _showLogoutDialog(context);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  border:
-                                      Border.all(color: Colors.red.shade200),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                                // 右侧：通知和设置图标
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
-                                      Icons.logout_rounded,
-                                      color: Colors.red.shade400,
-                                      size: 20,
+                                    // 只监听未读数，避免整个按钮随 AppProvider 大范围重建
+                                    Builder(
+                                      builder: (context) {
+                                        // 🎨 iOS风格通知按钮
+                                        return Stack(
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.notifications_outlined,
+                                                color: isDarkMode
+                                                    ? AppTheme.primaryLightColor
+                                                    : AppTheme.primaryColor,
+                                              ),
+                                              onPressed: () {
+                                                // 使用统一的丝滑导航方法
+                                                _navigateWithSmoothTransition(
+                                                  context: context,
+                                                  path: '/notifications',
+                                                  isPushRoute: true,
+                                                );
+                                              },
+                                            ),
+                                            // iOS风格数字徽章
+                                            if (unreadCount > 0)
+                                              Positioned(
+                                                right: 8,
+                                                top: 8,
+                                                child: Container(
+                                                  padding: EdgeInsets.symmetric(
+                                                    horizontal:
+                                                        unreadCount > 9 ? 6 : 5,
+                                                    vertical: 2,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(
+                                                      0xFFFF3B30,
+                                                    ), // iOS红色
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                      10,
+                                                    ),
+                                                    border: Border.all(
+                                                      color: isDarkMode
+                                                          ? const Color(
+                                                              0xFF1C1C1E,
+                                                            )
+                                                          : Colors.white,
+                                                      width: 1.5,
+                                                    ),
+                                                  ),
+                                                  constraints:
+                                                      const BoxConstraints(
+                                                    minWidth: 18,
+                                                    minHeight: 18,
+                                                  ),
+                                                  child: Center(
+                                                    child: Text(
+                                                      unreadCount > 99
+                                                          ? '99+'
+                                                          : unreadCount
+                                                              .toString(),
+                                                      style: AppTextStyles
+                                                          .labelSmall(
+                                                        context,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: Colors.white,
+                                                        height: 1.2,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        );
+                                      },
                                     ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      AppLocalizationsSimple.of(context)
-                                              ?.logoutButton ??
-                                          '退出登录',
-                                      style: AppTextStyles.titleMedium(
-                                        context,
-                                        color: Colors.red.shade400,
-                                        fontWeight: FontWeight.w500,
+                                    // 🎨 设置按钮
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.settings_outlined,
+                                        color: isDarkMode
+                                            ? AppTheme.primaryLightColor
+                                            : AppTheme.primaryColor,
+                                      ),
+                                      onPressed: () {
+                                        // 使用统一的丝滑导航方法
+                                        _navigateWithSmoothTransition(
+                                          context: context,
+                                          path: '/settings',
+                                          isPushRoute: true,
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                      // 热力图 - 极简版（参考GitHub/Notion设计）- 整体控制显示/隐藏
+                      if (!_isLoading && sidebarConfig.showHeatmap)
+                        AnimatedMenuWidget(
+                          index: 1,
+                          child: Padding(
+                            // flomo 风格：热力图不再套卡片方框，直接铺在抽屉背景上
+                            // 没有个人中心卡片时顶部留一点呼吸空间，否则贴着状态栏
+                            padding: EdgeInsets.fromLTRB(
+                              20,
+                              showProfileCard ? 0 : 12,
+                              20,
+                              8,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: BoxDecoration(
+                                        color: (isDarkMode
+                                                ? AppTheme.primaryLightColor
+                                                : AppTheme.primaryColor)
+                                            .withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Icon(
+                                        Icons.insights_rounded,
+                                        size: 11,
+                                        color: isDarkMode
+                                            ? AppTheme.primaryLightColor
+                                            : AppTheme.primaryColor,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Expanded(
+                                      child: Text(
+                                        AppLocalizationsSimple.of(context)
+                                                ?.activityLog ??
+                                            '活动记录',
+                                        style: AppTextStyles.custom(
+                                          context,
+                                          13,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDarkMode
+                                              ? AppTheme.darkTextPrimaryColor
+                                              : AppTheme.textPrimaryColor,
+                                        ),
                                       ),
                                     ),
                                   ],
+                                ),
+                                // 热力图
+                                const SizedBox(height: 8),
+                                RepaintBoundary(
+                                  child: Heatmap(
+                                    notes: notes,
+                                    totalNotes: totalNotes,
+                                    // 26 列小方格下 grid 颜色太淡会糊成一片，
+                                    // 无活动格调深一档保证点阵可读
+                                    cellColor: isDarkMode
+                                        ? const Color(0xFF3A3A3C)
+                                        : const Color(0xFFE6E8EB),
+                                    activeColor: isDarkMode
+                                        ? AppTheme.primaryLightColor
+                                            .withValues(alpha: 0.9)
+                                        : AppTheme.primaryColor
+                                            .withValues(alpha: 0.9),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                      // 分类标题
+                      AnimatedMenuWidget(
+                        index: 2,
+                        child: Padding(
+                          // 与菜单块内容左对齐（margin 10 + 内边距 14）
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            AppLocalizationsSimple.of(context)?.functionMenu ??
+                                '功能菜单',
+                            style: AppTextStyles.bodyMedium(
+                              context,
+                              fontWeight: FontWeight.w600,
+                              color: isDarkMode
+                                  ? AppTheme.darkTextPrimaryColor
+                                      .withValues(alpha: 0.8) // 使用更亮的颜色提高对比度
+                                  : AppTheme.textSecondaryColor,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // 🎯 动态菜单区（根据用户配置生成）
+                      // 参考Apple/Notion：允许用户自定义侧边栏显示
+                      ..._buildDynamicMenuItems(
+                        context,
+                        currentPath,
+                        sidebarConfig,
+                        notes,
+                      ),
+
+                      // 添加间距，使退出登录按钮位于底部
+                      const SizedBox(height: 32),
+
+                      // 退出登录按钮，只在登录模式下显示
+                      if (isLoggedIn)
+                        AnimatedMenuWidget(
+                          index: 8,
+                          child: Container(
+                            margin: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () {
+                                  // 显示退出登录对话框
+                                  _showLogoutDialog(context);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    border:
+                                        Border.all(color: Colors.red.shade200),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.logout_rounded,
+                                        color: Colors.red.shade400,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        AppLocalizationsSimple.of(context)
+                                                ?.logoutButton ??
+                                            '退出登录',
+                                        style: AppTextStyles.titleMedium(
+                                          context,
+                                          color: Colors.red.shade400,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -584,6 +584,64 @@ class PreferencesService {
     await prefs.setInt('last_sync_conflicts', count);
   }
 
+  // ── 随机回顾设置 ───────────────────────────────────────────
+  //
+  // 时间范围 / 每批条数 / 标签筛选要跟着用户走。这些早先只存在回顾页的
+  // State 里，每次重新进来都退回默认 30 天——用户选过「最近一年」也白选，
+  // 抽出来的永远是最近那批，看起来像「随机只抽最近的」。
+  static const String _reviewDaysKey = 'random_review_days';
+  static const String _reviewCountKey = 'random_review_count';
+  static const String _reviewTagsKey = 'random_review_tags';
+  static const String _reviewCustomStartKey = 'random_review_custom_start';
+  static const String _reviewCustomEndKey = 'random_review_custom_end';
+
+  Future<
+      ({
+        int days,
+        int count,
+        List<String> tags,
+        DateTime? customStart,
+        DateTime? customEnd,
+      })> getRandomReviewSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final start = prefs.getString(_reviewCustomStartKey);
+    final end = prefs.getString(_reviewCustomEndKey);
+    return (
+      // 默认一年：30 天窗口里能抽的太少，翻两批就全是最近写的。
+      days: prefs.getInt(_reviewDaysKey) ?? 365,
+      count: prefs.getInt(_reviewCountKey) ?? 5,
+      tags: prefs.getStringList(_reviewTagsKey) ?? const <String>[],
+      customStart: start == null ? null : DateTime.tryParse(start),
+      customEnd: end == null ? null : DateTime.tryParse(end),
+    );
+  }
+
+  Future<void> saveRandomReviewSettings({
+    required int days,
+    required int count,
+    required List<String> tags,
+    DateTime? customStart,
+    DateTime? customEnd,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_reviewDaysKey, days);
+    await prefs.setInt(_reviewCountKey, count);
+    await prefs.setStringList(_reviewTagsKey, tags);
+    if (customStart == null || customEnd == null) {
+      await prefs.remove(_reviewCustomStartKey);
+      await prefs.remove(_reviewCustomEndKey);
+    } else {
+      await prefs.setString(
+        _reviewCustomStartKey,
+        customStart.toIso8601String(),
+      );
+      await prefs.setString(
+        _reviewCustomEndKey,
+        customEnd.toIso8601String(),
+      );
+    }
+  }
+
   // 清除导入导出历史记录
   Future<void> clearImportExportHistory() async {
     final prefs = await SharedPreferences.getInstance();

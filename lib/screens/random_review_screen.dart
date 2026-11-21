@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/services/random_review_selector_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
@@ -44,9 +45,11 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
 
   // 回顾设置
   //
-  // 时间范围只有 7 / 30 / 180 / 365 四档加自定义（自定义走日期区间选择器），
-  // 默认 30 天：覆盖最近一个月的记录，池子又不至于大到抽出来的都是旧笔记。
-  int _reviewDays = 30;
+  // 时间范围只有 7 / 30 / 180 / 365 四档加自定义（自定义走日期区间选择器）。
+  // 默认 365 天：早先默认 30 天，一个月里能抽的就那么几十条，翻两批之后
+  // 用户看到的全是最近写的，会觉得「随机根本没随机」。选过的值会持久化，
+  // 下次进来不再退回默认。
+  int _reviewDays = 365;
 
   /// 自定义区间（含首尾两天）；非空时优先于 [_reviewDays]。
   DateTimeRange? _customRange;
@@ -60,10 +63,51 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
   void initState() {
     super.initState();
 
-    // 初始化时获取笔记
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadReviewNotes();
+    // 先把上次的回顾设置读回来，再抽第一批——顺序反了会先按默认 30 天
+    // 抽一批，紧接着又换掉，用户会看到内容闪一下。
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadReviewSettings();
+      if (!mounted) {
+        return;
+      }
+      await _loadReviewNotes();
     });
+  }
+
+  /// 读回上次保存的回顾设置（时间范围 / 条数 / 标签 / 自定义区间）。
+  Future<void> _loadReviewSettings() async {
+    final settings = await PreferencesService().getRandomReviewSettings();
+    if (!mounted) {
+      return;
+    }
+    final start = settings.customStart;
+    final end = settings.customEnd;
+    setState(() {
+      _reviewDays = settings.days;
+      _reviewCount = settings.count;
+      _selectedTags
+        ..clear()
+        ..addAll(settings.tags);
+      _customRange = (start != null && end != null)
+          ? DateTimeRange(start: start, end: end)
+          : null;
+    });
+  }
+
+  /// 选择即保存。
+  ///
+  /// 写盘只是副作用，失败不该拦住面板交互，所以不 await；下一批抽取用的
+  /// 是内存里的当前值，不受写盘快慢影响。
+  void _persistReviewSettings() {
+    unawaited(
+      PreferencesService().saveRandomReviewSettings(
+        days: _reviewDays,
+        count: _reviewCount,
+        tags: _selectedTags.toList(),
+        customStart: _customRange?.start,
+        customEnd: _customRange?.end,
+      ),
+    );
   }
 
   // 加载回顾笔记
@@ -73,7 +117,22 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
     Set<String> excludeIds = const <String>{},
   }) async {
     final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final allNotes = appProvider.notes;
+
+    // 必须查库拿全量。
+    //
+    // 首页的 appProvider.notes 是 50 条一页的**分页缓存**，没滑到过的老笔记
+    // 根本不在内存里；只从它里面抽，「时间范围 365 天」和「全部」没区别，
+    // 抽出来的永远是最近那一批——用户反馈的「怎么看都是最近的」就是这个。
+    // active_notes 视图已排除软删，这里再按 isNormal 去掉归档。
+    List<Note> allNotes;
+    try {
+      allNotes = (await appProvider.databaseService.getNotes())
+          .where((note) => note.isNormal)
+          .toList();
+    } on Object catch (e) {
+      debugPrint('RandomReview: 全量查询失败，退回已加载的缓存: $e');
+      allNotes = appProvider.notes;
+    }
 
     // 🕰️ 往年同月同日的笔记：独立成顶部的「那年今日」卡片，不占用本批名额
     var onThisDayNotes = const <Note>[];
@@ -285,6 +344,7 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
           void apply(VoidCallback change) {
             setState(change);
             setModalState(() {});
+            _persistReviewSettings();
           }
 
           // 高度按内容走，最多占屏幕 82%：内容少的时候不要留一大片空白，

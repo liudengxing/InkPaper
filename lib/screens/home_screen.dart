@@ -101,6 +101,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// 时长与曲线，整体才像一次动作；分开配曲线会各走各的，看着发飘。
   static const Duration _searchTransition = Duration(milliseconds: 220);
 
+  /// 抽屉按钮的固有尺寸。AnimatedContainer 只做横向收放，高度必须给死——
+  /// AppBar 的 title 槽位高约束是无限的，宽度动画带上无限高度会让里面的
+  /// OverflowBox 撑到 Infinity。
+  static const double _drawerButtonExtent = 48;
+
   /// 信息流「换源」时的一点淡起。
   ///
   /// 这里不能把 ListView 塞进 AnimatedSwitcher：切换期间新旧两个 ListView
@@ -1478,48 +1483,61 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             // 抽屉按钮：搜索态横向收起（44 → 12）。里面的按钮用 OverflowBox
             // 保持 44 的自身尺寸，只让外层 ClipRect 裁掉多余部分，否则宽度
             // 收到 12 时 IconButton 会被压变形、点按热区也跟着缩。
+            //
+            // ⚠️ height 必须显式给：AppBar 的 title 槽位高约束是无限的，
+            // AnimatedContainer 只给 width 时会把 maxHeight=∞ 透传给
+            // OverflowBox，它按 fit=max 撑到 Infinity → 整个 title 子树
+            // 布局失败（release 下不红屏，只是整块画不出来）。
             ClipRect(
-              child: AnimatedContainer(
-                duration: _searchTransition,
-                curve: Curves.easeOutCubic,
-                width: _isSearchActive ? 12 : 44,
-                alignment: Alignment.centerLeft,
-                child: OverflowBox(
-                  minWidth: 44,
-                  maxWidth: 44,
+              child: IgnorePointer(
+                // 收到 12px 后图标已被裁掉，但那条缝仍会吃掉点击，
+                // 搜索态下点它等于误开抽屉。
+                ignoring: _isSearchActive,
+                child: AnimatedContainer(
+                  duration: _searchTransition,
+                  curve: Curves.easeOutCubic,
+                  width: _isSearchActive ? 12 : 44,
+                  height: _drawerButtonExtent,
                   alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    icon: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: backgroundColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 16,
-                            height: 2,
-                            decoration: BoxDecoration(
-                              color: iconColor,
-                              borderRadius: BorderRadius.circular(1),
+                  child: OverflowBox(
+                    minWidth: 44,
+                    maxWidth: 44,
+                    minHeight: _drawerButtonExtent,
+                    maxHeight: _drawerButtonExtent,
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      icon: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: backgroundColor,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 16,
+                              height: 2,
+                              decoration: BoxDecoration(
+                                color: iconColor,
+                                borderRadius: BorderRadius.circular(1),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            width: 10,
-                            height: 2,
-                            decoration: BoxDecoration(
-                              color: iconColor,
-                              borderRadius: BorderRadius.circular(1),
+                            const SizedBox(height: 4),
+                            Container(
+                              width: 10,
+                              height: 2,
+                              decoration: BoxDecoration(
+                                color: iconColor,
+                                borderRadius: BorderRadius.circular(1),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                      tooltip: '菜单',
+                      onPressed: _openDrawer,
                     ),
-                    tooltip: '菜单',
-                    onPressed: _openDrawer,
                   ),
                 ),
               ),

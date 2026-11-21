@@ -32,6 +32,11 @@ enum _InsightRange {
 /// AI 洞察：选一个视角，让 AI 通读一批笔记，给出针对「这个人」的判断。
 ///
 /// 和「问笔记」是互补的：问笔记要用户先有问题，洞察不需要——它主动找模式。
+///
+/// 视觉按 flomo 5.5.5 实测（activity_ai_insight.xml / item_insight_template_card）：
+/// 页面底 #F9F9F9、分组/卡片纯白 12dp 圆角无描边、大标题 21sp、
+/// 次要文字 #949494、卡片间距 10、主按钮 48 高。唯一不抄的是玻璃——
+/// 纯色底上真玻璃只会发灰（LESSONS §5.5）。
 class AiInsightScreen extends StatefulWidget {
   const AiInsightScreen({super.key});
 
@@ -40,6 +45,16 @@ class AiInsightScreen extends StatefulWidget {
 }
 
 class _AiInsightScreenState extends State<AiInsightScreen> {
+  // ── 视觉 token（对齐 flomo 实测值）────────────────────────────────
+  static const _pagePadding = EdgeInsets.fromLTRB(16, 8, 16, 40);
+  static const _cardRadius = 12.0;
+  static const _cardPadding = EdgeInsets.fromLTRB(15, 14, 15, 12);
+  static const _gridGap = 10.0;
+
+  /// 网格卡固定高：用 childAspectRatio 时大字号下描述三行会顶破。
+  static const _cardExtent = 176.0;
+  static const _switchDuration = Duration(milliseconds: 240);
+
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final InsightLensStore _store = const InsightLensStore();
   final AiInsightService _service = const AiInsightService();
@@ -155,7 +170,7 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     final backgroundColor =
         isDarkMode ? AppTheme.darkBackgroundColor : AppTheme.backgroundColor;
     final textColor =
-        isDarkMode ? AppTheme.darkTextPrimaryColor : Colors.black87;
+        isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
     final iconColor =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
     final showResult = _result != null || _generating || _error != null;
@@ -194,57 +209,101 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: showResult ? _buildResultArea(l10n) : _buildPicker(l10n),
+      body: AnimatedSwitcher(
+        duration: _switchDuration,
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        // 进出两页叠在一起做交叉淡入，避免切换瞬间页面高度塌一下
+        layoutBuilder: (current, previous) => Stack(
+          alignment: Alignment.topCenter,
+          children: [...previous, if (current != null) current],
+        ),
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.02),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        ),
+        child: KeyedSubtree(
+          // 生成中 → 结果也算一次切换，重新渐入一遍
+          key: ValueKey(
+            showResult
+                ? (_generating ? 'gen' : (_error != null ? 'error' : 'result'))
+                : 'picker',
+          ),
+          child: showResult ? _buildResultArea(l10n) : _buildPicker(l10n),
+        ),
+      ),
     );
   }
 
   Widget _buildPicker(AppLocalizationsSimple? l10n) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final muted = colorScheme.onSurfaceVariant;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+      padding: _pagePadding,
       children: [
-        _buildScopeCard(l10n),
-        const SizedBox(height: 24),
+        _buildScopeRow(l10n),
+        const SizedBox(height: 26),
         Text(
           l10n?.aiInsightPickLens ?? '选择一个视角，开始洞察',
           style: theme.textTheme.titleMedium?.copyWith(
+            fontSize: 21,
+            height: 1.25,
             fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           '同一个你，换个视角看，会得出不同的结论。',
           style: theme.textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant,
+            fontSize: 12.5,
+            height: 1.5,
+            color: muted.withValues(alpha: 0.85),
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         if (_loadingLenses)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 40),
             child: Center(child: CircularProgressIndicator()),
           )
         else ...[
-          GridView.count(
-            crossAxisCount: 2,
+          GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.02,
-            children: [
-              for (final lens in _lenses)
-                _buildLensCard(lens, onLongPress: () => _showLensMenu(lens)),
-              _buildAddLensCard(l10n),
-            ],
+            padding: EdgeInsets.zero,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: _gridGap,
+              crossAxisSpacing: _gridGap,
+              mainAxisExtent: _cardExtent,
+            ),
+            itemCount: _lenses.length + 1,
+            itemBuilder: (context, index) {
+              if (index == _lenses.length) {
+                return _buildAddLensCard(l10n);
+              }
+              final lens = _lenses[index];
+              return _buildLensCard(
+                lens,
+                onLongPress: () => _showLensMenu(lens),
+              );
+            },
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           Text(
             '长按视角卡片可以查看或修改它的提示词。',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+              fontSize: 11.5,
+              color: muted.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -252,138 +311,168 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     );
   }
 
-  Widget _buildScopeCard(AppLocalizationsSimple? l10n) {
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+
+  /// 卡片底：浅色纯白，深色用卡片色。不用 surfaceContainerHighest ——
+  /// 深色下它偏蓝，和 flomo 的中性灰不是一回事。
+  Color get _cardFill => _isDark ? AppTheme.darkCardColor : Colors.white;
+
+  List<BoxShadow> get _cardShadow => _isDark
+      ? const []
+      : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ];
+
+  /// 范围选择：flomo 的分组设置行（一行、右侧当前值 + 箭头）。
+  /// 不用一排 ChoiceChip —— 四个选项在小屏会折成两排，视觉很碎。
+  Widget _buildScopeRow(AppLocalizationsSimple? l10n) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return Material(
+      color: _cardFill,
+      borderRadius: BorderRadius.circular(_cardRadius),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(_cardRadius),
+        onTap: _generating ? null : () => _showRangePicker(l10n),
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
             children: [
-              Icon(
-                Icons.tune_rounded,
-                size: 18,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 8),
+              Icon(Icons.tune_rounded, size: 16, color: muted),
+              const SizedBox(width: 10),
               Text(
                 l10n?.aiInsightScope ?? '分析范围',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
+              const Spacer(),
+              Text(
+                _range.label(l10n),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontSize: 14,
+                  color: muted,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Icon(Icons.chevron_right_rounded, size: 18, color: muted),
             ],
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showRangePicker(AppLocalizationsSimple? l10n) async {
+    final picked = await showModalBottomSheet<_InsightRange>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final primaryColor = Theme.of(sheetContext).colorScheme.primary;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               for (final range in _InsightRange.values)
-                ChoiceChip(
-                  label: Text(range.label(l10n)),
-                  selected: _range == range,
-                  onSelected: _generating
-                      ? null
-                      : (_) => setState(() => _range = range),
+                ListTile(
+                  title: Text(range.label(l10n)),
+                  trailing: _range == range
+                      ? Icon(Icons.check_rounded, color: primaryColor)
+                      : null,
+                  onTap: () => Navigator.of(sheetContext).pop(range),
                 ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            '会读取本地笔记的正文（图片和音视频不参与），只在生成时发送给已配置的 AI 服务。',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
+    if (picked != null && mounted && picked != _range) {
+      setState(() => _range = picked);
+    }
   }
 
   Widget _buildLensCard(InsightLens lens, {required VoidCallback onLongPress}) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: () => _generate(lens),
-      onLongPress: onLongPress,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.45),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    final muted = colorScheme.onSurfaceVariant;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _cardFill,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        boxShadow: _cardShadow,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(_cardRadius),
+          onTap: () => _generate(lens),
+          onLongPress: onLongPress,
+          child: Padding(
+            padding: _cardPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(lens.icon.icon, size: 20, color: colorScheme.primary),
-                const Spacer(),
-                if (lens.edited)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '已改',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: colorScheme.primary,
-                        fontSize: 10,
+                Row(
+                  children: [
+                    Icon(lens.icon.icon, size: 22, color: colorScheme.primary),
+                    const Spacer(),
+                    // 「已改」从带底小胶囊换成一个圆点：卡片上少一层色块
+                    if (lens.edited)
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.6),
+                          shape: BoxShape.circle,
+                        ),
                       ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  lens.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontSize: 15.5,
+                    height: 1.2,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.1,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: Text(
+                    lens.description,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 12.5,
+                      height: 1.55,
+                      color: muted.withValues(alpha: 0.85),
                     ),
                   ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'by ${lens.authorLabel}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontSize: 10.5,
+                    color: muted.withValues(alpha: 0.55),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              lens.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Expanded(
-              child: Text(
-                lens.description,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  height: 1.35,
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'by ${lens.authorLabel}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                fontSize: 10,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -391,40 +480,38 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
 
   Widget _buildAddLensCard(AppLocalizationsSimple? l10n) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: () => _editLensDialog(l10n),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _cardFill,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        boxShadow: _cardShadow,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(_cardRadius),
+          onTap: () => _editLensDialog(l10n),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.add_rounded,
+                size: 20,
+                color: muted.withValues(alpha: 0.5),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n?.aiInsightNewLens ?? '新建视角',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: muted,
+                ),
+              ),
+            ],
           ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.add_rounded,
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l10n?.aiInsightNewLens ?? '新建视角',
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '写一段自己的提示词',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                fontSize: 11,
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -443,36 +530,55 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   Widget _buildGeneratingView(AppLocalizationsSimple? l10n) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    final muted = colorScheme.onSurfaceVariant;
+    final skeleton = colorScheme.onSurface.withValues(alpha: 0.06);
+    return ListView(
+      padding: _pagePadding,
+      children: [
+        const SizedBox(height: 8),
+        Row(
           children: [
             const SizedBox(
-              width: 34,
-              height: 34,
-              child: CircularProgressIndicator(strokeWidth: 2.6),
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(width: 10),
             Text(
               l10n?.aiInsightGenerating ?? '正在通读你的笔记…',
               style: theme.textTheme.titleSmall?.copyWith(
+                fontSize: 14,
                 fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '用「${_activeLens?.name ?? ''}」这个视角。笔记多的时候要 10-30 秒。',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-                height: 1.4,
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 20),
+        // 三根骨架条代替居中大转圈：等待时页面有「正在读」的形状感
+        for (final factor in const [1.0, 0.86, 0.62]) ...[
+          FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: factor,
+            child: Container(
+              height: 12,
+              decoration: BoxDecoration(
+                color: skeleton,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+        const SizedBox(height: 6),
+        Text(
+          '用「${_activeLens?.name ?? ''}」这个视角 · 笔记多时要 10–30 秒',
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontSize: 12,
+            height: 1.5,
+            color: muted.withValues(alpha: 0.8),
+          ),
+        ),
+      ],
     );
   }
 
@@ -522,90 +628,113 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   Widget _buildResultView(AppLocalizationsSimple? l10n) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final muted = colorScheme.onSurfaceVariant;
     final result = _result!;
     final lens = _activeLens;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
       children: [
+        // 小标签 + 条数，给下面的大标题做语境
         Row(
           children: [
-            Icon(
-              lens?.icon.icon ?? Icons.auto_awesome_outlined,
-              size: 18,
-              color: colorScheme.primary,
-            ),
-            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                lens?.name ?? '洞察',
-                style: theme.textTheme.titleSmall?.copyWith(
+                'AI 洞察 · ${lens?.name ?? '洞察'}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
+                  letterSpacing: 0.6,
+                  color: colorScheme.primary.withValues(alpha: 0.85),
                 ),
               ),
             ),
             Text(
               '${result.noteCount} 条笔记',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontSize: 11.5,
+                color: muted.withValues(alpha: 0.7),
               ),
             ),
           ],
         ),
+        const SizedBox(height: 10),
+        Text(
+          lens?.name ?? '洞察',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontSize: 21,
+            height: 1.25,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.2,
+          ),
+        ),
         if (result.truncated)
           Padding(
-            padding: const EdgeInsets.only(top: 6),
+            padding: const EdgeInsets.only(top: 8),
             child: Text(
               '共 ${result.totalCandidates} 条有文字内容，模型这次看的是最近 ${result.noteCount} 条。',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                fontSize: 11.5,
+                height: 1.5,
+                color: muted.withValues(alpha: 0.75),
               ),
             ),
           ),
-        const SizedBox(height: 14),
-        Divider(height: 1, color: colorScheme.outlineVariant),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
+        // 一小段短线代替整条 Divider：断点更轻，不打断阅读
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            width: 40,
+            height: 1.5,
+            color: colorScheme.primary.withValues(alpha: 0.25),
+          ),
+        ),
+        const SizedBox(height: 20),
         SelectableText.rich(
           TextSpan(
             children: _buildInsightSpans(
               result.text,
-              theme.textTheme.bodyMedium ?? const TextStyle(fontSize: 15),
+              theme.textTheme.bodyMedium ?? const TextStyle(fontSize: 15.5),
               colorScheme,
             ),
           ),
           style: (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
-            fontSize: 15,
-            height: 1.72,
-            color: colorScheme.onSurface,
+            fontSize: 15.5,
+            height: 1.85,
+            color: colorScheme.onSurface.withValues(alpha: 0.92),
           ),
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 32),
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 8,
+          runSpacing: 8,
           children: [
             FilledButton.tonalIcon(
               onPressed: _copyResult,
               icon: const Icon(Icons.copy_rounded, size: 18),
               label: Text(l10n?.aiInsightCopy ?? '复制全文'),
             ),
-            OutlinedButton.icon(
+            TextButton.icon(
               onPressed: lens == null ? null : () => _generate(lens),
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: Text(l10n?.aiInsightRegenerate ?? '重新生成'),
             ),
-            OutlinedButton.icon(
+            TextButton.icon(
               onPressed: _backToPicker,
               icon: const Icon(Icons.swap_horiz_rounded, size: 18),
               label: Text(l10n?.aiInsightSwitchLens ?? '换个视角'),
             ),
           ],
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         Text(
           '洞察只基于你自己的记录，不是事实判断。有共鸣的部分可以继续想，不认同的部分直接略过。',
           style: theme.textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
-            height: 1.45,
+            fontSize: 11.5,
+            height: 1.5,
+            color: muted.withValues(alpha: 0.6),
           ),
         ),
       ],
@@ -629,8 +758,8 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
         TextSpan(
           text: ' [${match.group(1)}]',
           style: base.copyWith(
-            fontSize: (base.fontSize ?? 15) - 2.5,
-            color: colorScheme.primary.withValues(alpha: 0.85),
+            fontSize: (base.fontSize ?? 15.5) - 3,
+            color: colorScheme.primary.withValues(alpha: 0.75),
             fontWeight: FontWeight.w600,
           ),
         ),

@@ -516,7 +516,11 @@ class NotesContextBuilder {
       entries.add(
         _Entry(
           id: note.id,
-          time: note.displayTime,
+          // 必须按 createdAt，跟首页卡片、详情页、时间格式化的口径完全一致。
+          // displayTime 会在同步/编辑后退化成 updatedAt（Note 构造函数里
+          // displayTime = displayTime ?? clamp(createdAt, updatedAt)），用它
+          // 取样会把老笔记全当成最近的——洞察只覆盖近两个月就是这个原因。
+          time: note.createdAt,
           tags: note.tags,
           text: plain,
           imagePaths: MemosContentHelper.extractNoteImagePaths(note),

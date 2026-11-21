@@ -104,6 +104,34 @@ void main() {
   });
 
   group('NotesContextBuilder.buildForInsight', () {
+    test('时间按 createdAt 算，不被编辑后的 displayTime 洗成最近', () {
+      // 老笔记被编辑/同步后，displayTime 会退化成 updatedAt（最近）。
+      // 洞察必须按 createdAt 取样与标注，否则整批样本只剩近两个月。
+      final old = Note(
+        id: 'old',
+        content: '2022 年在杭州租的第一间房子，阳台朝北，冬天很冷。',
+        createdAt: DateTime(2022, 5, 10),
+        updatedAt: DateTime(2026, 11, 20),
+        displayTime: DateTime(2026, 11, 20),
+      );
+      final fresh = _note(
+        id: 'fresh',
+        content: '昨天开会定了一个新方向，还在消化。',
+        createdAt: DateTime(2026, 11, 21),
+      );
+
+      final context = NotesContextBuilder.buildForInsight(
+        [old, fresh],
+        excludedTags: const <String>{},
+      );
+
+      expect(context.noteCount, 2);
+      // 编号 1 是最近的 fresh，编号 2 是 createdAt 更早的 old
+      expect(context.sources.last.noteId, 'old');
+      expect(context.sources.last.createdAt, DateTime(2022, 5, 10));
+      expect(context.text, contains('2022-05'));
+    });
+
     test('笔记远多于上限时随机抽样覆盖整库，不只看最近', () {
       // 固定种子下，抽样散布在整库而不是最靠前的 30 条。
       final notes = <Note>[

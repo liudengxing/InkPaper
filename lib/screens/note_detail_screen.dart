@@ -58,6 +58,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   /// 视频路径同理，一条笔记最多一段。
   List<String> _renderVideoPaths = const <String>[];
 
+  /// 正文字数：只数看得见的字，图片/视频/链接的 Markdown 语法不算。
+  int _wordCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -101,6 +104,16 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     }
     _renderImagePaths = MemosContentHelper.extractNoteImagePaths(note);
     _renderVideoPaths = MemosContentHelper.extractNoteVideoPaths(note);
+    _wordCount = _countVisibleChars(note.content);
+  }
+
+  /// 字数口径：只数「看得见的字」，空白不算，Markdown 语法也不算。
+  ///
+  /// 原来直接用 `note.content.length`：一张图写成 `![](https://.../a.jpg)`
+  /// 就凭空多出 90 多个字，用户明明只写了几句却显示几百字。
+  int _countVisibleChars(String content) {
+    final visible = MemosContentHelper.previewVisibleText(content);
+    return visible.replaceAll(RegExp(r'\s+'), '').length;
   }
 
   Future<void> _loadNote() async {
@@ -740,9 +753,19 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                         ),
                       ),
                       TextSpan(
-                        text: '${note.content.length} 字',
+                        text: '$_wordCount 字',
                         style: infoStyle,
                       ),
+                      if (_renderImagePaths.isNotEmpty)
+                        TextSpan(
+                          text: ' · ${_renderImagePaths.length} 张图',
+                          style: infoStyle,
+                        ),
+                      if (_renderVideoPaths.isNotEmpty)
+                        TextSpan(
+                          text: ' · 1 段视频',
+                          style: infoStyle,
+                        ),
                     ],
                   ),
                   maxLines: 1,

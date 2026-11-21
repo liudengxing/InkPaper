@@ -9,6 +9,7 @@ import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/random_review_selector_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/utils/tag_input_helper.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:inkpaper/widgets/note_actions_ui.dart';
 import 'package:inkpaper/widgets/note_card.dart';
@@ -16,6 +17,7 @@ import 'package:inkpaper/widgets/note_editor_page.dart';
 import 'package:inkpaper/widgets/on_this_day_card.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
 import 'package:inkpaper/widgets/slide_out_row.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class RandomReviewScreen extends StatefulWidget {
@@ -41,12 +43,18 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
   bool _onThisDayDismissed = false;
 
   // 回顾设置
-  int _reviewDays = 999999; // 默认回顾全部笔记
+  //
+  // 时间范围只有 7 / 30 / 180 / 365 四档加自定义（自定义走日期区间选择器），
+  // 默认 30 天：覆盖最近一个月的记录，池子又不至于大到抽出来的都是旧笔记。
+  int _reviewDays = 30;
+
+  /// 自定义区间（含首尾两天）；非空时优先于 [_reviewDays]。
+  DateTimeRange? _customRange;
 
   /// 每批条数。随机回顾现在是信息流：一屏一批 N 条，下拉换下一批。
   int _reviewCount = 5;
 
-  Set<String> _selectedTags = {}; // 选中的标签集合
+  final Set<String> _selectedTags = <String>{}; // 选中的标签集合
 
   @override
   void initState() {
@@ -78,9 +86,25 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
       return;
     }
 
+    final customRange = _customRange;
     final selectedNotes = RandomReviewSelectorService.select(
       notes: allNotes,
       reviewDays: _reviewDays,
+      // 区间选择器给的是自然日，右边界要挪到次日 0 点，否则最后一天整天被排除
+      customStart: customRange == null
+          ? null
+          : DateTime(
+              customRange.start.year,
+              customRange.start.month,
+              customRange.start.day,
+            ),
+      customEnd: customRange == null
+          ? null
+          : DateTime(
+              customRange.end.year,
+              customRange.end.month,
+              customRange.end.day + 1,
+            ),
       reviewCount: _reviewCount,
       selectedTags: _selectedTags,
       excludeIds: excludeIds,
@@ -163,27 +187,35 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
         children: [
           Text('${_reviewNotes.length} ${l10n?.noteUnit ?? '条'}', style: style),
           const Spacer(),
-          Icon(Icons.arrow_downward_rounded, size: 13, color: subtleColor),
-          const SizedBox(width: 4),
-          Text(l10n?.refreshBatch ?? '换一批', style: style),
+          // 原来是「↓ 换一批」：箭头容易被读成「可以点」，但它本来就是
+          // 下拉手势的提示。直接写中文，不用猜。
+          Text('下拉换一批', style: style),
         ],
       ),
     );
   }
 
-  // 🔥 获取所有可用的标签
-  Set<String> _getAllTags() {
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final allNotes = appProvider.notes;
-    final allTags = <String>{};
-
-    // 使用改进的标签识别规则（排除URL中的#）
-    for (final note in allNotes) {
-      final tags = tag_utils.extractTagsFromContent(note.content);
-      allTags.addAll(tags);
+  /// 设置页的标签清单。
+  ///
+  /// 两个来源取并集：库里的 `tags` 字段（Memos 同步过来的标签常常只存在
+  /// 这里）和正文里的 `#标签`。只看正文会少一大截，用户会以为标签丢了。
+  ///
+  /// 排序直接用编辑器那套「最近 + 最常用」加权分（utils/tag_input_helper），
+  /// 不另立一套字典序。
+  List<String> _getRankedTags() {
+    final notes = Provider.of<AppProvider>(context, listen: false).notes;
+    final entries = <TagUsageEntry>[];
+    for (final note in notes) {
+      final tags = <String>{
+        ...note.tags,
+        ...tag_utils.extractTagsFromContent(note.content),
+      };
+      if (tags.isEmpty) {
+        continue;
+      }
+      entries.add((tags: tags.toList(), updatedAt: note.updatedAt));
     }
-
-    return allTags;
+    return rankTagsByUsage(notes: entries);
   }
 
   // 编辑已有笔记：走全屏编辑器，卡片只留给新建
@@ -221,65 +253,71 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
     );
   }
 
-  // 🔥 显示iOS风格的设置页面
-  void _showSettingsDialog() {
-    var tempDays = _reviewDays;
-    var tempCount = _reviewCount;
-    var tempSelectedTags = Set<String>.from(_selectedTags);
-
+  // ── 回顾设置 ─────────────────────────────────────────────
+  //
+  // 选择即保存：没有「完成」按钮，改哪一项立刻生效，关掉面板时统一重算
+  // 一批。这样用户不必猜「我改了到底存没存」。
+  Future<void> _showSettingsDialog() async {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor =
-        isDarkMode ? AppTheme.darkCardColor : const Color(0xFFF2F2F7);
+        isDarkMode ? AppTheme.darkCardColor : const Color(0xFFF4F4F6);
     final cardColor = isDarkMode ? const Color(0xFF2C2C2E) : Colors.white;
     final textColor = isDarkMode ? Colors.white : Colors.black87;
     final secondaryTextColor = isDarkMode ? Colors.grey[400] : Colors.grey[600];
+    final rankedTags = _getRankedTags();
+    final searchController = TextEditingController();
+    var searchText = '';
 
-    showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (BuildContext context) => StatefulBuilder(
-        builder: (BuildContext context, StateSetter setModalState) {
-          final allTags = _getAllTags().toList()..sort();
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final query = searchText.trim().toLowerCase();
+          final visibleTags = query.isEmpty
+              ? rankedTags
+              : rankedTags
+                  .where((tag) => tag.toLowerCase().contains(query))
+                  .toList();
 
-          return Container(
-            height: MediaQuery.of(context).size.height * 0.85,
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-              ),
+          // 立刻写回页面状态 + 刷新面板上的当前值
+          void apply(VoidCallback change) {
+            setState(change);
+            setModalState(() {});
+          }
+
+          // 高度按内容走，最多占屏幕 82%：内容少的时候不要留一大片空白，
+          // 标签一多再自己长到上限内滚动。键盘弹起时按 viewInsets 再收一收。
+          return ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.82 -
+                  MediaQuery.of(context).viewInsets.bottom,
             ),
-            child: Column(
-              children: [
-                // 🔥 顶部拖动条和标题
-                Container(
-                  padding: const EdgeInsets.only(top: 12, bottom: 16),
-                  decoration: BoxDecoration(
-                    color: cardColor,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      topRight: Radius.circular(20),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      // 拖动条
-                      Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: secondaryTextColor,
-                          borderRadius: BorderRadius.circular(2),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: secondaryTextColor,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      // 标题栏
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        const SizedBox(height: 16),
+                        Row(
                           children: [
                             Text(
                               AppLocalizationsSimple.of(context)
@@ -291,267 +329,248 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
                                 color: textColor,
                               ),
                             ),
-                            TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _reviewDays = tempDays;
-                                  _reviewCount = tempCount;
-                                  _selectedTags = tempSelectedTags;
-                                });
-                                Navigator.pop(context);
-                                _loadReviewNotes();
-                              },
+                            const SizedBox(width: 8),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 3),
                               child: Text(
-                                AppLocalizationsSimple.of(context)?.confirm ??
-                                    '完成',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.primaryColor,
+                                '选择即保存',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: secondaryTextColor,
                                 ),
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-
-                // 🔥 设置内容（可滚动）
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.only(top: 20, bottom: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                       children: [
-                        // 📅 时间范围设置
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: cardColor,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            children: [
-                              _buildSettingItem(
-                                title: AppLocalizationsSimple.of(context)
-                                        ?.reviewTimeRange ??
-                                    '时间范围',
-                                trailing: _buildOptionButton(
-                                  tempDays == 999999
-                                      ? (AppLocalizationsSimple.of(context)
-                                              ?.all ??
-                                          '全部')
-                                      : '$tempDays ${AppLocalizationsSimple.of(context)?.dayUnit ?? '天'}',
-                                  () => _showTimeRangePicker(context, tempDays,
-                                      (value) {
-                                    setModalState(() {
-                                      tempDays = value;
+                        _settingsCard(
+                          cardColor,
+                          children: [
+                            _buildSettingItem(
+                              title: '时间范围',
+                              trailing: _buildOptionButton(
+                                _timeRangeLabel(),
+                                () => _showTimeRangePicker(
+                                  (days, customRange) {
+                                    apply(() {
+                                      _reviewDays = days;
+                                      _customRange = customRange;
                                     });
-                                  }),
-                                  isDarkMode,
+                                  },
                                 ),
-                                isDarkMode: isDarkMode,
+                                isDarkMode,
+                              ),
+                              isDarkMode: isDarkMode,
+                            ),
+                            _settingsDivider(isDarkMode),
+                            _buildSettingItem(
+                              title: '笔记数量',
+                              trailing: _buildOptionButton(
+                                '$_reviewCount ${AppLocalizationsSimple.of(context)?.noteUnit ?? '条'}',
+                                () => _showCountPicker(
+                                  context,
+                                  _reviewCount,
+                                  (value) => apply(() => _reviewCount = value),
+                                ),
+                                isDarkMode,
+                              ),
+                              isDarkMode: isDarkMode,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        if (rankedTags.isNotEmpty) ...[
+                          Row(
+                            children: [
+                              Text(
+                                '🏷️ 标签筛选',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: secondaryTextColor,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _selectedTags.isEmpty
+                                    ? '全部'
+                                    : '已选 ${_selectedTags.length} 个',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: (secondaryTextColor ?? Colors.grey)
+                                      .withValues(alpha: 0.8),
+                                ),
+                              ),
+                              const Spacer(),
+                              // 搜索框放在标签区右上角：标签一多就得靠它，
+                              // 放在整页顶部会和「时间范围」抢注意力。
+                              SizedBox(
+                                width: 148,
+                                height: 34,
+                                child: TextField(
+                                  controller: searchController,
+                                  onChanged: (value) => setModalState(
+                                    () => searchText = value,
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: textColor,
+                                  ),
+                                  decoration: InputDecoration(
+                                    isDense: true,
+                                    hintText: '搜索标签',
+                                    hintStyle: TextStyle(
+                                      fontSize: 12.5,
+                                      color: secondaryTextColor,
+                                    ),
+                                    prefixIcon: Icon(
+                                      Icons.search_rounded,
+                                      size: 16,
+                                      color: secondaryTextColor,
+                                    ),
+                                    prefixIconConstraints: const BoxConstraints(
+                                      minWidth: 30,
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                      horizontal: 8,
+                                    ),
+                                    filled: true,
+                                    fillColor: isDarkMode
+                                        ? Colors.white.withValues(alpha: 0.06)
+                                        : const Color(0xFFF2F2F5),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(9),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // 📊 回顾数量设置
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: cardColor,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
+                          const SizedBox(height: 10),
+                          _settingsCard(
+                            cardColor,
                             children: [
-                              _buildSettingItem(
-                                title: AppLocalizationsSimple.of(context)
-                                        ?.reviewNotesCount ??
-                                    '笔记数量',
-                                trailing: _buildOptionButton(
-                                  '$tempCount ${AppLocalizationsSimple.of(context)?.noteUnit ?? '条'}',
-                                  () => _showCountPicker(context, tempCount,
-                                      (value) {
-                                    setModalState(() {
-                                      tempCount = value;
-                                    });
-                                  }),
-                                  isDarkMode,
-                                ),
-                                isDarkMode: isDarkMode,
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // 🏷️ 标签筛选
-                        if (allTags.isNotEmpty) ...[
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(32, 8, 32, 8),
-                            child: Text(
-                              '🏷️ 标签筛选',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: secondaryTextColor,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 16),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: cardColor,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // 全选/取消全选按钮
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        tempSelectedTags.isEmpty
-                                            ? '选择标签（全部）'
-                                            : '已选 ${tempSelectedTags.length} 个标签',
+                              Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: visibleTags.isEmpty
+                                    ? Text(
+                                        '没有匹配的标签',
                                         style: TextStyle(
-                                          fontSize: 14,
-                                          color: secondaryTextColor,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: () {
-                                        setModalState(() {
-                                          if (tempSelectedTags.isEmpty) {
-                                            tempSelectedTags =
-                                                Set.from(allTags);
-                                          } else {
-                                            tempSelectedTags.clear();
-                                          }
-                                        });
-                                      },
-                                      style: TextButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 4,
-                                        ),
-                                        minimumSize: Size.zero,
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                      ),
-                                      child: Text(
-                                        tempSelectedTags.isEmpty ? '全选' : '清空',
-                                        style: const TextStyle(
                                           fontSize: 13,
-                                          color: AppTheme.primaryColor,
+                                          color: secondaryTextColor,
                                         ),
+                                      )
+                                    : Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          for (final tag in visibleTags)
+                                            _buildTagChip(
+                                              tag: tag,
+                                              selected:
+                                                  _selectedTags.contains(tag),
+                                              isDarkMode: isDarkMode,
+                                              textColor: textColor,
+                                              onTap: () => apply(() {
+                                                if (_selectedTags
+                                                    .contains(tag)) {
+                                                  _selectedTags.remove(tag);
+                                                } else {
+                                                  _selectedTags.add(tag);
+                                                }
+                                              }),
+                                            ),
+                                        ],
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                // 🔥 标签网格（限制最大高度，可滚动）
-                                ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxHeight: 300, // 最大高度限制，避免溢出
-                                  ),
-                                  child: SingleChildScrollView(
-                                    child: Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: allTags.map((tag) {
-                                        final isSelected =
-                                            tempSelectedTags.contains(tag);
-                                        return GestureDetector(
-                                          onTap: () {
-                                            setModalState(() {
-                                              if (isSelected) {
-                                                tempSelectedTags.remove(tag);
-                                              } else {
-                                                tempSelectedTags.add(tag);
-                                              }
-                                            });
-                                          },
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: isSelected
-                                                  ? AppTheme.primaryColor
-                                                  : (isDarkMode
-                                                      ? Colors.grey[800]
-                                                      : Colors.grey[200]),
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
-                                              border: Border.all(
-                                                color: isSelected
-                                                    ? AppTheme.primaryColor
-                                                    : Colors.transparent,
-                                                width: 1.5,
-                                              ),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                if (isSelected)
-                                                  const Padding(
-                                                    padding: EdgeInsets.only(
-                                                      right: 4,
-                                                    ),
-                                                    child: Icon(
-                                                      Icons.check,
-                                                      size: 14,
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                                Text(
-                                                  '#$tag',
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    color: isSelected
-                                                        ? Colors.white
-                                                        : textColor,
-                                                    fontWeight: isSelected
-                                                        ? FontWeight.w600
-                                                        : FontWeight.normal,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ],
                       ],
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },
+      ),
+    );
+
+    searchController.dispose();
+    if (mounted) {
+      await _loadReviewNotes();
+    }
+  }
+
+  Widget _settingsCard(Color color, {required List<Widget> children}) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _settingsDivider(bool isDarkMode) => Divider(
+        height: 0.5,
+        thickness: 0.5,
+        indent: 16,
+        endIndent: 16,
+        color: isDarkMode
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.black.withValues(alpha: 0.05),
+      );
+
+  Widget _buildTagChip({
+    required String tag,
+    required bool selected,
+    required bool isDarkMode,
+    required Color textColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppTheme.primaryColor
+              : (isDarkMode ? Colors.grey[800] : Colors.grey[200]),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? AppTheme.primaryColor : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected)
+              const Padding(
+                padding: EdgeInsets.only(right: 4),
+                child: Icon(Icons.check, size: 14, color: Colors.white),
+              ),
+            Text(
+              '#$tag',
+              style: TextStyle(
+                fontSize: 13,
+                color: selected ? Colors.white : textColor,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -637,77 +656,116 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
         ),
       );
 
-  // 🔥 显示时间范围选择器
-  void _showTimeRangePicker(
-    BuildContext context,
-    int currentValue,
-    Function(int) onSelect,
-  ) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final options = [7, 14, 30, 60, 90, 180, 365, 999999];
+  /// 当前时间范围的展示文案：档位写「30 天」，自定义写「10.1 - 10.20」。
+  String _timeRangeLabel() {
+    final range = _customRange;
+    if (range == null) {
+      return '$_reviewDays 天';
+    }
+    final format = DateFormat('M.d');
+    return '${format.format(range.start)} - ${format.format(range.end)}';
+  }
 
-    showModalBottomSheet(
+  /// 时间范围选择：7 / 30 / 180 / 365 天 + 自定义（日期区间选择器）。
+  Future<void> _showTimeRangePicker(
+    void Function(int days, DateTimeRange? customRange) onSelect,
+  ) async {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    const presets = <int>[7, 30, 180, 365];
+    final currentIsCustom = _customRange != null;
+
+    final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: isDarkMode ? AppTheme.darkCardColor : Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.6,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  AppLocalizationsSimple.of(context)?.reviewTimeRange ??
-                      '选择时间范围',
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                '时间范围',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                ),
+              ),
+            ),
+            for (final days in presets)
+              ListTile(
+                title: Text(
+                  '$days 天',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: isDarkMode ? Colors.white : Colors.black87,
+                    color: !currentIsCustom && days == _reviewDays
+                        ? AppTheme.primaryColor
+                        : null,
+                    fontWeight: !currentIsCustom && days == _reviewDays
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                   ),
                 ),
+                trailing: !currentIsCustom && days == _reviewDays
+                    ? const Icon(Icons.check, color: AppTheme.primaryColor)
+                    : null,
+                onTap: () => Navigator.pop(sheetContext, '$days'),
               ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: options.length,
-                  itemBuilder: (context, index) {
-                    final days = options[index];
-                    final isSelected = days == currentValue;
-                    return ListTile(
-                      title: Text(
-                        days == 999999
-                            ? (AppLocalizationsSimple.of(context)?.all ?? '全部')
-                            : '$days ${AppLocalizationsSimple.of(context)?.dayUnit ?? '天'}',
-                        style: TextStyle(
-                          color: isSelected ? AppTheme.primaryColor : null,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.normal,
-                        ),
-                      ),
-                      trailing: isSelected
-                          ? const Icon(
-                              Icons.check,
-                              color: AppTheme.primaryColor,
-                            )
-                          : null,
-                      onTap: () {
-                        onSelect(days);
-                        Navigator.pop(context);
-                      },
-                    );
-                  },
+            ListTile(
+              title: Text(
+                '自定义',
+                style: TextStyle(
+                  color: currentIsCustom ? AppTheme.primaryColor : null,
+                  fontWeight:
+                      currentIsCustom ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
-            ],
-          ),
+              subtitle: currentIsCustom
+                  ? Text(
+                      _timeRangeLabel(),
+                      style: const TextStyle(fontSize: 12),
+                    )
+                  : null,
+              trailing: currentIsCustom
+                  ? const Icon(Icons.check, color: AppTheme.primaryColor)
+                  : const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.pop(sheetContext, 'custom'),
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );
+
+    if (!mounted || choice == null) {
+      return;
+    }
+
+    if (choice == 'custom') {
+      final now = DateTime.now();
+      final picked = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime(now.year - 5),
+        lastDate: now,
+        initialDateRange: _customRange ??
+            DateTimeRange(
+              start: now.subtract(const Duration(days: 30)),
+              end: now,
+            ),
+        helpText: '选择回顾的时间范围',
+        saveText: '确定',
+        cancelText: '取消',
+      );
+      if (picked == null) {
+        return;
+      }
+      onSelect(_reviewDays, picked);
+      return;
+    }
+
+    onSelect(int.parse(choice), null);
   }
 
   // 🔥 显示数量选择器
@@ -852,24 +910,11 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
           ),
         ),
         actions: [
-          // 🔀 换一批：重新随机抽样
+          // 换一批只走下拉手势（列表顶部的提示条已经写明「下拉换一批」），
+          // 右上角再放一个 shuffle 按钮是重复的第二入口，删掉。
           IconButton(
-            tooltip: AppLocalizationsSimple.of(context)?.refreshBatch ?? '换一批',
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.shuffle_rounded,
-                size: 20,
-                color: iconColor,
-              ),
-            ),
-            onPressed: _shuffleBatch,
-          ),
-          IconButton(
+            tooltip:
+                AppLocalizationsSimple.of(context)?.reviewSettings ?? '回顾设置',
             icon: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -879,7 +924,8 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
               child: Icon(
                 Icons.settings,
                 size: 20,
-                color: iconColor,
+                // 设置是低频入口，用灰色而不是品牌色，别抢标题的注意力
+                color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
               ),
             ),
             onPressed: _showSettingsDialog,

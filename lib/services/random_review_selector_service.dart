@@ -7,9 +7,13 @@ import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 abstract final class RandomReviewSelectorService {
   static const int allDays = 999999;
 
+  /// [customStart] / [customEnd] 非空时优先用自定义区间（左闭右开），
+  /// 忽略 [reviewDays]——设置页的「自定义」走这条。
   static List<Note> select({
     required List<Note> notes,
     int reviewDays = allDays,
+    DateTime? customStart,
+    DateTime? customEnd,
     int reviewCount = 1,
     Set<String> selectedTags = const {},
     Set<String> excludeIds = const {},
@@ -35,13 +39,23 @@ abstract final class RandomReviewSelectorService {
 
     final normalizedDays = reviewDays <= 0 ? allDays : reviewDays;
     final cutoffDate = DateTime.now().subtract(Duration(days: normalizedDays));
-    var filteredNotes = sourceNotes
-        .where((note) => note.displayTime.isAfter(cutoffDate))
-        .toList();
+    final hasCustomWindow = customStart != null && customEnd != null;
+    var filteredNotes = sourceNotes.where((note) {
+      if (hasCustomWindow) {
+        return !note.displayTime.isBefore(customStart) &&
+            note.displayTime.isBefore(customEnd);
+      }
+      return note.displayTime.isAfter(cutoffDate);
+    }).toList();
 
     if (selectedTags.isNotEmpty) {
       filteredNotes = filteredNotes.where((note) {
-        final noteTags = tag_utils.extractTagsFromContent(note.content).toSet();
+        // 标签既可能在库里的 tags 字段，也可能只写在正文的 # 后面，
+        // 只看正文的话，靠 tags 字段存标签的笔记会被整批筛掉。
+        final noteTags = <String>{
+          ...note.tags,
+          ...tag_utils.extractTagsFromContent(note.content),
+        };
         return selectedTags.every(noteTags.contains);
       }).toList();
     }

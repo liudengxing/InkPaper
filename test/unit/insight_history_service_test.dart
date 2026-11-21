@@ -30,4 +30,24 @@ void main() {
       expect(_entry('短的一句话。').preview, '短的一句话。');
     });
   });
+
+  group('InsightReportEntry 来源笔记', () {
+    final entry = InsightReportEntry(
+      id: 1,
+      lensId: 'inversion',
+      lensName: '逆向思考',
+      scopeLabel: '全部笔记',
+      noteCount: 2,
+      content: '正文 [1][2]',
+      createdAt: DateTime(2026, 11, 21),
+      sourceIds: const <String>['note-a', 'note-b'],
+    );
+
+    test('IH-04 按正文编号取来源 id，越界返回 null', () {
+      expect(entry.sourceIdAt(1), 'note-a');
+      expect(entry.sourceIdAt(2), 'note-b');
+      expect(entry.sourceIdAt(0), isNull);
+      expect(entry.sourceIdAt(3), isNull);
+    });
+  });
 }

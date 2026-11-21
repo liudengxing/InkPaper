@@ -314,7 +314,8 @@ void main() {
       await _indexes(db, DatabaseService.tableInsightReports),
       contains('idx_insight_reports_created'),
     );
-    // 正文与元信息是回看必需的，思考过程故意不落库
+    // 回看需要标题、正文、思考过程与来源笔记 id（v15 起思考过程也落库：
+    // 没有它只剩结论，看不到论证怎么走的）
     final columns = await _columns(db, DatabaseService.tableInsightReports);
     expect(
       columns,
@@ -324,10 +325,12 @@ void main() {
         'scope_label',
         'note_count',
         'content',
+        'title',
+        'reasoning',
+        'source_ids',
         'created_at',
       ]),
     );
-    expect(columns, isNot(contains('reasoning')));
     await db.close();
   });
 
@@ -365,6 +368,66 @@ void main() {
         .rawQuery("SELECT name FROM sqlite_master WHERE type='table'")
         .then((rows) => rows.map((r) => r['name']! as String).toList());
     expect(after, contains(DatabaseService.tableInsightReports));
+    await db.close();
+  });
+
+  test('DB-MIG-13 upgradeSchema (14 -> 15) 给洞察历史补三列，可重复执行', () async {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+
+    final db = await databaseFactory.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 14,
+        singleInstance: false,
+        onCreate: (db, _) async {
+          await db.execute('''
+            CREATE TABLE notes(
+              id TEXT PRIMARY KEY,
+              content TEXT NOT NULL,
+              createdAt TEXT NOT NULL,
+              updatedAt TEXT NOT NULL
+            )
+          ''');
+          // v14 当时的表结构：没有 title / reasoning / source_ids
+          await db.execute('''
+            CREATE TABLE ${DatabaseService.tableInsightReports}(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              lens_id TEXT NOT NULL,
+              lens_name TEXT NOT NULL,
+              scope_label TEXT NOT NULL,
+              note_count INTEGER DEFAULT 0,
+              content TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            )
+          ''');
+        },
+      ),
+    );
+
+    final before = await _columns(db, DatabaseService.tableInsightReports);
+    expect(before, isNot(contains('title')));
+
+    await DatabaseService.upgradeSchema(db, oldVersion: 14, newVersion: 15);
+    // 幂等：重复执行不应因为列已存在而报错
+    await DatabaseService.upgradeSchema(db, oldVersion: 14, newVersion: 15);
+
+    final after = await _columns(db, DatabaseService.tableInsightReports);
+    expect(after, containsAll(<String>['title', 'reasoning', 'source_ids']));
+
+    // 老数据必须还能读：新列有默认值，不是 NULL
+    await db.insert(DatabaseService.tableInsightReports, {
+      'lens_id': 'default',
+      'lens_name': '深度挖掘',
+      'scope_label': '全部笔记',
+      'note_count': 1,
+      'content': '旧记录',
+      'created_at': DateTime(2026, 11).toIso8601String(),
+    });
+    final rows = await db.query(DatabaseService.tableInsightReports);
+    expect(rows.single['title'], '');
+    expect(rows.single['reasoning'], '');
+    expect(rows.single['source_ids'], '');
     await db.close();
   });
 }

@@ -12,6 +12,8 @@ import 'package:inkpaper/services/insight_history_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/insight_text_spans.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/widgets/insight_reasoning_panel.dart';
+import 'package:inkpaper/widgets/insight_source_sheet.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
 import 'package:provider/provider.dart';
 
@@ -82,8 +84,8 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   String _liveContentText = '';
   Timer? _liveFlush;
 
-  /// 结果页里「推理过程」是否展开（默认收起，想看再点）。
-  bool _reasoningExpanded = false;
+  /// 结果页里角标的 recognizer。按编号缓存，重建不会漏对象。
+  final InsightRefRecognizers _refRecognizers = InsightRefRecognizers();
 
   /// 生成态的滚动控制器。
   ///
@@ -107,6 +109,7 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   @override
   void dispose() {
     _liveFlush?.cancel();
+    _refRecognizers.dispose();
     _liveScrollController.removeListener(_handleLiveScroll);
     _liveScrollController.dispose();
     super.dispose();
@@ -176,8 +179,9 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
       _activeLens = lens;
       _result = null;
       _error = null;
-      _reasoningExpanded = false;
     });
+    // 新一批笔记，旧编号的含义已经变了，角标的 recognizer 必须重建。
+    _refRecognizers.clear();
     _startLiveFlush();
 
     try {
@@ -220,6 +224,12 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
             scopeLabel: _range.label(l10n),
             noteCount: result.noteCount,
             content: result.text,
+            title: result.title,
+            reasoning: result.reasoning,
+            // 存 id 而不是正文快照：回看时点开就是这条笔记当前的版本。
+            sourceIds: [
+              for (final source in result.sources) source.noteId,
+            ],
           ),
         );
       }
@@ -274,15 +284,47 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
       _result = null;
       _error = null;
       _activeLens = null;
-      _reasoningExpanded = false;
     });
   }
 
-  Future<void> _copyResult() async {
-    final text = _result?.text;
-    if (text == null || text.isEmpty) {
+  /// 正文样式：角标的字号是按这个基底算的（-3.5），两处必须取同一个值。
+  static TextStyle _bodyStyle(ThemeData theme) =>
+      (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
+        fontSize: 15.5,
+        height: 1.85,
+        color: theme.colorScheme.onSurface.withValues(alpha: 0.92),
+      );
+
+  /// 点正文里的 `[12]`：当场把第 12 条笔记的原文摊开。
+  ///
+  /// 不跳详情页——用户正在读一句判断，跳到别处会丢掉阅读位置，而且这里要的
+  /// 只是「这句话有没有依据」这一个验证动作。
+  void _showSource(AiInsightResult result, int index) {
+    final source = result.sourceAt(index);
+    if (source == null) {
       return;
     }
+    unawaited(
+      showInsightSourceSheet(
+        context,
+        index: source.index,
+        time: source.createdAt,
+        tags: source.tags,
+        text: source.text,
+        truncated: source.truncated,
+      ),
+    );
+  }
+
+  Future<void> _copyResult() async {
+    final result = _result;
+    if (result == null || result.text.isEmpty) {
+      return;
+    }
+    // 标题也带上：粘到别处时，一行标题比直接一段正文更有用。
+    final text = result.title.isEmpty
+        ? result.text
+        : '${result.title}\n\n${result.text}';
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) {
       return;
@@ -853,81 +895,6 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
         ),
       );
 
-  /// 结果页的「推理过程」折叠块：默认收起，只留一行摘要，想看再展。
-  Widget _buildReasoningPanel(String reasoning, ThemeData theme) {
-    final colorScheme = theme.colorScheme;
-    final muted = colorScheme.onSurfaceVariant;
-    final expanded = _reasoningExpanded;
-    return Material(
-      color: colorScheme.onSurface.withValues(alpha: 0.035),
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: () => setState(() => _reasoningExpanded = !expanded),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 11, 12, 11),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.psychology_alt_outlined,
-                    size: 15,
-                    color: muted.withValues(alpha: 0.8),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '推理过程',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: muted.withValues(alpha: 0.95),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${reasoning.length} 字',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontSize: 11,
-                      color: muted.withValues(alpha: 0.55),
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    expanded ? '收起' : '展开',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontSize: 11.5,
-                      color: muted.withValues(alpha: 0.7),
-                    ),
-                  ),
-                  Icon(
-                    expanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    size: 18,
-                    color: muted.withValues(alpha: 0.6),
-                  ),
-                ],
-              ),
-              if (expanded) ...[
-                const SizedBox(height: 10),
-                Text(
-                  reasoning,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontSize: 12.5,
-                    height: 1.75,
-                    color: muted.withValues(alpha: 0.9),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildErrorView(AppLocalizationsSimple? l10n) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -980,13 +947,17 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
       children: [
-        // 小标签 + 条数，给下面的大标题做语境。小标固定写 AI Insight，
-        // 视角名交给大标题，两行都写视角名等于说了两遍。
+        // 小标 + 条数，给下面的大标题做语境。
+        // 模型给了标题时，大标题就是标题句，视角名降到小标里（否则视角名就
+        // 丢了）；模型没给标题时，大标题退回视角名，小标只写 AI Insight，
+        // 两行都写视角名等于说了两遍。
         Row(
           children: [
             Expanded(
               child: Text(
-                'AI Insight',
+                result.title.isEmpty
+                    ? 'AI Insight'
+                    : 'AI Insight · ${lens?.name ?? '洞察'}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.labelSmall?.copyWith(
@@ -1008,10 +979,10 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
         ),
         const SizedBox(height: 10),
         Text(
-          lens?.name ?? '洞察',
+          result.title.isEmpty ? (lens?.name ?? '洞察') : result.title,
           style: theme.textTheme.headlineSmall?.copyWith(
             fontSize: 21,
-            height: 1.25,
+            height: 1.32,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.2,
           ),
@@ -1030,7 +1001,7 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
           ),
         if (result.reasoning.trim().isNotEmpty) ...[
           const SizedBox(height: 16),
-          _buildReasoningPanel(result.reasoning.trim(), theme),
+          InsightReasoningPanel(reasoning: result.reasoning.trim()),
         ],
         const SizedBox(height: 20),
         // 一小段短线代替整条 Divider：断点更轻，不打断阅读
@@ -1043,19 +1014,19 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        SelectableText.rich(
+        // 用 Text.rich 而不是 SelectableText：编辑控件里的 span recognizer
+        // 不参与点击分发，角标就点不开了。复制全文有下面的按钮兼顾。
+        Text.rich(
           TextSpan(
-            children: _buildInsightSpans(
+            children: buildInsightSpans(
               result.text,
-              theme.textTheme.bodyMedium ?? const TextStyle(fontSize: 15.5),
+              _bodyStyle(theme),
               colorScheme,
+              recognizers: _refRecognizers,
+              onTapRef: (index) => _showSource(result, index),
             ),
           ),
-          style: (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
-            fontSize: 15.5,
-            height: 1.85,
-            color: colorScheme.onSurface.withValues(alpha: 0.92),
-          ),
+          style: _bodyStyle(theme),
         ),
         const SizedBox(height: 32),
         Wrap(
@@ -1091,15 +1062,6 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
       ],
     );
   }
-
-  /// 把正文里的 `[12]` 渲染成带色的小标记，方便对照上方笔记编号。
-  /// 实现搬到 `utils/insight_text_spans.dart`，历史回看页复用同一套。
-  List<InlineSpan> _buildInsightSpans(
-    String text,
-    TextStyle base,
-    ColorScheme colorScheme,
-  ) =>
-      buildInsightSpans(text, base, colorScheme);
 
   Future<void> _showLensMenu(InsightLens lens) async {
     final l10n = AppLocalizationsSimple.of(context);

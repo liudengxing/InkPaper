@@ -3,6 +3,36 @@ import 'dart:math' as math;
 import 'package:inkpaper/models/note_model.dart';
 import 'package:intl/intl.dart';
 
+/// 编号 → 笔记的对照表。
+///
+/// 洞察正文里的 `[12]` 指的就是这里的第 12 条（[index] 从 1 开始）。要让角标
+/// 点得开，必须原样带回「模型这一次实际看到的那批笔记」，而不是调用方传进
+/// 来的原始列表——中间隔着排序、跨时间抽样和空内容剔除，拿原列表的下标去
+/// 对编号一定会错位。
+class InsightSource {
+  const InsightSource({
+    required this.index,
+    required this.noteId,
+    required this.createdAt,
+    required this.tags,
+    required this.text,
+    this.truncated = false,
+  });
+
+  /// 编号，1 = 最近一条。
+  final int index;
+
+  final String noteId;
+  final DateTime createdAt;
+  final List<String> tags;
+
+  /// 与喂给模型的一致：已剔除图片与附件，超长的已截断。
+  final String text;
+
+  /// 这条在原笔记里更长，[text] 是当时喂给模型的截断版。
+  final bool truncated;
+}
+
 /// 打包好的笔记上下文。
 class NotesContext {
   const NotesContext({
@@ -15,6 +45,7 @@ class NotesContext {
     this.queryTerms = const <String>[],
     this.earliest,
     this.latest,
+    this.sources = const <InsightSource>[],
   });
 
   /// 拼给模型的文本。
@@ -43,6 +74,9 @@ class NotesContext {
   /// 数不可靠，直接把跨度算好告诉它。
   final DateTime? earliest;
   final DateTime? latest;
+
+  /// 按编号顺序排列的来源笔记，[sources] 的下标 0 就是编号 1。
+  final List<InsightSource> sources;
 
   bool get hasRetrieval => relevantCount > 0;
 }
@@ -457,6 +491,7 @@ class NotesContextBuilder {
     var used = 0;
     var count = 0;
     final taken = <String>{};
+    final sources = <InsightSource>[];
     DateTime? earliest;
     DateTime? latest;
 
@@ -473,6 +508,16 @@ class NotesContextBuilder {
       final line = '${count + 1}. [${_formatDate(entry.time)}]$tags\n$body\n';
       buffer.write(line);
       used += line.length;
+      sources.add(
+        InsightSource(
+          index: count + 1,
+          noteId: entry.id,
+          createdAt: entry.time,
+          tags: entry.tags,
+          text: body,
+          truncated: entry.text.length > perNoteLimit,
+        ),
+      );
       count++;
       taken.add(entry.id);
       if (earliest == null || entry.time.isBefore(earliest!)) {
@@ -511,6 +556,7 @@ class NotesContextBuilder {
       queryTerms: queryTerms,
       earliest: earliest,
       latest: latest,
+      sources: sources,
     );
   }
 

@@ -16,6 +16,8 @@ class AiInsightResult {
     this.truncated = false,
     this.error,
     this.reasoning = '',
+    this.title = '',
+    this.sources = const <InsightSource>[],
   });
 
   factory AiInsightResult.error(String message) => AiInsightResult(
@@ -33,7 +35,21 @@ class AiInsightResult {
   /// 模型的思考过程（推理型模型才有，可能为空）。
   final String reasoning;
 
+  /// 从正文首行剥出来的标题（模型没给就是空串，界面退回视角名）。
+  final String title;
+
+  /// 本次喂给模型的笔记，下标 0 即正文里的编号 1——角标靠它取原文。
+  final List<InsightSource> sources;
+
   bool get isError => error != null;
+
+  /// 按正文里的编号取来源（1 起算），越界返回 null。
+  InsightSource? sourceAt(int index) {
+    if (index < 1 || index > sources.length) {
+      return null;
+    }
+    return sources[index - 1];
+  }
 }
 
 /// AI 洞察：拿一批笔记 + 一个视角，产出针对「这个人」的分析。
@@ -78,7 +94,8 @@ class AiInsightService {
 11. 编号 1 的笔记权重最高：它是用户最近主动记录的，做判断时优先从它出发。
 12. 写任何时间之前先核对该条笔记的日期。写「今年 6 月」「2024 年初」，日期就必须对得上；对不上就只写事、不写时间。
 13. 他的动机拿不准就不要替他判定（是裁员还是主动辞职、有没有后悔），用中性说法，把判断留空好过说错。
-14. 写成长文时，开篇要点明这批笔记覆盖的时间范围（用户消息里已经给了），别让报告读起来像一次随机抽样。''';
+14. 写成长文时，开篇要点明这批笔记覆盖的时间范围（用户消息里已经给了），别让报告读起来像一次随机抽样。
+15. 输出第一行固定写「标题：」加一句话（12-22 字），是这篇里最核心的那个判断，可以直接取自正文最有劲的那句。标题不要用视角名、不要用「洞察报告」「笔记分析」这类词，不要书名号或引号。第二行开始才是正文。''';
 
   /// 生成一次洞察。
   ///
@@ -137,13 +154,62 @@ class AiInsightService {
       return AiInsightResult.error(reply.error ?? 'AI 没有返回内容，请稍后重试');
     }
 
+    final cleaned = cleanOutput(reply.content!);
+    final split = splitTitle(cleaned);
     return AiInsightResult(
-      text: cleanOutput(reply.content!),
+      text: split.body,
+      title: split.title,
       noteCount: context.noteCount,
       totalCandidates: context.totalCandidates,
       truncated: context.truncated,
       reasoning: reply.reasoning.trim(),
+      sources: context.sources,
     );
+  }
+
+  /// 模型自报的标题上限。超过这个长度基本是它把首段整段搬下来了，
+  /// 与其在标题位置塞一段正文、不如退回视角名。
+  static const int maxTitleLength = 40;
+
+  /// 把首行的「标题：xxx」拆出来当标题。
+  ///
+  /// 必须是显式前缀才认——不然模型偶尔漏写这一行，正文第一句（洞察最关键
+  /// 的那句判断）就会被当成标题吞掉，正文从第二句开始，读起来莫名其妙。
+  /// 认不出来时 title 返回空串，界面退回视角名，正文一字不动。
+  static ({String title, String body}) splitTitle(String text) {
+    final lines = text.split('\n');
+    if (lines.length < 2) {
+      return (title: '', body: text);
+    }
+    final first = lines.first.trim();
+    final match = RegExp(
+      r'^(?:标题|题目|title)\s*[:：]\s*(.+)$',
+      caseSensitive: false,
+    ).firstMatch(first);
+    if (match == null) {
+      return (title: '', body: text);
+    }
+    final title = _cleanTitle(match.group(1) ?? '');
+    final body = lines.skip(1).join('\n').trim();
+    // 只有标题行、或标题后面没正文：当成没给标题，整段原样当正文。
+    if (title.isEmpty || body.isEmpty) {
+      return (title: '', body: text);
+    }
+    return (title: title, body: body);
+  }
+
+  static String _cleanTitle(String raw) {
+    var title = raw.trim();
+    // 模型偶尔还套着加粗、书名号、句号，一并剥掉
+    title = title.replaceAll(RegExp(r'^[#>*\-\s]+'), '');
+    title = title.replaceAll(RegExp(r'^[「『“"《【\[]+'), '');
+    title = title.replaceAll(RegExp(r'[」』”"》】\]]+$'), '');
+    title = title.replaceAll(RegExp(r'[。．.！!，,]+$'), '');
+    title = title.trim();
+    if (title.isEmpty || title.length > maxTitleLength) {
+      return '';
+    }
+    return title;
   }
 
   /// 流式拿不到正文时的一次补救。

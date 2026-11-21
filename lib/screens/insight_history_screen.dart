@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/insight_history_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/insight_text_spans.dart';
 import 'package:inkpaper/utils/note_timestamp_format.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/widgets/insight_reasoning_panel.dart';
+import 'package:inkpaper/widgets/insight_source_sheet.dart';
 
 /// 洞察历史列表。
 ///
@@ -178,14 +183,18 @@ class _HistoryCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Text(
-                        entry.lensName,
-                        maxLines: 1,
+                        // 有标题就用标题：六份「逆向思考」堆在一起，光看视角名
+                        // 完全分不出哪份是哪份。
+                        entry.title.isEmpty ? entry.lensName : entry.title,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontSize: 15,
+                          height: 1.35,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -212,7 +221,12 @@ class _HistoryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  '${entry.scopeLabel} · ${entry.noteCount} 条笔记',
+                  [
+                    // 标题就是视角名时不再重复一遍
+                    if (entry.title.isNotEmpty) entry.lensName,
+                    entry.scopeLabel,
+                    '${entry.noteCount} 条笔记',
+                  ].join(' · '),
                   style: theme.textTheme.labelSmall?.copyWith(
                     fontSize: 11,
                     color: muted.withValues(alpha: 0.6),
@@ -242,10 +256,19 @@ class _InsightReportScreenState extends State<InsightReportScreen> {
   InsightReportEntry? _entry;
   bool _loading = true;
 
+  /// 正文角标的 recognizer，按编号缓存（重建不会漏对象）。
+  final InsightRefRecognizers _refRecognizers = InsightRefRecognizers();
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _refRecognizers.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -350,6 +373,32 @@ class _InsightReportScreenState extends State<InsightReportScreen> {
     SnackBarUtils.showSuccess(context, '已复制');
   }
 
+  /// 角标点开：只存了 id，所以回库里取当前版本。
+  ///
+  /// 笔记被改过就显示改后的内容，被删了就明说已不在——比存一份过期快照
+  /// 更诚实，也不用担心历史里攒一堆重复正文。
+  Future<void> _showSource(int index) async {
+    final entry = _entry;
+    if (entry == null) {
+      return;
+    }
+    final noteId = entry.sourceIdAt(index);
+    if (noteId == null) {
+      return;
+    }
+    final note = await DatabaseService().getNoteById(noteId);
+    if (!mounted) {
+      return;
+    }
+    await showInsightSourceSheet(
+      context,
+      index: index,
+      time: note?.displayTime ?? entry.createdAt,
+      tags: note?.tags ?? const <String>[],
+      text: note?.content,
+    );
+  }
+
   Widget _buildBody(ThemeData theme) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
@@ -370,17 +419,38 @@ class _InsightReportScreenState extends State<InsightReportScreen> {
       height: 1.85,
       color: colorScheme.onSurface.withValues(alpha: 0.92),
     );
+    // 老记录（v15 之前）没有存来源 id，角标只能当纯文本，不要给它可点的假象。
+    final tappable = entry.sourceIds.isNotEmpty;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 48),
       children: [
         Text(
-          '${formatNoteTimestamp(entry.createdAt)} · ${entry.scopeLabel} · '
-          '${entry.noteCount} 条笔记',
+          [
+            formatNoteTimestamp(entry.createdAt),
+            entry.scopeLabel,
+            '${entry.noteCount} 条笔记',
+          ].join(' · '),
           style: theme.textTheme.labelSmall?.copyWith(
             fontSize: 11.5,
             color: muted.withValues(alpha: 0.7),
           ),
         ),
+        if (entry.title.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            entry.title,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontSize: 21,
+              height: 1.32,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ],
+        if (entry.reasoning.trim().isNotEmpty) ...[
+          const SizedBox(height: 16),
+          InsightReasoningPanel(reasoning: entry.reasoning.trim()),
+        ],
         const SizedBox(height: 18),
         Align(
           alignment: Alignment.centerLeft,
@@ -391,9 +461,15 @@ class _InsightReportScreenState extends State<InsightReportScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        SelectableText.rich(
+        Text.rich(
           TextSpan(
-            children: buildInsightSpans(entry.content, base, colorScheme),
+            children: buildInsightSpans(
+              entry.content,
+              base,
+              colorScheme,
+              recognizers: tappable ? _refRecognizers : null,
+              onTapRef: tappable ? _showSource : null,
+            ),
           ),
           style: base,
         ),

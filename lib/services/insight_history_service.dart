@@ -4,8 +4,9 @@ import 'package:sqflite/sqflite.dart';
 
 /// 一份存下来的洞察报告。
 ///
-/// 只保留回看需要的东西：视角、范围、条数、正文、生成时间。思考过程
-/// 不存——它动辄上万字，一份记录会膨胀十倍，而回看时没人在意它。
+/// 存的是「当时那份报告的全部」：标题、正文、思考过程、来源笔记 id。思考
+/// 过程比正文长好几倍，但没有它回看时就只剩结论、看不到论证怎么走的，而
+/// 报告最值钱的恰恰是那条推理链。纯本地、不进同步，体积不是问题。
 class InsightReportEntry {
   const InsightReportEntry({
     required this.id,
@@ -15,6 +16,9 @@ class InsightReportEntry {
     required this.noteCount,
     required this.content,
     required this.createdAt,
+    this.title = '',
+    this.reasoning = '',
+    this.sourceIds = const <String>[],
   });
 
   final int id;
@@ -25,6 +29,18 @@ class InsightReportEntry {
   final String content;
   final DateTime createdAt;
 
+  /// 模型从正文里提炼的标题；老记录为空，界面退回 [lensName]。
+  final String title;
+
+  /// 思考链原文，可能为空（非推理模型、或老记录）。
+  final String reasoning;
+
+  /// 按编号顺序存下来的来源笔记 id，下标 0 即正文里的编号 1。
+  ///
+  /// 只存 id 不存正文快照：笔记改了，点开看到的就是现在的版本；笔记删了，
+  /// 提示「原笔记已不在」比展示一份过期快照更诚实。
+  final List<String> sourceIds;
+
   /// 列表里显示的一句话摘要：去掉换行与前后的引用标记。
   String get preview {
     final flat = content
@@ -32,6 +48,14 @@ class InsightReportEntry {
         .replaceAll(RegExp(r'\[\d+\]'), '')
         .trim();
     return flat.length > 90 ? '${flat.substring(0, 90)}…' : flat;
+  }
+
+  /// 按正文编号取来源笔记 id（1 起算），越界返回 null。
+  String? sourceIdAt(int index) {
+    if (index < 1 || index > sourceIds.length) {
+      return null;
+    }
+    return sourceIds[index - 1];
   }
 }
 
@@ -46,7 +70,7 @@ class InsightHistoryService {
 
   static final InsightHistoryService instance = InsightHistoryService._();
 
-  /// 最多保留多少份。一份一两千字，两百份大约几十万字符，SQLite 无压力。
+  /// 最多保留多少份。一份正文加思考链大约几十 KB，两百份在 SQLite 里很轻松。
   static const int maxEntries = 200;
 
   Future<Database> get _db => DatabaseService().database;
@@ -60,6 +84,9 @@ class InsightHistoryService {
     required String scopeLabel,
     required int noteCount,
     required String content,
+    String title = '',
+    String reasoning = '',
+    List<String> sourceIds = const <String>[],
   }) async {
     final text = content.trim();
     if (text.isEmpty) {
@@ -73,6 +100,10 @@ class InsightHistoryService {
         'scope_label': scopeLabel,
         'note_count': noteCount,
         'content': text,
+        'title': title.trim(),
+        'reasoning': reasoning.trim(),
+        // id 里不含逗号，拼起来比 JSON 省事，也不用多一层解码。
+        'source_ids': sourceIds.join(','),
         'created_at': DateTime.now().toIso8601String(),
       });
       await _prune(db);
@@ -145,14 +176,22 @@ class InsightHistoryService {
     }
   }
 
-  InsightReportEntry _fromRow(Map<String, Object?> row) => InsightReportEntry(
-        id: row['id']! as int,
-        lensId: (row['lens_id'] ?? '') as String,
-        lensName: (row['lens_name'] ?? '洞察') as String,
-        scopeLabel: (row['scope_label'] ?? '') as String,
-        noteCount: (row['note_count'] as int?) ?? 0,
-        content: (row['content'] ?? '') as String,
-        createdAt: DateTime.tryParse((row['created_at'] ?? '') as String) ??
-            DateTime.fromMillisecondsSinceEpoch(0),
-      );
+  InsightReportEntry _fromRow(Map<String, Object?> row) {
+    final rawIds = ((row['source_ids'] ?? '') as String).trim();
+    return InsightReportEntry(
+      id: row['id']! as int,
+      lensId: (row['lens_id'] ?? '') as String,
+      lensName: (row['lens_name'] ?? '洞察') as String,
+      scopeLabel: (row['scope_label'] ?? '') as String,
+      noteCount: (row['note_count'] as int?) ?? 0,
+      content: (row['content'] ?? '') as String,
+      title: (row['title'] ?? '') as String,
+      reasoning: (row['reasoning'] ?? '') as String,
+      sourceIds: rawIds.isEmpty
+          ? const <String>[]
+          : rawIds.split(',').where((id) => id.isNotEmpty).toList(),
+      createdAt: DateTime.tryParse((row['created_at'] ?? '') as String) ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+    );
+  }
 }

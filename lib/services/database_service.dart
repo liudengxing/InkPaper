@@ -178,8 +178,10 @@ class DatabaseService {
 
   /// 洞察历史（v14）：每生成一份洞察存一条，供「历史」里回看。
   ///
-  /// 只存正文与出报告的元信息，不存 reasoning——思考过程动辄上万字，
-  /// 存下来会让一份记录膨胀十倍，而回看时没人在意它。
+  /// v15 起补三列：标题（模型从正文里提炼的那句）、思考过程、来源笔记 id。
+  /// 思考过程本来没打算存（动辄上万字），但没有它回看时就只剩结论、看不到
+  /// 论证过程，而报告本身最值钱的部分恰恰在那条推理链上。全文纯本地，不
+  /// 进同步，体积不是问题。
   static const String tableInsightReports = 'insight_reports';
 
   static const String createInsightReportsSql = '''
@@ -190,6 +192,9 @@ class DatabaseService {
       scope_label TEXT NOT NULL,
       note_count INTEGER DEFAULT 0,
       content TEXT NOT NULL,
+      title TEXT DEFAULT '',
+      reasoning TEXT DEFAULT '',
+      source_ids TEXT DEFAULT '',
       created_at TEXT NOT NULL
     )
   ''';
@@ -319,6 +324,23 @@ class DatabaseService {
       // v14: 洞察历史
       await db.execute(createInsightReportsSql);
       await db.execute(createInsightReportsIndexSql);
+    }
+    if (oldVersion < 15) {
+      // v15: 洞察历史补标题、思考过程与来源笔记 id。
+      // 老库的表里没有这三列，必须逐列补；_hasColumn 兜一下，重复升级不报错。
+      const additions = <String, String>{
+        'title': "TEXT DEFAULT ''",
+        'reasoning': "TEXT DEFAULT ''",
+        'source_ids': "TEXT DEFAULT ''",
+      };
+      for (final entry in additions.entries) {
+        if (!await _hasColumn(db, tableInsightReports, entry.key)) {
+          await db.execute(
+            'ALTER TABLE $tableInsightReports '
+            'ADD COLUMN ${entry.key} ${entry.value}',
+          );
+        }
+      }
     }
   }
 

@@ -231,6 +231,53 @@ void main() {
       expect(AiInsightService.systemPrompt, contains('[序号]'));
     });
 
+    test('标题只在有显式前缀时才认，正文一句不动', () {
+      final parsed = AiInsightService.splitTitle(
+        '标题：拿住是一种资格\n\n这批笔记从 2021 年开始……',
+      );
+      expect(parsed.title, '拿住是一种资格');
+      expect(parsed.body, '这批笔记从 2021 年开始……');
+    });
+
+    test('没有标题行时整段都算正文，不能吞掉第一句判断', () {
+      const raw = '你其实一直在用防守换安全。\n\n第二段。';
+      final parsed = AiInsightService.splitTitle(raw);
+      expect(parsed.title, isEmpty);
+      expect(parsed.body, raw);
+    });
+
+    test('标题过长、或只有标题没有正文时退回无标题', () {
+      final tooLong = AiInsightService.splitTitle('标题：${'很' * 50}\n正文');
+      expect(tooLong.title, isEmpty);
+      final onlyTitle = AiInsightService.splitTitle('标题：只有标题');
+      expect(onlyTitle.title, isEmpty);
+      expect(onlyTitle.body, '标题：只有标题');
+    });
+
+    test('标题上的引号、书名号、句号会剥掉', () {
+      final parsed = AiInsightService.splitTitle('标题：「拿住是一种资格。」\n正文');
+      expect(parsed.title, '拿住是一种资格');
+    });
+
+    test('编号与来源笔记一一对应，跨时间抽样后也不串号', () {
+      final notes = [
+        for (var i = 0; i < 40; i++)
+          _note(
+            'n$i',
+            '第 $i 条内容，长度要够进上下文。',
+            DateTime(2026).subtract(Duration(days: i * 37)),
+          ),
+      ];
+      final context = NotesContextBuilder.buildForInsight(notes);
+      expect(context.sources.length, context.noteCount);
+      expect(
+        [for (final source in context.sources) source.index],
+        [for (var i = 1; i <= context.noteCount; i++) i],
+      );
+      // 编号 1 必须是最新那条，否则正文里的 [1] 会指到旧笔记
+      expect(context.sources.first.noteId, 'n0');
+    });
+
     test('清理输出时保留分段与短横线，只去掉代码围栏和标题', () {
       final cleaned = AiInsightService.cleanOutput(
         '## 核心矛盾\n\n- 第一条[1]\n- 第二条[2]\n\n```\ncode\n```\n',

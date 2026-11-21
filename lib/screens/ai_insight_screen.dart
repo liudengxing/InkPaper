@@ -1091,7 +1091,7 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              '库内共 ${result.totalCandidates} 条可分析的笔记，随机抽取了其中 ${result.noteCount} 条。',
+              '库内共 ${result.totalCandidates} 条可分析的笔记，按时间加权抽取了其中 ${result.noteCount} 条。',
               style: theme.textTheme.bodySmall?.copyWith(
                 fontSize: 11.5,
                 height: 1.5,

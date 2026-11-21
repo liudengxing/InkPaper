@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/utils/notes_context_builder.dart';
@@ -132,33 +130,43 @@ void main() {
       expect(context.text, contains('2022-05'));
     });
 
-    test('笔记远多于上限时随机抽样覆盖整库，不只看最近', () {
-      // 固定种子下，抽样散布在整库而不是最靠前的 30 条。
+    test('时间权重：近期笔记抽得更多，但早年季度仍有代表', () {
+      final now = DateTime.now();
       final notes = <Note>[
-        for (var i = 0; i < 300; i++)
+        // 今年两个季度各 10 条
+        for (var i = 0; i < 10; i++)
           _note(
-            id: 'recent$i',
-            content: '近期记录 $i：开会、写周报、改 bug。',
-            createdAt: DateTime(2026).subtract(Duration(days: i % 300)),
+            id: 'recent-q1-$i',
+            content: '今年上半年第 $i 条记录，写了点关于当下的想法。',
+            createdAt: DateTime(now.year, 3, 1 + i),
+          ),
+        for (var i = 0; i < 10; i++)
+          _note(
+            id: 'recent-q3-$i',
+            content: '今年下半年第 $i 条记录，写了点关于当下的想法。',
+            createdAt: DateTime(now.year, 9, 1 + i),
+          ),
+        // 四年前一个季度 10 条
+        for (var i = 0; i < 10; i++)
+          _note(
+            id: 'old-$i',
+            content: '四年前第 $i 条记录，写了点关于过去的想法。',
+            createdAt: DateTime(now.year - 4, 6, 1 + i),
           ),
       ];
 
       final context = NotesContextBuilder.buildForInsight(
         notes,
-        maxNotes: 30,
-        maxCharacters: 8000,
-        random: math.Random(7),
+        maxNotes: 21,
       );
 
-      expect(context.noteCount, 30);
-      final ids =
-          context.sources.map((s) => int.parse(s.noteId.substring(6))).toList();
-      expect(
-        ids.any((id) => id >= 150),
-        isTrue,
-        reason: '随机抽样应散布在全库，不能只取最近 30 条',
-      );
-      // 编号仍然是「1 = 最近」，抽样后重排不能把时间顺序打乱
+      final recent =
+          context.sources.where((s) => s.noteId.startsWith('recent')).length;
+      final old =
+          context.sources.where((s) => s.noteId.startsWith('old')).length;
+      expect(recent, greaterThan(old), reason: '近桶每轮取 3 条，应多于早桶的 1 条');
+      expect(old, greaterThan(0), reason: '早年季度每轮保底 1 条，不能被挤掉');
+      // 编号仍然是「1 = 最近」，分层取样不能把时间顺序打乱
       expect(context.earliest, isNotNull);
       expect(context.latest, isNotNull);
       expect(context.latest!.isAfter(context.earliest!), isTrue);
@@ -246,48 +254,39 @@ void main() {
       expect(context.sources.single.noteId, 'ok');
     });
 
-    test('全库随机取样：不偏向近期，早年笔记也能被抽中', () {
-      final now = DateTime.now();
+    test('早年记录进得了上下文，且编号顺序稳定', () {
+      // 2022 年的两条 + 最近三年各几百条：只取「最近 N 条」的话早年必被挤掉。
       final notes = <Note>[
-        for (var i = 0; i < 10; i++)
+        _note(
+          id: 'old-2022',
+          content: '2022 年在杭州租的第一间房子，阳台朝北，冬天很冷。',
+          createdAt: DateTime(2022, 5),
+        ),
+        _note(
+          id: 'old-2022-b',
+          content: '2022 年冬天开始每天走一万步，坚持了四十天。',
+          createdAt: DateTime(2022, 12, 20),
+        ),
+        for (var i = 0; i < 300; i++)
           _note(
-            id: 'recent-$i',
-            content: '今年第 $i 条记录，写了点关于当下的想法。',
-            createdAt: DateTime(now.year, 3, 1 + i),
-          ),
-        for (var i = 0; i < 10; i++)
-          _note(
-            id: 'old-$i',
-            content: '四年前第 $i 条记录，写了点关于过去的想法。',
-            createdAt: DateTime(now.year - 4, 6, 1 + i),
+            id: 'recent$i',
+            content: '近期记录 $i：开会、写周报、改 bug。',
+            createdAt: DateTime(2026).subtract(Duration(days: i % 300)),
           ),
       ];
 
-      // 固定种子：近 10 / 早 10 各半，抽 12 条，早年必然有代表，且可复现。
-      final first = NotesContextBuilder.buildForInsight(
+      final context = NotesContextBuilder.buildForInsight(
         notes,
-        maxNotes: 12,
-        random: math.Random(42),
-      );
-      final second = NotesContextBuilder.buildForInsight(
-        notes,
-        maxNotes: 12,
-        random: math.Random(42),
+        maxNotes: 30,
+        maxCharacters: 8000,
       );
 
-      expect(first.noteCount, 12);
-      expect(
-        first.sources.map((s) => s.noteId),
-        second.sources.map((s) => s.noteId),
-        reason: '同种子应可复现',
-      );
-      expect(
-        first.sources.where((s) => s.noteId.startsWith('old')).length,
-        greaterThan(0),
-        reason: '随机抽样不按时间加权，早年笔记也应中签',
-      );
-      // 编号 1 仍是最近一条
-      expect(first.sources.first.noteId, startsWith('recent'));
+      expect(context.noteCount, 30);
+      expect(context.text, contains('阳台朝北'));
+      // 编号仍然是「1 = 最近」，分层取样不能把时间顺序打乱
+      expect(context.earliest, isNotNull);
+      expect(context.latest, isNotNull);
+      expect(context.latest!.isAfter(context.earliest!), isTrue);
     });
   });
 

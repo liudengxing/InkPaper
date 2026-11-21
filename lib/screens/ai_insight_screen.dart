@@ -836,130 +836,151 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     final hasReasoning = reasoning.isNotEmpty;
     final hasContent = content.isNotEmpty;
 
-    return ListView(
-      controller: _liveScrollController,
-      // 底部多留一截：最新一行要落在视线里，而不是贴着屏幕下边缘
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
-        Row(
-          children: [
-            const SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                _liveStatus.isNotEmpty
-                    ? _liveStatus
-                    : hasReasoning
-                        ? '正在推理…'
-                        : (l10n?.aiInsightGenerating ?? '正在通读你的笔记…'),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _liveStatus.isNotEmpty
+                      ? _liveStatus
+                      : hasReasoning
+                          ? '正在推理…'
+                          : (l10n?.aiInsightGenerating ?? '正在通读你的笔记…'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        const SizedBox(height: 18),
-
-        // 还没收到任何内容时用骨架条占位；一旦开始推理，就把思考过程
-        // 原样铺出来——等 40 秒却什么都看不到，是这个页面最伤人的地方。
-        if (!hasReasoning && !hasContent)
-          for (final factor in const [1.0, 0.86, 0.62]) ...[
-            FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: factor,
-              child: _skeletonBar(skeleton),
+        const SizedBox(height: 14),
+        // 内容区钉成固定高度：正文在框内滚动刷新，不再把底部视角提示
+        // 一行行往下顶——之前整页跟着滚，最底下那句提示一直在跳。
+        Expanded(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: colorScheme.onSurface.withValues(alpha: 0.035),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: colorScheme.outline.withValues(alpha: 0.16),
+              ),
             ),
-            const SizedBox(height: 10),
-          ]
-        else ...[
-          if (hasReasoning) ...[
-            Row(
+            child: ListView(
+              controller: _liveScrollController,
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
               children: [
-                Icon(
-                  Icons.psychology_alt_outlined,
-                  size: 15,
-                  color: muted.withValues(alpha: 0.8),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '思考过程',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.3,
-                    color: muted.withValues(alpha: 0.85),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '${reasoning.length} 字',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontSize: 11,
-                    color: muted.withValues(alpha: 0.55),
-                  ),
-                ),
+                // 还没收到任何内容时用骨架条占位；一旦开始推理，就把思考过程
+                // 原样铺出来——等 40 秒却什么都看不到，是这个页面最伤人的地方。
+                if (!hasReasoning && !hasContent)
+                  for (final factor in const [1.0, 0.86, 0.62]) ...[
+                    FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: factor,
+                      child: _skeletonBar(skeleton),
+                    ),
+                    const SizedBox(height: 10),
+                  ]
+                else ...[
+                  if (hasReasoning) ...[
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.psychology_alt_outlined,
+                          size: 15,
+                          color: muted.withValues(alpha: 0.8),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '思考过程',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
+                            color: muted.withValues(alpha: 0.85),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${reasoning.length} 字',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontSize: 11,
+                            color: muted.withValues(alpha: 0.55),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.only(left: 12),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(
+                            color: colorScheme.primary.withValues(alpha: 0.22),
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        reasoning,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 12.5,
+                          height: 1.75,
+                          color: muted.withValues(alpha: 0.95),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (hasContent) ...[
+                    const SizedBox(height: 18),
+                    Text(
+                      '正在落笔',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                        color: colorScheme.primary.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      content,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontSize: 15,
+                        height: 1.8,
+                        color: colorScheme.onSurface.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ],
+                ],
               ],
             ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.only(left: 12),
-              decoration: BoxDecoration(
-                border: Border(
-                  left: BorderSide(
-                    color: colorScheme.primary.withValues(alpha: 0.22),
-                    width: 2,
-                  ),
-                ),
-              ),
-              child: Text(
-                reasoning,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontSize: 12.5,
-                  height: 1.75,
-                  color: muted.withValues(alpha: 0.95),
-                ),
-              ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+          child: Text(
+            '用「${_activeLens?.name ?? ''}」这个视角 · 思考过程会边想边显示，生成后也能在结果页展开回看',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontSize: 12,
+              height: 1.5,
+              color: muted.withValues(alpha: 0.8),
             ),
-          ],
-          if (hasContent) ...[
-            const SizedBox(height: 18),
-            Text(
-              '正在落笔',
-              style: theme.textTheme.labelSmall?.copyWith(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.3,
-                color: colorScheme.primary.withValues(alpha: 0.8),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              content,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontSize: 15,
-                height: 1.8,
-                color: colorScheme.onSurface.withValues(alpha: 0.9),
-              ),
-            ),
-          ],
-        ],
-
-        const SizedBox(height: 18),
-        Text(
-          '用「${_activeLens?.name ?? ''}」这个视角 · 思考过程会边想边显示，生成后也能在结果页展开回看',
-          style: theme.textTheme.bodySmall?.copyWith(
-            fontSize: 12,
-            height: 1.5,
-            color: muted.withValues(alpha: 0.8),
           ),
         ),
       ],

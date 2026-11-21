@@ -286,7 +286,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               title: AppLocalizationsSimple.of(context)?.apiAddressLabel ??
                   'API 地址',
               controller: _apiUrlController,
-              hintText: 'https://api.deepseek.com/v1',
+              // 直接引常量：地址只有一处定义，改文档时不会漏掉这里的提示
+              hintText: AppConfig.DEEPSEEK_API_URL,
               enabled: _apiPreset == AppConfig.AI_PRESET_CUSTOM,
             ),
 

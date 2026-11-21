@@ -152,10 +152,13 @@ class DeepSeekApiService {
     }
   }
 
-  /// 获取模型信息（如果API支持）
+  /// 获取当前模型的信息。
+  ///
+  /// 官方只提供 `GET /models`（模型列表），没有 `/models/{id}`，
+  /// 所以拉列表后自己挑出当前模型那一条。取不到一律返回 null。
   Future<Map<String, dynamic>?> getModelInfo() async {
     try {
-      final url = Uri.parse('$apiUrl/models/$model');
+      final url = Uri.parse('$apiUrl/models');
 
       final response = await http.get(
         url,
@@ -164,10 +167,23 @@ class DeepSeekApiService {
         },
       );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode != 200) {
+        return null;
       }
 
+      final body = jsonDecode(utf8.decode(response.bodyBytes));
+      if (body is! Map<String, dynamic>) {
+        return null;
+      }
+      final data = body['data'];
+      if (data is! List) {
+        return null;
+      }
+      for (final item in data) {
+        if (item is Map<String, dynamic> && item['id'] == model) {
+          return item;
+        }
+      }
       return null;
     } on Object {
       return null;

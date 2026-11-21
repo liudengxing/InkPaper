@@ -39,52 +39,59 @@ class AppConfig {
     SidebarConfig? sidebarConfig,
   }) : sidebarConfig = sidebarConfig ?? SidebarConfig();
 
-  factory AppConfig.fromJson(Map<String, dynamic> json) => AppConfig(
-        isLocalMode: json['isLocalMode'] ?? false,
-        memosApiUrl: json['memosApiUrl'],
-        lastToken: json['lastToken'],
-        lastUsername: json['lastUsername'],
-        lastServerUrl: json['lastServerUrl'],
-        rememberLogin: json['rememberLogin'] ?? false,
-        autoLogin: json['autoLogin'] ?? false,
-        autoSyncEnabled: json['autoSyncEnabled'] ?? false,
-        syncInterval: json['syncInterval'] ?? 300,
-        isDarkMode: json['isDarkMode'] ?? false,
-        themeMode: json['themeMode'] ?? 'default',
-        themeSelection: json['themeSelection'] ?? THEME_SYSTEM,
-        defaultNoteVisibility:
-            json['defaultNoteVisibility'] ?? VISIBILITY_PRIVATE,
-        fontScale: json['fontScale'] ?? FONT_SCALE_NORMAL,
-        fontFamily: json['fontFamily'] ?? FONT_FAMILY_DEFAULT,
-        locale: json['locale'], // null表示跟随系统
-        aiApiUrl: json['aiApiUrl'],
-        aiApiKey: _fixApiKeyEncoding(json['aiApiKey']), // 🔧 自动修复编码
-        aiModel:
-            normalizeAiModel(json['aiModel']?.toString() ?? AI_MODEL_DEEPSEEK),
-        aiApiPreset: _inferAiApiPreset(
-          json['aiApiPreset'],
-          json['aiApiUrl'],
-          json['aiModel'],
-        ),
-        aiEnabled: json['aiEnabled'] ?? false,
-        autoShowEditorOnLaunch: json['autoShowEditorOnLaunch'] ?? false,
-        widgetReviewRefreshIntervalMinutes:
-            json['widgetReviewRefreshIntervalMinutes'] ?? 60,
-        widgetReviewRangeDays: json['widgetReviewRangeDays'] ?? 0,
-        speechRecognitionMode:
-            json['speechRecognitionMode'] ?? SPEECH_MODE_IFLYTEK,
-        iflytekSpeechEnabled: json['iflytekSpeechEnabled'] ?? false,
-        iflytekAppId: json['iflytekAppId'],
-        iflytekApiKey: json['iflytekApiKey'],
-        iflytekApiSecret: json['iflytekApiSecret'],
-        useCustomPrompt: json['useCustomPrompt'] ?? false,
-        customReviewPrompt: json['customReviewPrompt'],
-        customContinuationPrompt: json['customContinuationPrompt'],
-        customPeriodicReviewPrompt: json['customPeriodicReviewPrompt'],
-        sidebarConfig: json['sidebarConfig'] != null
-            ? SidebarConfig.fromJson(json['sidebarConfig'])
-            : null,
-      );
+  factory AppConfig.fromJson(Map<String, dynamic> json) {
+    // 预设要先算出来：地址迁移只在 DeepSeek 预设下生效。
+    final aiApiPreset = _inferAiApiPreset(
+      json['aiApiPreset'],
+      json['aiApiUrl'],
+      json['aiModel'],
+    );
+    return AppConfig(
+      isLocalMode: json['isLocalMode'] ?? false,
+      memosApiUrl: json['memosApiUrl'],
+      lastToken: json['lastToken'],
+      lastUsername: json['lastUsername'],
+      lastServerUrl: json['lastServerUrl'],
+      rememberLogin: json['rememberLogin'] ?? false,
+      autoLogin: json['autoLogin'] ?? false,
+      autoSyncEnabled: json['autoSyncEnabled'] ?? false,
+      syncInterval: json['syncInterval'] ?? 300,
+      isDarkMode: json['isDarkMode'] ?? false,
+      themeMode: json['themeMode'] ?? 'default',
+      themeSelection: json['themeSelection'] ?? THEME_SYSTEM,
+      defaultNoteVisibility:
+          json['defaultNoteVisibility'] ?? VISIBILITY_PRIVATE,
+      fontScale: json['fontScale'] ?? FONT_SCALE_NORMAL,
+      fontFamily: json['fontFamily'] ?? FONT_FAMILY_DEFAULT,
+      locale: json['locale'], // null表示跟随系统
+      aiApiUrl: _migrateDeepSeekApiUrl(
+        json['aiApiUrl']?.toString(),
+        aiApiPreset,
+      ),
+      aiApiKey: _fixApiKeyEncoding(json['aiApiKey']), // 🔧 自动修复编码
+      aiModel:
+          normalizeAiModel(json['aiModel']?.toString() ?? AI_MODEL_DEEPSEEK),
+      aiApiPreset: aiApiPreset,
+      aiEnabled: json['aiEnabled'] ?? false,
+      autoShowEditorOnLaunch: json['autoShowEditorOnLaunch'] ?? false,
+      widgetReviewRefreshIntervalMinutes:
+          json['widgetReviewRefreshIntervalMinutes'] ?? 60,
+      widgetReviewRangeDays: json['widgetReviewRangeDays'] ?? 0,
+      speechRecognitionMode:
+          json['speechRecognitionMode'] ?? SPEECH_MODE_IFLYTEK,
+      iflytekSpeechEnabled: json['iflytekSpeechEnabled'] ?? false,
+      iflytekAppId: json['iflytekAppId'],
+      iflytekApiKey: json['iflytekApiKey'],
+      iflytekApiSecret: json['iflytekApiSecret'],
+      useCustomPrompt: json['useCustomPrompt'] ?? false,
+      customReviewPrompt: json['customReviewPrompt'],
+      customContinuationPrompt: json['customContinuationPrompt'],
+      customPeriodicReviewPrompt: json['customPeriodicReviewPrompt'],
+      sidebarConfig: json['sidebarConfig'] != null
+          ? SidebarConfig.fromJson(json['sidebarConfig'])
+          : null,
+    );
+  }
 
   // 🔧 修复 API Key 编码问题（UTF-16BE -> ASCII）
   static String? _fixApiKeyEncoding(String? apiKey) {
@@ -257,7 +264,30 @@ class AppConfig {
   static const String AI_MODEL_MOONSHOT = 'moonshot-v1-128k'; // 升级到128k
 
   // 官方API地址（兼容OpenAI格式）
-  static const String DEEPSEEK_API_URL = 'https://api.deepseek.com/v1';
+  //
+  // 按 https://api-docs.deepseek.com/zh-cn/ 的首次调用示例：base_url 是
+  // `https://api.deepseek.com`，请求路径 `POST /chat/completions`——**不带 /v1**。
+  // 这里的值会和 `/chat/completions` 直接拼接，别再加版本段。
+  static const String DEEPSEEK_API_URL = 'https://api.deepseek.com';
+
+  /// 历史版本用过的 DeepSeek 地址。
+  ///
+  /// 旧版默认值带 `/v1`（OpenAI 兼容层，之前也能通）。常量改了以后，
+  /// 存量配置里存的还是老值：不认出来会被推断成「自定义服务」，
+  /// 设置页就会掉到自定义那一档。
+  static const List<String> LEGACY_DEEPSEEK_API_URLS = [
+    'https://api.deepseek.com/v1',
+  ];
+
+  /// 地址是否属于 DeepSeek 官方（含历史值）。忽略结尾斜杠。
+  static bool isDeepSeekApiUrl(String? url) {
+    if (url == null) {
+      return false;
+    }
+    final normalized = url.trim().replaceAll(RegExp(r'/+$'), '');
+    return normalized == DEEPSEEK_API_URL ||
+        LEGACY_DEEPSEEK_API_URLS.contains(normalized);
+  }
 
   // API 服务预设
   static const String AI_PRESET_DEEPSEEK = 'deepseek';
@@ -303,12 +333,26 @@ class AppConfig {
     }
     final url = apiUrl?.toString();
     final modelValue = model?.toString() ?? '';
-    final isOfficialUrl = url == null || url.isEmpty || url == DEEPSEEK_API_URL;
+    final isOfficialUrl = url == null || url.isEmpty || isDeepSeekApiUrl(url);
     // 兼容所有 deepseek 系名字（flash/pro/chat/reasoner 及 legacy 别名）
     final isDeepSeekModel = modelValue.startsWith('deepseek');
     return isOfficialUrl && isDeepSeekModel
         ? AI_PRESET_DEEPSEEK
         : AI_PRESET_CUSTOM;
+  }
+
+  /// 把存量配置里的旧 DeepSeek 地址换成当前官方地址。
+  ///
+  /// 只在 DeepSeek 预设下动手：自定义预设的地址是用户自己填的，
+  /// 哪怕长得像官方地址也不该被改写。返回 null 表示「保持原样」。
+  static String? _migrateDeepSeekApiUrl(String? url, String preset) {
+    if (preset != AI_PRESET_DEEPSEEK || url == null || url.isEmpty) {
+      return url;
+    }
+    final normalized = url.trim().replaceAll(RegExp(r'/+$'), '');
+    return LEGACY_DEEPSEEK_API_URLS.contains(normalized)
+        ? DEEPSEEK_API_URL
+        : url;
   }
 
   static const String OPENAI_API_URL = 'https://api.openai.com/v1';

@@ -9,6 +9,7 @@ import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/services/random_review_selector_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/pull_refresh_physics.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_input_helper.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
@@ -1011,7 +1012,9 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
               color: AppTheme.primaryColor,
               child: LayoutBuilder(
                 builder: (context, constraints) => SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
+                  physics: const PullRefreshPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
                       minHeight: constraints.maxHeight,
@@ -1052,7 +1055,9 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
             onRefresh: _shuffleBatch,
             color: AppTheme.primaryColor,
             child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
+              physics: const PullRefreshPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
               padding: const EdgeInsets.only(top: 4, bottom: 96),
               children: [
                 if (_reviewNotes.isNotEmpty) _buildBatchHeader(context),

@@ -109,6 +109,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// 下拉手势累计位移（dp）。只驱动快捷入口滑入与刷新提示，不参与列表布局。
   double _pullDistance = 0;
 
+  /// 松手后的回弹补间：把 [_pullDistance] 从当前值平滑送到目标值。
+  ///
+  /// 直接赋值会让提示条瞬间消失、快捷入口瞬间缩回，看着像被切掉；
+  /// 补间一段 220ms 的 easeOut，才像「松手之后自己退回去」。
+  late final AnimationController _pullSettleController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  )..addListener(_onPullSettleTick);
+  double _pullSettleFrom = 0;
+  double _pullSettleTo = 0;
+
   /// 快捷入口条的高度：上 12 + 胶囊 40 + 下 8。
   static const double _shortcutPillsHeight = 60;
 
@@ -522,6 +533,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _searchFocusNode.dispose();
     _scrollController.dispose(); // 🚀 释放滚动控制器
     _feedFadeController.dispose();
+    _pullSettleController.dispose();
     super.dispose();
   }
 
@@ -575,6 +587,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (next == _pullDistance) {
         return false;
       }
+      // 手指又压下来了：先停掉上一次松手的回弹，否则两股力打架
+      if (_pullSettleController.isAnimating) {
+        _pullSettleController.stop();
+      }
       setState(() {
         _pullDistance = next;
         // 第一层拉满就把入口记成常驻：之后它回到列表里正常滚动，
@@ -589,8 +605,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _pullDistance > 0 &&
         !_isRefreshing) {
       _settlePull();
+      return false;
+    }
+    // 兜底：有些手势回拉一开始就去滚内容（不再发 overscroll），这时下拉
+    // 位移会僵在原来的值上，提示条跟着卡住不回退。只要列表已经滚进内容区，
+    // 就把它平滑收回。
+    if (notification is ScrollUpdateNotification &&
+        _pullDistance > 0 &&
+        !_isRefreshing &&
+        notification.metrics.pixels > 0 &&
+        !_pullSettleController.isAnimating) {
+      _animatePullTo(0);
     }
     return false;
+  }
+
+  void _onPullSettleTick() {
+    final t = Curves.easeOutCubic.transform(_pullSettleController.value);
+    setState(() {
+      _pullDistance = _pullSettleFrom + (_pullSettleTo - _pullSettleFrom) * t;
+    });
+  }
+
+  /// 松手 / 刷新结束后把下拉位移平滑送回 [target]。
+  void _animatePullTo(double target) {
+    if ((_pullDistance - target).abs() < 0.5) {
+      setState(() => _pullDistance = target);
+      return;
+    }
+    _pullSettleFrom = _pullDistance;
+    _pullSettleTo = target;
+    _pullSettleController.forward(from: 0);
   }
 
   /// 第一层进度：快捷入口从上方滑下来的比例。
@@ -607,6 +652,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// 松手：够阈值就刷新，不够就回弹。
   void _settlePull() {
     if (_refreshPullProgress >= 1) {
+      // 先停在拉满位（转圈），刷新结束后再退回去
       setState(() {
         _pullDistance = _shortcutPillsHeight + _refreshPullSpan;
       });
@@ -614,7 +660,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       return;
     }
     // 没拉满第一层就松手：入口收回，下次重新拉
-    setState(() => _pullDistance = 0);
+    _animatePullTo(0);
   }
 
   Future<void> _runPullRefresh() async {
@@ -622,8 +668,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (!mounted) {
       return;
     }
-    // 刷新结束（成功或失败）都把手指的位置还回去
-    setState(() => _pullDistance = 0);
+    // 刷新结束（成功或失败）都把手指的位置平滑还回去
+    _animatePullTo(0);
   }
 
   // 刷新笔记数据
@@ -766,56 +812,67 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final armed = progress >= 1;
 
     return Positioned(
-      // 让开已经展开的快捷入口，落在它下面
-      top: _shortcutPillsHeight + 2,
+      // 让开已经展开的快捷入口，落在它下面；越没拉满越往上收一点，
+      // 往回拉的时候它就是连位置一起退回去，而不是原地等进度归零再消失。
+      top: _shortcutPillsHeight + 2 - 10 * (1 - progress),
       left: 0,
       right: 0,
       child: Center(
-        child: Container(
-          height: 34,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: fillColor,
-            borderRadius: BorderRadius.circular(17),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDarkMode ? 0.32 : 0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (refreshing)
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(accent),
+        // 透明度与缩放都挂在 progress 上：手指退多少，提示就淡多少、缩多少，
+        // 松手后由 _animatePullTo 补间送回，整段是有去有回的。
+        child: Opacity(
+          opacity: progress.clamp(0.0, 1.0),
+          child: Transform.scale(
+            scale: 0.92 + 0.08 * progress,
+            child: Container(
+              height: 34,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: fillColor,
+                borderRadius: BorderRadius.circular(17),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: isDarkMode ? 0.32 : 0.08,
+                    ),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
                   ),
-                )
-              else
-                Transform.rotate(
-                  angle: math.pi * progress,
-                  child: Icon(
-                    Icons.arrow_downward_rounded,
-                    size: 15,
-                    color: accent,
-                  ),
-                ),
-              const SizedBox(width: 8),
-              Text(
-                refreshing ? '正在刷新…' : (armed ? '松开刷新' : '继续下拉'),
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
-                  color: textColor.withValues(alpha: 0.85),
-                ),
+                ],
               ),
-            ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (refreshing)
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(accent),
+                      ),
+                    )
+                  else
+                    Transform.rotate(
+                      angle: math.pi * progress,
+                      child: Icon(
+                        Icons.arrow_downward_rounded,
+                        size: 15,
+                        color: accent,
+                      ),
+                    ),
+                  const SizedBox(width: 8),
+                  Text(
+                    refreshing ? '正在刷新…' : (armed ? '松开刷新' : '继续下拉'),
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: textColor.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

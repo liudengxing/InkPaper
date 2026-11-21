@@ -15,6 +15,7 @@ import 'package:inkpaper/widgets/note_card.dart';
 import 'package:inkpaper/widgets/note_editor_page.dart';
 import 'package:inkpaper/widgets/on_this_day_card.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
+import 'package:inkpaper/widgets/slide_out_row.dart';
 import 'package:provider/provider.dart';
 
 class RandomReviewScreen extends StatefulWidget {
@@ -29,6 +30,11 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
   final Random _random = Random();
 
   List<Note> _reviewNotes = [];
+
+  /// 正在播放退场动效的行：确认删除后先滑出去，播完再真删。
+  final Set<String> _leavingNoteIds = <String>{};
+  final Map<String, Completer<void>> _noteExitCompleters =
+      <String, Completer<void>>{};
 
   /// 往年同月同日的笔记，作为信息流顶部的「那年今日」卡片（与首页同款）。
   List<Note> _onThisDayNotes = const <Note>[];
@@ -98,6 +104,26 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
     setState(() {
       _onThisDayDismissed = true;
     });
+  }
+
+  /// 播放一行的退场动效，等播完（或 400ms 兜底）再返回。
+  Future<void> _playNoteExit(String noteId) {
+    if (!mounted) {
+      return Future<void>.value();
+    }
+    final completer = Completer<void>();
+    setState(() {
+      _leavingNoteIds.add(noteId);
+      _noteExitCompleters[noteId] = completer;
+    });
+    return completer.future.timeout(
+      const Duration(milliseconds: 400),
+      onTimeout: () {},
+    );
+  }
+
+  void _handleNoteExitFinished(String noteId) {
+    _noteExitCompleters.remove(noteId)?.complete();
   }
 
   /// 把某条笔记在 provider 里的最新对象换回本批。
@@ -931,41 +957,50 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
                     onOpenNote: (note) => context.push('/note/${note.id}'),
                   ),
                 for (final note in _reviewNotes)
-                  NoteCard(
-                    key: ValueKey('review_${note.id}'),
-                    note: note,
-                    onEdit: () => _showEditNoteForm(note),
-                    // 卡片内的编辑/置顶不重新抽签，只把这一个对象换成新的，
-                    // 否则刚改完的内容会被下一批顶掉
-                    onNoteUpdated: () => _syncNoteFromProvider(note.id),
-                    onDelete: () {
-                      // 与首页、详情页收敛到同一条删除路径（含撤销条）
-                      NoteActionsUi.deleteNote(
-                        context: context,
-                        note: note,
-                        onDeleted: () {
-                          setState(() {
-                            _reviewNotes.removeWhere((n) => n.id == note.id);
-                          });
-                        },
-                      );
-                    },
-                    onPin: () async {
-                      final willPin = !note.isPinned;
-                      await appProvider.togglePinStatus(note);
-                      _syncNoteFromProvider(note.id);
-                      if (!context.mounted) {
-                        return;
-                      }
-                      SnackBarUtils.showSuccess(
-                        context,
-                        willPin
-                            ? (AppLocalizationsSimple.of(context)?.pinned ??
-                                '已置顶')
-                            : (AppLocalizationsSimple.of(context)?.unpinned ??
-                                '已取消置顶'),
-                      );
-                    },
+                  SlideOutRow(
+                    key: ValueKey('review_exit_${note.id}'),
+                    leaving: _leavingNoteIds.contains(note.id),
+                    onExited: () => _handleNoteExitFinished(note.id),
+                    child: NoteCard(
+                      key: ValueKey('review_${note.id}'),
+                      note: note,
+                      playDeleteExit: () => _playNoteExit(note.id),
+                      onEdit: () => _showEditNoteForm(note),
+                      // 卡片内的编辑/置顶不重新抽签，只把这一个对象换成新的，
+                      // 否则刚改完的内容会被下一批顶掉
+                      onNoteUpdated: () => _syncNoteFromProvider(note.id),
+                      onDelete: () {
+                        // 与首页、详情页同一条删除路径：二次确认 + 行退出
+                        NoteActionsUi.deleteNote(
+                          context: context,
+                          note: note,
+                          playExit: () => _playNoteExit(note.id),
+                          onDeleted: () {
+                            setState(() {
+                              _reviewNotes.removeWhere((n) => n.id == note.id);
+                              _leavingNoteIds.remove(note.id);
+                              _noteExitCompleters.remove(note.id)?.complete();
+                            });
+                          },
+                        );
+                      },
+                      onPin: () async {
+                        final willPin = !note.isPinned;
+                        await appProvider.togglePinStatus(note);
+                        _syncNoteFromProvider(note.id);
+                        if (!context.mounted) {
+                          return;
+                        }
+                        SnackBarUtils.showSuccess(
+                          context,
+                          willPin
+                              ? (AppLocalizationsSimple.of(context)?.pinned ??
+                                  '已置顶')
+                              : (AppLocalizationsSimple.of(context)?.unpinned ??
+                                  '已取消置顶'),
+                        );
+                      },
+                    ),
                   ),
               ],
             ),

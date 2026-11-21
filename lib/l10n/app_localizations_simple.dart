@@ -354,6 +354,12 @@ class AppLocalizationsSimple {
   String get noteRestored => _t('noteRestored', fallback: '笔记已恢复');
   String get undo => _t('undo', fallback: '撤销');
   String get deleteFailed => _t('deleteFailed', fallback: '删除失败');
+  String get deleteNoteConfirmTitle =>
+      _t('deleteNoteConfirmTitle', fallback: '删除笔记');
+  String get deleteNoteConfirmBody => _t(
+    'deleteNoteConfirmBody',
+    fallback: '是否确认删除，删除笔记会移至回收站，30 天内可以前往回收站恢复',
+  );
   String get showAll => _t('showAll', fallback: '显示全部');
   String get unknown => _t('unknown', fallback: '未知');
 

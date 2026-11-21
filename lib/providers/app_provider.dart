@@ -241,6 +241,17 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
     unawaited(
       Future<void>(() async {
+        // delay 以前只延后原生侧写 prefs：读全表（1500+ 条逐行 JSON 解码）、
+        // 逐条跑待办正则、jsonEncode 全都发生在点按那一帧，删除/保存后
+        // 就会卡一下。现在整段都延后，且期间只要又有新调度（updateId 变了）
+        // 这次直接作废——连续删三条只会真的算一次。
+        if (delay > Duration.zero) {
+          await Future<void>.delayed(delay);
+        }
+        if (updateId != _widgetStore.snapshotUpdateId) {
+          return;
+        }
+
         if (_screenshotMode) {
           await scheduleWithNotes(notes);
           return;
@@ -3176,7 +3187,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       // ⚡ 这一帧列表就少一行，不再等数据库
       notifyListeners();
-      _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
+      // 桌面小组件让 _afterDeleteMaintenance 在动效结束后统一刷一次：
+      // 这里再读一遍全表只会把点按那一帧撑爆。
 
       final future = _finishDelete(
         id,
@@ -3265,7 +3277,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       debugPrint('AppProvider: 删除后清理引用失败: $e');
     }
     _refreshMediaFilterIfActive();
-    _scheduleWidgetSnapshotUpdate();
+    // 与写笔记同一档延迟：删除动效 + 列表重建跑完再算快照
+    _scheduleWidgetSnapshotUpdate(delay: _widgetSnapshotDelayAfterWrite);
   }
 
   /// 撤销窗口结束后提交远端删除。

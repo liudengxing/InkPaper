@@ -50,6 +50,7 @@ class NoteCard extends StatefulWidget {
     this.onTagTap,
     this.highlightQuery,
     this.isExample = false, // 示例笔记：更多菜单里的删除也走 onDelete
+    this.playDeleteExit,
     super.key,
   });
   final Note note; // 🚀 直接传递完整Note对象，避免查找
@@ -58,6 +59,10 @@ class NoteCard extends StatefulWidget {
   final VoidCallback onPin;
   final VoidCallback? onNoteUpdated; // 可选的笔记更新回调
   final bool isExample; // 是否为示例笔记（未落库）
+
+  /// 删除时先播放「行从右往左退出」的动效，动效结束再真删。
+  /// 卡片自己不知道所在列表长什么样，由列表页注入。
+  final Future<void> Function()? playDeleteExit;
   final bool disableTagNavigation; // 是否禁用标签跳转
   final ValueChanged<String>? onTagTap;
   final String? highlightQuery;
@@ -874,6 +879,7 @@ class _NoteCardState extends State<NoteCard>
       note: widget.note,
       onNoteUpdated: widget.onNoteUpdated, // 传递回调
       onDeleteOverride: widget.isExample ? widget.onDelete : null,
+      playDeleteExit: widget.playDeleteExit,
     );
   }
 

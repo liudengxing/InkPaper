@@ -22,6 +22,7 @@ import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:inkpaper/widgets/note_editor_page.dart';
 import 'package:inkpaper/widgets/on_this_day_card.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
+import 'package:inkpaper/widgets/slide_out_row.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:provider/provider.dart';
 
@@ -114,6 +115,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late final AnimationController _feedFadeController;
   late final Animation<double> _feedFade;
   SortOrder _currentSortOrder = SortOrder.newest;
+
+  /// 正在播放「从右往左退出」的行。
+  ///
+  /// 删除确认后先把 id 放进来，卡片自己滑出去、收起高度；动效播完才真正
+  /// 从 provider 里摘掉这一条，否则整列会在点确认的那一帧往上硬跳一格。
+  final Set<String> _leavingNoteIds = <String>{};
+  final Map<String, Completer<void>> _noteExitCompleters =
+      <String, Completer<void>>{};
 
   /// 📝 欢迎笔记文案。
   ///
@@ -1157,6 +1166,48 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   //
   // 用 Selector 只订阅未读数：原先的 Provider.of(context) 会在订阅者列表里
   // 挂上整个 HomeScreen，任何 provider 通知都会让 AppBar 和列表一起重建。
+  /// 播放一行的退场动效，等它播完再返回。
+  ///
+  /// 兜底 400ms：动画被系统掉帧、或这一行恰好被别的刷新摘掉时，
+  /// 也不能把删除流程卡在这里。
+  Future<void> _playNoteExit(String noteId) {
+    if (!mounted) {
+      return Future<void>.value();
+    }
+    final completer = Completer<void>();
+    setState(() {
+      _leavingNoteIds.add(noteId);
+      _noteExitCompleters[noteId] = completer;
+    });
+    return completer.future.timeout(
+      const Duration(milliseconds: 400),
+      onTimeout: () {},
+    );
+  }
+
+  void _handleNoteExitFinished(String noteId) {
+    _noteExitCompleters.remove(noteId)?.complete();
+  }
+
+  /// 删除结束后收尾：
+  /// - 删除成功 → 这一条已不在列表里，把动效标记丢掉，避免集合越积越大；
+  /// - 落库失败 → 行还在，标记改回 false，让它滑回原位。
+  void _finishNoteDelete(String noteId, AppProvider appProvider) {
+    final stillThere = appProvider.notes.any((n) => n.id == noteId);
+    if (!stillThere) {
+      _leavingNoteIds.remove(noteId);
+      _noteExitCompleters.remove(noteId);
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _leavingNoteIds.remove(noteId);
+      _noteExitCompleters.remove(noteId);
+    });
+  }
+
   Widget _buildNotificationBanner() => Selector<AppProvider, int>(
         selector: (_, provider) => provider.unreadAnnouncementsCount,
         builder: (context, unreadCount, child) {
@@ -1991,65 +2042,86 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                         key: ValueKey(
                                           note.id,
                                         ), // 🚀 添加key避免不必要的重建
-                                        child: NoteCard(
-                                          key: ValueKey(
-                                            'card_${note.id}',
-                                          ), // 🚀 为NoteCard添加key
-                                          note: note, // 🚀 直接传递Note对象，避免内部查找
-                                          highlightQuery: showSearchSummary
-                                              ? searchQuery
-                                              : null,
-                                          onEdit: () {
-                                            // 🚀 编辑笔记（静默）
-                                            _showEditNoteForm(note);
-                                          },
-                                          onDelete: () {
-                                            // 与「⋯」菜单收敛到同一条路径：
-                                            // 删除、撤销条、撤销语义只有一个实现。
-                                            NoteActionsUi.deleteNote(
-                                              context: context,
-                                              note: note,
-                                              onDeleted: () {
-                                                // 搜索结果不随 provider 通知变化，
-                                                // 要自己从本地结果里摘掉。
-                                                if (_isSearchActive) {
-                                                  setState(() {
-                                                    _searchResults.removeWhere(
-                                                      (r) => r.id == note.id,
-                                                    );
-                                                  });
-                                                }
-                                              },
-                                            );
-                                          },
-                                          onPin: () async {
-                                            final appProvider =
-                                                Provider.of<AppProvider>(
-                                              context,
-                                              listen: false,
-                                            );
-                                            // 🔥 保存切换前的状态
-                                            final willPin = !note.isPinned;
-                                            await appProvider
-                                                .togglePinStatus(note);
-                                            if (context.mounted) {
-                                              SnackBarUtils.showSuccess(
-                                                context,
-                                                // 🔥 显示切换后的状态
-                                                willPin
-                                                    ? (AppLocalizationsSimple
-                                                            .of(
-                                                          context,
-                                                        )?.pinned ??
-                                                        '已置顶')
-                                                    : (AppLocalizationsSimple
-                                                            .of(
-                                                          context,
-                                                        )?.unpinned ??
-                                                        '已取消置顶'),
+                                        child: SlideOutRow(
+                                          key: ValueKey('exit_${note.id}'),
+                                          leaving: _leavingNoteIds.contains(
+                                            note.id,
+                                          ),
+                                          onExited: () =>
+                                              _handleNoteExitFinished(note.id),
+                                          child: NoteCard(
+                                            key: ValueKey(
+                                              'card_${note.id}',
+                                            ), // 🚀 为NoteCard添加key
+                                            note: note, // 🚀 直接传递Note对象，避免内部查找
+                                            highlightQuery: showSearchSummary
+                                                ? searchQuery
+                                                : null,
+                                            // 卡片里「⋯」菜单的删除先播退出动效
+                                            playDeleteExit: () =>
+                                                _playNoteExit(note.id),
+                                            onEdit: () {
+                                              // 🚀 编辑笔记（静默）
+                                              _showEditNoteForm(note);
+                                            },
+                                            onDelete: () {
+                                              // 与「⋯」菜单收敛到同一条路径：
+                                              // 二次确认 + 行退出 + 原生提示条。
+                                              NoteActionsUi.deleteNote(
+                                                context: context,
+                                                note: note,
+                                                playExit: () =>
+                                                    _playNoteExit(note.id),
+                                                onDeleted: () {
+                                                  // 搜索结果不随 provider 通知
+                                                  // 变化，要自己摘掉。
+                                                  if (_isSearchActive) {
+                                                    setState(() {
+                                                      _searchResults
+                                                          .removeWhere(
+                                                        (r) => r.id == note.id,
+                                                      );
+                                                    });
+                                                  }
+                                                  _finishNoteDelete(
+                                                    note.id,
+                                                    Provider.of<AppProvider>(
+                                                      context,
+                                                      listen: false,
+                                                    ),
+                                                  );
+                                                },
                                               );
-                                            }
-                                          },
+                                            },
+                                            onPin: () async {
+                                              final appProvider =
+                                                  Provider.of<AppProvider>(
+                                                context,
+                                                listen: false,
+                                              );
+                                              // 🔥 保存切换前的状态
+                                              final willPin = !note.isPinned;
+                                              await appProvider
+                                                  .togglePinStatus(note);
+                                              if (context.mounted) {
+                                                SnackBarUtils.showSuccess(
+                                                  context,
+                                                  // 🔥 显示切换后的状态
+                                                  willPin
+                                                      ? (AppLocalizationsSimple
+                                                              .of(
+                                                            context,
+                                                          )?.pinned ??
+                                                          '已置顶')
+                                                      : (AppLocalizationsSimple
+                                                              .of(
+                                                            context,
+                                                          )?.unpinned ??
+                                                          '已取消置顶'),
+                                                );
+                                              }
+                                            },
+                                          ),
                                         ),
                                       );
                                     },

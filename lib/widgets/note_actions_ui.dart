@@ -76,61 +76,113 @@ class NoteActionsUi {
     );
   }
 
-  /// 删除笔记（直接删除 + 撤销，无确认对话框）
+  /// 删除笔记：二次确认 → 行退出动效 → 从列表与库里删除 → 原生提示条。
   ///
-  /// 提示条必须放在 `await` 之前弹：`deleteNote` 的同步段已经把这行从内存
-  /// 列表移除并 notifyListeners，卡片的 context 会在这一帧之后销毁，等落库
-  /// 回来再弹就找不到 ScaffoldMessenger 了。
+  /// 不再用玻璃胶囊挂「撤销」：删除本身可逆（进回收站 30 天），与其在提示条上
+  /// 抢 2.8 秒让人点撤销，不如事先问一次「确认吗」，把不可逆感交给文案说明。
+  ///
+  /// [playExit] 由列表页提供：它把这一行标记为「正在离开」，等动效播完再返回。
+  /// 详情页这类没有行的场景不传，确认后直接删。
   static Future<void> deleteNote({
     required BuildContext context,
     required Note note,
     required VoidCallback onDeleted,
+    Future<void> Function()? playExit,
   }) async {
     final appProvider = Provider.of<AppProvider>(context, listen: false);
     final l10n = AppLocalizationsSimple.of(context);
 
+    final confirmed = await showDeleteConfirmDialog(context);
+    if (!confirmed || !context.mounted) {
+      return;
+    }
+
+    // 动效期间先别摘行：直接摘会让下面整列往上硬跳一格，看着就像卡了一下
+    if (playExit != null) {
+      await playExit();
+      if (!context.mounted) {
+        return;
+      }
+    }
+
+    // 摘行之后原 context 就失效了，提示条要用的 messenger 先抓在手里
+    final messenger = ScaffoldMessenger.maybeOf(context);
     final future = NoteActionsService.delete(appProvider, note.id);
     onDeleted();
 
-    if (context.mounted) {
-      SnackBarUtils.showAction(
-        context,
+    if (messenger != null) {
+      SnackBarUtils.showNativeOn(
+        messenger,
         l10n?.noteDeleted ?? '笔记已删除',
         icon: Icons.delete_outline_rounded,
-        actionLabel: l10n?.undo ?? '撤销',
-        // 与远端提交窗口同长：窗口一关就别再让人点撤销
-        duration: AppProvider.deleteUndoWindow,
-        onAction: () async {
-          // 恢复原笔记（保留 id / remoteId / 引用），不再新建一条。
-          final restored = await appProvider.restoreNote(id: note.id);
-          if (!context.mounted) {
-            return;
-          }
-          if (restored) {
-            SnackBarUtils.showSuccess(
-              context,
-              l10n?.undoDelete ?? '已撤销删除',
-            );
-          } else {
-            SnackBarUtils.showError(
-              context,
-              l10n?.undoFailed ?? '撤销失败',
-            );
-          }
-        },
       );
     }
 
     final ok = await future;
-    if (!ok && context.mounted) {
-      // 落库失败时 AppProvider 已经把笔记插回原位，这里只要把
-      // 「已删除」那条收掉并说明原因。
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      SnackBarUtils.showError(
-        context,
+    if (!ok && messenger != null) {
+      // 落库失败时 AppProvider 已经把笔记插回原位（列表页的动效会反向播回）
+      SnackBarUtils.showNativeOn(
+        messenger,
         l10n?.deleteFailed ?? '删除失败',
+        icon: Icons.error_outline_rounded,
+        backgroundColor: Colors.red.shade600,
       );
     }
+  }
+
+  /// 删除前的二次确认。
+  ///
+  /// 文案固定交代「进回收站、30 天内可恢复」——用户真正怕的是不可逆，
+  /// 说清这一点，比在提示条里塞一个 2.8 秒就消失的撤销按钮更有效。
+  static Future<bool> showDeleteConfirmDialog(BuildContext context) async {
+    final l10n = AppLocalizationsSimple.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        // 细长一点：默认左右各 40 的留白，在 400dp 的屏上会把框撑到 320 宽，
+        // 两行提示一字排开，看着像块板子。收窄到 288、让正文多折一行，
+        // 才像「一句话确认」该有的样子。
+        insetPadding: const EdgeInsets.symmetric(horizontal: 56, vertical: 24),
+        constraints: const BoxConstraints(maxWidth: 320),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.red.shade600,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(l10n?.deleteNoteConfirmTitle ?? '删除笔记'),
+            ),
+          ],
+        ),
+        content: Text(
+          l10n?.deleteNoteConfirmBody ?? '是否确认删除，删除笔记会移至回收站，30 天内可以前往回收站恢复',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n?.cancel ?? '取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red.shade600,
+            ),
+            child: Text(l10n?.delete ?? '删除'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
   }
 
   /// 置顶/取消置顶

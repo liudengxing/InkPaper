@@ -32,6 +32,8 @@ class NoteMoreOptionsMenu {
     VoidCallback? onNoteUpdated,
     // 覆盖默认删除行为（例如示例笔记只提示、不落库）。
     VoidCallback? onDeleteOverride,
+    // 列表页注入的行退场动效，菜单里的删除也要走一遍
+    Future<void> Function()? playDeleteExit,
     // 详情页顶栏没有独立 AI 摘要按钮了，由菜单补上这个入口；
     // 其他调用方传 null 就不显示。
     VoidCallback? onAiSummary,
@@ -53,6 +55,7 @@ class NoteMoreOptionsMenu {
       onNoteUpdated: onNoteUpdated,
       onDeleteOverride: onDeleteOverride,
       onAiSummary: onAiSummary,
+      playDeleteExit: playDeleteExit,
     );
   }
 
@@ -64,6 +67,7 @@ class NoteMoreOptionsMenu {
     VoidCallback? onNoteUpdated,
     VoidCallback? onDeleteOverride,
     VoidCallback? onAiSummary,
+    Future<void> Function()? playDeleteExit,
   }) {
     final localizations = AppLocalizationsSimple.of(context);
     var currentNote = note;
@@ -243,6 +247,7 @@ class NoteMoreOptionsMenu {
             await NoteActionsUi.deleteNote(
               context: context,
               note: currentNote,
+              playExit: playDeleteExit,
               onDeleted: () {
                 onNoteUpdated?.call();
               },

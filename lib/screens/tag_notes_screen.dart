@@ -12,6 +12,7 @@ import 'package:inkpaper/utils/note_sorting_helper.dart';
 import 'package:inkpaper/utils/responsive_utils.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_path_utils.dart';
+import 'package:inkpaper/widgets/note_actions_ui.dart';
 import 'package:inkpaper/widgets/note_card.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:inkpaper/widgets/note_editor_page.dart';
@@ -417,11 +418,15 @@ class _TagNotesScreenState extends State<TagNotesScreen> {
                   // 🎯 与主页完全一致：弹出底部编辑器
                   _showEditNoteForm(note);
                 },
-                onDelete: () async {
-                  final appProvider =
-                      Provider.of<AppProvider>(context, listen: false);
-                  await appProvider.deleteNote(note.id);
-                  // Consumer 会自动监听 Provider 变化并更新UI
+                onDelete: () {
+                  // 与首页、回顾页同一条删除路径：二次确认 + 原生提示条。
+                  // 这一页的列表由 provider 通知触发全量重查（防抖 250ms），
+                  // 行退出动效会跟重查抢，所以这里不播。
+                  NoteActionsUi.deleteNote(
+                    context: context,
+                    note: note,
+                    onDeleted: () {},
+                  );
                 },
                 onPin: () async {
                   final appProvider =
@@ -466,11 +471,12 @@ class _TagNotesScreenState extends State<TagNotesScreen> {
                     // 🎯 与主页完全一致：弹出底部编辑器
                     _showEditNoteForm(note);
                   },
-                  onDelete: () async {
-                    final appProvider =
-                        Provider.of<AppProvider>(context, listen: false);
-                    await appProvider.deleteNote(note.id);
-                    // Consumer 会自动监听 Provider 变化并更新UI
+                  onDelete: () {
+                    NoteActionsUi.deleteNote(
+                      context: context,
+                      note: note,
+                      onDeleted: () {},
+                    );
                   },
                   onPin: () async {
                     final appProvider =

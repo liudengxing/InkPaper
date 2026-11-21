@@ -70,6 +70,75 @@ class SnackBarUtils {
     );
   }
 
+  /// 原生提示条：Material 默认那条，贴屏幕底边、从下往上滑一下。
+  ///
+  /// 玻璃胶囊是给「带撤销/重试的操作」用的——里面有按钮，值得一块浮起的面板。
+  /// 删除确认这类「动作已经做完，只需一句话交代结果」的反馈用原生条更轻，
+  /// 不再需要折射、也不再需要一块常驻的面板。
+  static void showNative(
+    BuildContext context,
+    String message, {
+    IconData? icon,
+    Color? backgroundColor,
+    Duration duration = const Duration(seconds: 2),
+  }) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) {
+      return;
+    }
+    showNativeOn(
+      messenger,
+      message,
+      icon: icon,
+      backgroundColor: backgroundColor,
+      duration: duration,
+    );
+  }
+
+  /// 同上，但直接拿 [ScaffoldMessengerState]。
+  ///
+  /// 行被摘掉后原 context 会失效，删除这类「先摘行、再提示」的调用方
+  /// 要提前把 messenger 抓在手里。
+  static void showNativeOn(
+    ScaffoldMessengerState messenger,
+    String message, {
+    IconData? icon,
+    Color? backgroundColor,
+    Duration duration = const Duration(seconds: 2),
+  }) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    height: 1.35,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          // 主题里默认是 floating，这里显式贴底：要的就是原生那条
+          behavior: SnackBarBehavior.fixed,
+          backgroundColor: backgroundColor,
+          duration: duration,
+        ),
+      );
+  }
+
   /// 显示网络错误提示，会自动根据错误类型提供友好的提示信息
   static void showNetworkError(
     BuildContext context,

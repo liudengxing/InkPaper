@@ -956,6 +956,12 @@ class Translations {
     'updateFailed': {'zh': '更新失败', 'en': 'Update failed'},
     'noteDeleted': {'zh': '笔记已删除', 'en': 'Note deleted'},
     'deleteFailed': {'zh': '删除失败', 'en': 'Delete failed'},
+    'deleteNoteConfirmTitle': {'zh': '删除笔记', 'en': 'Delete note'},
+    'deleteNoteConfirmBody': {
+      'zh': '是否确认删除，删除笔记会移至回收站，30 天内可以前往回收站恢复',
+      'en': 'Delete this note? It will be moved to Trash, where it can be '
+          'restored within 30 days.',
+    },
     'loadedAllNotes': {
       'zh': '已加载全部 {count} 条笔记',
       'en': 'Loaded all {count} notes',

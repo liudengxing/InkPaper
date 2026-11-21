@@ -85,6 +85,28 @@ void main() {
       expect(lens.prompt, isNot(contains('输出（约 500 字）')));
     });
 
+    test('其余四个视角各自换掉了最弱的一环', () {
+      InsightLens byId(String id) =>
+          builtInInsightLenses.firstWhere((lens) => lens.id == id);
+
+      // 价值澄清：排序证据必须来自取舍现场，不能从表态里推
+      expect(byId('values').prompt, contains('取舍现场'));
+      expect(byId('values').prompt, contains('最累的那天'));
+
+      // 二阶思考：补上「问题在为他服务」和「解法的二阶后果」两条
+      expect(byId('second_order').prompt, contains('在为他服务'));
+      expect(byId('second_order').prompt, contains('二阶后果'));
+
+      // CBT：选材从「情绪最浓」改成「重复出现」，并往核心信念推一层
+      expect(byId('cbt').prompt, contains('看重复'));
+      expect(byId('cbt').prompt, contains('核心信念'));
+      expect(byId('cbt').prompt, contains('行为实验'));
+
+      // MBTI：判定之外要写功能怎么运转、在哪耗电、判错会错在哪
+      expect(byId('mbti').prompt, contains('耗电'));
+      expect(byId('mbti').prompt, contains('如果判错'));
+    });
+
     test('默认视角写成长文：交代时间跨度、三段主题带张力、结尾落小动作', () {
       final lens = builtInInsightLenses.first;
       expect(lens.id, 'default');

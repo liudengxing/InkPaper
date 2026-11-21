@@ -922,12 +922,13 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
       children: [
-        // 小标签 + 条数，给下面的大标题做语境
+        // 小标签 + 条数，给下面的大标题做语境。小标固定写 AI Insight，
+        // 视角名交给大标题，两行都写视角名等于说了两遍。
         Row(
           children: [
             Expanded(
               child: Text(
-                'AI 洞察 · ${lens?.name ?? '洞察'}',
+                'AI Insight',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.labelSmall?.copyWith(
@@ -961,7 +962,7 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              '共 ${result.totalCandidates} 条有文字内容，模型这次看的是最近 ${result.noteCount} 条。',
+              '库内共 ${result.totalCandidates} 条有文字内容的笔记，按时间分层取了其中 ${result.noteCount} 条。',
               style: theme.textTheme.bodySmall?.copyWith(
                 fontSize: 11.5,
                 height: 1.5,

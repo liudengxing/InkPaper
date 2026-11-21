@@ -101,6 +101,59 @@ void main() {
     });
   });
 
+  group('NotesContextBuilder.buildForInsight', () {
+    test('笔记远多于上限时，早年记录仍然进得了上下文', () {
+      // 2022 年的两条 + 最近三年各几百条：只取「最近 N 条」的话早年必被挤掉。
+      final notes = <Note>[
+        _note(
+          id: 'old-2022',
+          content: '2022 年在杭州租的第一间房子，阳台朝北，冬天很冷。',
+          createdAt: DateTime(2022, 5),
+        ),
+        _note(
+          id: 'old-2022-b',
+          content: '2022 年冬天开始每天走一万步，坚持了四十天。',
+          createdAt: DateTime(2022, 12, 20),
+        ),
+        for (var i = 0; i < 300; i++)
+          _note(
+            id: 'recent$i',
+            content: '近期记录 $i：开会、写周报、改 bug。',
+            createdAt: DateTime(2026).subtract(Duration(days: i % 300)),
+          ),
+      ];
+
+      final context = NotesContextBuilder.buildForInsight(
+        notes,
+        maxNotes: 30,
+        maxCharacters: 8000,
+      );
+
+      expect(context.noteCount, 30);
+      expect(context.text, contains('阳台朝北'));
+      // 编号仍然是「1 = 最近」，分层取样不能把时间顺序打乱
+      expect(context.earliest, isNotNull);
+      expect(context.latest, isNotNull);
+      expect(context.latest!.isAfter(context.earliest!), isTrue);
+    });
+
+    test('条数没超上限时原样全给，不做分层', () {
+      final notes = <Note>[
+        for (var i = 0; i < 5; i++)
+          _note(
+            id: 'n$i',
+            content: '第 $i 条记录',
+            createdAt: DateTime(2025, 1, 1 + i),
+          ),
+      ];
+
+      final context = NotesContextBuilder.buildForInsight(notes, maxNotes: 30);
+
+      expect(context.noteCount, 5);
+      expect(context.truncated, isFalse);
+    });
+  });
+
   group('NotesContextBuilder.stripMedia', () {
     test('剔除图片与附件链接，保留正文', () {
       final plain = NotesContextBuilder.stripMedia(

@@ -59,21 +59,23 @@ class AiInsightService {
   /// 强调「第一条笔记最重要」，理由是用户主动点开查看的那条，往往就是他
   /// 心里最重要的那条。我们按时间倒序喂笔记，编号 1 即最新一条。
   ///
-  /// 字数压到 500 左右是有意的：这个产品要的是「一句话被击中」，不是一篇
-  /// 长报告。写满 900 字必然掺水，宁可少说一个点。
+  /// 字数交给各视角自己定：默认视角是 900-1100 字的连续长文（对齐 flomo
+  /// 默认洞察的实际产出），其余方法论视角保持 500 字左右的骨架式输出。
   static const String systemPrompt = '''
-你是 InkPaper 的洞察助手。用户会把一批自己写的笔记按时间倒序交给你，编号从 1 开始，并指定一个分析视角。
+你是 InkPaper 的洞察助手。用户会交给你一批自己写的笔记（按时间倒序，编号从 1 开始）和一个分析视角。你的任务不是总结这批记录，而是读出一个连他自己都还没说出口的结论。
 
 通用规则：
-1. 只依据给出的笔记，不补充笔记之外的事实，不编造日期、人物、事件。
-2. 每个判断后面用 [序号] 标注依据，序号必须是上面真实存在的编号；找不到依据的判断就不要写。
-3. 不复述原文，不写「这篇笔记讲了」，直接给结论。第一句就要是判断，不要铺垫，不要用「我读完了」「从这些笔记中可以看到」「这是一段很真诚的记录」开头。
-4. 不做医学或心理诊断，不说「你有某种人格障碍」，不替用户下人生结论。
-5. 中文，纯文本。用「一、二、三」分段，段内用短句，不要 Markdown 标题、代码块、表格。
-6. 允许尖锐，但不要攻击；不要用「亲爱的」「加油」「相信自己」这类安慰话术。
-7. 全文 480-560 字，按视角给出的段落分配写，不要额外加成总结段。
-8. 证据只有一条就说只有一条；笔记里确实看不出就明说看不出，不要为了凑满结构硬编。
-9. 编号 1 的笔记权重最高：它是用户最近主动记录的，做判断时优先从它出发。''';
+1. 只依据给出的笔记，不补充笔记之外的事实，不编造日期、人物、事件、关系。
+2. 每个判断后面用 [序号] 标注依据，一句里可以挂多个，如 [12][45]；序号必须是真实存在的编号，找不到依据的判断整句删掉。
+3. 不复述原文，不写「这篇笔记讲了」「从这些记录可以看出」。第一句就要是判断，不要铺垫，不要用「我读完了」「这是一段很真诚的记录」开头。
+4. 不做医学或心理诊断，不给人格下判决，不预测未来，不说「你应该」。
+5. 第二人称「你」，像当面说话。引用他的原话用「」，不要改字。
+6. 中文，纯文本。不要 Markdown 标题、加粗、表格、emoji、破折号（用逗号或句号断句）。段落结构听所在视角的：视角要求分条时用「一、二、三」起行，没要求就用自然段落、段与段之间空一行。
+7. 不要用「亲爱的」「加油」「相信自己」这类安慰话术，也不要用「成长」「复盘」「闭环」「赋能」「情绪价值」「底层逻辑」这类空词。
+8. 允许尖锐，但尖锐要落在具体的事上（他哪天写了什么），不是给他贴标签（「你是完美主义者」）。
+9. 证据只有一条就说只有一条；笔记里确实看不出就明说看不出，不要为了凑满结构硬编。
+10. 字数按视角要求；宁可少说一个点，也不要掺水。
+11. 编号 1 的笔记权重最高：它是用户最近主动记录的，做判断时优先从它出发。''';
 
   /// 生成一次洞察。
   ///
@@ -91,7 +93,9 @@ class AiInsightService {
       return AiInsightResult.error(configError);
     }
 
-    final context = NotesContextBuilder.build(notes);
+    // 洞察用「跨时间分层」而不是「最近 N 条」：写了两三年的人，最近 200
+    // 条可能只有几个月，模型就写不出「这几年你在变什么」。
+    final context = NotesContextBuilder.buildForInsight(notes);
     if (context.noteCount == 0) {
       return AiInsightResult.error('当前范围内没有可用的文字笔记（图片和音视频不会发给 AI）。');
     }
@@ -223,17 +227,50 @@ class AiInsightService {
     required NotesContext context,
     required String scopeLabel,
   }) {
+    // 分层取样后「早的未附上」已经不成立，改成如实说取了其中多少条。
     final coverage = context.truncated
-        ? '，共 ${context.totalCandidates} 条有文字内容的笔记，更早的未附上'
+        ? '（库内共 ${context.totalCandidates} 条有文字内容的笔记，按时间分层取了其中 ${context.noteCount} 条）'
         : '';
+    final span = describeSpan(context.earliest, context.latest);
     return '''
 洞察范围：$scopeLabel
 纳入分析：${context.noteCount} 条$coverage
-编号说明：1 是最近一条，编号越大时间越早。
+${span.isEmpty ? '' : '$span\n'}编号说明：1 是最近一条，编号越大时间越早。
 
 笔记如下：
 ${context.text}
 ''';
+  }
+
+  /// 「时间跨度：2021-03-24 至 2026-01-12，跨 4 年 10 个月」。
+  ///
+  /// 洞察报告的开篇要先把跨度交代清楚（flomo 的默认洞察就是这么开头的），
+  /// 这件事让模型自己从两百行日期里数，数错比不算更糟。
+  static String describeSpan(DateTime? earliest, DateTime? latest) {
+    if (earliest == null || latest == null) {
+      return '';
+    }
+    String ymd(DateTime date) => '${date.year}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+
+    var months =
+        (latest.year - earliest.year) * 12 + (latest.month - earliest.month);
+    if (latest.day < earliest.day) {
+      months -= 1;
+    }
+    if (months < 0) {
+      months = 0;
+    }
+    final years = months ~/ 12;
+    final rest = months % 12;
+    final length = switch ((years, rest)) {
+      (0, 0) => '不足一个月',
+      (0, final m) => '$m 个月',
+      (final y, 0) => '$y 年',
+      (final y, final m) => '$y 年 $m 个月',
+    };
+    return '时间跨度：${ymd(earliest)} 至 ${ymd(latest)}，跨 $length';
   }
 
   /// 清掉 Markdown 痕迹，但保留分段。

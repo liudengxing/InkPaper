@@ -64,9 +64,21 @@ void main() {
       }
     });
 
-    test('统一规则把字数压到 500 左右并要求开头就给判断', () {
-      expect(AiInsightService.systemPrompt, contains('480-560 字'));
+    test('统一规则要求开头给判断、字数交给视角、禁掉空词与 Markdown', () {
       expect(AiInsightService.systemPrompt, contains('第一句就要是判断'));
+      expect(AiInsightService.systemPrompt, contains('字数按视角要求'));
+      expect(AiInsightService.systemPrompt, contains('第二人称「你」'));
+      expect(AiInsightService.systemPrompt, contains('emoji'));
+    });
+
+    test('默认视角写成长文：交代时间跨度、三段主题带张力、结尾落小动作', () {
+      final lens = builtInInsightLenses.first;
+      expect(lens.id, 'default');
+      expect(lens.prompt, contains('时间跨度'));
+      expect(lens.prompt, contains('张力'));
+      expect(lens.prompt, contains('拧一下'));
+      expect(lens.prompt, contains('约 950 字'));
+      expect(lens.prompt, contains('不要小标题'));
     });
 
     test('图标 key 可以往返，未知 key 落到 custom', () {
@@ -156,6 +168,26 @@ void main() {
       expect(message, contains('纳入分析：2 条'));
       expect(message, contains('1 是最近一条'));
       expect(message, contains('最新的想法'));
+      // 报告开篇要交代跨度，模型自己数日期不可靠，得直接告诉它
+      expect(message, contains('时间跨度：2026-11-10 至 2026-11-20'));
+    });
+
+    test('时间跨度按月算，不足一个月单独说明', () {
+      expect(
+        AiInsightService.describeSpan(
+          DateTime(2021, 3, 24),
+          DateTime(2026, 1, 12),
+        ),
+        contains('跨 4 年 9 个月'),
+      );
+      expect(
+        AiInsightService.describeSpan(
+          DateTime(2026, 11),
+          DateTime(2026, 11, 20),
+        ),
+        contains('不足一个月'),
+      );
+      expect(AiInsightService.describeSpan(null, null), isEmpty);
     });
 
     test('系统提示词强调第一条笔记权重最高', () {

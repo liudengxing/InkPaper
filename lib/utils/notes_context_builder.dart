@@ -13,6 +13,8 @@ class NotesContext {
     required this.truncated,
     this.relevantCount = 0,
     this.queryTerms = const <String>[],
+    this.earliest,
+    this.latest,
   });
 
   /// 拼给模型的文本。
@@ -34,6 +36,13 @@ class NotesContext {
 
   /// 本次识别出的检索词（调试 / 展示用）。
   final List<String> queryTerms;
+
+  /// 纳入笔记的最早 / 最晚时间。
+  ///
+  /// 洞察报告的开篇要交代「这批笔记跨了多久」，模型自己从 200 行日期里
+  /// 数不可靠，直接把跨度算好告诉它。
+  final DateTime? earliest;
+  final DateTime? latest;
 
   bool get hasRetrieval => relevantCount > 0;
 }
@@ -180,6 +189,72 @@ class NotesContextBuilder {
     return _render(
       relevant: const <_Entry>[],
       fill: entries,
+      totalCandidates: entries.length,
+      maxCharacters: maxCharacters,
+      maxNotes: maxNotes,
+      perNoteLimit: perNoteLimit,
+    );
+  }
+
+  /// 洞察专用：跨时间分桶轮转，不是只取最近 N 条。
+  ///
+  /// 「只取最近 200 条」在写了两三年的人身上等于「只取最近几个月」，模型
+  /// 自然写不出跨年的变化（flomo 的洞察报告正是靠时间跨度撑起开篇）。
+  /// 这里按「年-季度」分桶，每轮从每个桶各取一条：条目多的近期桶会多走
+  /// 几轮，天然偏向最近，但早年也一定在场。
+  static NotesContext buildForInsight(
+    List<Note> notes, {
+    int maxCharacters = defaultMaxCharacters,
+    int maxNotes = defaultMaxNotes,
+    int perNoteLimit = NotesContextBuilder.perNoteLimit,
+  }) {
+    final entries = _prepare(notes);
+    if (entries.length <= maxNotes) {
+      return _render(
+        relevant: const <_Entry>[],
+        fill: entries,
+        totalCandidates: entries.length,
+        maxCharacters: maxCharacters,
+        maxNotes: maxNotes,
+        perNoteLimit: perNoteLimit,
+      );
+    }
+
+    // entries 已按时间倒序，桶的插入顺序就是由近到远。
+    final buckets = <String, List<_Entry>>{};
+    for (final entry in entries) {
+      final key = '${entry.time.year}-Q${((entry.time.month - 1) ~/ 3) + 1}';
+      (buckets[key] ??= <_Entry>[]).add(entry);
+    }
+
+    final ordered = <_Entry>[];
+    final cursors = <String, int>{
+      for (final key in buckets.keys) key: 0,
+    };
+    var progressed = true;
+    while (progressed && ordered.length < maxNotes) {
+      progressed = false;
+      for (final key in buckets.keys) {
+        final bucket = buckets[key]!;
+        final index = cursors[key]!;
+        if (index >= bucket.length) {
+          continue;
+        }
+        ordered.add(bucket[index]);
+        cursors[key] = index + 1;
+        progressed = true;
+        if (ordered.length >= maxNotes) {
+          break;
+        }
+      }
+    }
+
+    // 编号必须仍然是「1 = 最近」，否则 [序号] 和「编号 1 权重最高」全乱。
+    ordered.sort((a, b) => b.time.compareTo(a.time));
+
+    return _render(
+      relevant: const <_Entry>[],
+      fill: ordered,
       totalCandidates: entries.length,
       maxCharacters: maxCharacters,
       maxNotes: maxNotes,
@@ -382,6 +457,8 @@ class NotesContextBuilder {
     var used = 0;
     var count = 0;
     final taken = <String>{};
+    DateTime? earliest;
+    DateTime? latest;
 
     void appendEntry(_Entry entry) {
       if (count >= maxNotes || used >= maxCharacters) {
@@ -398,6 +475,12 @@ class NotesContextBuilder {
       used += line.length;
       count++;
       taken.add(entry.id);
+      if (earliest == null || entry.time.isBefore(earliest!)) {
+        earliest = entry.time;
+      }
+      if (latest == null || entry.time.isAfter(latest!)) {
+        latest = entry.time;
+      }
     }
 
     if (relevant.isNotEmpty) {
@@ -426,6 +509,8 @@ class NotesContextBuilder {
       truncated: count < totalCandidates,
       relevantCount: relevant.length,
       queryTerms: queryTerms,
+      earliest: earliest,
+      latest: latest,
     );
   }
 

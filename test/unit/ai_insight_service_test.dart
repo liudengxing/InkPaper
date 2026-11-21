@@ -117,6 +117,18 @@ void main() {
       expect(lens.prompt, contains('不要小标题'));
     });
 
+    test('默认视角要求最后单独一行落动作，不能停在半句', () {
+      final lens = builtInInsightLenses.first;
+      expect(lens.prompt, contains('最后单独一行'));
+      expect(lens.prompt, contains('具体动作'));
+      expect(lens.prompt, contains('停在半句'));
+    });
+
+    test('通用规则要求全文以完整句子收尾', () {
+      expect(AiInsightService.systemPrompt, contains('全文最后一句必须是完整的一句话'));
+      expect(AiInsightService.systemPrompt, contains('以句号结束'));
+    });
+
     test('图标 key 可以往返，未知 key 落到 custom', () {
       expect(InsightLensIcon.fromKey('values'), InsightLensIcon.clarify);
       expect(InsightLensIcon.fromKey('什么也不是'), InsightLensIcon.custom);

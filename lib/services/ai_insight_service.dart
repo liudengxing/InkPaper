@@ -69,6 +69,13 @@ class AiInsightService {
   /// 自动关掉思考重试一次（见 [_retry]）。
   static const int maxOutputTokens = 8192;
 
+  /// 内置视角的正文下限。
+  ///
+  /// 最短的 CBT 也要求 650 字。几十个字收尾、或停在两百多字，都不是「写得
+  /// 克制」，是模型提前结束了——偶发过一次（逆向思考只写到两百多字就断），
+  /// 所以低于这个量就补一次，而不是把它当成品交给用户。
+  static const int minBuiltInChars = 350;
+
   /// 所有视角共用的规则。
   ///
   /// 「编号 1 权重最高」不是随手写的：少楠在访谈里明确说过官方提示词里专门
@@ -95,7 +102,8 @@ class AiInsightService {
 12. 写任何时间之前先核对该条笔记的日期。写「今年 6 月」「2024 年初」，日期就必须对得上；对不上就只写事、不写时间。
 13. 他的动机拿不准就不要替他判定（是裁员还是主动辞职、有没有后悔），用中性说法，把判断留空好过说错。
 14. 写成长文时，开篇要点明这批笔记覆盖的时间范围（用户消息里已经给了），别让报告读起来像一次随机抽样。
-15. 输出第一行固定写「标题：」加一句话（12-22 字），是这篇里最核心的那个判断，可以直接取自正文最有劲的那句。标题不要用视角名、不要用「洞察报告」「笔记分析」这类词，不要书名号或引号。第二行开始才是正文。''';
+15. 输出第一行固定写「标题：」加一句话（12-22 字），是这篇里最核心的那个判断，可以直接取自正文最有劲的那句。标题不要用视角名、不要用「洞察报告」「笔记分析」这类词，不要书名号或引号。第二行开始才是正文。
+16. 全文最后一句必须是完整的一句话，以句号结束。不要停在半句、省略号或问句上；写不完就压缩前面的段落，宁可少一个判断，也不能交一份没有收尾的报告。''';
 
   /// 生成一次洞察。
   ///
@@ -107,6 +115,9 @@ class AiInsightService {
     required List<Note> notes,
     String scopeLabel = '全部笔记',
     void Function(String delta, {required bool reasoning})? onProgress,
+
+    /// 补救重试这类「不在吐字但也没结束」的阶段，用来换掉界面的等待文案。
+    void Function(String message)? onStatus,
   }) async {
     final configError = _validateConfig(config);
     if (configError != null) {
@@ -144,10 +155,16 @@ class AiInsightService {
       onDelta: onProgress,
     );
 
-    // 正文为空，或被 max_tokens 截在半句（finish_reason=length），都值得
-    // 补救一次——截断比完全没内容更隐蔽，用户会以为模型就这点水平。
-    if (!reply.hasContent || reply.finishReason == 'length') {
-      reply = await _retry(service, messages, reply);
+    // 正文为空、被 max_tokens 截在半句（finish_reason=length），或流没正常
+    // 收尾（网关掐了连接，但 await for 是正常结束的），都值得补救一次。
+    // 最后一种最隐蔽：正文停在一句话中间，看着像模型水平就这样。
+    final tooShort =
+        lens.builtIn && (reply.content ?? '').trim().length < minBuiltInChars;
+    if (!reply.hasContent ||
+        reply.finishReason == 'length' ||
+        reply.incomplete ||
+        tooShort) {
+      reply = await _retry(service, messages, reply, onStatus: onStatus);
     }
 
     if (!reply.hasContent) {
@@ -222,11 +239,13 @@ class AiInsightService {
   Future<AiChatReply> _retry(
     DeepSeekApiService service,
     List<Map<String, String>> messages,
-    AiChatReply first,
-  ) async {
+    AiChatReply first, {
+    void Function(String message)? onStatus,
+  }) async {
     final error = first.error ?? '';
     final worthRetrying = !first.hasContent ||
         first.finishReason == 'length' ||
+        first.incomplete ||
         first.reasoning.isNotEmpty ||
         error.contains('流式') ||
         error.contains('空内容');
@@ -234,20 +253,29 @@ class AiInsightService {
       return first;
     }
 
+    // 重试是非流式的，界面这时收不到任何 delta：不给一句话，用户看到的就是
+    // 「思考完了、正文停在两百字、再也不动」。
+    onStatus?.call('上一段没写完，正在重新生成…');
     final plain = await service.chatDetailed(
       messages: messages,
       temperature: 0.6,
       maxTokens: maxOutputTokens,
     );
-    // 有正文、且不是被截断的，直接用
+    // 有正文、且不是被截断的，直接用；但两次都完整时取更长的那次——
+    // 关思考重来有可能写得更短，用短换长等于白花一次额度。
     if (plain.hasContent && plain.finishReason != 'length') {
-      return AiChatReply(
-        content: plain.content,
-        reasoning: plain.reasoning.isEmpty ? first.reasoning : plain.reasoning,
-        finishReason: plain.finishReason,
+      return _preferLonger(
+        first,
+        AiChatReply(
+          content: plain.content,
+          reasoning:
+              plain.reasoning.isEmpty ? first.reasoning : plain.reasoning,
+          finishReason: plain.finishReason,
+        ),
       );
     }
 
+    onStatus?.call('换个更省额度的写法再试一次…');
     final noThinking = await service.chatDetailed(
       messages: messages,
       temperature: 0.6,
@@ -255,18 +283,21 @@ class AiInsightService {
       thinking: false,
     );
     if (noThinking.hasContent) {
-      return AiChatReply(
-        content: noThinking.content,
-        reasoning: first.reasoning.isEmpty && plain.reasoning.isNotEmpty
-            ? plain.reasoning
-            : first.reasoning,
-        finishReason: noThinking.finishReason,
+      return _preferLonger(
+        first,
+        AiChatReply(
+          content: noThinking.content,
+          reasoning: first.reasoning.isEmpty && plain.reasoning.isNotEmpty
+              ? plain.reasoning
+              : first.reasoning,
+          finishReason: noThinking.finishReason,
+        ),
       );
     }
 
     // 两次都没拿到完整正文：如果普通请求至少给了（截断的）正文，也比报错好
     if (plain.hasContent) {
-      return plain;
+      return _preferLonger(first, plain);
     }
 
     return AiChatReply(
@@ -275,6 +306,23 @@ class AiInsightService {
           : first.reasoning,
       finishReason: noThinking.finishReason ?? plain.finishReason,
       error: noThinking.error ?? plain.error ?? first.error,
+    );
+  }
+
+  /// 两份回复取正文更长的那份，思考过程也各取更长的一段。
+  static AiChatReply _preferLonger(AiChatReply first, AiChatReply second) {
+    final firstLength = (first.content ?? '').trim().length;
+    final secondLength = (second.content ?? '').trim().length;
+    final content = secondLength >= firstLength ? second : first;
+    final reasoning =
+        second.reasoning.trim().length >= first.reasoning.trim().length
+            ? second.reasoning
+            : first.reasoning;
+    return AiChatReply(
+      content: content.content,
+      reasoning: reasoning,
+      finishReason: content.finishReason,
+      error: content.error,
     );
   }
 

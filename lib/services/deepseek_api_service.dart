@@ -18,6 +18,7 @@ class AiChatReply {
     this.reasoning = '',
     this.finishReason,
     this.error,
+    this.incomplete = false,
   });
 
   final String? content;
@@ -26,6 +27,13 @@ class AiChatReply {
   final String reasoning;
   final String? finishReason;
   final String? error;
+
+  /// 流式响应没有正常收尾：既没收到 `[DONE]`，也没有 `finish_reason`。
+  ///
+  /// 网关掐连接时 `await for` 是正常结束的，不抛异常，`finish_reason`
+  /// 停在 null、正文停在断开的那一句——看起来像「模型就写了这么多」。
+  /// 调用方据此决定要不要补一次。
+  final bool incomplete;
 
   bool get hasContent => (content ?? '').trim().isNotEmpty;
   bool get isError => error != null;
@@ -205,6 +213,9 @@ class DeepSeekApiService {
       final reasoning = StringBuffer();
       String? finishReason;
       var chunks = 0;
+      // 网关给 `[DONE]` 就算这条流走完了；两者都没有时说明连接被掐断，
+      // 正文只是断在半句，不能当成完整结果交出去。
+      var sawDone = false;
 
       // 60 秒没有任何新数据就当作断流，否则 await for 会一直挂着
       final lines = streamed.stream
@@ -220,6 +231,7 @@ class DeepSeekApiService {
         final payload = trimmed.substring(5).trim();
         if (payload.isEmpty || payload == '[DONE]') {
           if (payload == '[DONE]') {
+            sawDone = true;
             break;
           }
           continue;
@@ -271,6 +283,7 @@ class DeepSeekApiService {
         reasoning: reasoning.toString(),
         finishReason: finishReason,
         chunks: chunks,
+        incomplete: !sawDone && finishReason == null,
       );
     } on TimeoutException {
       return const AiChatReply(error: 'AI服务响应超时，请稍后重试');
@@ -313,12 +326,14 @@ class DeepSeekApiService {
     required String? finishReason,
     required int chunks,
     bool hasChoices = true,
+    bool incomplete = false,
   }) {
     if (content.trim().isNotEmpty) {
       return AiChatReply(
         content: content,
         reasoning: reasoning,
         finishReason: finishReason,
+        incomplete: incomplete,
       );
     }
     if (finishReason == 'length') {

@@ -98,7 +98,7 @@ class NotesContext {
 /// - 三道闸门：最多 [defaultMaxNotes] 条、单条最多 [perNoteLimit] 字、
 ///   合计最多 [defaultMaxCharacters] 字，先到先停；
 /// - 字数太少（[minNoteLength]）的笔记不进抽样，避免「嗯」「好的」占名额；
-/// - 抽样按季度分桶均匀轮转，跨年覆盖靠这一层实现，不按时间加权；
+/// - 抽样从全库无放回随机抽取，每条等概率，不按时间加权也不分桶；
 /// - 每行带日期和标签，方便模型引用来源。
 class NotesContextBuilder {
   NotesContextBuilder._();
@@ -117,6 +117,9 @@ class NotesContextBuilder {
 
   /// 检索最多塞多少条相关笔记，剩下的预算留给最近笔记。
   static const int defaultMaxRelevant = 80;
+
+  /// 抽样阶段已按随机顺序判过字数，渲染时传这个值表示「预算已在外层判过」。
+  static const int _noRenderBudgetLimit = 1 << 30;
 
   /// 每条的编号 / 日期 / 标签 / 换行的固定开销，估算预算是否够用。
   static const int _lineOverhead = 24;
@@ -256,18 +259,21 @@ class NotesContextBuilder {
     );
   }
 
-  /// 洞察专用：条数超上限时按「年-季度」分桶、每桶每轮等额轮转，不是只取最近 N 条。
+  /// 洞察专用：条数超上限时从全库随机抽样，不是只取最近 N 条。
   ///
   /// 只按时间倒序取 100 条，在写了两三年的人身上等于「只取最近几个月」，
   /// 模型自然写不出跨年的变化（flomo 的洞察报告正是靠时间跨度撑起开篇）。
-  /// 所以一旦条数超限，就按季度分桶、每轮每桶取 1 条：每个季度权重相同，
-  /// 近期与早年一视同仁，样本覆盖整段时间而不是堆在最近几个月。
+  /// 这里不按时间分层、也不加权：把全量候选洗牌后取前 [maxNotes] 条，
+  /// 每条被抽中的概率相同；抽样后再按时间倒序重排，编号仍是 1 = 最近。
+  ///
+  /// [random] 仅供测试注入固定种子用，正式跑用系统随机源。
   static NotesContext buildForInsight(
     List<Note> notes, {
     int maxCharacters = defaultMaxCharacters,
     int maxNotes = defaultMaxNotes,
     int perNoteLimit = NotesContextBuilder.perNoteLimit,
     Set<String> excludedTags = defaultExcludedInsightTags,
+    math.Random? random,
   }) {
     final candidates = excludedTags.isEmpty
         ? notes
@@ -287,51 +293,35 @@ class NotesContextBuilder {
       );
     }
 
-    // entries 已按时间倒序，桶的插入顺序就是由近到远。
-    final buckets = <String, List<_Entry>>{};
-    for (final entry in entries) {
-      final key = '${entry.time.year}-Q${((entry.time.month - 1) ~/ 3) + 1}';
-      (buckets[key] ??= <_Entry>[]).add(entry);
-    }
-
-    final ordered = <_Entry>[];
-    final cursors = <String, int>{
-      for (final key in buckets.keys) key: 0,
-    };
-    var gathered = 0;
-    round:
-    while (true) {
-      var progressed = false;
-      for (final key in buckets.keys) {
-        final bucket = buckets[key]!;
-        final index = cursors[key]!;
-        if (index >= bucket.length) {
-          continue;
-        }
-        // 每个季度桶每轮只取 1 条：所有季度权重相同，样本均匀铺满整段时间。
-        final entry = bucket[index];
-        ordered.add(entry);
-        cursors[key] = index + 1;
-        progressed = true;
-        // 单条会截到 perNoteLimit，估算也按截断后的长度算，别高估
-        gathered += math.min(entry.text.length, perNoteLimit) + _lineOverhead;
-        if (ordered.length >= maxNotes || gathered >= maxCharacters) {
-          break round;
-        }
-      }
-      if (!progressed) {
+    // 全库无放回随机抽样：洗牌后按随机顺序逐条取，字数预算也在这里判，
+    // 放不下的条目按随机位置跳过——不能留到 _render 再按时间倒序砍尾部，
+    // 否则早年笔记又会被优先挤掉，退化成「只取最近」。
+    final shuffled = List<_Entry>.of(entries)..shuffle(random ?? math.Random());
+    final sampled = <_Entry>[];
+    var estimated = 0;
+    for (final entry in shuffled) {
+      if (sampled.length >= maxNotes) {
         break;
       }
+      // 单条会截到 perNoteLimit，估算也按截断后的长度算，别高估
+      final size = math.min(entry.text.length, perNoteLimit) + _lineOverhead;
+      if (sampled.isNotEmpty && estimated + size > maxCharacters) {
+        continue;
+      }
+      sampled.add(entry);
+      estimated += size;
     }
 
     // 编号必须仍然是「1 = 最近」，否则 [序号] 和「编号 1 权重最高」全乱。
-    ordered.sort((a, b) => b.time.compareTo(a.time));
+    sampled.sort((a, b) => b.time.compareTo(a.time));
 
+    // 字数已在抽样阶段按随机顺序判过，渲染时不再二次截断（否则按时间倒序
+    // 遍历会让早年条目先被砍掉）。用一个明确的大数表示「预算已在外层判过」。
     return _render(
       relevant: const <_Entry>[],
-      fill: ordered,
+      fill: sampled,
       totalCandidates: entries.length,
-      maxCharacters: maxCharacters,
+      maxCharacters: _noRenderBudgetLimit,
       maxNotes: maxNotes,
       perNoteLimit: perNoteLimit,
     );

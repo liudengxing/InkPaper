@@ -344,9 +344,9 @@ class AiInsightService {
     required NotesContext context,
     required String scopeLabel,
   }) {
-    // 如实说明取样规模与口径（去掉了过短笔记、按时间加权抽取）。
+    // 如实说明取样规模与口径（去掉了过短笔记、按季度均匀抽取）。
     final coverage = context.truncated
-        ? '（库内共 ${context.totalCandidates} 条可分析的笔记，按时间加权抽取了其中 ${context.noteCount} 条）'
+        ? '（库内共 ${context.totalCandidates} 条可分析的笔记，跨时间段均匀抽取了其中 ${context.noteCount} 条）'
         : '';
     final span = describeSpan(context.earliest, context.latest);
     return '''

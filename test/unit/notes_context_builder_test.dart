@@ -219,7 +219,7 @@ void main() {
       expect(context.sources.single.noteId, 'ok');
     });
 
-    test('时间权重：近期笔记抽得更多，但早年季度仍有代表', () {
+    test('均匀取样：每个季度桶等额轮转，近期与早年条数接近', () {
       final now = DateTime.now();
       final notes = <Note>[
         // 今年两个季度各 10 条
@@ -244,17 +244,21 @@ void main() {
           ),
       ];
 
+      // 3 个季度桶各 10 条，取 21 条：轮转下来每桶 7 条（21 = 3 × 7）。
       final context = NotesContextBuilder.buildForInsight(
         notes,
         maxNotes: 21,
       );
 
-      final recent =
-          context.sources.where((s) => s.noteId.startsWith('recent')).length;
+      final firstQuarter =
+          context.sources.where((s) => s.noteId.contains('recent-q1')).length;
+      final thirdQuarter =
+          context.sources.where((s) => s.noteId.contains('recent-q3')).length;
       final old =
           context.sources.where((s) => s.noteId.startsWith('old')).length;
-      expect(recent, greaterThan(old), reason: '近桶每轮取 3 条，应多于早桶的 1 条');
-      expect(old, greaterThan(0), reason: '早年季度每轮保底 1 条，不能被挤掉');
+      expect(firstQuarter, 7);
+      expect(thirdQuarter, 7);
+      expect(old, 7, reason: '早年季度与近期同权，不能被挤掉');
     });
   });
 

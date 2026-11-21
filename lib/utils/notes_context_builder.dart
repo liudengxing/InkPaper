@@ -98,7 +98,7 @@ class NotesContext {
 /// - 三道闸门：最多 [defaultMaxNotes] 条、单条最多 [perNoteLimit] 字、
 ///   合计最多 [defaultMaxCharacters] 字，先到先停；
 /// - 字数太少（[minNoteLength]）的笔记不进抽样，避免「嗯」「好的」占名额；
-/// - 抽样带时间权重：近期多取、早年保底，跨年覆盖靠这一层实现；
+/// - 抽样按季度分桶均匀轮转，跨年覆盖靠这一层实现，不按时间加权；
 /// - 每行带日期和标签，方便模型引用来源。
 class NotesContextBuilder {
   NotesContextBuilder._();
@@ -130,23 +130,6 @@ class NotesContextBuilder {
     '读完',
     '周报',
   };
-
-  /// 时间权重：一个季度桶每轮轮转能拿几个名额。
-  ///
-  /// flomo 的洞察也是以最近几年的记录为主，所以近桶权重高（每轮 3 个）；
-  /// 但每个桶每轮至少 1 个，早年不会因为「最近的多」就被挤到一条不剩——
-  /// 报告开篇要的点明时间跨度，靠的就是这些早年条目还在场。
-  static int _timeQuota(DateTime bucketTime, DateTime now) {
-    final months =
-        (now.year - bucketTime.year) * 12 + now.month - bucketTime.month;
-    if (months <= 12) {
-      return 3;
-    }
-    if (months <= 36) {
-      return 2;
-    }
-    return 1;
-  }
 
   /// 虚字：切词前先剔掉，避免"我这周主要在关注什么"切出"注什""么样"这类噪声。
   static const Set<String> _stopChars = <String>{
@@ -273,12 +256,12 @@ class NotesContextBuilder {
     );
   }
 
-  /// 洞察专用：条数超上限时按「年-季度」分桶、带时间权重轮转，不是只取最近 N 条。
+  /// 洞察专用：条数超上限时按「年-季度」分桶、每桶每轮等额轮转，不是只取最近 N 条。
   ///
   /// 只按时间倒序取 100 条，在写了两三年的人身上等于「只取最近几个月」，
   /// 模型自然写不出跨年的变化（flomo 的洞察报告正是靠时间跨度撑起开篇）。
-  /// 所以一旦条数超限，就按季度分桶、每轮每桶按权重取若干条：近桶每轮 3 条、
-  /// 中桶 2 条、早桶 1 条，早年一定在场，但名额向近期倾斜。
+  /// 所以一旦条数超限，就按季度分桶、每轮每桶取 1 条：每个季度权重相同，
+  /// 近期与早年一视同仁，样本覆盖整段时间而不是堆在最近几个月。
   static NotesContext buildForInsight(
     List<Note> notes, {
     int maxCharacters = defaultMaxCharacters,
@@ -311,7 +294,6 @@ class NotesContextBuilder {
       (buckets[key] ??= <_Entry>[]).add(entry);
     }
 
-    final now = DateTime.now();
     final ordered = <_Entry>[];
     final cursors = <String, int>{
       for (final key in buckets.keys) key: 0,
@@ -322,29 +304,20 @@ class NotesContextBuilder {
       var progressed = false;
       for (final key in buckets.keys) {
         final bucket = buckets[key]!;
-        var index = cursors[key]!;
+        final index = cursors[key]!;
         if (index >= bucket.length) {
           continue;
         }
-        // 桶的 key 是「年-Q季度」，还原成该季度起始月份来算时间距离
-        final parts = key.split('-Q');
-        final bucketTime = DateTime(
-          int.parse(parts[0]),
-          (int.parse(parts[1]) - 1) * 3 + 1,
-        );
-        final quota = _timeQuota(bucketTime, now);
-        for (var taken = 0; taken < quota && index < bucket.length; taken++) {
-          final entry = bucket[index];
-          ordered.add(entry);
-          index++;
-          progressed = true;
-          // 单条会截到 perNoteLimit，估算也按截断后的长度算，别高估
-          gathered += math.min(entry.text.length, perNoteLimit) + _lineOverhead;
-          if (ordered.length >= maxNotes || gathered >= maxCharacters) {
-            break round;
-          }
+        // 每个季度桶每轮只取 1 条：所有季度权重相同，样本均匀铺满整段时间。
+        final entry = bucket[index];
+        ordered.add(entry);
+        cursors[key] = index + 1;
+        progressed = true;
+        // 单条会截到 perNoteLimit，估算也按截断后的长度算，别高估
+        gathered += math.min(entry.text.length, perNoteLimit) + _lineOverhead;
+        if (ordered.length >= maxNotes || gathered >= maxCharacters) {
+          break round;
         }
-        cursors[key] = index;
       }
       if (!progressed) {
         break;

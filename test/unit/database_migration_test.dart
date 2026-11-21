@@ -303,4 +303,68 @@ void main() {
     await DatabaseService.upgradeSchema(db, oldVersion: 11, newVersion: 12);
     await db.close();
   });
+
+  test('DB-MIG-11 createSchema 建立洞察历史表与索引', () async {
+    final db = await _openDbAtVersion(DatabaseService.schemaVersion);
+    final tables = await db
+        .rawQuery("SELECT name FROM sqlite_master WHERE type='table'")
+        .then((rows) => rows.map((r) => r['name']! as String).toList());
+    expect(tables, contains(DatabaseService.tableInsightReports));
+    expect(
+      await _indexes(db, DatabaseService.tableInsightReports),
+      contains('idx_insight_reports_created'),
+    );
+    // 正文与元信息是回看必需的，思考过程故意不落库
+    final columns = await _columns(db, DatabaseService.tableInsightReports);
+    expect(
+      columns,
+      containsAll(<String>[
+        'lens_id',
+        'lens_name',
+        'scope_label',
+        'note_count',
+        'content',
+        'created_at',
+      ]),
+    );
+    expect(columns, isNot(contains('reasoning')));
+    await db.close();
+  });
+
+  test('DB-MIG-12 upgradeSchema (13 -> 14) 补建洞察历史表，可重复执行', () async {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+
+    final db = await databaseFactory.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 13,
+        singleInstance: false,
+        onCreate: (db, _) async {
+          await db.execute('''
+            CREATE TABLE notes(
+              id TEXT PRIMARY KEY,
+              content TEXT NOT NULL,
+              createdAt TEXT NOT NULL,
+              updatedAt TEXT NOT NULL
+            )
+          ''');
+        },
+      ),
+    );
+
+    final before = await db
+        .rawQuery("SELECT name FROM sqlite_master WHERE type='table'")
+        .then((rows) => rows.map((r) => r['name']! as String).toList());
+    expect(before, isNot(contains(DatabaseService.tableInsightReports)));
+
+    await DatabaseService.upgradeSchema(db, oldVersion: 13, newVersion: 14);
+    await DatabaseService.upgradeSchema(db, oldVersion: 13, newVersion: 14);
+
+    final after = await db
+        .rawQuery("SELECT name FROM sqlite_master WHERE type='table'")
+        .then((rows) => rows.map((r) => r['name']! as String).toList());
+    expect(after, contains(DatabaseService.tableInsightReports));
+    await db.close();
+  });
 }

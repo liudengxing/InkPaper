@@ -140,6 +140,10 @@ class DatabaseService {
 
     // 编辑历史版本（v13）
     await db.execute(createEditHistorySql);
+
+    // 洞察历史（v14）
+    await db.execute(createInsightReportsSql);
+    await db.execute(createInsightReportsIndexSql);
   }
 
   static const String createPendingOperationsSql = '''
@@ -170,6 +174,29 @@ class DatabaseService {
   static const String createEditHistoryIndexSql = '''
     CREATE INDEX IF NOT EXISTS idx_edit_history_note
     ON $tableEditHistory(note_id, created_at DESC)
+  ''';
+
+  /// 洞察历史（v14）：每生成一份洞察存一条，供「历史」里回看。
+  ///
+  /// 只存正文与出报告的元信息，不存 reasoning——思考过程动辄上万字，
+  /// 存下来会让一份记录膨胀十倍，而回看时没人在意它。
+  static const String tableInsightReports = 'insight_reports';
+
+  static const String createInsightReportsSql = '''
+    CREATE TABLE IF NOT EXISTS $tableInsightReports(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lens_id TEXT NOT NULL,
+      lens_name TEXT NOT NULL,
+      scope_label TEXT NOT NULL,
+      note_count INTEGER DEFAULT 0,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  ''';
+
+  static const String createInsightReportsIndexSql = '''
+    CREATE INDEX IF NOT EXISTS idx_insight_reports_created
+    ON $tableInsightReports(created_at DESC)
   ''';
 
   /// 按标签精确匹配的 SQL 片段：tags 列存成逗号拼接串，
@@ -287,6 +314,11 @@ class DatabaseService {
       // v13: 编辑历史版本
       await db.execute(createEditHistorySql);
       await db.execute(createEditHistoryIndexSql);
+    }
+    if (oldVersion < 14) {
+      // v14: 洞察历史
+      await db.execute(createInsightReportsSql);
+      await db.execute(createInsightReportsIndexSql);
     }
   }
 

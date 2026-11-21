@@ -6,8 +6,11 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/insight_lens.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
+import 'package:inkpaper/screens/insight_history_screen.dart';
 import 'package:inkpaper/services/ai_insight_service.dart';
+import 'package:inkpaper/services/insight_history_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/insight_text_spans.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
 import 'package:provider/provider.dart';
@@ -207,6 +210,19 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
           _result = result;
         }
       });
+      if (!result.isError) {
+        // 成功就落一份历史。不 await、失败只打日志：写盘慢不该拖住
+        // 结果页的第一帧，写失败也不该把已经生成的报告判成失败。
+        unawaited(
+          InsightHistoryService.instance.save(
+            lensId: lens.id,
+            lensName: lens.name,
+            scopeLabel: _range.label(l10n),
+            noteCount: result.noteCount,
+            content: result.text,
+          ),
+        );
+      }
     } on Object catch (e) {
       _stopLiveFlush();
       if (!mounted) {
@@ -359,7 +375,15 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     return ListView(
       padding: _pagePadding,
       children: [
-        _buildScopeRow(l10n),
+        // 分析范围 + 历史入口并排：历史是「回顾已经发生过的事」，
+        // 和范围选择同属「这次看哪些」的上下文，放在一行里不打断列表。
+        Row(
+          children: [
+            Expanded(child: _buildScopeRow(l10n)),
+            const SizedBox(width: 10),
+            _buildHistoryEntry(),
+          ],
+        ),
         const SizedBox(height: 26),
         Text(
           l10n?.aiInsightPickLens ?? '选择一个视角，开始洞察',
@@ -486,6 +510,40 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
               Icon(Icons.chevron_right_rounded, size: 18, color: muted),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// 「历史」入口：和范围行同高同圆角，宽度只够图标 + 两个字。
+  ///
+  /// 不做角标计数——每次进页面都要异步查一次，为了一个数字多一次读库
+  /// 不值得；点进去看就是了。
+  Widget _buildHistoryEntry() {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return SizedBox(
+      width: 88,
+      height: 52,
+      child: _rowCard(
+        onTap: () => Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => const InsightHistoryScreen(),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history_rounded, size: 16, color: muted),
+            const SizedBox(width: 6),
+            Text(
+              '历史',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1035,35 +1093,13 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   }
 
   /// 把正文里的 `[12]` 渲染成带色的小标记，方便对照上方笔记编号。
+  /// 实现搬到 `utils/insight_text_spans.dart`，历史回看页复用同一套。
   List<InlineSpan> _buildInsightSpans(
     String text,
     TextStyle base,
     ColorScheme colorScheme,
-  ) {
-    final spans = <InlineSpan>[];
-    final regex = RegExp(r'\[(\d+)\]');
-    var last = 0;
-    for (final match in regex.allMatches(text)) {
-      if (match.start > last) {
-        spans.add(TextSpan(text: text.substring(last, match.start)));
-      }
-      spans.add(
-        TextSpan(
-          text: ' [${match.group(1)}]',
-          style: base.copyWith(
-            fontSize: (base.fontSize ?? 15.5) - 3,
-            color: colorScheme.primary.withValues(alpha: 0.75),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
-      last = match.end;
-    }
-    if (last < text.length) {
-      spans.add(TextSpan(text: text.substring(last)));
-    }
-    return spans;
-  }
+  ) =>
+      buildInsightSpans(text, base, colorScheme);
 
   Future<void> _showLensMenu(InsightLens lens) async {
     final l10n = AppLocalizationsSimple.of(context);

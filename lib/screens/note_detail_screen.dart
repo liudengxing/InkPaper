@@ -400,6 +400,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     final secondaryTextColor = isDarkMode
         ? (Colors.grey[600] ?? Colors.grey)
         : (Colors.grey[800] ?? Colors.grey);
+    // 底部时间条与首页卡片同一档灰，避免同一段时间在列表和详情里两种深浅。
+    final timestampColor =
+        isDarkMode ? AppTheme.darkTimestampColor : AppTheme.timestampColor;
     final dividerColor = isDarkMode
         ? Colors.grey[800] ?? Colors.grey.shade800
         : Colors.grey[200] ?? Colors.grey.shade200;
@@ -632,7 +635,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
           // 底部信息区：时间 | 字数，位置对齐编辑页底部工具栏
           _buildBottomInfo(
-            secondaryTextColor: secondaryTextColor,
+            timestampColor: timestampColor,
             iconColor: iconColor,
             dividerColor: dividerColor,
           ),
@@ -695,12 +698,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   /// 切换编辑态时底部不跳。时间（创建，按当前显示口径）在左、
   /// 「|」分隔、字数在右同一套字体字号；设了提醒就排在行尾。
   Widget _buildBottomInfo({
-    required Color secondaryTextColor,
+    required Color timestampColor,
     required Color iconColor,
     required Color dividerColor,
   }) {
     final note = _note!;
-    final infoStyle = TextStyle(fontSize: 14, color: secondaryTextColor);
+    final infoStyle = TextStyle(fontSize: 14, color: timestampColor);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,

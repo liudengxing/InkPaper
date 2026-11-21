@@ -19,6 +19,11 @@ class AppTheme {
   static const Color textSecondaryColor = Color(0xFF6C6E72);
   static const Color textTertiaryColor = Color(0xFF9EA1A7);
 
+  // 时间戳：首页卡片与详情页共用同一档（对齐 flomo 的 textSubtle）。
+  // 比正文轻一档，又比 textTertiary 更浅；不要用 textSecondaryColor —— 那个偏深。
+  static const Color timestampColor = Color(0xFF949494);
+  static const Color darkTimestampColor = Color(0xFF8E8E93);
+
   // 辅助颜色
   static const Color dividerColor = Color(0xFFEEEEEE);
   static const Color errorColor = Color(0xFFE57373);

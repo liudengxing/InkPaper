@@ -1080,8 +1080,8 @@ class _NoteCardState extends State<NoteCard>
                         fontWeight: FontWeight.w300,
                         letterSpacing: 0.2,
                         color: isDarkMode
-                            ? const Color(0xFF8E8E93)
-                            : const Color(0xFF949494),
+                            ? AppTheme.darkTimestampColor
+                            : AppTheme.timestampColor,
                       ),
                     ),
                     Builder(

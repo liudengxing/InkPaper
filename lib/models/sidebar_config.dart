@@ -50,13 +50,6 @@ enum SidebarMenuItem {
     Icons.auto_awesome_outlined,
     true,
   ),
-  knowledgeGraph(
-    'knowledge_graph',
-    '知识图谱',
-    '/knowledge-graph',
-    Icons.account_tree_rounded,
-    true,
-  ),
   settings('settings', '设置', '/settings', Icons.settings_outlined, true);
 
   const SidebarMenuItem(
@@ -99,8 +92,6 @@ enum SidebarMenuItem {
         return l10n?.periodicReview ?? label;
       case 'ai_insight':
         return l10n?.aiInsight ?? label;
-      case 'knowledge_graph':
-        return l10n?.knowledgeGraph ?? label;
       case 'settings':
         return l10n?.settings ?? label;
       default:

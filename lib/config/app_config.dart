@@ -118,7 +118,6 @@ class AppConfig {
     'ai_assistant': true,
     'webdav_sync': true,
     'local_reference': true,
-    'graph_view': true,
     'speech_to_text': false,
   };
 

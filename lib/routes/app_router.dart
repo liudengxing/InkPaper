@@ -15,7 +15,6 @@ import 'package:inkpaper/screens/help_screen.dart';
 import 'package:inkpaper/screens/home_screen.dart';
 import 'package:inkpaper/screens/image_gallery_screen.dart';
 import 'package:inkpaper/screens/import_export_main_screen.dart';
-import 'package:inkpaper/screens/knowledge_graph_screen_custom.dart';
 import 'package:inkpaper/screens/laboratory_screen.dart';
 import 'package:inkpaper/screens/local_backup_restore_screen.dart';
 import 'package:inkpaper/screens/login_screen.dart';
@@ -622,21 +621,6 @@ class AppRouter {
             },
           ),
         ],
-      ),
-
-      // 🎯 主功能页面 - 知识图谱（Tab式主页之一）
-      // 注意：顶级路由，与home平级，使用侧边栏专用动画
-      GoRoute(
-        path: '/knowledge-graph',
-        name: 'knowledgeGraph',
-        pageBuilder: (context, state) {
-          return buildSlideTransition(
-            context: context,
-            state: state,
-            begin: const Offset(-0.15, 0),
-            child: const KnowledgeGraphScreenCustom(),
-          );
-        },
       ),
 
       // 🔥 辅助功能页面 - 帮助中心（可返回）

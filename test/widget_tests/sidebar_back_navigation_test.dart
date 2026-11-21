@@ -9,8 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 侧边栏里除了「全部笔记」，进去的都是二级页。
 ///
 /// 早先统一用 `go()` 做平级切换，GoRouter 会把栈替换成只剩目标页 —— 于是
-/// 系统返回键没有可退的路由，直接把 App 退到后台。用户从「周期回顾 / 知识
-/// 图谱」按返回，期望是回笔记列表。现在从首页出发用 `push()`，栈里始终留着
+/// 系统返回键没有可退的路由，直接把 App 退到后台。用户从「周期回顾 / AI
+/// 洞察」按返回，期望是回笔记列表。现在从首页出发用 `push()`，栈里始终留着
 /// `/`；已经在二级页之间横跳则用 `replace()`，免得越叠越深要按好几次返回。
 ///
 /// 注意别用 `router.routerDelegate.currentConfiguration.uri` 做断言：`push()`
@@ -30,7 +30,7 @@ GoRouter _buildRouter(String initialLocation) => GoRouter(
           '/',
           '/random-review',
           '/periodic-review',
-          '/knowledge-graph',
+          '/ai-insight',
           '/settings',
         ])
           GoRoute(
@@ -56,7 +56,7 @@ void _expectVisiblePage(String path) {
     '/',
     '/random-review',
     '/periodic-review',
-    '/knowledge-graph',
+    '/ai-insight',
     '/settings',
   ]) {
     if (other == path) {
@@ -70,7 +70,7 @@ void _expectVisiblePage(String path) {
   }
 }
 
-/// 默认测试视口只有 800×600，侧栏下半截（知识图谱、设置）落在屏幕外，
+/// 默认测试视口只有 800×600，侧栏下半截（设置）落在屏幕外，
 /// `tap` 打不中也不会报错 —— 只会静默「点了没反应」。放大到手机比例。
 void _useTallScreen(WidgetTester tester) {
   tester.view.physicalSize = const Size(1080, 2400);
@@ -124,8 +124,8 @@ void main() {
     await _tapMenu(tester, '周期回顾');
     _expectVisiblePage('/periodic-review');
 
-    await _tapMenu(tester, '知识图谱');
-    _expectVisiblePage('/knowledge-graph');
+    await _tapMenu(tester, 'AI 洞察');
+    _expectVisiblePage('/ai-insight');
 
     final handled = await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();

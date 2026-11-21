@@ -252,8 +252,6 @@ class AppLocalizationsSimple {
   String get tags => _t('tags', fallback: '标签');
   String get notifications =>
       locale.languageCode == 'zh' ? '通知' : 'Notifications';
-  String get knowledgeGraph =>
-      locale.languageCode == 'zh' ? '知识图谱' : 'Knowledge Graph';
 
   // ===== AI 洞察 =====
   String get aiInsight => _t('aiInsight', fallback: 'AI 洞察');
@@ -347,7 +345,7 @@ class AppLocalizationsSimple {
   String get confirmLogout => _t('confirmLogout', fallback: '确定退出');
   String get logoutFailed => _t('logoutFailed', fallback: '退出登录失败');
 
-  // ===== 随机回顾 & 知识图谱 =====
+  // ===== 随机回顾 =====
   String get updatingFailed => _t('updatingFailed', fallback: '更新失败');
   String get cannotOpenLink => _t('cannotOpenLink', fallback: '无法打开链接');
   String get linkError => _t('linkError', fallback: '链接错误');
@@ -358,15 +356,6 @@ class AppLocalizationsSimple {
   String get deleteFailed => _t('deleteFailed', fallback: '删除失败');
   String get showAll => _t('showAll', fallback: '显示全部');
   String get unknown => _t('unknown', fallback: '未知');
-  String get graphShowIsolated => _t('graphShowIsolated', fallback: '显示孤立点');
-  String get graphHideIsolated => _t('graphHideIsolated', fallback: '隐藏孤立点');
-  String get graphBuilding => _t('graphBuilding', fallback: '正在整理图谱');
-  String get graphOpenNote => _t('graphOpenNote', fallback: '打开笔记');
-  String get graphFocusNode => _t('graphFocusNode', fallback: '聚焦关联');
-  String get graphClearSelection => _t('graphClearSelection', fallback: '清除选择');
-  String get graphNoConnections =>
-      _t('graphNoConnections', fallback: '还没有引用关系');
-  String get graphResetView => _t('graphResetView', fallback: '适配视图');
 
   // ===== AI设置 =====
   String get aiSettings => _t('aiSettings', fallback: 'AI 设置');
@@ -871,7 +860,7 @@ class AppLocalizationsSimple {
       _t('whatFeaturesSupported', fallback: '笔记支持哪些功能？');
   String get whatFeaturesAnswer => _t(
         'whatFeaturesAnswer',
-        fallback: '支持富文本式编辑、Markdown 渲染、图片、标签、提醒、搜索、随机回顾、知识图谱和可选 AI 功能。',
+        fallback: '支持富文本式编辑、Markdown 渲染、图片、标签、提醒、搜索、随机回顾和可选 AI 功能。',
       );
   String get isDataSafe => _t('isDataSafe', fallback: '数据安全吗？');
   String get isDataSafeAnswer => _t(

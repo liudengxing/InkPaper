@@ -1518,7 +1518,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                               '笔记支持哪些功能？',
                           answer: AppLocalizationsSimple.of(context)
                                   ?.whatFeaturesAnswer ??
-                              '支持 Markdown 格式、图片上传、标签分类、提醒功能、知识图谱等。还能使用 AI 助手帮助您创作和整理笔记。',
+                              '支持 Markdown 格式、图片上传、标签分类、提醒功能等。还能使用 AI 助手帮助您创作和整理笔记。',
                           isDarkMode: isDarkMode,
                           textPrimary: textPrimary,
                           textSecondary: textSecondary,

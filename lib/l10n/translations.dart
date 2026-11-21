@@ -38,7 +38,6 @@ class Translations {
       'en':
           'Import WeRead highlights and thoughts incrementally, one note per highlight',
     },
-    'knowledgeGraph': {'zh': '知识图谱', 'en': 'Knowledge Graph'},
     'aiInsightScope': {'zh': '分析范围', 'en': 'Scope'},
     'aiInsightScopeAll': {'zh': '全部笔记', 'en': 'All notes'},
     'aiInsightScope30': {'zh': '最近 30 天', 'en': 'Last 30 days'},
@@ -156,14 +155,6 @@ class Translations {
     'noteRestored': {'zh': '笔记已恢复', 'en': 'Note Restored'},
     'undo': {'zh': '撤销', 'en': 'Undo'},
     'showAll': {'zh': '显示全部', 'en': 'Show All'},
-    'graphShowIsolated': {'zh': '显示孤立点', 'en': 'Show isolated'},
-    'graphHideIsolated': {'zh': '隐藏孤立点', 'en': 'Hide isolated'},
-    'graphBuilding': {'zh': '正在整理图谱', 'en': 'Building graph'},
-    'graphOpenNote': {'zh': '打开笔记', 'en': 'Open note'},
-    'graphFocusNode': {'zh': '聚焦关联', 'en': 'Focus links'},
-    'graphClearSelection': {'zh': '清除选择', 'en': 'Clear selection'},
-    'graphNoConnections': {'zh': '还没有引用关系', 'en': 'No linked notes yet'},
-    'graphResetView': {'zh': '适配视图', 'en': 'Fit view'},
 
     // ===== AI设置 =====
     'aiFeatures': {'zh': 'AI功能', 'en': 'AI Features'},
@@ -914,9 +905,9 @@ class Translations {
       'en': 'What features are supported?',
     },
     'whatFeaturesAnswer': {
-      'zh': '支持富文本式编辑、Markdown 渲染、图片、标签、提醒、搜索、随机回顾、知识图谱和可选 AI 功能。',
+      'zh': '支持富文本式编辑、Markdown 渲染、图片、标签、提醒、搜索、随机回顾和可选 AI 功能。',
       'en':
-          'Supports rich-text-style editing, Markdown rendering, images, tags, reminders, search, random review, knowledge graph, and optional AI features.',
+          'Supports rich-text-style editing, Markdown rendering, images, tags, reminders, search, random review, and optional AI features.',
     },
     'isDataSafe': {'zh': '数据安全吗？', 'en': 'Is data safe?'},
     'isDataSafeAnswer': {

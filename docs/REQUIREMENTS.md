@@ -36,6 +36,12 @@
   leading 变 null 时残留的 44px 槽位。改成 leading/title/actions 三段同一条 Row 同步位移。
   注意：列表不能塞 AnimatedSwitcher（两个 ListView 抢同一个 ScrollController 会 assert），
   换源只做整体淡起。
+  **落地后又踩一次（29b7bc1）**：抽屉按钮用 `AnimatedContainer(width: 0↔44)` 包
+  `OverflowBox` 保尺寸，但 AppBar 的 title 槽位**高约束是无限的**，只给 width 时
+  maxHeight=∞ 透传下去，OverflowBox 按 `fit: max` 撑到 Infinity → 整个 title 子树
+  布局失败。release 不红屏，现象是抽屉按钮 + 标题一起消失（首版 1.1.120 装机才发现）。
+  给 AnimatedContainer / OverflowBox 都补死高度 48 即可；搜索态那 12px 缝隙用
+  IgnorePointer 关掉点击。
 - **R-04**：详情页时间改用与首页同一档灰（新增 `AppTheme.timestampColor` 常量）。
 - **R-05**：用户指「首页列表下拉」，并明确「直接看 flomo 源码」。答案是 flomo 首页
   `fragment_main.xml` 的 `headerLayout`：AI 洞察 / 每日回顾 / 随机漫步三颗白色胶囊。

@@ -34,9 +34,9 @@ enum _InsightRange {
 /// 和「问笔记」是互补的：问笔记要用户先有问题，洞察不需要——它主动找模式。
 ///
 /// 视觉按 flomo 5.5.5 实测（activity_ai_insight.xml / item_insight_template_card）：
-/// 页面底 #F9F9F9、分组/卡片纯白 12dp 圆角无描边、大标题 21sp、
-/// 次要文字 #949494、卡片间距 10、主按钮 48 高。唯一不抄的是玻璃——
-/// 纯色底上真玻璃只会发灰（LESSONS §5.5）。
+/// 页面底 #F9F9F9、卡片纯白 12dp 圆角无描边、大标题 21sp、次要文字 #949494、
+/// 模板一行一条（图标 36dp 槽 + 标题描述 + 箭头）、行间距 10、主按钮 48 高。
+/// 唯一不抄的是玻璃——纯色底上真玻璃只会发灰（LESSONS §5.5）。
 class AiInsightScreen extends StatefulWidget {
   const AiInsightScreen({super.key});
 
@@ -48,11 +48,10 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   // ── 视觉 token（对齐 flomo 实测值）────────────────────────────────
   static const _pagePadding = EdgeInsets.fromLTRB(16, 8, 16, 40);
   static const _cardRadius = 12.0;
-  static const _cardPadding = EdgeInsets.fromLTRB(15, 14, 15, 12);
-  static const _gridGap = 10.0;
+  static const _rowGap = 10.0;
 
-  /// 网格卡固定高：用 childAspectRatio 时大字号下描述三行会顶破。
-  static const _cardExtent = 176.0;
+  /// 行首图标占位：对齐 flomo 模板行的 36dp 图标槽。
+  static const _iconSlot = 36.0;
   static const _switchDuration = Duration(milliseconds: 240);
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -275,31 +274,20 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
             child: Center(child: CircularProgressIndicator()),
           )
         else ...[
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: _gridGap,
-              crossAxisSpacing: _gridGap,
-              mainAxisExtent: _cardExtent,
+          // flomo 的模板是纵向一条一条排的（一行一个视角），不是双列方块。
+          // 行式列表还能让描述写满整行宽度，不再被半宽卡切碎。
+          for (var i = 0; i < _lenses.length; i++) ...[
+            if (i > 0) const SizedBox(height: _rowGap),
+            _buildLensRow(
+              _lenses[i],
+              onLongPress: () => _showLensMenu(_lenses[i]),
             ),
-            itemCount: _lenses.length + 1,
-            itemBuilder: (context, index) {
-              if (index == _lenses.length) {
-                return _buildAddLensCard(l10n);
-              }
-              final lens = _lenses[index];
-              return _buildLensCard(
-                lens,
-                onLongPress: () => _showLensMenu(lens),
-              );
-            },
-          ),
-          const SizedBox(height: 22),
+          ],
+          const SizedBox(height: _rowGap),
+          _buildAddLensRow(l10n),
+          const SizedBox(height: 20),
           Text(
-            '长按视角卡片可以查看或修改它的提示词。',
+            '长按视角可以查看或修改它的提示词。',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall?.copyWith(
               fontSize: 11.5,
@@ -327,19 +315,41 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
           ),
         ];
 
+  /// 所有行共用的白卡外壳：12dp 圆角 + 极浅阴影，点按有水波纹。
+  Widget _rowCard({
+    required Widget child,
+    required VoidCallback? onTap,
+    VoidCallback? onLongPress,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _cardFill,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        boxShadow: _cardShadow,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(_cardRadius),
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: child,
+        ),
+      ),
+    );
+  }
+
   /// 范围选择：flomo 的分组设置行（一行、右侧当前值 + 箭头）。
   /// 不用一排 ChoiceChip —— 四个选项在小屏会折成两排，视觉很碎。
   Widget _buildScopeRow(AppLocalizationsSimple? l10n) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    return Material(
-      color: _cardFill,
-      borderRadius: BorderRadius.circular(_cardRadius),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(_cardRadius),
-        onTap: _generating ? null : () => _showRangePicker(l10n),
-        child: Container(
-          height: 52,
+    return _rowCard(
+      onTap: _generating ? null : () => _showRangePicker(l10n),
+      child: SizedBox(
+        height: 52,
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
@@ -397,121 +407,134 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     }
   }
 
-  Widget _buildLensCard(InsightLens lens, {required VoidCallback onLongPress}) {
+  /// 视角行：flomo 的模板是一行一个（图标 → 标题/描述 → 箭头），
+  /// 不是双列方块。行式排布也让描述能用满整行宽度。
+  Widget _buildLensRow(InsightLens lens, {required VoidCallback onLongPress}) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final muted = colorScheme.onSurfaceVariant;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: _cardFill,
-        borderRadius: BorderRadius.circular(_cardRadius),
-        boxShadow: _cardShadow,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(_cardRadius),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(_cardRadius),
-          onTap: () => _generate(lens),
-          onLongPress: onLongPress,
-          child: Padding(
-            padding: _cardPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(lens.icon.icon, size: 22, color: colorScheme.primary),
-                    const Spacer(),
-                    // 「已改」从带底小胶囊换成一个圆点：卡片上少一层色块
-                    if (lens.edited)
-                      Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary.withValues(alpha: 0.6),
-                          shape: BoxShape.circle,
+    return _rowCard(
+      onTap: () => _generate(lens),
+      onLongPress: onLongPress,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(15, 13, 12, 13),
+        child: Row(
+          children: [
+            SizedBox(
+              width: _iconSlot,
+              child: Icon(
+                lens.icon.icon,
+                size: 22,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          lens.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontSize: 15.5,
+                            height: 1.2,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.1,
+                          ),
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  lens.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontSize: 15.5,
-                    height: 1.2,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.1,
+                      // 「已改」只留一个圆点：行里再加色块就太吵了
+                      if (lens.edited) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 5,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.6),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ),
-                const SizedBox(height: 6),
-                Expanded(
-                  child: Text(
+                  const SizedBox(height: 3),
+                  Text(
                     lens.description,
-                    maxLines: 3,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontSize: 12.5,
-                      height: 1.55,
+                      height: 1.45,
                       color: muted.withValues(alpha: 0.85),
                     ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'by ${lens.authorLabel}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontSize: 10.5,
-                    color: muted.withValues(alpha: 0.55),
-                  ),
-                ),
-              ],
+                  // 内置视角全部署名 InkPaper，是噪音；只给自定义视角留署名
+                  if (lens.author.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'by ${lens.authorLabel}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 10.5,
+                        color: muted.withValues(alpha: 0.55),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
+            const SizedBox(width: 6),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: muted.withValues(alpha: 0.45),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildAddLensCard(AppLocalizationsSimple? l10n) {
+  Widget _buildAddLensRow(AppLocalizationsSimple? l10n) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: _cardFill,
-        borderRadius: BorderRadius.circular(_cardRadius),
-        boxShadow: _cardShadow,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(_cardRadius),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(_cardRadius),
-          onTap: () => _editLensDialog(l10n),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
+    return _rowCard(
+      onTap: () => _editLensDialog(l10n),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(15, 14, 12, 14),
+        child: Row(
+          children: [
+            SizedBox(
+              width: _iconSlot,
+              child: Icon(
                 Icons.add_rounded,
                 size: 20,
                 color: muted.withValues(alpha: 0.5),
               ),
-              const SizedBox(height: 8),
-              Text(
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
                 l10n?.aiInsightNewLens ?? '新建视角',
                 style: theme.textTheme.labelLarge?.copyWith(
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                   color: muted,
                 ),
               ),
-            ],
-          ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: muted.withValues(alpha: 0.45),
+            ),
+          ],
         ),
       ),
     );

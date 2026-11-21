@@ -16,6 +16,16 @@ class WeReadNoteBuilder {
   /// 每条导入笔记都带的标签，用户按它一筛就是全部阅读笔记。
   static const String sourceTag = '微信读书';
 
+  /// 内容类型标签：划线 / 想法 / 点评。
+  ///
+  /// 判断依据是同步接口本身的结构：划线来自 `/book/bookmarklist`；
+  /// `/review/list/mine` 里有 `abstract`（原文）的是针对原文的想法，
+  /// 没有原文的整本书评 / 章节点评算点评。挂在划线下的想法会连同
+  /// `#划线` 一起带上 `#想法`，不另起一条笔记。
+  static const String highlightTag = '划线';
+  static const String thoughtTag = '想法';
+  static const String reviewTag = '点评';
+
   /// 笔记 id 前缀，便于识别来源与批量清理。
   static const String bookmarkIdPrefix = 'local_wr_bm_';
   static const String reviewIdPrefix = 'local_wr_rv_';
@@ -316,6 +326,12 @@ class WeReadNoteBuilder {
       body: parts.join('\n\n'),
       time: _timeOf(highlight.createTime, fallbackTime),
       notebook: notebook,
+      typeTags: <String>[
+        highlightTag,
+        if (sortedReviews
+            .any((review) => _normalize(review.content).isNotEmpty))
+          thoughtTag,
+      ],
     );
   }
 
@@ -348,6 +364,9 @@ class WeReadNoteBuilder {
       body: parts.join('\n\n'),
       time: _timeOf(review.createTime, fallbackTime),
       notebook: notebook,
+      typeTags: <String>[
+        if (quoted.isEmpty) reviewTag else thoughtTag,
+      ],
     );
   }
 
@@ -356,10 +375,11 @@ class WeReadNoteBuilder {
     required String body,
     required DateTime time,
     required WeReadNotebook notebook,
+    required List<String> typeTags,
   }) {
     // 注意必须写成 ${...}：`$_tags(notebook)` 只会插值出函数本身，
     // 后面的 `(notebook)` 会变成字面量挂在正文末尾。
-    final content = '$body\n\n${_tags(notebook)}';
+    final content = '$body\n\n${_tags(notebook, typeTags: typeTags)}';
     return Note(
       id: id,
       content: content,
@@ -385,9 +405,14 @@ class WeReadNoteBuilder {
     return cleaned.length > 24 ? cleaned.substring(0, 24) : cleaned;
   }
 
-  String _tags(WeReadNotebook notebook) {
+  String _tags(WeReadNotebook notebook, {required List<String> typeTags}) {
     final book = bookTag(notebook.title);
-    return book.isEmpty ? '#$sourceTag' : '#$sourceTag #$book';
+    final tags = <String>[
+      '#$sourceTag',
+      if (book.isNotEmpty) '#$book',
+      ...typeTags.map((tag) => '#$tag'),
+    ];
+    return tags.join(' ');
   }
 
   String _footer(WeReadNotebook notebook, String? chapterTitle) {

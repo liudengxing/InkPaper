@@ -63,7 +63,7 @@ void main() {
       expect(note, isNotNull);
       expect(note!.content, contains('> 专注力是稀缺资源。'));
       expect(note.content, contains('—— 《深度工作》 [美] 卡尔·纽波特 · 第 1 章'));
-      expect(note.content, endsWith('#微信读书 #深度工作'));
+      expect(note.content, endsWith('#微信读书 #深度工作 #划线'));
     });
 
     test('WB-02 多行划线每行都带引用符', () {
@@ -94,6 +94,17 @@ void main() {
         content.indexOf('先写的想法'),
         lessThan(content.indexOf('后写的想法')),
       );
+    });
+
+    test('WB-16 挂了想法的划线同时带 #划线 与 #想法', () {
+      final note = builder.buildHighlightNote(
+        notebook: _notebook,
+        highlight: _highlight(),
+        inlineReviews: [_review(content: '我的想法')],
+      );
+
+      expect(note!.content, endsWith('#微信读书 #深度工作 #划线 #想法'));
+      expect(note.tags, containsAll(<String>['划线', '想法']));
     });
 
     test('WB-04 空划线不生成笔记', () {
@@ -127,6 +138,22 @@ void main() {
 
       expect(note!.content, contains('> 原文片段'));
       expect(note.content, contains('我的想法'));
+    });
+
+    test('WB-17 有原文的是想法，整本书评是点评', () {
+      final thought = builder.buildReviewNote(
+        notebook: _notebook,
+        review: _review(abstractText: '原文片段', content: '我的想法'),
+      );
+      final review = builder.buildReviewNote(
+        notebook: _notebook,
+        review: _review(content: '整本书读完的感觉', star: 4),
+      );
+
+      expect(thought!.content, endsWith('#微信读书 #深度工作 #想法'));
+      expect(review!.content, endsWith('#微信读书 #深度工作 #点评'));
+      expect(thought.tags, contains('想法'));
+      expect(review.tags, contains('点评'));
     });
 
     test('WB-07 书评带评分行', () {
@@ -165,8 +192,8 @@ void main() {
         highlight: _highlight(),
       );
 
-      expect(note!.content, endsWith('#微信读书'));
-      expect(note.content, isNot(contains('#微信读书 #')));
+      expect(note!.content, endsWith('#微信读书 #划线'));
+      expect(note.content, isNot(contains('#深度工作')));
     });
 
     test('WB-11 超长书名截断到 24 字', () {
@@ -182,6 +209,7 @@ void main() {
 
       expect(note!.tags, contains('微信读书'));
       expect(note.tags, contains('深度工作'));
+      expect(note.tags, contains('划线'));
     });
   });
 

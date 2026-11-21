@@ -71,6 +71,20 @@ void main() {
       expect(AiInsightService.systemPrompt, contains('emoji'));
     });
 
+    test('逆向思考演出来：先合成组合目标，再用人称扮演摧毁者，最后反转成原则', () {
+      final lens = builtInInsightLenses.firstWhere(
+        (lens) => lens.id == 'inversion',
+      );
+      expect(lens.prompt, contains('第一人称'));
+      expect(lens.prompt, contains('抽走'));
+      expect(lens.prompt, contains('现在说反转'));
+      expect(lens.prompt, contains('不是「坚持」'));
+      expect(lens.prompt, contains('与其问 A，不如问 B'));
+      // 曾经是四个编号板块的 500 字骨架，现在必须是连续散文
+      expect(lens.prompt, contains('不要列表'));
+      expect(lens.prompt, isNot(contains('输出（约 500 字）')));
+    });
+
     test('默认视角写成长文：交代时间跨度、三段主题带张力、结尾落小动作', () {
       final lens = builtInInsightLenses.first;
       expect(lens.id, 'default');

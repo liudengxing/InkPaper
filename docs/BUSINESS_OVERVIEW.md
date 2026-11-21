@@ -45,11 +45,11 @@ lib/
 | 账号/服务器 | `login_screen`、`register_screen`、`forgot_password_screen`、`server_info_screen`、`webdav_settings_screen`、`account_info_screen`、`account_deletion_screen` |
 | 设置 | `settings_screen`、`preferences_screen`、`user_preferences_screen`、`ai_settings_screen`、`sidebar_customization_screen`、`notion_settings_screen`、`data_cleanup_screen` |
 | 导入/导出 | `import_export_main_screen`、`local_backup_restore_screen`、`flomo_import_screen`、`weread_import_screen` |
-| 其他 | `onboarding_screen`、`help_screen`、`feedback_screen`、`about_screen`、`laboratory_screen`、`performance_dashboard_screen`、`knowledge_graph_screen_custom` |
+| 其他 | `onboarding_screen`、`help_screen`、`feedback_screen`、`about_screen`、`laboratory_screen`、`performance_dashboard_screen` |
 
 ### 路由（`lib/routes/app_router.dart`）
 
-`/`（shell，含 sidebar 抽屉）下挂：`note/:id`、`edit`、`draft-box`、`recently-deleted`、`notifications`、`preferences`、`ai-settings`、`sidebar-customization`、`webdav-settings`、`server-info`、`account-info`、`data-cleanup`、`import-export`（`local-backup-restore` / `flomo-import` / `weread-import` / `notion-settings`）、`login` / `register` / `forgot-password`、`/tags`、`/random-review`、`/note-chat`、`/periodic-review`、`/knowledge-graph`、`/settings`、`/help`、`/feedback`、`/laboratory`、`/performance-dashboard`、`/onboarding`、`/welcome`、`/account-deletion`。
+`/`（shell，含 sidebar 抽屉）下挂：`note/:id`、`edit`、`draft-box`、`recently-deleted`、`notifications`、`preferences`、`ai-settings`、`sidebar-customization`、`webdav-settings`、`server-info`、`account-info`、`data-cleanup`、`import-export`（`local-backup-restore` / `flomo-import` / `weread-import` / `notion-settings`）、`login` / `register` / `forgot-password`、`/tags`、`/random-review`、`/note-chat`、`/periodic-review`、`/settings`、`/help`、`/feedback`、`/laboratory`、`/performance-dashboard`、`/onboarding`、`/welcome`、`/account-deletion`。
 深链 scheme：`inkpaper://`（分享回传用 `inkpaper://share`）。
 
 ---

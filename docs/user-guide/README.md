@@ -19,7 +19,6 @@ Welcome to InkPaper! This guide will help you get started and make the most of a
 - [Tags & Organization](features/tags.md) - Organizing your notes
 
 ### Advanced Features
-- [Knowledge Graph](features/knowledge-graph.md) - Visualize note connections
 - [AI Assistant](features/ai-assistant.md) - Smart writing help
 - [Note References](features/references.md) - Linking notes together
 - [Smart Reminders](features/reminders.md) - Never forget important items
@@ -50,7 +49,6 @@ InkPaper is a powerful yet simple note-taking app that helps you:
 - 🎤 **Voice Input** - Convert speech to text
 - ☁️ **Sync Everywhere** - Optional cloud sync or local-only mode
 - 🤖 **AI-Powered** - Intelligent note enhancement
-- 🕸️ **Build Knowledge** - Connect notes with knowledge graph
 - 🔒 **Privacy First** - Your data, your control
 
 ---
@@ -100,7 +98,6 @@ InkPaper is a powerful yet simple note-taking app that helps you:
 4. [Cloud Sync Setup](sync/cloud-sync.md)
 
 ### For Advanced Users
-1. [Knowledge Graph](features/knowledge-graph.md)
 2. [AI Assistant](features/ai-assistant.md)
 3. [Advanced Markdown](features/markdown.md#advanced-features)
 4. [Custom Themes](customization/themes.md)
@@ -131,7 +128,6 @@ InkPaper is a powerful yet simple note-taking app that helps you:
 
 | Feature | Description | Guide |
 |---------|-------------|-------|
-| 🕸️ Knowledge Graph | Visualize connections | [Learn More](features/knowledge-graph.md) |
 | 🤖 AI Assistant | Smart suggestions | [Learn More](features/ai-assistant.md) |
 | 📊 Heatmap | Track activity | [Learn More](features/heatmap.md) |
 | 🔗 References | Link notes together | [Learn More](features/references.md) |
@@ -211,8 +207,8 @@ InkPaper is a powerful yet simple note-taking app that helps you:
 - Export regularly for backup
 
 ### Advanced Tips
-- Build knowledge networks with references
-- Use knowledge graph to discover connections
+- Build a web of notes with references
+- Use related notes and references to rediscover connections
 - Customize fonts for comfortable reading
 - Enable dark mode for night writing
 

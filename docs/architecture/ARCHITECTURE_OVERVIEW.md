@@ -241,7 +241,6 @@ flowchart TB
         M1["/ 首页"]
         M2["/random-review 随机回顾"]
         M3["/tags 标签 + /tags/detail?tag="]
-        M4["/knowledge-graph 知识图谱"]
         M5["/help 帮助"]
     end
 
@@ -818,7 +817,6 @@ flowchart TB
 | `/note/:id`、`/note/:id/edit` | noteDetail / noteEdit | `NoteDetailScreen`（**同页**） |
 | `/random-review` | randomReview | `DesktopLayout(RandomReviewScreen)` |
 | `/tags`、`/tags/detail?tag=` | tags / tag-notes | `TagsScreen`、`TagNotesScreen` |
-| `/knowledge-graph` | knowledgeGraph | `DesktopLayout(KnowledgeGraphScreenCustom)` |
 | `/help`、`/settings/help` | help / settingsHelp | `HelpScreen` |
 | `/settings` | settings | `SettingsScreen`（内嵌 13 子页） |
 | `/settings/about` | settingsAbout | `AboutScreen` |

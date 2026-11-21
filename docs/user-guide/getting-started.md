@@ -250,7 +250,6 @@ Now that you're set up, explore these features:
 
 ### Week 3: Advanced
 - [ ] Create note references `[[Title]]`
-- [ ] View knowledge graph
 - [ ] Try AI assistant
 - [ ] Export notes for backup
 
@@ -316,7 +315,6 @@ Ready to dive deeper? Check out:
 
 - [Markdown Guide](features/markdown.md) - Master Markdown syntax
 - [Todo Lists](features/todo-lists.md) - Advanced task management
-- [Knowledge Graph](features/knowledge-graph.md) - Visualize connections
 - [AI Assistant](features/ai-assistant.md) - Smart writing help
 
 ---

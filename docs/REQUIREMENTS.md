@@ -18,6 +18,7 @@
 | R-04 | 详情页时间文字是纯黑，改成和首页一致的灰 | done | d9c55d3 |
 | R-05 | 首页下拉区把最常用的三个功能放到最上面 | done | 0870d0f |
 | R-06 | 随机回顾大页面改成首页那种信息流（5 条 + 下拉换 5 条） | done | faf5e36 |
+| R-07 | 知识图谱整块先去掉 | done | 待补 |
 
 ---
 
@@ -202,3 +203,31 @@
 - 抽过的要不要去重（同一轮里不重复 / 跨轮不重复）？
 - 空态（笔记太少抽不满 5 条）怎么表现？
 - 是否保留现在的「换一条」单张卡片交互，还是这个页面彻底改成列表。
+
+---
+
+## R-07 知识图谱整块先去掉 done: 待补
+
+**现象 / 期望**
+
+用户原话：「知识图谱这个功能整块先去掉」。不是修 bug，是整块下线——侧边栏入口、
+页面、路由、数据服务、文案、测试一起删，不留半死状态。
+
+**落地**
+
+- 删除 `screens/knowledge_graph_screen_custom.dart`（1402 行）、
+  `services/graph_data_service.dart`、`services/graph_isolate_service.dart`，
+  两个服务只被这一页用，没有别的调用方。
+- 路由 `/knowledge-graph`（名称 `knowledgeGraph`）与侧栏枚举项
+  `SidebarMenuItem.knowledgeGraph` 一起删；`SidebarConfig.fromJson` 本来就会把
+  已下线的 id 从旧配置里清掉，老用户不会留下空菜单。
+- l10n 的 `knowledgeGraph` 与八个 `graph*` 键、`defaultFeatureFlags` 里的
+  `graph_view`、注册页与功能介绍里的卖点文案一并清掉。
+- 测试 `knowledge_graph_screen_test.dart` 删除；`sidebar_back_navigation_test` 的
+  SBG-08 改用「全部标签」验二级页横跳。
+- 用户指南、站点介绍、FAQ、架构图的对应条目同步移除。
+
+**待确认**
+
+- 「先去掉」意味着以后可能回来。恢复时上述清单就是完整清单（页面 + 两个服务 +
+  路由 + 侧栏项 + l10n + 开关），按此逐项加回即可。

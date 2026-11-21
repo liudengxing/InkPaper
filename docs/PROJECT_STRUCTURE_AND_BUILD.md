@@ -92,7 +92,7 @@ InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`�
 
 - `lib/screens/`
   - 页面级 UI，每个文件通常对应一个完整页面。
-  - 核心页面包括首页、详情页、标签页、设置页、登录注册、帮助、关于、WebDAV、AI 设置、导入导出、随机回顾、知识图谱、通知、账号删除等。
+  - 核心页面包括首页、详情页、标签页、设置页、登录注册、帮助、关于、WebDAV、AI 设置、导入导出、随机回顾、通知、账号删除等。
   - 页面内只保留页面组织逻辑，复杂业务尽量下沉到 `services/`、`utils/` 或 `widgets/`。
 
 - `lib/services/`
@@ -206,7 +206,6 @@ InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`�
 - `help_screen.dart`：帮助中心页面。
 - `home_screen.dart`：首页笔记流、搜索、发布入口、侧边栏和主交互。
 - `import_export_main_screen.dart`：导入导出功能聚合入口。
-- `knowledge_graph_screen_custom.dart`：知识图谱页面。
 - `laboratory_screen.dart`：实验室页面，目前作为开发中占位。
 - `legal_document_screen.dart`：法律文档聚合页。
 - `local_backup_restore_screen.dart`：本地备份和恢复页面。
@@ -247,8 +246,6 @@ InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`�
 - `database_service.dart`：SQLite 本地数据库、表结构、迁移、读写和缓存。
 - `deepseek_api_service.dart`：DeepSeek/OpenAI 兼容 AI API 调用。
 - `feature_flag_service.dart`：功能开关、本地缓存和远程配置读取。
-- `graph_data_service.dart`：知识图谱数据生成。
-- `graph_isolate_service.dart`：知识图谱或重计算任务的 isolate 处理。
 - `incremental_sync_service.dart`：增量同步流程。
 - `intelligent_related_notes_service.dart`：本地相关笔记算法。
 - `local_note_analysis_service.dart`：本地笔记内容分析。

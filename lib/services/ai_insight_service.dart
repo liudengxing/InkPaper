@@ -344,9 +344,9 @@ class AiInsightService {
     required NotesContext context,
     required String scopeLabel,
   }) {
-    // 分层取样后「早的未附上」已经不成立，改成如实说取了其中多少条。
+    // 条数不设限，只由字数预算决定装得下多少，所以如实说「预算内取了 N 条」。
     final coverage = context.truncated
-        ? '（库内共 ${context.totalCandidates} 条有文字内容的笔记，按时间分层取了其中 ${context.noteCount} 条）'
+        ? '（库内共 ${context.totalCandidates} 条有文字内容的笔记，字数预算内取了其中 ${context.noteCount} 条）'
         : '';
     final span = describeSpan(context.earliest, context.latest);
     return '''

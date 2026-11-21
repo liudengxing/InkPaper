@@ -152,6 +152,58 @@ void main() {
       expect(context.noteCount, 5);
       expect(context.truncated, isFalse);
     });
+
+    test('条数不再设上限：预算装得下时两百多条短笔记全部纳入', () {
+      final notes = <Note>[
+        for (var i = 0; i < 260; i++)
+          _note(
+            id: 'n$i',
+            content: '第 $i 条记录，写了一句不长不短的想法。',
+            createdAt: DateTime(2024).add(Duration(days: i)),
+          ),
+      ];
+
+      final context = NotesContextBuilder.buildForInsight(notes);
+
+      expect(context.noteCount, 260);
+      expect(context.truncated, isFalse);
+    });
+
+    test('单条不再截断：长笔记整段进上下文，来源也不带截断标记', () {
+      final longText = '这是一段很长的反思。' * 80; // 远超旧的 400 字上限
+      final context = NotesContextBuilder.buildForInsight([
+        _note(
+          id: 'long',
+          content: longText,
+          createdAt: DateTime(2025, 6),
+        ),
+      ]);
+
+      expect(context.text, contains(longText));
+      expect(context.text, isNot(contains('…')));
+      expect(context.sources.single.truncated, isFalse);
+    });
+
+    test('字数预算仍是硬闸门：见底后整条放弃，不放半截', () {
+      final notes = <Note>[
+        for (var i = 0; i < 20; i++)
+          _note(
+            id: 'n$i',
+            content: '第 $i 条，${'内容' * 30}',
+            createdAt: DateTime(2025, 1, 1 + i),
+          ),
+      ];
+
+      final context = NotesContextBuilder.buildForInsight(
+        notes,
+        maxCharacters: 400,
+      );
+
+      expect(context.noteCount, lessThan(20));
+      expect(context.truncated, isTrue);
+      // 每条都是完整的整数个「内容」，没有出现截断用的省略号
+      expect(context.text, isNot(contains('…')));
+    });
   });
 
   group('NotesContextBuilder.stripMedia', () {
@@ -182,7 +234,10 @@ void main() {
 
       // 角标弹层要能把它画出来
       expect(context.sources, hasLength(1));
-      expect(context.sources.single.imagePaths, contains('file:///cache/a.jpg'));
+      expect(
+        context.sources.single.imagePaths,
+        contains('file:///cache/a.jpg'),
+      );
     });
 
     test('纯图片笔记不进上下文，也不会出现在来源里', () {

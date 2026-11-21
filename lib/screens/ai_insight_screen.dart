@@ -1070,7 +1070,7 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              '库内共 ${result.totalCandidates} 条有文字内容的笔记，按时间分层取了其中 ${result.noteCount} 条。',
+              '库内共 ${result.totalCandidates} 条有文字内容的笔记，字数预算内取了其中 ${result.noteCount} 条。',
               style: theme.textTheme.bodySmall?.copyWith(
                 fontSize: 11.5,
                 height: 1.5,

@@ -95,21 +95,35 @@ class NotesContext {
 ///
 /// 设计取舍：
 /// - 只保留纯文字（图片 / 音频等 markdown 全部剔除），用户明确说不要图片；
-/// - 单条截断，避免一条超长日记吃掉整个预算；
+/// - 条数与单条长度都不设上限，唯一的闸门是正文总字数预算；
 /// - 每行带日期和标签，方便模型引用来源。
 class NotesContextBuilder {
   NotesContextBuilder._();
 
-  /// 约 2 万 token 的正文预算：再大就会拖慢首字并抬高成本，
-  /// 所以超出的部分用"只带了最近 N 条"的方式明确告知用户。
+  /// 约 2 万 token 的正文预算：这是唯一的上限。
+  ///
+  /// 不再限制条数和单条长度——条数上限在写得久的人身上等于「只看最近几个
+  /// 月」，单条截断又会把一篇长文裁成半截，两头都在损害「他这些年怎么过的」
+  /// 这个判断。装不下时整条放弃（不做半条截断），继续看后面还能塞进去的。
   static const int defaultMaxCharacters = 28000;
-  static const int defaultMaxNotes = 200;
 
   /// 检索最多塞多少条相关笔记，剩下的预算留给最近笔记。
   static const int defaultMaxRelevant = 80;
 
-  /// 单条笔记最多保留的字符数。
-  static const int perNoteLimit = 400;
+  /// 每条的编号 / 日期 / 标签 / 换行的固定开销，估算预算是否够用。
+  static const int _lineOverhead = 24;
+
+  /// 粗估这批笔记能不能全部装进预算。装得下就不必分层打乱时间顺序。
+  static bool _exceedsBudget(List<_Entry> entries, int maxCharacters) {
+    var total = 0;
+    for (final entry in entries) {
+      total += entry.text.length + _lineOverhead;
+      if (total > maxCharacters) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   /// 虚字：切词前先剔掉，避免"我这周主要在关注什么"切出"注什""么样"这类噪声。
   static const Set<String> _stopChars = <String>{
@@ -219,11 +233,13 @@ class NotesContextBuilder {
     '如果',
   };
 
+  /// [maxNotes] / [perNoteLimit] 传 null 表示不限制；只有 [maxCharacters]
+  /// 是硬闸门。留成可空而不是改死，是因为问答那一路仍然需要收窄。
   static NotesContext build(
     List<Note> notes, {
     int maxCharacters = defaultMaxCharacters,
-    int maxNotes = defaultMaxNotes,
-    int perNoteLimit = NotesContextBuilder.perNoteLimit,
+    int? maxNotes,
+    int? perNoteLimit,
   }) {
     final entries = _prepare(notes);
     return _render(
@@ -236,20 +252,22 @@ class NotesContextBuilder {
     );
   }
 
-  /// 洞察专用：跨时间分桶轮转，不是只取最近 N 条。
+  /// 洞察专用：预算装不下时按「年-季度」分桶轮转，不是只取最近 N 条。
   ///
-  /// 「只取最近 200 条」在写了两三年的人身上等于「只取最近几个月」，模型
-  /// 自然写不出跨年的变化（flomo 的洞察报告正是靠时间跨度撑起开篇）。
-  /// 这里按「年-季度」分桶，每轮从每个桶各取一条：条目多的近期桶会多走
-  /// 几轮，天然偏向最近，但早年也一定在场。
+  /// 只按时间倒序往预算里塞，在写了两三年的人身上等于「只取最近几个月」，
+  /// 模型自然写不出跨年的变化（flomo 的洞察报告正是靠时间跨度撑起开篇）。
+  /// 所以一旦估算装不下，就按季度分桶、每轮每桶各取一条：近期桶条目多、
+  /// 会多走几轮，天然偏向最近，但早年也一定在场。
   static NotesContext buildForInsight(
     List<Note> notes, {
     int maxCharacters = defaultMaxCharacters,
-    int maxNotes = defaultMaxNotes,
-    int perNoteLimit = NotesContextBuilder.perNoteLimit,
+    int? maxNotes,
+    int? perNoteLimit,
   }) {
     final entries = _prepare(notes);
-    if (entries.length <= maxNotes) {
+    // 全都能装进预算就按原样给，不必为了分层打乱时间顺序
+    if (maxNotes != null && entries.length <= maxNotes ||
+        !_exceedsBudget(entries, maxCharacters)) {
       return _render(
         relevant: const <_Entry>[],
         fill: entries,
@@ -271,21 +289,32 @@ class NotesContextBuilder {
     final cursors = <String, int>{
       for (final key in buckets.keys) key: 0,
     };
-    var progressed = true;
-    while (progressed && ordered.length < maxNotes) {
-      progressed = false;
+    // 条数不设上限时，分层的唯一目的就是「谁先拿到预算」，所以攒够估算
+    // 长度就停手——库里有几千条时不必把整库排一遍。
+    var gathered = 0;
+    round:
+    while (true) {
+      var progressed = false;
       for (final key in buckets.keys) {
         final bucket = buckets[key]!;
         final index = cursors[key]!;
         if (index >= bucket.length) {
           continue;
         }
-        ordered.add(bucket[index]);
+        final entry = bucket[index];
+        ordered.add(entry);
         cursors[key] = index + 1;
         progressed = true;
-        if (ordered.length >= maxNotes) {
-          break;
+        gathered += entry.text.length + _lineOverhead;
+        if (maxNotes != null && ordered.length >= maxNotes) {
+          break round;
         }
+        if (gathered >= maxCharacters) {
+          break round;
+        }
+      }
+      if (!progressed) {
+        break;
       }
     }
 
@@ -311,9 +340,9 @@ class NotesContextBuilder {
     List<Note> notes,
     String question, {
     int maxCharacters = defaultMaxCharacters,
-    int maxNotes = defaultMaxNotes,
+    int? maxNotes,
     int maxRelevant = defaultMaxRelevant,
-    int perNoteLimit = NotesContextBuilder.perNoteLimit,
+    int? perNoteLimit,
   }) {
     final entries = _prepare(notes);
     final terms = extractQueryTerms(question);
@@ -490,8 +519,8 @@ class NotesContextBuilder {
     required List<_Entry> fill,
     required int totalCandidates,
     required int maxCharacters,
-    required int maxNotes,
-    required int perNoteLimit,
+    int? maxNotes,
+    int? perNoteLimit,
     List<String> queryTerms = const <String>[],
   }) {
     final buffer = StringBuffer();
@@ -503,16 +532,27 @@ class NotesContextBuilder {
     DateTime? latest;
 
     void appendEntry(_Entry entry) {
-      if (count >= maxNotes || used >= maxCharacters) {
+      if ((maxNotes != null && count >= maxNotes) || used >= maxCharacters) {
         return;
       }
-      final body = entry.text.length > perNoteLimit
-          ? '${entry.text.substring(0, perNoteLimit)}…'
-          : entry.text;
+      // 单条不再截断；唯一例外是这一条本身就比整个预算还长——不收的话
+      // 上下文直接溢出，一条都放不进去。硬闸门仍是 maxCharacters。
+      final hardLimit = perNoteLimit ?? maxCharacters;
+      var body = entry.text;
+      var truncated = false;
+      if (body.length > hardLimit) {
+        body = '${body.substring(0, hardLimit)}…';
+        truncated = true;
+      }
       final tags = entry.tags.isEmpty
           ? ''
           : ' ${entry.tags.take(4).map((tag) => '#$tag').join(' ')}';
       final line = '${count + 1}. [${_formatDate(entry.time)}]$tags\n$body\n';
+      // 预算见底就整条放弃，不做半条截断——半句话比没有更容易误导模型。
+      // 第一条破例放进来自保，避免预算极小的时候一条都取不到。
+      if (count > 0 && used + line.length > maxCharacters) {
+        return;
+      }
       buffer.write(line);
       used += line.length;
       sources.add(
@@ -523,7 +563,7 @@ class NotesContextBuilder {
           tags: entry.tags,
           text: body,
           imagePaths: entry.imagePaths,
-          truncated: entry.text.length > perNoteLimit,
+          truncated: truncated,
         ),
       );
       count++;
@@ -544,11 +584,11 @@ class NotesContextBuilder {
     }
 
     final remaining = fill.where((entry) => !taken.contains(entry.id));
-    if (relevant.isNotEmpty && used < maxCharacters && count < maxNotes) {
+    if (relevant.isNotEmpty && used < maxCharacters) {
       buffer.writeln('【最近的笔记】');
     }
     for (final entry in remaining) {
-      if (count >= maxNotes || used >= maxCharacters) {
+      if (used >= maxCharacters) {
         break;
       }
       appendEntry(entry);

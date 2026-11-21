@@ -3147,60 +3147,138 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
   }
 
-  // 🚀 乐观删除：立即更新UI，后台异步执行删除操作
-  // 删除笔记（本地和服务器） - 使用乐观更新策略
-  Future<bool> deleteNote(String id, {bool showSnackBar = false}) async {
+  // 删除笔记（本地和服务器） - 乐观更新：内存先移除并通知，落库在后台
+  //
+  // 以前是「await 软删 + await 全表 COUNT + 引用清理 → 才 notifyListeners」，
+  // 点删除要等 2~N 次数据库往返，列表才动。现在把 notify 提到最前面，
+  // 落库失败再回滚（插回原索引），所以本地软删天然可逆。
+  Future<bool> deleteNote(String id, {bool showSnackBar = false}) {
+    if (_notesStore.pendingDeleteIds.contains(id)) {
+      return Future<bool>.value(false);
+    }
     try {
       final deletedIndex =
           _notesStore.notes.indexWhere((note) => note.id == id);
-      final deletedNote = deletedIndex == -1
-          ? await _databaseService.getNoteById(id)
-          : _notesStore.notes[deletedIndex];
-
-      if (deletedNote == null) {
-        debugPrint('AppProvider: 笔记不存在: $id');
-        return false;
-      }
+      final snapshot =
+          deletedIndex == -1 ? null : _notesStore.notes[deletedIndex];
 
       // 保存删除的笔记和位置，用于撤销
-      _notesStore.lastDeletedNote = deletedNote;
+      _notesStore.lastDeletedNote = snapshot;
       _notesStore.lastDeletedIndex = deletedIndex;
       _notesStore.pendingDeleteIds.add(id);
 
-      // 立即从列表和本地库中隔离，避免刷新/搜索在撤销窗口内把它带回来。
+      // 立即从列表隔离，避免刷新/搜索在撤销窗口内把它带回来。
       if (deletedIndex != -1) {
         _notesStore.notes.removeAt(deletedIndex);
       } else {
         _notesStore.notes.removeWhere((note) => note.id == id);
       }
-      // 软删：行保留在库里，撤销窗口外仍可从「最近删除」恢复
-      await _databaseService.softDeleteNote(id);
-      // 软删行不再计入 viewActiveNotes，总数要跟着减，
-      // 否则「共 N 条」和 hasMoreData 会一直沿用删除前的值。
-      _setTotalNotesCount(await _databaseService.getNotesCount());
-      await _cleanupReferencesForDeletedNote(id);
-      notifyListeners(); // ⚡ UI立即刷新
-      _refreshMediaFilterIfActive();
+
+      // ⚡ 这一帧列表就少一行，不再等数据库
+      notifyListeners();
       _scheduleWidgetSnapshotUpdate(delay: Duration.zero);
 
-      debugPrint('AppProvider: ⚡ UI已更新（笔记已从列表移除）');
-
-      // 2. 等撤销窗口结束后再提交远端删除；撤销时会把本地记录恢复回来。
-      _notesStore.pendingDeleteCommitTimer?.cancel();
-      _notesStore.pendingDeleteCommitTimer = Timer(deleteUndoWindow, () {
-        _notesStore.pendingDeleteCommitTimer = null;
-        if (_notesStore.lastDeletedNote?.id == id) {
-          _notesStore.lastDeletedNote = null;
-          _notesStore.lastDeletedIndex = null;
-        }
-        unawaited(_performBackgroundDelete(id));
-      });
-
-      return true;
+      final future = _finishDelete(
+        id,
+        snapshot: snapshot,
+        index: deletedIndex,
+      );
+      _notesStore.inFlightDelete = future;
+      return future;
     } on Object catch (e) {
       debugPrint('AppProvider: 删除笔记失败: $e');
+      return Future<bool>.value(false);
+    }
+  }
+
+  /// 删除的落库与收尾。失败时把笔记插回原位并把列表恢复原样。
+  Future<bool> _finishDelete(
+    String id, {
+    required Note? snapshot,
+    required int index,
+  }) async {
+    try {
+      var note = snapshot;
+      if (note == null) {
+        // 搜索结果里的笔记不在当前分页缓存里，只能查库。必须在软删前查，
+        // 软删后 active_notes 视图就看不到它了。
+        note = await _databaseService.getNoteById(id);
+        if (note == null) {
+          debugPrint('AppProvider: 笔记不存在: $id');
+          _rollbackDelete(id, index: index);
+          return false;
+        }
+        _notesStore.lastDeletedNote = note;
+      }
+
+      // 软删：行保留在库里，撤销窗口外仍可从「最近删除」恢复
+      await _databaseService.softDeleteNote(id);
+
+      // 落库途中用户点了撤销：pendingDeleteIds 已被 restoreNote 清掉，
+      // 把刚写下的软删补回来，别再进入撤销窗口。
+      if (!_notesStore.pendingDeleteIds.contains(id)) {
+        await _databaseService.restoreDeletedNote(id);
+        return true;
+      }
+
+      // 总数、引用清理、媒体筛选都不阻塞 UI，放后台收尾。
+      unawaited(_afterDeleteMaintenance(id));
+      _armUndoWindow(id);
+      debugPrint('AppProvider: ⚡ 笔记已删除（列表已先行移除）');
+      return true;
+    } on Object catch (e) {
+      debugPrint('AppProvider: 删除落库失败，回滚: $e');
+      _rollbackDelete(
+        id,
+        note: snapshot ?? _notesStore.lastDeletedNote,
+        index: index,
+      );
       return false;
     }
+  }
+
+  /// 落库失败时把笔记插回删除前的位置，并清掉撤销状态。
+  void _rollbackDelete(String id, {required int index, Note? note}) {
+    _notesStore.pendingDeleteIds.remove(id);
+    _notesStore.inFlightDelete = null;
+    if (_notesStore.lastDeletedNote?.id == id) {
+      _notesStore.lastDeletedNote = null;
+      _notesStore.lastDeletedIndex = null;
+    }
+    if (note != null && !_notesStore.notes.any((n) => n.id == id)) {
+      final pos = index < 0 ? 0 : index.clamp(0, _notesStore.notes.length);
+      _notesStore.notes.insert(pos, note);
+    }
+    notifyListeners();
+  }
+
+  /// 删除后的统计与引用清理，失败只记日志，不再影响删除结果。
+  Future<void> _afterDeleteMaintenance(String id) async {
+    try {
+      _setTotalNotesCount(await _databaseService.getNotesCount());
+    } on Object catch (e) {
+      debugPrint('AppProvider: 删除后更新总数失败: $e');
+    }
+    try {
+      await _cleanupReferencesForDeletedNote(id);
+    } on Object catch (e) {
+      debugPrint('AppProvider: 删除后清理引用失败: $e');
+    }
+    _refreshMediaFilterIfActive();
+    _scheduleWidgetSnapshotUpdate();
+  }
+
+  /// 撤销窗口结束后提交远端删除。
+  void _armUndoWindow(String id) {
+    _notesStore.pendingDeleteCommitTimer?.cancel();
+    _notesStore.pendingDeleteCommitTimer = Timer(deleteUndoWindow, () {
+      _notesStore.pendingDeleteCommitTimer = null;
+      if (_notesStore.lastDeletedNote?.id == id) {
+        _notesStore.lastDeletedNote = null;
+        _notesStore.lastDeletedIndex = null;
+      }
+      unawaited(_performBackgroundDelete(id));
+    });
   }
 
   /// 补交「本地已删除、服务端还没删成功」的操作。
@@ -3304,10 +3382,29 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   }
 
   // 🔙 撤销删除笔记
-  Future<bool> restoreNote() async {
+  ///
+  /// [id] 传了就只撤销这一条：撤销条和它对应的笔记绑定，避免用户连删两条
+  /// 后点前一条的撤销、却把后一条恢复回来。
+  Future<bool> restoreNote({String? id}) async {
+    // 落库还没结束就点撤销：等它落地，否则 restoreDeletedNote 可能跑在
+    // softDeleteNote 之前，撤销完又被删掉。
+    final inFlight = _notesStore.inFlightDelete;
+    if (inFlight != null) {
+      try {
+        await inFlight;
+      } on Object {
+        // 落库失败时它自己已经回滚过，下面按剩余状态处理
+      }
+      _notesStore.inFlightDelete = null;
+    }
+
     if (_notesStore.lastDeletedNote == null ||
         _notesStore.lastDeletedIndex == null) {
       debugPrint('AppProvider: 没有可撤销的删除操作');
+      return false;
+    }
+    if (id != null && _notesStore.lastDeletedNote!.id != id) {
+      debugPrint('AppProvider: 撤销目标不是最近删除的那条: $id');
       return false;
     }
 

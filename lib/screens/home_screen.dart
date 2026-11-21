@@ -16,6 +16,7 @@ import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/responsive_utils.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/widgets/note_actions_ui.dart';
 import 'package:inkpaper/widgets/note_card.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:inkpaper/widgets/note_editor_page.dart';
@@ -997,26 +998,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void _showDeleteUndoSnackBar(AppProvider appProvider) {
-    final l10n = AppLocalizationsSimple.of(context);
-    SnackBarUtils.showAction(
-      context,
-      l10n?.noteDeleted ?? '笔记已删除',
-      icon: Icons.delete_outline_rounded,
-      actionLabel: l10n?.undo ?? '撤销',
-      duration: AppProvider.deleteUndoWindow,
-      onAction: () async {
-        final restored = await appProvider.restoreNote();
-        if (!mounted) {
-          return;
-        }
-        if (!restored) {
-          SnackBarUtils.showError(context, l10n?.undoFailed ?? '撤销失败');
-        }
-      },
-    );
-  }
-
   // 构建通知提示框（仅提醒通知）
   //
   // 用 Selector 只订阅未读数：原先的 Provider.of(context) 会在订阅者列表里
@@ -1727,43 +1708,24 @@ class _HomeScreenState extends State<HomeScreen>
                                           // 🚀 编辑笔记（静默）
                                           _showEditNoteForm(note);
                                         },
-                                        onDelete: () async {
-                                          // 🚀 乐观删除笔记（立即更新UI）
-                                          try {
-                                            final appProvider =
-                                                Provider.of<AppProvider>(
-                                              context,
-                                              listen: false,
-                                            );
-                                            await appProvider
-                                                .deleteNote(note.id);
-                                            if (mounted && _isSearchActive) {
-                                              setState(() {
-                                                _searchResults.removeWhere(
-                                                  (result) =>
-                                                      result.id == note.id,
-                                                );
-                                              });
-                                            }
-
-                                            if (context.mounted) {
-                                              _showDeleteUndoSnackBar(
-                                                appProvider,
-                                              );
-                                            }
-                                          } on Object catch (e) {
-                                            if (kDebugMode) {
-                                              debugPrint(
-                                                'HomeScreen: 删除笔记失败: $e',
-                                              );
-                                            }
-                                            if (context.mounted) {
-                                              SnackBarUtils.showError(
-                                                context,
-                                                '删除失败: $e',
-                                              );
-                                            }
-                                          }
+                                        onDelete: () {
+                                          // 与「⋯」菜单收敛到同一条路径：
+                                          // 删除、撤销条、撤销语义只有一个实现。
+                                          NoteActionsUi.deleteNote(
+                                            context: context,
+                                            note: note,
+                                            onDeleted: () {
+                                              // 搜索结果不随 provider 通知变化，
+                                              // 要自己从本地结果里摘掉。
+                                              if (_isSearchActive) {
+                                                setState(() {
+                                                  _searchResults.removeWhere(
+                                                    (r) => r.id == note.id,
+                                                  );
+                                                });
+                                              }
+                                            },
+                                          );
                                         },
                                         onPin: () async {
                                           final appProvider =

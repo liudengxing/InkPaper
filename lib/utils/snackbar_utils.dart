@@ -5,6 +5,9 @@ import 'package:inkpaper/themes/app_theme.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 
 class SnackBarUtils {
+  /// 所有提示条共用的圆角：撤销条原本 26、普通条 25，差 1dp 也能看出边缘不齐。
+  static const double _toastRadius = 26;
+
   /// [duration] 仅对有阅读价值的多行结果（备份/恢复统计等）需要放长，
   /// 普通一句话提示保持默认 1.5 秒。
   static void showSuccess(
@@ -140,7 +143,7 @@ class SnackBarUtils {
         ),
         backgroundColor: Colors.red.shade600,
         behavior: SnackBarBehavior.floating,
-        margin: _floatingMargin(context, compact: false),
+        margin: toastMargin(context, compact: false),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
         ),
@@ -215,12 +218,12 @@ class SnackBarUtils {
         backgroundColor: Colors.transparent,
         elevation: 0,
         behavior: SnackBarBehavior.floating,
-        margin: _actionMargin(context),
+        margin: toastMargin(context),
         padding: EdgeInsets.zero,
         duration: showDuration,
         persist: false,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(26)),
+          borderRadius: BorderRadius.all(Radius.circular(_toastRadius)),
         ),
       ),
     );
@@ -270,48 +273,38 @@ class SnackBarUtils {
         ),
         backgroundColor: backgroundColor,
         behavior: SnackBarBehavior.floating,
-        margin: _floatingMargin(context),
+        margin: toastMargin(context),
         duration: duration,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(25),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(_toastRadius)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       ),
     );
   }
 
-  /// 撤销提示专用边距：尽量贴近底部内容。
+  /// 全项目提示条共用的一套几何。
   ///
-  /// Scaffold 会把 floating SnackBar 垫到底部导航（首页输入条）之上，
-  /// 这时只再留 8px 就够；没有底部导航的页面自己补手势条高度。
-  /// 之前统一用「手势条高度 + 18」，在有输入条的首页被双重抬高。
-  static EdgeInsets _actionMargin(BuildContext context) {
+  /// 首页有底部输入条（bottomNavigationBar），Scaffold 已经把 floating
+  /// SnackBar 垫在它上方，这时左右各留 12、底部 10 —— 与那条玻璃输入条
+  /// 同宽同基线，撤销条不会比输入条窄一截（之前撤销条走 24，比输入条窄 24）。
+  /// 没有底部导航的页面按屏宽断点留边，底部让开手势条。
+  static EdgeInsets toastMargin(BuildContext context, {bool compact = true}) {
     final mediaQuery = MediaQuery.of(context);
     final width = mediaQuery.size.width;
-    final horizontal = width < 360
-        ? 16.0
-        : width < 600
-            ? 24.0
-            : (width - 420).clamp(24.0, double.infinity) / 2;
     final scaffold = Scaffold.maybeOf(context);
     final hasBottomBar = scaffold?.widget.bottomNavigationBar != null ||
         (scaffold?.widget.persistentFooterButtons?.isNotEmpty ?? false);
-    final bottom = hasBottomBar ? 8.0 : mediaQuery.padding.bottom + 12.0;
-    return EdgeInsets.fromLTRB(horizontal, 0, horizontal, bottom);
-  }
-
-  static EdgeInsets _floatingMargin(
-    BuildContext context, {
-    bool compact = true,
-  }) {
-    final mediaQuery = MediaQuery.of(context);
-    final width = mediaQuery.size.width;
-    final horizontal = width < 360
-        ? 16.0
-        : width < 600
-            ? 24.0
-            : (width - 420).clamp(24.0, double.infinity) / 2;
-    final bottom = mediaQuery.padding.bottom + (compact ? 28.0 : 18.0);
+    final horizontal = hasBottomBar
+        ? 12.0
+        : width < 360
+            ? 16.0
+            : width < 600
+                ? 24.0
+                : (width - 420).clamp(24.0, double.infinity) / 2;
+    final bottom = hasBottomBar
+        ? 10.0
+        : mediaQuery.padding.bottom + (compact ? 28.0 : 18.0);
     return EdgeInsets.fromLTRB(horizontal, 0, horizontal, bottom);
   }
 }

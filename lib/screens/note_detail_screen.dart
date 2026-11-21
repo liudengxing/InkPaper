@@ -110,6 +110,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     if (!mounted) {
       return;
     }
+    if (note == null && _note != null) {
+      // 原本有内容、现在查不到 = 这条被删了（详情页「⋯」删除后会回调这里）。
+      // 直接退回列表，否则 _note 被置空后页面永远停在转圈。
+      Navigator.of(context).maybePop();
+      return;
+    }
     setState(() {
       _setNote(note);
     });

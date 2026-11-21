@@ -76,67 +76,60 @@ class NoteActionsUi {
     );
   }
 
-  /// 删除笔记（大厂标准：直接删除 + 撤销，无确认对话框）
+  /// 删除笔记（直接删除 + 撤销，无确认对话框）
+  ///
+  /// 提示条必须放在 `await` 之前弹：`deleteNote` 的同步段已经把这行从内存
+  /// 列表移除并 notifyListeners，卡片的 context 会在这一帧之后销毁，等落库
+  /// 回来再弹就找不到 ScaffoldMessenger 了。
   static Future<void> deleteNote({
     required BuildContext context,
     required Note note,
     required VoidCallback onDeleted,
   }) async {
-    // 🎯 大厂标准（微信/iOS）：立即删除 + 提供撤销按钮
-    // 优点：
-    // 1. 流畅：无需等待确认对话框
-    // 2. 安全：提供3秒撤销时间
-    // 3. 批量友好：连续删除不会弹出多个对话框
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final l10n = AppLocalizationsSimple.of(context);
 
-    try {
-      final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final future = NoteActionsService.delete(appProvider, note.id);
+    onDeleted();
 
-      // 先保存笔记内容（用于撤销）
-      final deletedNote = note;
+    if (context.mounted) {
+      SnackBarUtils.showAction(
+        context,
+        l10n?.noteDeleted ?? '笔记已删除',
+        icon: Icons.delete_outline_rounded,
+        actionLabel: l10n?.undo ?? '撤销',
+        // 与远端提交窗口同长：窗口一关就别再让人点撤销
+        duration: AppProvider.deleteUndoWindow,
+        onAction: () async {
+          // 恢复原笔记（保留 id / remoteId / 引用），不再新建一条。
+          final restored = await appProvider.restoreNote(id: note.id);
+          if (!context.mounted) {
+            return;
+          }
+          if (restored) {
+            SnackBarUtils.showSuccess(
+              context,
+              l10n?.undoDelete ?? '已撤销删除',
+            );
+          } else {
+            SnackBarUtils.showError(
+              context,
+              l10n?.undoFailed ?? '撤销失败',
+            );
+          }
+        },
+      );
+    }
 
-      // 立即删除（乐观更新）
-      await NoteActionsService.delete(appProvider, note.id);
-      onDeleted();
-
-      if (context.mounted) {
-        // 与首页同一个玻璃胶囊：删除 + 撤销在所有入口长得一样。
-        // 以前这里是自带的一块纯绿 SnackBar（撤销字还是黄的），首页那条
-        // 玻璃提示只有在「卡片 onDelete 直连」那条路径上才会出现，日常从
-        // 更多菜单删除走的是这里，等于玻璃改造白做了。
-        SnackBarUtils.showAction(
-          context,
-          AppLocalizationsSimple.of(context)?.noteDeleted ?? '笔记已删除',
-          icon: Icons.delete_outline_rounded,
-          actionLabel: AppLocalizationsSimple.of(context)?.undo ?? '撤销',
-          duration: const Duration(milliseconds: 2500),
-          onAction: () async {
-            // 🎯 撤销删除：重新创建笔记
-            try {
-              await NoteActionsService.restore(appProvider, deletedNote);
-              if (context.mounted) {
-                SnackBarUtils.showSuccess(
-                  context,
-                  AppLocalizationsSimple.of(context)?.undoDelete ?? '已撤销删除',
-                );
-              }
-            } on Object catch (e) {
-              if (context.mounted) {
-                SnackBarUtils.showError(
-                  context,
-                  '${AppLocalizationsSimple.of(context)?.undoFailed ?? '撤销失败'}: $e',
-                );
-              }
-            }
-          },
-        );
-      }
-    } on Object catch (e) {
-      if (context.mounted) {
-        SnackBarUtils.showError(
-          context,
-          '${AppLocalizationsSimple.of(context)?.deleteFailed ?? '删除失败'}: $e',
-        );
-      }
+    final ok = await future;
+    if (!ok && context.mounted) {
+      // 落库失败时 AppProvider 已经把笔记插回原位，这里只要把
+      // 「已删除」那条收掉并说明原因。
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      SnackBarUtils.showError(
+        context,
+        l10n?.deleteFailed ?? '删除失败',
+      );
     }
   }
 

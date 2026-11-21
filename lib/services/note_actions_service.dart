@@ -24,6 +24,10 @@ class NoteActionsService {
       provider.deleteNote(noteId);
 
   /// 撤销删除：按原内容与时间戳重新创建笔记。
+  ///
+  /// 已被 `AppProvider.restoreNote()` 取代 —— 那个会解除软删、保留原 id /
+  /// remoteId / 引用关系，而这个只能重建一条新笔记。保留仅为兼容旧调用。
+  @Deprecated('改用 AppProvider.restoreNote()，可保留原 id 与引用')
   static Future<Note> restore(AppProvider provider, Note note) =>
       provider.createNote(
         note.content,

@@ -60,4 +60,8 @@ class NotesStore {
 
   /// 待提交删除的计时器（撤销窗口）。
   Timer? pendingDeleteCommitTimer;
+
+  /// 正在落库的那次删除。撤销要先等它结束，否则 restoreDeletedNote
+  /// 可能跑在 softDeleteNote 之前，撤销完又被删掉。
+  Future<bool>? inFlightDelete;
 }

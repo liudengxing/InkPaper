@@ -228,6 +228,86 @@ class SnackBarUtils {
     );
   }
 
+  /// 无操作的玻璃提示：只交代一句结果（如「笔记已删除」）。
+  ///
+  /// 原生 SnackBar 在深色壁纸上就是一块贴底的大黑条，和全局的玻璃材质
+  /// 完全不是一套东西；删除这种「动作已完成、只需一句话」的反馈也值得
+  /// 用同一颗胶囊，只是不需要按钮。
+  static void showGlass(
+    BuildContext context,
+    String message, {
+    IconData? icon,
+    Duration duration = const Duration(milliseconds: 2400),
+  }) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) {
+      return;
+    }
+    showGlassOn(
+      messenger,
+      message,
+      isDarkMode: Theme.of(context).brightness == Brightness.dark,
+      margin: toastMargin(context),
+      icon: icon,
+      duration: duration,
+    );
+  }
+
+  /// 同上，但直接拿 [ScaffoldMessengerState] 与预先算好的几何。
+  ///
+  /// 删除笔记是「先摘行、再提示」：原 context 会失效，所以 messenger 和
+  /// 边距都要在摘行之前取好传进来。
+  static void showGlassOn(
+    ScaffoldMessengerState messenger,
+    String message, {
+    required bool isDarkMode,
+    required EdgeInsets margin,
+    IconData? icon,
+    Duration duration = const Duration(milliseconds: 2400),
+  }) {
+    final showDuration = duration + const Duration(milliseconds: 600);
+    final toastKey = GlobalKey<_GlassActionToastState>();
+    var settled = false;
+
+    Future<void> dismissAnimated() async {
+      await toastKey.currentState?.animateOut();
+      messenger.hideCurrentSnackBar(reason: SnackBarClosedReason.timeout);
+    }
+
+    void settle() {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      unawaited(dismissAnimated());
+    }
+
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: _GlassActionToast(
+            key: toastKey,
+            isDarkMode: isDarkMode,
+            message: message,
+            icon: icon,
+          ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          behavior: SnackBarBehavior.floating,
+          margin: margin,
+          padding: EdgeInsets.zero,
+          duration: showDuration,
+          persist: false,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(_toastRadius)),
+          ),
+        ),
+      );
+
+    unawaited(Future<void>.delayed(duration, settle));
+  }
+
   /// 带操作的提示（删除笔记后的「撤销」）：玻璃胶囊。
   ///
   /// 视觉与首页底部输入条是同一套 `liquid_glass_renderer` 材质。
@@ -388,16 +468,18 @@ class _GlassActionToast extends StatefulWidget {
     required this.isDarkMode,
     required this.message,
     required this.icon,
-    required this.actionLabel,
-    required this.onActionPressed,
+    this.actionLabel,
+    this.onActionPressed,
     super.key,
   });
 
   final bool isDarkMode;
   final String message;
   final IconData? icon;
-  final String actionLabel;
-  final VoidCallback onActionPressed;
+
+  /// 为 null 时只显示一行字，不渲染按钮（删除结果这类无操作提示）。
+  final String? actionLabel;
+  final VoidCallback? onActionPressed;
 
   @override
   State<_GlassActionToast> createState() => _GlassActionToastState();
@@ -498,22 +580,25 @@ class _GlassActionToastState extends State<_GlassActionToast>
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        TextButton(
-                          onPressed: widget.onActionPressed,
-                          style: TextButton.styleFrom(
-                            foregroundColor: isDarkMode
-                                ? AppTheme.primaryLightColor
-                                : AppTheme.primaryColor,
-                            minimumSize: const Size(0, 40),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            textStyle: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                        if (widget.actionLabel != null &&
+                            widget.onActionPressed != null)
+                          TextButton(
+                            onPressed: widget.onActionPressed,
+                            style: TextButton.styleFrom(
+                              foregroundColor: isDarkMode
+                                  ? AppTheme.primaryLightColor
+                                  : AppTheme.primaryColor,
+                              minimumSize: const Size(0, 40),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              textStyle: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
+                            child: Text(widget.actionLabel!),
                           ),
-                          child: Text(widget.actionLabel),
-                        ),
                       ],
                     ),
                   ),

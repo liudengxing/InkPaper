@@ -105,15 +105,21 @@ class NoteActionsUi {
       }
     }
 
-    // 摘行之后原 context 就失效了，提示条要用的 messenger 先抓在手里
+    // 摘行之后原 context 就失效了，提示条要用的 messenger 和边距先抓在手里
     final messenger = ScaffoldMessenger.maybeOf(context);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final toastMargin = SnackBarUtils.toastMargin(context);
     final future = NoteActionsService.delete(appProvider, note.id);
     onDeleted();
 
     if (messenger != null) {
-      SnackBarUtils.showNativeOn(
+      // 与首页底部输入条同一套玻璃：原生 SnackBar 在深色壁纸上就是一块
+      // 贴底的大黑条，和整页的材质对不上。
+      SnackBarUtils.showGlassOn(
         messenger,
         l10n?.noteDeleted ?? '笔记已删除',
+        isDarkMode: isDarkMode,
+        margin: toastMargin,
         icon: Icons.delete_outline_rounded,
       );
     }

@@ -117,11 +117,12 @@ void main() {
       expect(lens.prompt, contains('不要小标题'));
     });
 
-    test('默认视角要求最后单独一行落动作，不能停在半句', () {
+    test('默认视角结尾要收成总结，动作不再单独成行', () {
       final lens = builtInInsightLenses.first;
-      expect(lens.prompt, contains('最后单独一行'));
-      expect(lens.prompt, contains('具体动作'));
-      expect(lens.prompt, contains('停在半句'));
+      expect(lens.prompt, contains('整篇的收束'));
+      expect(lens.prompt, contains('总结句'));
+      // 旧版「最后单独一行只写动作」看着像话没说完，已改掉
+      expect(lens.prompt, isNot(contains('最后单独一行')));
     });
 
     test('通用规则要求全文以完整句子收尾', () {

@@ -624,6 +624,110 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
+  /// 首页顶部的三个快捷入口。
+  ///
+  /// 对齐 flomo 首页 `fragment_main.xml` 的 `headerLayout`：那三颗白色胶囊
+  /// （AI 洞察 / 每日回顾 / 随机漫步）挂在可折叠 AppBar 上，滚动时跟着收起。
+  /// 我们没有可折叠 AppBar，就把它们放进信息流第一条——滚到顶就看得见，
+  /// 往下滚跟着列表走，观感一致。
+  ///
+  /// 尺寸照抄反编译资源，不自己估：整行上下各留 12 → 胶囊高 40，圆角
+  /// 12（cornerRadiusLarge），左右内边距 16，胶囊间距 8，图标 16，
+  /// 文字 14sp（textRegular）。
+  Widget _buildShortcutPills() {
+    final l10n = AppLocalizationsSimple.of(context);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final textColor =
+        isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
+    final fillColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
+
+    final entries = <({String label, IconData icon, String route})>[
+      (
+        label: l10n?.aiInsight ?? 'AI 洞察',
+        icon: Icons.auto_awesome_outlined,
+        route: '/ai-insight',
+      ),
+      (
+        label: l10n?.periodicReview ?? '周期回顾',
+        icon: Icons.auto_stories_rounded,
+        route: '/periodic-review',
+      ),
+      (
+        label: l10n?.randomReview ?? '随机回顾',
+        icon: Icons.shuffle_rounded,
+        route: '/random-review',
+      ),
+    ];
+
+    return Padding(
+      // 左右 12 与卡片外边距对齐；底部 8 是卡片之间的常规间距
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      child: Row(
+        children: [
+          for (var i = 0; i < entries.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            // 胶囊本身按内容宽（flomo 是 wrap_content），这里用 Flexible 让
+            // 极窄屏/time长文案时能收窄并省略，不至于把整行挤爆
+            Flexible(
+              child: _buildShortcutPill(
+                label: entries[i].label,
+                icon: entries[i].icon,
+                fillColor: fillColor,
+                textColor: textColor,
+                onTap: () => context.push(entries[i].route),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShortcutPill({
+    required String label,
+    required IconData icon,
+    required Color fillColor,
+    required Color textColor,
+    required VoidCallback onTap,
+  }) {
+    final radius = BorderRadius.circular(12);
+    return SizedBox(
+      height: 40,
+      child: Material(
+        color: fillColor,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 16, color: textColor),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.15,
+                      fontWeight: FontWeight.w500,
+                      color: textColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildOnThisDayCard() {
     if (_onThisDayDismissed || _onThisDayNotes.isEmpty) {
       return const SizedBox.shrink();
@@ -1824,6 +1928,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                                     mainAxisSize:
                                                         MainAxisSize.min,
                                                     children: [
+                                                      // 三个快捷入口常驻列表顶部，
+                                                      // 搜索态收起来（那时用户在找
+                                                      // 具体一条，不需要入口）
+                                                      if (!_isSearchActive)
+                                                        _buildShortcutPills(),
                                                       // 有图片 / 有视频是「只看某类
                                                       // 媒体」的视图，那条横幅展示的
                                                       // 是任意旧笔记，混进去等于筛选

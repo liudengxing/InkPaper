@@ -89,7 +89,7 @@ void main() {
       final notes = <Note>[
         _note(
           id: 'a',
-          content: '今天写了点东西。',
+          content: '今天写了点东西，记一笔今天的想法。',
           createdAt: DateTime.now(),
         ),
       ];
@@ -142,7 +142,7 @@ void main() {
         for (var i = 0; i < 5; i++)
           _note(
             id: 'n$i',
-            content: '第 $i 条记录',
+            content: '第 $i 条记录，写了一句不长不短的想法。',
             createdAt: DateTime(2025, 1, 1 + i),
           ),
       ];
@@ -153,7 +153,7 @@ void main() {
       expect(context.truncated, isFalse);
     });
 
-    test('条数不再设上限：预算装得下时两百多条短笔记全部纳入', () {
+    test('条数上限 100：库里有 260 条也只抽 100 条', () {
       final notes = <Note>[
         for (var i = 0; i < 260; i++)
           _note(
@@ -165,12 +165,12 @@ void main() {
 
       final context = NotesContextBuilder.buildForInsight(notes);
 
-      expect(context.noteCount, 260);
-      expect(context.truncated, isFalse);
+      expect(context.noteCount, 100);
+      expect(context.truncated, isTrue);
     });
 
-    test('单条不再截断：长笔记整段进上下文，来源也不带截断标记', () {
-      final longText = '这是一段很长的反思。' * 80; // 远超旧的 400 字上限
+    test('单条截断 400 字，来源标记 truncated', () {
+      final longText = '这是一段很长的反思。' * 80;
       final context = NotesContextBuilder.buildForInsight([
         _note(
           id: 'long',
@@ -179,9 +179,10 @@ void main() {
         ),
       ]);
 
-      expect(context.text, contains(longText));
-      expect(context.text, isNot(contains('…')));
-      expect(context.sources.single.truncated, isFalse);
+      expect(context.text, isNot(contains(longText)));
+      expect(context.text, contains('…'));
+      expect(context.sources.single.truncated, isTrue);
+      expect(context.sources.single.text.length, lessThanOrEqualTo(401));
     });
 
     test('字数预算仍是硬闸门：见底后整条放弃，不放半截', () {
@@ -201,8 +202,59 @@ void main() {
 
       expect(context.noteCount, lessThan(20));
       expect(context.truncated, isTrue);
-      // 每条都是完整的整数个「内容」，没有出现截断用的省略号
-      expect(context.text, isNot(contains('…')));
+    });
+
+    test('短于 10 字的笔记不参与抽样', () {
+      final context = NotesContextBuilder.buildForInsight([
+        _note(id: 'tiny', content: '嗯', createdAt: DateTime(2026)),
+        _note(id: 'emoji', content: '🙂🙂', createdAt: DateTime(2026, 1, 2)),
+        _note(
+          id: 'ok',
+          content: '这是一条字数够用的笔记。',
+          createdAt: DateTime(2026, 1, 3),
+        ),
+      ]);
+
+      expect(context.noteCount, 1);
+      expect(context.sources.single.noteId, 'ok');
+    });
+
+    test('时间权重：近期笔记抽得更多，但早年季度仍有代表', () {
+      final now = DateTime.now();
+      final notes = <Note>[
+        // 今年两个季度各 10 条
+        for (var i = 0; i < 10; i++)
+          _note(
+            id: 'recent-q1-$i',
+            content: '今年上半年第 $i 条记录，写了点关于当下的想法。',
+            createdAt: DateTime(now.year, 3, 1 + i),
+          ),
+        for (var i = 0; i < 10; i++)
+          _note(
+            id: 'recent-q3-$i',
+            content: '今年下半年第 $i 条记录，写了点关于当下的想法。',
+            createdAt: DateTime(now.year, 9, 1 + i),
+          ),
+        // 四年前一个季度 10 条
+        for (var i = 0; i < 10; i++)
+          _note(
+            id: 'old-$i',
+            content: '四年前第 $i 条记录，写了点关于过去的想法。',
+            createdAt: DateTime(now.year - 4, 6, 1 + i),
+          ),
+      ];
+
+      final context = NotesContextBuilder.buildForInsight(
+        notes,
+        maxNotes: 21,
+      );
+
+      final recent =
+          context.sources.where((s) => s.noteId.startsWith('recent')).length;
+      final old =
+          context.sources.where((s) => s.noteId.startsWith('old')).length;
+      expect(recent, greaterThan(old), reason: '近桶每轮取 3 条，应多于早桶的 1 条');
+      expect(old, greaterThan(0), reason: '早年季度每轮保底 1 条，不能被挤掉');
     });
   });
 
@@ -249,7 +301,7 @@ void main() {
         ),
         _note(
           id: 'text',
-          content: '只有这一条有文字',
+          content: '只有这一条有文字内容，其余都是图片。',
           createdAt: DateTime(2026, 1, 4),
         ),
       ]);

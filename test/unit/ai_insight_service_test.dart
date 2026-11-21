@@ -204,8 +204,8 @@ void main() {
 
     test('用户消息交代了范围、条数和编号方向', () {
       final context = NotesContextBuilder.build([
-        _note('1', '最新的想法', DateTime(2026, 11, 20)),
-        _note('2', '更早的想法', DateTime(2026, 11, 10)),
+        _note('1', '最新的想法，记一笔当下的感受。', DateTime(2026, 11, 20)),
+        _note('2', '更早的想法，记一笔当时的感受。', DateTime(2026, 11, 10)),
       ]);
 
       final message = AiInsightService.buildUserMessage(

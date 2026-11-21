@@ -6,6 +6,31 @@ import 'package:inkpaper/config/app_config.dart' as Config;
 import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/utils/logger.dart';
 
+/// 一次聊天调用的完整结果。
+///
+/// 除了正文，还带上思考过程和结束原因：推理型模型（deepseek-flash /
+/// v4-pro）会先写 `reasoning_content`，`max_tokens` 不够时正文是空的，
+/// 只靠 `(content, error)` 二元组既没法展示思考，也说不清是被截断还是
+/// 服务端抽风。
+class AiChatReply {
+  const AiChatReply({
+    this.content,
+    this.reasoning = '',
+    this.finishReason,
+    this.error,
+  });
+
+  final String? content;
+
+  /// 思考过程（没有就是空串）。
+  final String reasoning;
+  final String? finishReason;
+  final String? error;
+
+  bool get hasContent => (content ?? '').trim().isNotEmpty;
+  bool get isError => error != null;
+}
+
 /// DeepSeek API服务
 /// 负责与DeepSeek API进行通信
 class DeepSeekApiService {
@@ -23,15 +48,37 @@ class DeepSeekApiService {
   /// 测试用的注入点：为 null 时每次请求自建一个 client 并在结束时关掉。
   final http.Client? _client;
 
-  /// 发送聊天消息
+  /// 发送聊天消息。
   ///
-  /// [messages] - 对话消息列表，格式：[{'role': 'user', 'content': '消息内容'}]
-  /// [temperature] - 温度参数，控制回复的随机性 (0.0-2.0)
-  /// [maxTokens] - 最大 token 数；思考模式下思考内容也算在里面
-  /// [thinking] - 显式开关思考模式，null 表示不下发（服务端默认打开）。
-  ///   只有 DeepSeek 官方地址才带这个字段：自定义的 OpenAI 兼容服务多数
-  ///   不认它，发了会被判成非法参数。
+  /// 只关心「有没有正文」的调用方用这个，错误语义与 [chatDetailed] 一致。
   Future<(String?, String?)> chat({
+    required List<Map<String, String>> messages,
+    double temperature = 1.0,
+    int? maxTokens,
+    bool? thinking,
+  }) async {
+    final reply = await chatDetailed(
+      messages: messages,
+      temperature: temperature,
+      maxTokens: maxTokens,
+      thinking: thinking,
+    );
+    if (reply.hasContent) {
+      return (reply.content, null);
+    }
+    return (null, reply.error ?? 'AI 返回空内容');
+  }
+
+  /// 发送聊天消息，同时把正文、思考过程和结束原因一起返回。
+  ///
+  /// [maxTokens] 是「思考 + 正文」的总额度；推理型模型思考吃掉太多时，
+  /// 正文会是空的，[AiChatReply.finishReason] 会是 `length`，调用方可以
+  /// 据此关掉思考再重试一次。
+  ///
+  /// [thinking] 显式开关思考模式，null 表示不下发（服务端默认打开）。
+  /// 只有 DeepSeek 官方地址才带这个字段：自定义的 OpenAI 兼容服务多数
+  /// 不认它，发了会被判成非法参数。
+  Future<AiChatReply> chatDetailed({
     required List<Map<String, String>> messages,
     double temperature = 1.0,
     int? maxTokens,
@@ -41,12 +88,14 @@ class DeepSeekApiService {
     // 服务端只会回一句「密钥无效」，用户完全看不出多了个字符。
     final key = AppConfig.sanitizeApiKey(apiKey);
     if (key.isEmpty) {
-      return (null, '未填写 API 密钥');
+      return const AiChatReply(error: '未填写 API 密钥');
     }
     // 非 ASCII 进不了 HTTP 头（http 包会直接抛 FormatException），
     // 提前给一句能看懂的提示，而不是「网络请求失败」。
     if (key.runes.any((rune) => rune > 127)) {
-      return (null, 'API 密钥里有非 ASCII 字符（可能粘进了中文或全角字符），请重新复制');
+      return const AiChatReply(
+        error: 'API 密钥里有非 ASCII 字符（可能粘进了中文或全角字符），请重新复制',
+      );
     }
 
     // 结尾斜杠会拼出 `//chat/completions`：官方网关认，别的网关不一定
@@ -81,70 +130,13 @@ class DeepSeekApiService {
           );
 
       if (response.statusCode == 200) {
-        final data =
-            jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
-        final choices = data['choices'] as List<dynamic>?;
-        final choice = choices?.isNotEmpty ?? false
-            ? choices!.first as Map<String, dynamic>
-            : null;
-        final message = choice?['message'] as Map<String, dynamic>?;
-        final content = message?['content'] as String?;
-        final finishReason = choice?['finish_reason'] as String?;
-        final reasoning =
-            (message?['reasoning_content'] as String?)?.trim() ?? '';
-
-        if (content != null && content.trim().isNotEmpty) {
-          return (content, null);
-        }
-
-        // 空正文要区分原因，否则界面只能看到含糊的"返回内容为空"：
-        // 推理型模型会先写 reasoning_content，max_tokens 不够时正文就是空的。
-        if (finishReason == 'length') {
-          return (
-            null,
-            '输出被 max_tokens 截断（finish_reason=length），请调大输出上限或换非推理模型',
-          );
-        }
-        if (reasoning.isNotEmpty) {
-          return (
-            null,
-            '模型只返回了思考过程、没有正文（reasoning ${reasoning.length} 字），请换用非推理模型',
-          );
-        }
-        if (choice == null) {
-          return (null, 'AI 响应里没有 choices 字段，接口可能不是 OpenAI 兼容格式');
-        }
-        return (null, 'AI 返回空内容（finish_reason=${finishReason ?? 'unknown'}）');
-      } else if (response.statusCode == 401 || response.statusCode == 403) {
-        // 服务端会把被拒的 key 尾巴回显出来（`****abcd`），原样透传：
-        // 少了 Bearer、多了引号、key 被截断，这几种情况一眼能对上。
-        final detail = _parseErrorMessage(response);
-        Log.custom('DeepSeekApi').warning(
-          'auth rejected',
-          data: {
-            'status': response.statusCode,
-            'model': model,
-            'keyLength': key.length,
-            'keyTail': _maskKey(key),
-            'detail': detail,
-          },
-        );
-        return (
-          null,
-          detail == null || detail.isEmpty
-              ? 'API 密钥无效（HTTP ${response.statusCode}）'
-              : 'API 密钥无效：$detail',
-        );
-      } else if (response.statusCode == 429) {
-        return (null, '请求过于频繁，请稍后再试');
-      } else {
-        final errorMessage = _parseErrorMessage(response);
-        return (null, errorMessage ?? 'AI服务错误: ${response.statusCode}');
+        return _parseReply(response);
       }
+      return AiChatReply(error: _errorFor(response, key: key));
     } on TimeoutException {
-      return (null, 'AI服务响应超时，请稍后重试');
+      return const AiChatReply(error: 'AI服务响应超时，请稍后重试');
     } on Object catch (e) {
-      return (null, '网络请求失败: $e');
+      return AiChatReply(error: '网络请求失败: $e');
     } finally {
       if (_client == null) {
         client.close();
@@ -152,16 +144,238 @@ class DeepSeekApiService {
     }
   }
 
-  /// 流式聊天（暂未实现）
+  /// 流式聊天：边生成边回调。
   ///
-  /// 用于实时显示AI回复内容
-  Stream<String> chatStream({
+  /// 推理型模型要思考几十秒才出正文，干转圈没有任何信息；这里把
+  /// `reasoning_content` 的增量也回调出去，界面可以边想边显示。
+  /// [onDelta] 的 `reasoning` 为 true 表示这一段是思考过程。
+  ///
+  /// 返回的 [AiChatReply] 里是拼好的完整正文与思考。网关不支持 SSE
+  /// （返回的是普通 JSON、或流里一条数据都没有）时返回 error，调用方
+  /// 应该退回 [chatDetailed] 重试一次。
+  Future<AiChatReply> chatStreamed({
     required List<Map<String, String>> messages,
     double temperature = 1.0,
     int? maxTokens,
-  }) async* {
-    // 流式响应暂未接入，当前保留占位输出。
-    yield '流式响应功能待实现';
+    bool? thinking,
+    void Function(String delta, {required bool reasoning})? onDelta,
+  }) async {
+    final key = AppConfig.sanitizeApiKey(apiKey);
+    if (key.isEmpty) {
+      return const AiChatReply(error: '未填写 API 密钥');
+    }
+    if (key.runes.any((rune) => rune > 127)) {
+      return const AiChatReply(
+        error: 'API 密钥里有非 ASCII 字符（可能粘进了中文或全角字符），请重新复制',
+      );
+    }
+
+    final endpoint =
+        '${apiUrl.trim().replaceAll(RegExp(r'/+$'), '')}/chat/completions';
+    final requestBody = <String, dynamic>{
+      'model': model,
+      'messages': messages,
+      'temperature': temperature,
+      if (maxTokens != null) 'max_tokens': maxTokens,
+      if (thinking != null && AppConfig.isDeepSeekApiUrl(apiUrl))
+        'thinking': {'type': thinking ? 'enabled' : 'disabled'},
+      'stream': true,
+    };
+
+    final client = _client ?? http.Client();
+    try {
+      final request = http.Request('POST', Uri.parse(endpoint))
+        ..headers.addAll({
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $key',
+          'Accept': 'text/event-stream',
+        })
+        ..body = jsonEncode(requestBody);
+
+      final streamed = await client.send(request).timeout(
+            const Duration(seconds: Config.AppConfig.aiRequestTimeoutSeconds),
+          );
+
+      if (streamed.statusCode != 200) {
+        final response = await http.Response.fromStream(streamed);
+        return AiChatReply(error: _errorFor(response, key: key));
+      }
+
+      final content = StringBuffer();
+      final reasoning = StringBuffer();
+      String? finishReason;
+      var chunks = 0;
+
+      // 60 秒没有任何新数据就当作断流，否则 await for 会一直挂着
+      final lines = streamed.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .timeout(const Duration(seconds: 60));
+
+      await for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty || !trimmed.startsWith('data:')) {
+          continue;
+        }
+        final payload = trimmed.substring(5).trim();
+        if (payload.isEmpty || payload == '[DONE]') {
+          if (payload == '[DONE]') {
+            break;
+          }
+          continue;
+        }
+
+        Map<String, dynamic>? data;
+        try {
+          final decoded = jsonDecode(payload);
+          if (decoded is Map<String, dynamic>) {
+            data = decoded;
+          }
+        } on Object {
+          // 心跳、注释行、半截 JSON 都直接跳过，别让一行坏数据毁掉整次生成
+        }
+        if (data == null) {
+          continue;
+        }
+
+        final choices = data['choices'];
+        if (choices is! List || choices.isEmpty) {
+          continue;
+        }
+        final choice = choices.first;
+        if (choice is! Map<String, dynamic>) {
+          continue;
+        }
+        finishReason = (choice['finish_reason'] as String?) ?? finishReason;
+
+        final delta = choice['delta'];
+        if (delta is! Map<String, dynamic>) {
+          continue;
+        }
+        final reasoningDelta = delta['reasoning_content'] as String?;
+        if (reasoningDelta != null && reasoningDelta.isNotEmpty) {
+          reasoning.write(reasoningDelta);
+          chunks++;
+          onDelta?.call(reasoningDelta, reasoning: true);
+        }
+        final contentDelta = delta['content'] as String?;
+        if (contentDelta != null && contentDelta.isNotEmpty) {
+          content.write(contentDelta);
+          chunks++;
+          onDelta?.call(contentDelta, reasoning: false);
+        }
+      }
+
+      return _finishReply(
+        content: content.toString(),
+        reasoning: reasoning.toString(),
+        finishReason: finishReason,
+        chunks: chunks,
+      );
+    } on TimeoutException {
+      return const AiChatReply(error: 'AI服务响应超时，请稍后重试');
+    } on Object catch (e) {
+      return AiChatReply(error: '网络请求失败: $e');
+    } finally {
+      if (_client == null) {
+        client.close();
+      }
+    }
+  }
+
+  /// 非流式响应体 → [AiChatReply]。
+  AiChatReply _parseReply(http.Response response) {
+    final data =
+        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    final choices = data['choices'] as List<dynamic>?;
+    final choice = choices?.isNotEmpty ?? false
+        ? choices!.first as Map<String, dynamic>
+        : null;
+    final message = choice?['message'] as Map<String, dynamic>?;
+    final content = message?['content'] as String?;
+    final finishReason = choice?['finish_reason'] as String?;
+    final reasoning = (message?['reasoning_content'] as String?)?.trim() ?? '';
+
+    return _finishReply(
+      content: content ?? '',
+      reasoning: reasoning,
+      finishReason: finishReason,
+      chunks: content == null ? 0 : 1,
+      hasChoices: choice != null,
+    );
+  }
+
+  /// 空正文要区分原因，否则界面只能看到含糊的「返回内容为空」：
+  /// 推理型模型会先写 reasoning_content，max_tokens 不够时正文就是空的。
+  AiChatReply _finishReply({
+    required String content,
+    required String reasoning,
+    required String? finishReason,
+    required int chunks,
+    bool hasChoices = true,
+  }) {
+    if (content.trim().isNotEmpty) {
+      return AiChatReply(
+        content: content,
+        reasoning: reasoning,
+        finishReason: finishReason,
+      );
+    }
+    if (finishReason == 'length') {
+      return AiChatReply(
+        reasoning: reasoning,
+        finishReason: finishReason,
+        error: '输出被 max_tokens 截断（finish_reason=length），请调大输出上限或换非推理模型',
+      );
+    }
+    if (reasoning.isNotEmpty) {
+      return AiChatReply(
+        reasoning: reasoning,
+        finishReason: finishReason,
+        error: '模型只返回了思考过程、没有正文（reasoning ${reasoning.length} 字），请换用非推理模型',
+      );
+    }
+    if (!hasChoices) {
+      return const AiChatReply(
+        error: 'AI 响应里没有 choices 字段，接口可能不是 OpenAI 兼容格式',
+      );
+    }
+    if (chunks == 0) {
+      return const AiChatReply(
+        error: 'AI 返回空内容（流式响应里一条数据都没有，接口可能不支持 stream）',
+      );
+    }
+    return AiChatReply(
+      finishReason: finishReason,
+      error: 'AI 返回空内容（finish_reason=${finishReason ?? 'unknown'}）',
+    );
+  }
+
+  /// 非 200 的统一错误文案（401/403 会带上服务端原文）。
+  String _errorFor(http.Response response, {required String key}) {
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      // 服务端会把被拒的 key 尾巴回显出来（`****abcd`），原样透传：
+      // 少了 Bearer、多了引号、key 被截断，这几种情况一眼能对上。
+      final detail = _parseErrorMessage(response);
+      Log.custom('DeepSeekApi').warning(
+        'auth rejected',
+        data: {
+          'status': response.statusCode,
+          'model': model,
+          'keyLength': key.length,
+          'keyTail': _maskKey(key),
+          'detail': detail,
+        },
+      );
+      return detail == null || detail.isEmpty
+          ? 'API 密钥无效（HTTP ${response.statusCode}）'
+          : 'API 密钥无效：$detail';
+    }
+    if (response.statusCode == 429) {
+      return '请求过于频繁，请稍后再试';
+    }
+    final errorMessage = _parseErrorMessage(response);
+    return errorMessage ?? 'AI服务错误: ${response.statusCode}';
   }
 
   /// 解析错误消息

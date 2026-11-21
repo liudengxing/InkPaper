@@ -85,7 +85,7 @@ void main() {
       expect(p, contains('（当前笔记正文）'));
     });
 
-    test('DP-06 周回顾与月回顾只差时间跨度这一处', () {
+    test('DP-06 周回顾与月回顾：跨度与抓取角度不同，风格要求一致', () {
       final week = PeriodicReviewService.defaultSystemPrompt(
         ReviewPeriod.week,
       );
@@ -96,8 +96,13 @@ void main() {
       expect(week, contains('最近7 天里'));
       expect(month, contains('最近30 天里'));
       expect(week, isNot(equals(month)));
-      // 把差异点换掉之后两份应该完全一致，避免两边各写一套文案
-      expect(week.replaceAll('7 天', '30 天'), equals(month));
+      // 周/月除了跨度，抓取的侧面也不同（周看节奏与情绪，月看走向与变化），
+      // 所以不再要求两份逐字对齐；风格与红线必须共用同一套，避免各写一套文案。
+      for (final prompt in <String>[week, month]) {
+        expect(prompt, contains('你不是在写工作总结'));
+        expect(prompt, contains('禁用这些词和句式'));
+        expect(prompt, contains('不要凑字数'));
+      }
       expect(PeriodicReviewService.customPromptHardRequirements, isNotEmpty);
     });
   });

@@ -124,6 +124,10 @@ class PeriodicReviewService {
   /// 统计时展示的标签数量上限。
   static const int _maxTags = 12;
 
+  /// 输出上限。推理型模型把「思考 + 正文」算进同一个额度，2400 时经常
+  /// 只够思考、正文空掉，看起来就像「AI 调用失败」。
+  static const int maxOutputTokens = 8192;
+
   Future<PeriodicReviewResult> generate({
     required AppConfig config,
     required List<Note> allNotes,
@@ -188,25 +192,37 @@ class PeriodicReviewService {
           _userPrompt(period, range, stats, periodNotes),
         ),
       ];
-      final (content, error) = await service.chat(
+      var reply = await service.chatDetailed(
         messages: messages,
         temperature: 0.6,
-        // reasoning 类模型会先吃掉一大截思维链 token，900 的上限经常只换来
-        // 一个空的 content，看起来就像"AI 调用失败"。
-        maxTokens: 2400,
+        maxTokens: maxOutputTokens,
       );
+      if (!reply.hasContent || reply.finishReason == 'length') {
+        // 思考把额度吃光（finish_reason=length）或只回了思考：关掉思考再来
+        // 一次，正文才有额度。这一步救回来的比直接降级成本地统计好得多。
+        final retry = await service.chatDetailed(
+          messages: messages,
+          temperature: 0.6,
+          maxTokens: maxOutputTokens,
+          thinking: false,
+        );
+        // 重试也失败时别把手上那份（可能只是短一点）丢掉
+        if (retry.hasContent) {
+          reply = retry;
+        }
+      }
 
-      if (content == null || content.trim().isEmpty) {
+      if (!reply.hasContent) {
         return PeriodicReviewResult(
           range: range,
           stats: stats,
           content: fallback,
           usedRemote: false,
-          remoteError: error ?? '模型没有返回正文（可能是 max_tokens 被思维链占满），可换模型或减少笔记再试',
+          remoteError: reply.error ?? '模型没有返回正文，可换模型或减少笔记再试',
         );
       }
 
-      final cleaned = _cleanMarkdown(content);
+      final cleaned = _cleanMarkdown(reply.content!);
       await _writeCache(cacheKey, cleaned, stats.noteCount);
       return PeriodicReviewResult(
         range: range,
@@ -337,18 +353,24 @@ class PeriodicReviewService {
   ///
   /// 设置页「查看系统默认提示词」直接读这里，展示的就是真正发出去的那一份。
   static String defaultSystemPrompt(ReviewPeriod period) {
-    final unit = period == ReviewPeriod.week ? '7 天' : '30 天';
+    final span = period == ReviewPeriod.week ? '7 天' : '30 天';
+    final angle = period == ReviewPeriod.week
+        ? '这一周只有几条也没关系，那就写少一点、写具体一点。重点抓「这几天注意力落在哪」和「节奏、情绪上的变化」。'
+        : '一个月足够看出走向。重点抓「反复出现的主题」和「跟上一个 30 天比，悄悄变掉的某件事」。';
+
     return '''
-你是一位懂知识管理的写作教练，擅长从零散笔记里看出一个人的思考轨迹。
+你不是在写工作总结。你是一个很会读人的人，正坐在对面把这段时间的笔记重新看一遍，然后把看到的东西讲给写它的人听。
 
-用户会给你他在最近$unit里的一部分笔记片段、标签统计和环比数据。请写一份「回顾」。
+用户会给你他在最近$span里的一部分笔记片段、标签统计和环比数据。$angle
 
-写作要求：
-1. 只用中文，纯文本分段，不要 Markdown 标题、列表符号、表格或代码块；
-2. 内容依次包含：这段时间的主题脉络（2-3 句）；从标签和内容里浮现的关注点（2-4 个，自然叙述而不是罗列）；一条值得继续深挖的线索（1-2 句）；一句温和的提醒或提问（1 句）；
-3. 必须基于给出的笔记内容，不要编造笔记里没有的事实；信息不足时宁可写得简洁；
-4. 语气克制、具体，不要空泛鼓励，不要"首先/其次/最后"的模板腔；
-5. 全文 220~320 字，直接输出回顾正文，不要"好的""以下是"之类的开场白。
+写法：
+1. 第一句就直接说事：一个具体的画面、一个反复出现的动作，或者他自己写过的一句话。不要「这段时间」「总的来说」「在过去的$span里」这种起手式。
+2. 中间不要按「主题 / 关注点 / 建议」分块，顺着说：先说你看到的，再说它意味着什么。举例就点出是哪天写的、写了什么，不要用标签词代替内容。
+3. 至少有一句要说出他自己没明说、但从记录里能看出来的东西（比如嘴上在写计划，落笔全是疲惫）。
+4. 结尾用一句具体的话收住：一个提醒、一个明天就能做的小动作，或者一个真问题。不要「继续加油」「相信自己」「期待你」。
+5. 禁用这些词和句式：「成长」「复盘」「输入输出」「闭环」「底层逻辑」「情绪价值」「你是一个……的人」「首先 / 其次 / 最后」「总的来说」。
+6. 只用中文，纯文本分段（3-5 段），不要 Markdown 标题、列表符号、表格、代码块、emoji。
+7. 全文 280-380 字。写不够就写短，不要凑字数，不要编笔记里没有的事。
 ''';
   }
 

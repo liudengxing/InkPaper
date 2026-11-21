@@ -15,6 +15,7 @@ class AiInsightResult {
     this.totalCandidates = 0,
     this.truncated = false,
     this.error,
+    this.reasoning = '',
   });
 
   factory AiInsightResult.error(String message) => AiInsightResult(
@@ -29,6 +30,9 @@ class AiInsightResult {
   final bool truncated;
   final String? error;
 
+  /// 模型的思考过程（推理型模型才有，可能为空）。
+  final String reasoning;
+
   bool get isError => error != null;
 }
 
@@ -42,7 +46,12 @@ class AiInsightService {
   const AiInsightService();
 
   /// 洞察要铺开讲，比点评需要更多输出空间。
-  static const int maxOutputTokens = 2200;
+  ///
+  /// 推理型模型（deepseek-flash 默认开思考）会把「思考 + 正文」算进同一个
+  /// 额度：2200 时思考一长，正文直接空掉，用户只看到「输出被 max_tokens
+  /// 截断」。官方 chat 接口单次上限 8192，这里就顶到 8192；真被截断时还会
+  /// 自动关掉思考重试一次（见 [_retry]）。
+  static const int maxOutputTokens = 8192;
 
   /// 所有视角共用的规则。
   ///
@@ -75,6 +84,7 @@ class AiInsightService {
     required InsightLens lens,
     required List<Note> notes,
     String scopeLabel = '全部笔记',
+    void Function(String delta, {required bool reasoning})? onProgress,
   }) async {
     final configError = _validateConfig(config);
     if (configError != null) {
@@ -92,29 +102,106 @@ class AiInsightService {
       model: config.aiModel,
     );
 
-    final (content, error) = await service.chat(
-      messages: [
-        DeepSeekApiService.buildSystemMessage(
-          '$systemPrompt\n\n${lens.prompt.trim()}',
-        ),
-        DeepSeekApiService.buildUserMessage(
-          buildUserMessage(context: context, scopeLabel: scopeLabel),
-        ),
-      ],
+    final messages = <Map<String, String>>[
+      DeepSeekApiService.buildSystemMessage(
+        '$systemPrompt\n\n${lens.prompt.trim()}',
+      ),
+      DeepSeekApiService.buildUserMessage(
+        buildUserMessage(context: context, scopeLabel: scopeLabel),
+      ),
+    ];
+
+    // 先走流式：思考过程可以边想边显示，用户不用对着转圈干等。
+    var reply = await service.chatStreamed(
+      messages: messages,
       // 洞察需要一点发散，但不能飘；0.6 是「有判断又不太随机」的折中。
       temperature: 0.6,
       maxTokens: maxOutputTokens,
+      onDelta: onProgress,
     );
 
-    if (content == null || content.trim().isEmpty) {
-      return AiInsightResult.error(error ?? 'AI 没有返回内容，请稍后重试');
+    // 正文为空，或被 max_tokens 截在半句（finish_reason=length），都值得
+    // 补救一次——截断比完全没内容更隐蔽，用户会以为模型就这点水平。
+    if (!reply.hasContent || reply.finishReason == 'length') {
+      reply = await _retry(service, messages, reply);
+    }
+
+    if (!reply.hasContent) {
+      return AiInsightResult.error(reply.error ?? 'AI 没有返回内容，请稍后重试');
     }
 
     return AiInsightResult(
-      text: cleanOutput(content),
+      text: cleanOutput(reply.content!),
       noteCount: context.noteCount,
       totalCandidates: context.totalCandidates,
       truncated: context.truncated,
+      reasoning: reply.reasoning.trim(),
+    );
+  }
+
+  /// 流式拿不到正文时的一次补救。
+  ///
+  /// 三种常见原因分别对应两条路：
+  /// - 网关不支持 SSE（流里没有数据）→ 退回普通请求，思考照旧开着；
+  /// - 思考把 max_tokens 吃光（`finish_reason=length` / 只有思考）→ 关掉
+  ///   思考再来一次，正文才有额度；
+  /// - 密钥 / 网络错误 → 重试也没用，直接把原错误带回去。
+  Future<AiChatReply> _retry(
+    DeepSeekApiService service,
+    List<Map<String, String>> messages,
+    AiChatReply first,
+  ) async {
+    final error = first.error ?? '';
+    final worthRetrying = !first.hasContent ||
+        first.finishReason == 'length' ||
+        first.reasoning.isNotEmpty ||
+        error.contains('流式') ||
+        error.contains('空内容');
+    if (!worthRetrying) {
+      return first;
+    }
+
+    final plain = await service.chatDetailed(
+      messages: messages,
+      temperature: 0.6,
+      maxTokens: maxOutputTokens,
+    );
+    // 有正文、且不是被截断的，直接用
+    if (plain.hasContent && plain.finishReason != 'length') {
+      return AiChatReply(
+        content: plain.content,
+        reasoning: plain.reasoning.isEmpty ? first.reasoning : plain.reasoning,
+        finishReason: plain.finishReason,
+      );
+    }
+
+    final noThinking = await service.chatDetailed(
+      messages: messages,
+      temperature: 0.6,
+      maxTokens: maxOutputTokens,
+      thinking: false,
+    );
+    if (noThinking.hasContent) {
+      return AiChatReply(
+        content: noThinking.content,
+        reasoning: first.reasoning.isEmpty && plain.reasoning.isNotEmpty
+            ? plain.reasoning
+            : first.reasoning,
+        finishReason: noThinking.finishReason,
+      );
+    }
+
+    // 两次都没拿到完整正文：如果普通请求至少给了（截断的）正文，也比报错好
+    if (plain.hasContent) {
+      return plain;
+    }
+
+    return AiChatReply(
+      reasoning: first.reasoning.isEmpty
+          ? (plain.reasoning.isEmpty ? noThinking.reasoning : plain.reasoning)
+          : first.reasoning,
+      finishReason: noThinking.finishReason ?? plain.finishReason,
+      error: noThinking.error ?? plain.error ?? first.error,
     );
   }
 

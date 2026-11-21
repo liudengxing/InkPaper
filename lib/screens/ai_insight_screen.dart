@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
@@ -67,10 +69,29 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   InsightLens? _activeLens;
   String? _error;
 
+  // ── 流式生成时的实时内容 ─────────────────────────────────────────
+  //
+  // 回调是按 token 来的，token 级 setState 会把整页重建上千次；这里先攒进
+  // buffer，由 140ms 的定时器统一刷一次，观感是「一行行往下长」而不是卡。
+  final StringBuffer _liveReasoning = StringBuffer();
+  final StringBuffer _liveContent = StringBuffer();
+  String _liveReasoningText = '';
+  String _liveContentText = '';
+  Timer? _liveFlush;
+
+  /// 结果页里「推理过程」是否展开（默认收起，想看再点）。
+  bool _reasoningExpanded = false;
+
   @override
   void initState() {
     super.initState();
     _loadLenses();
+  }
+
+  @override
+  void dispose() {
+    _liveFlush?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadLenses() async {
@@ -107,7 +128,9 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
       _activeLens = lens;
       _result = null;
       _error = null;
+      _reasoningExpanded = false;
     });
+    _startLiveFlush();
 
     try {
       // 首页的 notes 是分页的，洞察要看全量，所以直接查库。
@@ -118,10 +141,18 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
         lens: lens,
         notes: scoped,
         scopeLabel: _range.label(l10n),
+        onProgress: (delta, {required reasoning}) {
+          if (reasoning) {
+            _liveReasoning.write(delta);
+          } else {
+            _liveContent.write(delta);
+          }
+        },
       );
       if (!mounted) {
         return;
       }
+      _stopLiveFlush();
       setState(() {
         _generating = false;
         if (result.isError) {
@@ -132,6 +163,7 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
         }
       });
     } on Object catch (e) {
+      _stopLiveFlush();
       if (!mounted) {
         return;
       }
@@ -142,11 +174,40 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     }
   }
 
+  /// 开始把流式 buffer 定时刷进界面。
+  void _startLiveFlush() {
+    _liveReasoning.clear();
+    _liveContent.clear();
+    _liveReasoningText = '';
+    _liveContentText = '';
+    _liveFlush?.cancel();
+    _liveFlush = Timer.periodic(const Duration(milliseconds: 140), (_) {
+      if (!mounted) {
+        return;
+      }
+      final reasoning = _liveReasoning.toString();
+      final content = _liveContent.toString();
+      if (reasoning == _liveReasoningText && content == _liveContentText) {
+        return;
+      }
+      setState(() {
+        _liveReasoningText = reasoning;
+        _liveContentText = content;
+      });
+    });
+  }
+
+  void _stopLiveFlush() {
+    _liveFlush?.cancel();
+    _liveFlush = null;
+  }
+
   void _backToPicker() {
     setState(() {
       _result = null;
       _error = null;
       _activeLens = null;
+      _reasoningExpanded = false;
     });
   }
 
@@ -544,6 +605,12 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     final colorScheme = theme.colorScheme;
     final muted = colorScheme.onSurfaceVariant;
     final skeleton = colorScheme.onSurface.withValues(alpha: 0.06);
+
+    final reasoning = _liveReasoningText.trim();
+    final content = _liveContentText.trim();
+    final hasReasoning = reasoning.isNotEmpty;
+    final hasContent = content.isNotEmpty;
+
     return ListView(
       padding: _pagePadding,
       children: [
@@ -556,34 +623,108 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
             const SizedBox(width: 10),
-            Text(
-              l10n?.aiInsightGenerating ?? '正在通读你的笔记…',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+            Expanded(
+              child: Text(
+                hasReasoning
+                    ? '正在推理…'
+                    : (l10n?.aiInsightGenerating ?? '正在通读你的笔记…'),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 20),
-        // 三根骨架条代替居中大转圈：等待时页面有「正在读」的形状感
-        for (final factor in const [1.0, 0.86, 0.62]) ...[
-          FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: factor,
-            child: Container(
-              height: 12,
+        const SizedBox(height: 18),
+
+        // 还没收到任何内容时用骨架条占位；一旦开始推理，就把思考过程
+        // 原样铺出来——等 40 秒却什么都看不到，是这个页面最伤人的地方。
+        if (!hasReasoning && !hasContent)
+          for (final factor in const [1.0, 0.86, 0.62]) ...[
+            FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: factor,
+              child: _skeletonBar(skeleton),
+            ),
+            const SizedBox(height: 10),
+          ]
+        else ...[
+          if (hasReasoning) ...[
+            Row(
+              children: [
+                Icon(
+                  Icons.psychology_alt_outlined,
+                  size: 15,
+                  color: muted.withValues(alpha: 0.8),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '思考过程',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3,
+                    color: muted.withValues(alpha: 0.85),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '${reasoning.length} 字',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontSize: 11,
+                    color: muted.withValues(alpha: 0.55),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.only(left: 12),
               decoration: BoxDecoration(
-                color: skeleton,
-                borderRadius: BorderRadius.circular(6),
+                border: Border(
+                  left: BorderSide(
+                    color: colorScheme.primary.withValues(alpha: 0.22),
+                    width: 2,
+                  ),
+                ),
+              ),
+              child: Text(
+                reasoning,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 12.5,
+                  height: 1.75,
+                  color: muted.withValues(alpha: 0.95),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 10),
+          ],
+          if (hasContent) ...[
+            const SizedBox(height: 18),
+            Text(
+              '正在落笔',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
+                color: colorScheme.primary.withValues(alpha: 0.8),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              content,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 15,
+                height: 1.8,
+                color: colorScheme.onSurface.withValues(alpha: 0.9),
+              ),
+            ),
+          ],
         ],
-        const SizedBox(height: 6),
+
+        const SizedBox(height: 18),
         Text(
-          '用「${_activeLens?.name ?? ''}」这个视角 · 笔记多时要 10–30 秒',
+          '用「${_activeLens?.name ?? ''}」这个视角 · 思考过程会边想边显示，生成后也能在结果页展开回看',
           style: theme.textTheme.bodySmall?.copyWith(
             fontSize: 12,
             height: 1.5,
@@ -591,6 +732,89 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _skeletonBar(Color color) => Container(
+        height: 12,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(6),
+        ),
+      );
+
+  /// 结果页的「推理过程」折叠块：默认收起，只留一行摘要，想看再展。
+  Widget _buildReasoningPanel(String reasoning, ThemeData theme) {
+    final colorScheme = theme.colorScheme;
+    final muted = colorScheme.onSurfaceVariant;
+    final expanded = _reasoningExpanded;
+    return Material(
+      color: colorScheme.onSurface.withValues(alpha: 0.035),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => setState(() => _reasoningExpanded = !expanded),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 11, 12, 11),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.psychology_alt_outlined,
+                    size: 15,
+                    color: muted.withValues(alpha: 0.8),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '推理过程',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: muted.withValues(alpha: 0.95),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${reasoning.length} 字',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: 11,
+                      color: muted.withValues(alpha: 0.55),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    expanded ? '收起' : '展开',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: 11.5,
+                      color: muted.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  Icon(
+                    expanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 18,
+                    color: muted.withValues(alpha: 0.6),
+                  ),
+                ],
+              ),
+              if (expanded) ...[
+                const SizedBox(height: 10),
+                Text(
+                  reasoning,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontSize: 12.5,
+                    height: 1.75,
+                    color: muted.withValues(alpha: 0.9),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -693,6 +917,10 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
               ),
             ),
           ),
+        if (result.reasoning.trim().isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _buildReasoningPanel(result.reasoning.trim(), theme),
+        ],
         const SizedBox(height: 20),
         // 一小段短线代替整条 Divider：断点更轻，不打断阅读
         Align(

@@ -12,6 +12,7 @@ import 'package:inkpaper/services/insight_history_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/insight_text_spans.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/utils/typewriter_text.dart';
 import 'package:inkpaper/widgets/insight_reasoning_panel.dart';
 import 'package:inkpaper/widgets/insight_source_sheet.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
@@ -77,12 +78,18 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   // ── 流式生成时的实时内容 ─────────────────────────────────────────
   //
   // 回调是按 token 来的，token 级 setState 会把整页重建上千次；这里先攒进
-  // buffer，由 140ms 的定时器统一刷一次，观感是「一行行往下长」而不是卡。
+  // buffer，再由下面的定时器按「打字机」节奏一个字一个字放进界面。
   final StringBuffer _liveReasoning = StringBuffer();
   final StringBuffer _liveContent = StringBuffer();
   String _liveReasoningText = '';
   String _liveContentText = '';
   Timer? _liveFlush;
+
+  /// 打字机的推进间隔：32ms ≈ 每秒 31 个字，落在正常阅读速度上。
+  static const Duration _liveTypingInterval = Duration(milliseconds: 32);
+
+  /// 已推进的帧数，用来把滚动降频到每 4 帧一次。
+  int _liveTypingTicks = 0;
 
   /// 结果页里角标的 recognizer。按编号缓存，重建不会漏对象。
   final InsightRefRecognizers _refRecognizers = InsightRefRecognizers();
@@ -285,24 +292,32 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   }
 
   /// 开始把流式 buffer 定时刷进界面。
+  ///
+  /// 不是「攒一段刷一段」：那样子在屏幕上是一块一块跳出来的，慢的时候
+  /// 特别明显。这里每 32ms 往目标文本推进一小步，看起来就是逐字打出来；
+  /// 模型一口气吐很多时按积压量放大步长自动追上，不用另判快慢。
   void _startLiveFlush() {
     _liveReasoning.clear();
     _liveContent.clear();
     _liveReasoningText = '';
     _liveContentText = '';
     _liveStatus = '';
+    _liveTypingTicks = 0;
     // 每次重新生成都从头跟随，并从顶部开始，别继承上一次的滚动位置。
     _liveFollow = true;
     if (_liveScrollController.hasClients) {
       _liveScrollController.jumpTo(0);
     }
     _liveFlush?.cancel();
-    _liveFlush = Timer.periodic(const Duration(milliseconds: 80), (_) {
+    _liveFlush = Timer.periodic(_liveTypingInterval, (_) {
       if (!mounted) {
         return;
       }
-      final reasoning = _liveReasoning.toString();
-      final content = _liveContent.toString();
+      final reasoning = typewriteStep(
+        _liveReasoning.toString(),
+        _liveReasoningText,
+      );
+      final content = typewriteStep(_liveContent.toString(), _liveContentText);
       if (reasoning == _liveReasoningText && content == _liveContentText) {
         return;
       }
@@ -310,7 +325,11 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
         _liveReasoningText = reasoning;
         _liveContentText = content;
       });
-      _scrollLiveToBottom();
+      // 滚动比打字慢一拍：每帧都 animateTo 会让动画不断被打断，反而抖
+      _liveTypingTicks++;
+      if (_liveTypingTicks % 4 == 0) {
+        _scrollLiveToBottom();
+      }
     });
   }
 

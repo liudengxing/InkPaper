@@ -1,4 +1,5 @@
 import 'dart:async'; // 🚀 用于搜索防抖
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -104,6 +105,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _searchRequestSeq = 0;
   bool _isSearchLoading = false;
   bool _isRefreshing = false;
+
+  /// 下拉手势累计位移（dp）。只驱动快捷入口滑入与刷新提示，不参与列表布局。
+  double _pullDistance = 0;
+
+  /// 快捷入口条的高度：上 12 + 胶囊 40 + 下 8。
+  static const double _shortcutPillsHeight = 60;
+
+  /// 第一层拉满（快捷入口完全露出）之后，再往下拉这么远才触发刷新。
+  static const double _refreshPullSpan = 110;
 
   /// 搜索态三处位移（抽屉收起、标题↔搜索框、右侧图标↔取消）共用同一组
   /// 时长与曲线，整体才像一次动作；分开配曲线会各走各的，看着发飘。
@@ -546,16 +556,78 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // 无需在UI层再次触发
   }
 
-  // 刷新笔记数据
-  Future<void> _refreshNotes() async {
-    // 第一次下拉＝把三个快捷入口露出来；从那以后下拉才是刷新笔记。
-    if (!_shortcutPillsRevealed) {
-      if (mounted) {
-        setState(() => _shortcutPillsRevealed = true);
+  /// 下拉分两层，这里只负责第一层的跟手与第二层的判定。
+  ///
+  /// 第一层：手指往下走多少，快捷入口就往下滑多少，拉满后固定在列表顶部；
+  /// 第二层：拉满之后继续下拉的那一段才累计刷新进度，到顶松手才刷新。
+  /// 早先交给 RefreshIndicator：它一被拖动就转圈，和快捷入口同时出现，
+  /// 用户看到的就是「一拉就刷新」，两层动作糊在一起。
+  bool _handleFeedScrollNotification(ScrollNotification notification) {
+    if (_isSearchActive) {
+      return false;
+    }
+    if (notification is OverscrollNotification &&
+        notification.metrics.extentBefore <= 0 &&
+        !_isRefreshing) {
+      // overscroll 向下为负、向上为正，两边都收：拉一半又推回去要能缩回，
+      // 否则松手时会按「最大那一下」去判刷新。
+      final next = (_pullDistance - notification.overscroll).clamp(0.0, 420.0);
+      if (next == _pullDistance) {
+        return false;
       }
+      setState(() {
+        _pullDistance = next;
+        // 第一层拉满就把入口记成常驻：之后它回到列表里正常滚动，
+        // 不再跟着手指走，第二层从此刻开始累计。
+        if (!_shortcutPillsRevealed && next >= _shortcutPillsHeight) {
+          _shortcutPillsRevealed = true;
+        }
+      });
+      return false;
+    }
+    if (notification is ScrollEndNotification &&
+        _pullDistance > 0 &&
+        !_isRefreshing) {
+      _settlePull();
+    }
+    return false;
+  }
+
+  /// 第一层进度：快捷入口从上方滑下来的比例。
+  double get _pillPullProgress => _shortcutPillsRevealed
+      ? 1
+      : (_pullDistance / _shortcutPillsHeight).clamp(0.0, 1.0);
+
+  /// 第二层进度：拉满第一层之后，刷新被拉出来多少。
+  double get _refreshPullProgress {
+    final base = _shortcutPillsRevealed ? 0.0 : _shortcutPillsHeight;
+    return ((_pullDistance - base) / _refreshPullSpan).clamp(0.0, 1.0);
+  }
+
+  /// 松手：够阈值就刷新，不够就回弹。
+  void _settlePull() {
+    if (_refreshPullProgress >= 1) {
+      setState(() {
+        _pullDistance = _shortcutPillsHeight + _refreshPullSpan;
+      });
+      unawaited(_runPullRefresh());
       return;
     }
+    // 没拉满第一层就松手：入口收回，下次重新拉
+    setState(() => _pullDistance = 0);
+  }
 
+  Future<void> _runPullRefresh() async {
+    await _refreshNotes();
+    if (!mounted) {
+      return;
+    }
+    // 刷新结束（成功或失败）都把手指的位置还回去
+    setState(() => _pullDistance = 0);
+  }
+
+  // 刷新笔记数据
+  Future<void> _refreshNotes() async {
     if (_isRefreshing) {
       return;
     }
@@ -651,6 +723,103 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _onThisDayDismissed = true;
       _onThisDayNotes = const <Note>[];
     });
+  }
+
+  /// 第一层下拉：快捷入口跟着手指从上往下长出来。
+  ///
+  /// 不用悬浮层——悬浮层到点后要把入口「插进」列表，下方卡片会跳一下。
+  /// 直接让头部高度从 0 长到 60，列表内容随高度下移，手感就是真的把入口
+  /// 拉下来；拉满后高度固定，之后才轮到第二层的刷新进度。
+  Widget _buildRevealingShortcutPills() {
+    final progress = _pillPullProgress;
+    if (progress <= 0) {
+      return const SizedBox.shrink();
+    }
+    if (progress >= 1) {
+      return _buildShortcutPills();
+    }
+    return ClipRect(
+      child: Align(
+        alignment: Alignment.topCenter,
+        heightFactor: progress,
+        child: Opacity(
+          opacity: progress,
+          child: _buildShortcutPills(),
+        ),
+      ),
+    );
+  }
+
+  /// 第二层：拉满第一层之后才出现的刷新提示。
+  Widget _buildPullRefreshIndicator() {
+    final progress = _refreshPullProgress;
+    final refreshing = _isRefreshing;
+    if (!refreshing && progress <= 0) {
+      return const SizedBox.shrink();
+    }
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final fillColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
+    final textColor =
+        isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
+    final accent =
+        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
+    final armed = progress >= 1;
+
+    return Positioned(
+      // 让开已经展开的快捷入口，落在它下面
+      top: _shortcutPillsHeight + 2,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: fillColor,
+            borderRadius: BorderRadius.circular(17),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDarkMode ? 0.32 : 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (refreshing)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(accent),
+                  ),
+                )
+              else
+                Transform.rotate(
+                  angle: math.pi * progress,
+                  child: Icon(
+                    Icons.arrow_downward_rounded,
+                    size: 15,
+                    color: accent,
+                  ),
+                ),
+              const SizedBox(width: 8),
+              Text(
+                refreshing ? '正在刷新…' : (armed ? '松开刷新' : '继续下拉'),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  color: textColor.withValues(alpha: 0.85),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// 首页顶部的三个快捷入口。
@@ -1897,273 +2066,254 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       // 只有一个 ListView，不会和 AnimatedSwitcher 抢 controller
                       child: FadeTransition(
                         opacity: _feedFade,
-                        // 第一次下拉只负责把三个快捷入口露出来，不动数据。
-                        //
-                        // 早先只挂在 RefreshIndicator.onRefresh 上：下拉幅度没
-                        // 到触发阈值时 onRefresh 根本不执行，用户看到的就是
-                        // 「拉了一下，什么都没发生」。这里直接看顶部的过卷，
-                        // 手指一压下去（-12px）就露出，阈值比刷新小得多。
+                        // 下拉分两层，判定都收在 _handleFeedScrollNotification：
+                        // 第一层跟着手指把快捷入口拉下来，拉满后才开始累计
+                        // 刷新进度，松手时看进度决定刷新还是回弹。
                         child: NotificationListener<ScrollNotification>(
-                          onNotification: (notification) {
-                            if (!_shortcutPillsRevealed &&
-                                !_isSearchActive &&
-                                notification is OverscrollNotification &&
-                                notification.overscroll < -12) {
-                              setState(() => _shortcutPillsRevealed = true);
-                            }
-                            return false;
-                          },
-                          child: RefreshIndicator(
-                            onRefresh: _refreshNotes,
-                            color: AppTheme.primaryColor,
-                            child: SlidableAutoCloseBehavior(
-                              // 🔥 类似微信：同时只能打开一个侧滑项
-                              child: notes.isEmpty
-                                  ? ListView(
-                                      physics:
-                                          const AlwaysScrollableScrollPhysics(),
-                                      children: [
-                                        // 空态下也要给快捷入口：虽然这会儿没有
-                                        // 笔记可刷，但周期回顾 / 洞察仍能打开
-                                        if (!_isSearchActive &&
-                                            _shortcutPillsRevealed)
-                                          _buildShortcutPills(),
-                                        if (!_isSearchActive)
-                                          _buildNotificationBanner(),
-                                        // 固定高度只给需要撑满首屏的空态/加载态；
-                                        // 欢迎卡片必须按内容自适应，否则小屏/大字号下
-                                        // 会被「屏幕高度 - 240」压出 RenderFlex 溢出
-                                        if (showSearchSummary &&
-                                            _isSearchLoading)
-                                          SizedBox(
-                                            height: MediaQuery.of(context)
-                                                    .size
-                                                    .height -
-                                                240,
-                                            child: _buildSearchLoadingState(),
-                                          )
-                                        else if (showSearchSummary)
-                                          SizedBox(
-                                            height: MediaQuery.of(context)
-                                                    .size
-                                                    .height -
-                                                240,
-                                            child: _buildSearchEmptyState(
-                                              searchQuery,
-                                            ),
-                                          )
-                                        else if (_isSearchActive)
-                                          SizedBox(
-                                            height: MediaQuery.of(context)
-                                                    .size
-                                                    .height -
-                                                240,
-                                            child: _buildEmptyState(),
-                                          )
-                                        // 首屏数据没就绪时给骨架，别先闪一条「欢迎笔记」
-                                        else if (!appProvider.isInitialized)
-                                          _buildFeedSkeleton()
-                                        // 筛选态还没查到结果：继续给骨架，别闪欢迎卡片
-                                        else if (feed.isMediaFilterLoading)
-                                          _buildFeedSkeleton()
-                                        // 筛出来是空的：明确告诉用户这个口径下没有笔记，
-                                        // 而不是落到「欢迎笔记」（那是给全新用户的）
-                                        else if (appProvider
-                                            .isMediaFilterActive)
-                                          _buildMediaFilterEmptyState()
-                                        // 确认本地一条笔记都没有时才展示欢迎笔记
-                                        else
-                                          _buildWelcomeNoteCard(),
-                                      ],
-                                    )
-                                  : ListView.builder(
-                                      controller:
-                                          _scrollController, // 🚀 添加滚动控制器
-                                      physics:
-                                          const AlwaysScrollableScrollPhysics(), // 🎯 确保下拉刷新可用
-                                      itemCount: notes.length +
-                                          3, // +1头部 +1加载指示器 +1底部间距
-                                      padding: EdgeInsets.zero,
-                                      itemBuilder: (context, index) {
-                                        // 第一个item是「那年今日」+ 通知栏 / 搜索结果摘要
-                                        if (index == 0) {
-                                          // 头部整块换：搜索摘要 ↔ 那年今日/通知。
-                                          // 竖向 SizeTransition 让高度跟着收放，否则
-                                          // 摘要一出现，下面所有卡片会瞬移一段。
-                                          return AnimatedSwitcher(
-                                            duration: const Duration(
-                                              milliseconds: 180,
-                                            ),
-                                            switchInCurve: Curves.easeOutCubic,
-                                            switchOutCurve: Curves.easeInCubic,
-                                            transitionBuilder:
-                                                (child, animation) =>
-                                                    FadeTransition(
-                                              opacity: animation,
-                                              child: SizeTransition(
-                                                sizeFactor: animation,
-                                                child: child,
-                                              ),
-                                            ),
-                                            child: showSearchSummary
-                                                ? KeyedSubtree(
-                                                    key: const ValueKey(
-                                                      'feed_search_summary',
-                                                    ),
-                                                    child: _buildSearchSummary(
-                                                      notes.length,
-                                                    ),
-                                                  )
-                                                : KeyedSubtree(
-                                                    key: const ValueKey(
-                                                      'feed_headers',
-                                                    ),
-                                                    child: Column(
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        // 三个快捷入口常驻列表顶部，
-                                                        // 搜索态收起来（那时用户在找
-                                                        // 具体一条，不需要入口）
-                                                        if (!_isSearchActive &&
-                                                            _shortcutPillsRevealed)
-                                                          _buildShortcutPills(),
-                                                        // 有图片 / 有视频是「只看某类
-                                                        // 媒体」的视图，那条横幅展示的
-                                                        // 是任意旧笔记，混进去等于筛选
-                                                        // 失效。
-                                                        if (appProvider
-                                                                .mediaFilter ==
-                                                            NoteMediaFilter.all)
-                                                          _buildOnThisDayCard(),
-                                                        _buildNotificationBanner(),
-                                                      ],
-                                                    ),
-                                                  ),
-                                          );
-                                        }
-
-                                        // 倒数第二个item是加载更多指示器
-                                        if (index == notes.length + 1) {
-                                          if (_isSearchActive) {
-                                            return const SizedBox.shrink();
-                                          }
-                                          return _buildLoadMoreIndicator(
-                                            appProvider,
-                                          );
-                                        }
-
-                                        // 最后一个item是底部间距
-                                        // 🧊 底部玻璃输入条会盖住一段，留足空间让最后一条
-                                        // 笔记能滚到条下方，模糊叠加才看得见
-                                        if (index == notes.length + 2) {
-                                          return const SizedBox(height: 120);
-                                        }
-
-                                        final noteIndex =
-                                            index - 1; // 调整索引，因为第一个是通知栏
-
-                                        final note = notes[noteIndex];
-                                        return RepaintBoundary(
-                                          key: ValueKey(
-                                            note.id,
-                                          ), // 🚀 添加key避免不必要的重建
-                                          child: SlideOutRow(
-                                            key: ValueKey('exit_${note.id}'),
-                                            leaving: _leavingNoteIds.contains(
-                                              note.id,
-                                            ),
-                                            onExited: () =>
-                                                _handleNoteExitFinished(
-                                              note.id,
-                                            ),
-                                            child: NoteCard(
-                                              key: ValueKey(
-                                                'card_${note.id}',
-                                              ), // 🚀 为NoteCard添加key
-                                              note:
-                                                  note, // 🚀 直接传递Note对象，避免内部查找
-                                              highlightQuery: showSearchSummary
-                                                  ? searchQuery
-                                                  : null,
-                                              // 卡片里「⋯」菜单的删除先播退出动效
-                                              playDeleteExit: () =>
-                                                  _playNoteExit(note.id),
-                                              onEdit: () {
-                                                // 🚀 编辑笔记（静默）
-                                                _showEditNoteForm(note);
-                                              },
-                                              onDelete: () {
-                                                // 与「⋯」菜单收敛到同一条路径：
-                                                // 二次确认 + 行退出 + 原生提示条。
-                                                NoteActionsUi.deleteNote(
-                                                  context: context,
-                                                  note: note,
-                                                  playExit: () =>
-                                                      _playNoteExit(note.id),
-                                                  onDeleted: () {
-                                                    // 搜索结果不随 provider 通知
-                                                    // 变化，要自己摘掉。
-                                                    if (_isSearchActive) {
-                                                      setState(() {
-                                                        _searchResults
-                                                            .removeWhere(
-                                                          (r) =>
-                                                              r.id == note.id,
-                                                        );
-                                                      });
-                                                    }
-                                                    _finishNoteDelete(
-                                                      note.id,
-                                                      Provider.of<AppProvider>(
-                                                        context,
-                                                        listen: false,
-                                                      ),
-                                                    );
-                                                  },
-                                                );
-                                              },
-                                              onPin: () async {
-                                                final appProvider =
-                                                    Provider.of<AppProvider>(
-                                                  context,
-                                                  listen: false,
-                                                );
-                                                // 🔥 保存切换前的状态
-                                                final willPin = !note.isPinned;
-                                                await appProvider
-                                                    .togglePinStatus(note);
-                                                if (context.mounted) {
-                                                  SnackBarUtils.showSuccess(
-                                                    context,
-                                                    // 🔥 显示切换后的状态
-                                                    willPin
-                                                        ? (AppLocalizationsSimple
-                                                                .of(
-                                                              context,
-                                                            )?.pinned ??
-                                                            '已置顶')
-                                                        : (AppLocalizationsSimple
-                                                                .of(
-                                                              context,
-                                                            )?.unpinned ??
-                                                            '已取消置顶'),
-                                                  );
-                                                }
-                                              },
+                          onNotification: _handleFeedScrollNotification,
+                          child: SlidableAutoCloseBehavior(
+                            // 🔥 类似微信：同时只能打开一个侧滑项
+                            child: notes.isEmpty
+                                ? ListView(
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
+                                    children: [
+                                      // 空态下也要给快捷入口：虽然这会儿没有
+                                      // 笔记可刷，但周期回顾 / 洞察仍能打开
+                                      if (!_isSearchActive)
+                                        _buildRevealingShortcutPills(),
+                                      if (!_isSearchActive)
+                                        _buildNotificationBanner(),
+                                      // 固定高度只给需要撑满首屏的空态/加载态；
+                                      // 欢迎卡片必须按内容自适应，否则小屏/大字号下
+                                      // 会被「屏幕高度 - 240」压出 RenderFlex 溢出
+                                      if (showSearchSummary && _isSearchLoading)
+                                        SizedBox(
+                                          height: MediaQuery.of(context)
+                                                  .size
+                                                  .height -
+                                              240,
+                                          child: _buildSearchLoadingState(),
+                                        )
+                                      else if (showSearchSummary)
+                                        SizedBox(
+                                          height: MediaQuery.of(context)
+                                                  .size
+                                                  .height -
+                                              240,
+                                          child: _buildSearchEmptyState(
+                                            searchQuery,
+                                          ),
+                                        )
+                                      else if (_isSearchActive)
+                                        SizedBox(
+                                          height: MediaQuery.of(context)
+                                                  .size
+                                                  .height -
+                                              240,
+                                          child: _buildEmptyState(),
+                                        )
+                                      // 首屏数据没就绪时给骨架，别先闪一条「欢迎笔记」
+                                      else if (!appProvider.isInitialized)
+                                        _buildFeedSkeleton()
+                                      // 筛选态还没查到结果：继续给骨架，别闪欢迎卡片
+                                      else if (feed.isMediaFilterLoading)
+                                        _buildFeedSkeleton()
+                                      // 筛出来是空的：明确告诉用户这个口径下没有笔记，
+                                      // 而不是落到「欢迎笔记」（那是给全新用户的）
+                                      else if (appProvider.isMediaFilterActive)
+                                        _buildMediaFilterEmptyState()
+                                      // 确认本地一条笔记都没有时才展示欢迎笔记
+                                      else
+                                        _buildWelcomeNoteCard(),
+                                    ],
+                                  )
+                                : ListView.builder(
+                                    controller: _scrollController, // 🚀 添加滚动控制器
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(), // 🎯 确保下拉刷新可用
+                                    itemCount:
+                                        notes.length + 3, // +1头部 +1加载指示器 +1底部间距
+                                    padding: EdgeInsets.zero,
+                                    itemBuilder: (context, index) {
+                                      // 第一个item是「那年今日」+ 通知栏 / 搜索结果摘要
+                                      if (index == 0) {
+                                        // 头部整块换：搜索摘要 ↔ 那年今日/通知。
+                                        // 竖向 SizeTransition 让高度跟着收放，否则
+                                        // 摘要一出现，下面所有卡片会瞬移一段。
+                                        return AnimatedSwitcher(
+                                          duration: const Duration(
+                                            milliseconds: 180,
+                                          ),
+                                          switchInCurve: Curves.easeOutCubic,
+                                          switchOutCurve: Curves.easeInCubic,
+                                          transitionBuilder:
+                                              (child, animation) =>
+                                                  FadeTransition(
+                                            opacity: animation,
+                                            child: SizeTransition(
+                                              sizeFactor: animation,
+                                              child: child,
                                             ),
                                           ),
+                                          child: showSearchSummary
+                                              ? KeyedSubtree(
+                                                  key: const ValueKey(
+                                                    'feed_search_summary',
+                                                  ),
+                                                  child: _buildSearchSummary(
+                                                    notes.length,
+                                                  ),
+                                                )
+                                              : KeyedSubtree(
+                                                  key: const ValueKey(
+                                                    'feed_headers',
+                                                  ),
+                                                  child: Column(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      // 三个快捷入口常驻列表顶部，
+                                                      // 搜索态收起来（那时用户在找
+                                                      // 具体一条，不需要入口）
+                                                      if (!_isSearchActive)
+                                                        _buildRevealingShortcutPills(),
+                                                      // 有图片 / 有视频是「只看某类
+                                                      // 媒体」的视图，那条横幅展示的
+                                                      // 是任意旧笔记，混进去等于筛选
+                                                      // 失效。
+                                                      if (appProvider
+                                                              .mediaFilter ==
+                                                          NoteMediaFilter.all)
+                                                        _buildOnThisDayCard(),
+                                                      _buildNotificationBanner(),
+                                                    ],
+                                                  ),
+                                                ),
                                         );
-                                      },
-                                    ), // ListView.builder 结束
-                            ), // SlidableAutoCloseBehavior 结束
-                          ), // RefreshIndicator 结束
+                                      }
+
+                                      // 倒数第二个item是加载更多指示器
+                                      if (index == notes.length + 1) {
+                                        if (_isSearchActive) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return _buildLoadMoreIndicator(
+                                          appProvider,
+                                        );
+                                      }
+
+                                      // 最后一个item是底部间距
+                                      // 🧊 底部玻璃输入条会盖住一段，留足空间让最后一条
+                                      // 笔记能滚到条下方，模糊叠加才看得见
+                                      if (index == notes.length + 2) {
+                                        return const SizedBox(height: 120);
+                                      }
+
+                                      final noteIndex =
+                                          index - 1; // 调整索引，因为第一个是通知栏
+
+                                      final note = notes[noteIndex];
+                                      return RepaintBoundary(
+                                        key: ValueKey(
+                                          note.id,
+                                        ), // 🚀 添加key避免不必要的重建
+                                        child: SlideOutRow(
+                                          key: ValueKey('exit_${note.id}'),
+                                          leaving: _leavingNoteIds.contains(
+                                            note.id,
+                                          ),
+                                          onExited: () =>
+                                              _handleNoteExitFinished(
+                                            note.id,
+                                          ),
+                                          child: NoteCard(
+                                            key: ValueKey(
+                                              'card_${note.id}',
+                                            ), // 🚀 为NoteCard添加key
+                                            note: note, // 🚀 直接传递Note对象，避免内部查找
+                                            highlightQuery: showSearchSummary
+                                                ? searchQuery
+                                                : null,
+                                            // 卡片里「⋯」菜单的删除先播退出动效
+                                            playDeleteExit: () =>
+                                                _playNoteExit(note.id),
+                                            onEdit: () {
+                                              // 🚀 编辑笔记（静默）
+                                              _showEditNoteForm(note);
+                                            },
+                                            onDelete: () {
+                                              // 与「⋯」菜单收敛到同一条路径：
+                                              // 二次确认 + 行退出 + 原生提示条。
+                                              NoteActionsUi.deleteNote(
+                                                context: context,
+                                                note: note,
+                                                playExit: () =>
+                                                    _playNoteExit(note.id),
+                                                onDeleted: () {
+                                                  // 搜索结果不随 provider 通知
+                                                  // 变化，要自己摘掉。
+                                                  if (_isSearchActive) {
+                                                    setState(() {
+                                                      _searchResults
+                                                          .removeWhere(
+                                                        (r) => r.id == note.id,
+                                                      );
+                                                    });
+                                                  }
+                                                  _finishNoteDelete(
+                                                    note.id,
+                                                    Provider.of<AppProvider>(
+                                                      context,
+                                                      listen: false,
+                                                    ),
+                                                  );
+                                                },
+                                              );
+                                            },
+                                            onPin: () async {
+                                              final appProvider =
+                                                  Provider.of<AppProvider>(
+                                                context,
+                                                listen: false,
+                                              );
+                                              // 🔥 保存切换前的状态
+                                              final willPin = !note.isPinned;
+                                              await appProvider
+                                                  .togglePinStatus(note);
+                                              if (context.mounted) {
+                                                SnackBarUtils.showSuccess(
+                                                  context,
+                                                  // 🔥 显示切换后的状态
+                                                  willPin
+                                                      ? (AppLocalizationsSimple
+                                                              .of(
+                                                            context,
+                                                          )?.pinned ??
+                                                          '已置顶')
+                                                      : (AppLocalizationsSimple
+                                                              .of(
+                                                            context,
+                                                          )?.unpinned ??
+                                                          '已取消置顶'),
+                                                );
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ), // ListView.builder 结束
+                          ), // SlidableAutoCloseBehavior 结束
                         ), // NotificationListener 结束
                       ), // FadeTransition 结束
                     ), // GestureDetector 结束 - 点击空白处退出搜索
 
-                    // 🧊 不再铺「背景色 → 透明」的底部渐隐层：
-                    // 那层铺在列表之上、底栏之下且底部全不透明，会把
+                    // 第二层：拉满快捷入口之后才出现的刷新提示。
+                    // 它必须浮在列表之上，否则追加高度会让卡片跟着跳。
+                    if (!_isSearchActive) _buildPullRefreshIndicator(),
+
+                    // 🧊 不再铺「背景色 → 透明」的底部渐隐层：                    // 那层铺在列表之上、底栏之下且底部全不透明，会把
                     // BackdropFilter 糊到的内容抹平成纯色，玻璃感被抽空。
                     // iOS / 酷安的做法是让内容直接穿到悬浮胶囊背后，
                     // 由 blur 自己收敛（列表末尾已留 120dp 滚动余量）。

@@ -310,6 +310,66 @@ void main() {
       expect(context.sources.single.noteId, 'text');
     });
   });
+
+  group('NotesContextBuilder.buildForInsight 默认排除标签', () {
+    test('阅读同步与周报不进洞察，正文里的标签同样认', () {
+      final context = NotesContextBuilder.buildForInsight([
+        _note(
+          id: 'normal',
+          content: '今天想明白一件事：先把注意力收回来，别急着做决定。',
+          createdAt: DateTime(2026, 1, 8),
+        ),
+        _note(
+          id: 'wr',
+          content: '这是一段划线摘录 #微信读书',
+          createdAt: DateTime(2026, 1, 7),
+        ),
+        _note(
+          id: 'read',
+          content: '这是一条阅读记录摘录',
+          tags: const <String>['阅读记录'],
+          createdAt: DateTime(2026, 1, 6),
+        ),
+        _note(
+          id: 'finished',
+          content: '这本书终于读完了，记一笔档案',
+          tags: const <String>['读完'],
+          createdAt: DateTime(2026, 1, 5),
+        ),
+        _note(
+          id: 'weekly',
+          content: '这一周的阅读时长统计',
+          tags: const <String>['周报'],
+          createdAt: DateTime(2026, 1, 4),
+        ),
+      ]);
+
+      expect(context.noteCount, 1);
+      expect(context.sources.single.noteId, 'normal');
+      expect(context.text, isNot(contains('微信读书')));
+      expect(context.text, isNot(contains('阅读记录')));
+    });
+
+    test('传空集合可以关掉默认排除', () {
+      final context = NotesContextBuilder.buildForInsight(
+        [
+          _note(
+            id: 'normal',
+            content: '今天想明白一件事：先把注意力收回来，别急着做决定。',
+            createdAt: DateTime(2026, 1, 8),
+          ),
+          _note(
+            id: 'wr',
+            content: '这是一段划线摘录 #微信读书',
+            createdAt: DateTime(2026, 1, 7),
+          ),
+        ],
+        excludedTags: const <String>{},
+      );
+
+      expect(context.noteCount, 2);
+    });
+  });
 }
 
 Note _note({

@@ -121,6 +121,16 @@ class NotesContextBuilder {
   /// 每条的编号 / 日期 / 标签 / 换行的固定开销，估算预算是否够用。
   static const int _lineOverhead = 24;
 
+  /// 洞察默认跳过的标签：阅读同步与周报是「摘录/统计过往」，不是这个人
+  /// 自己的表达，混进样本会把报告写成读书摘要。只作用于洞察取样，
+  /// 「问笔记」等其他上下文照常能查到这些笔记。
+  static const Set<String> defaultExcludedInsightTags = <String>{
+    '微信读书',
+    '阅读记录',
+    '读完',
+    '周报',
+  };
+
   /// 时间权重：一个季度桶每轮轮转能拿几个名额。
   ///
   /// flomo 的洞察也是以最近几年的记录为主，所以近桶权重高（每轮 3 个）；
@@ -274,8 +284,14 @@ class NotesContextBuilder {
     int maxCharacters = defaultMaxCharacters,
     int maxNotes = defaultMaxNotes,
     int perNoteLimit = NotesContextBuilder.perNoteLimit,
+    Set<String> excludedTags = defaultExcludedInsightTags,
   }) {
-    final entries = _prepare(notes);
+    final candidates = excludedTags.isEmpty
+        ? notes
+        : notes
+            .where((note) => !_hasAnyTag(note, excludedTags))
+            .toList(growable: false);
+    final entries = _prepare(candidates);
     // 条数没超限就按原样给，不必为了分层打乱时间顺序
     if (entries.length <= maxNotes) {
       return _render(
@@ -508,6 +524,22 @@ class NotesContextBuilder {
     text = text.replaceAll(RegExp(r'[ \t]+'), ' ');
     text = text.replaceAll(RegExp(r'\n{3,}'), '\n\n');
     return text.trim();
+  }
+
+  /// 标签既看结构化字段也看正文：笔记可能由旧版本导入而没回填 tags，
+  /// 正文里的 `#标签` 才是最终事实。统一剥掉前导 # 再比。
+  static bool _hasAnyTag(Note note, Set<String> tags) {
+    final noteTags = <String>{
+      ...note.tags,
+      ...Note.extractTagsFromContent(note.content),
+    };
+    for (final tag in noteTags) {
+      final plain = tag.startsWith('#') ? tag.substring(1) : tag;
+      if (tags.contains(plain)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static List<_Entry> _prepare(List<Note> notes) {

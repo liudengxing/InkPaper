@@ -82,16 +82,61 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   /// 结果页里「推理过程」是否展开（默认收起，想看再点）。
   bool _reasoningExpanded = false;
 
+  /// 生成态的滚动控制器。
+  ///
+  /// 思考过程/正文是不断往下长的长文本，不跟着滚的话用户永远停在最上面，
+  /// 只看得见最开始那几句，得自己一次次往下拽。
+  final ScrollController _liveScrollController = ScrollController();
+
+  /// 是否跟着输出自动滚到底。
+  ///
+  /// 用户主动往上翻看前文时置 false，等他滑回底部再自动恢复——否则每 140ms
+  /// 一次的对齐会把他正在读的那段顶走。
+  bool _liveFollow = true;
+
   @override
   void initState() {
     super.initState();
+    _liveScrollController.addListener(_handleLiveScroll);
     _loadLenses();
   }
 
   @override
   void dispose() {
     _liveFlush?.cancel();
+    _liveScrollController.removeListener(_handleLiveScroll);
+    _liveScrollController.dispose();
     super.dispose();
+  }
+
+  void _handleLiveScroll() {
+    if (!_liveScrollController.hasClients) {
+      return;
+    }
+    final position = _liveScrollController.position;
+    // 距底 12px 以内算「正在看最新」；再往上就说明用户在读旧内容。
+    _liveFollow = position.pixels >= position.maxScrollExtent - 12;
+  }
+
+  /// 内容增长后把视图对齐到最新一行。
+  ///
+  /// 必须等这一帧画完再滚：setState 里刚改的是文本，新的 maxScrollExtent
+  /// 要在布局之后才拿得到。用 jumpTo 而不是 animateTo——140ms 一次的刷新
+  /// 频率下动画会被不断打断，看起来反而一顿一顿的。
+  void _scrollLiveToBottom() {
+    if (!_liveFollow) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_liveFollow) {
+        return;
+      }
+      final controller = _liveScrollController;
+      if (!controller.hasClients) {
+        return;
+      }
+      controller.jumpTo(controller.position.maxScrollExtent);
+    });
   }
 
   Future<void> _loadLenses() async {
@@ -180,6 +225,11 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     _liveContent.clear();
     _liveReasoningText = '';
     _liveContentText = '';
+    // 每次重新生成都从头跟随，并从顶部开始，别继承上一次的滚动位置。
+    _liveFollow = true;
+    if (_liveScrollController.hasClients) {
+      _liveScrollController.jumpTo(0);
+    }
     _liveFlush?.cancel();
     _liveFlush = Timer.periodic(const Duration(milliseconds: 140), (_) {
       if (!mounted) {
@@ -194,6 +244,7 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
         _liveReasoningText = reasoning;
         _liveContentText = content;
       });
+      _scrollLiveToBottom();
     });
   }
 
@@ -612,6 +663,7 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     final hasContent = content.isNotEmpty;
 
     return ListView(
+      controller: _liveScrollController,
       padding: _pagePadding,
       children: [
         const SizedBox(height: 8),

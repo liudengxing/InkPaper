@@ -289,6 +289,52 @@ class AppConfig {
         LEGACY_DEEPSEEK_API_URLS.contains(normalized);
   }
 
+  /// 规整用户粘贴进来的 API Key。
+  ///
+  /// 复制粘贴常带的几种污染，服务端一律只回一句「密钥无效」，用户根本
+  /// 看不出是多了个字符：
+  /// - 前后空格、换行、不换行空格（U+00A0）、全角空格（U+3000）
+  /// - 零宽字符（U+200B~200D、U+FEFF）——`trim()` 不认它们
+  /// - 整串被引号包住（从 JSON、网页、表格里拷的）
+  /// - 把 `Bearer ` 前缀一起粘了进来
+  static String sanitizeApiKey(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return '';
+    }
+    var value = raw
+        .replaceAll(RegExp('[\u200B-\u200D\uFEFF]'), '')
+        .replaceAll(RegExp(r'\s'), '')
+        .replaceAll('\u3000', '');
+
+    // 先剥 Bearer：`Bearer "sk-xxx"` 去掉空白后变成 `bearer"sk-xxx"`，
+    // 顺序反了就只剥得掉一边的引号
+    if (value.toLowerCase().startsWith('bearer')) {
+      value = value
+          .substring('bearer'.length)
+          .replaceAll(RegExp(r'\s'), '')
+          .replaceAll('\u3000', '');
+    }
+
+    // 引号可能配成对，也可能只粘到一半，前后都剥
+    const quotes = ['"', "'", '`', '“', '”', '‘', '’', '「', '」', '《', '》'];
+    var stripped = true;
+    while (stripped && value.isNotEmpty) {
+      stripped = false;
+      for (final quote in quotes) {
+        if (value.startsWith(quote)) {
+          value = value.substring(quote.length);
+          stripped = true;
+        }
+        if (value.isNotEmpty && value.endsWith(quote)) {
+          value = value.substring(0, value.length - quote.length);
+          stripped = true;
+        }
+      }
+    }
+
+    return value.replaceAll(RegExp(r'\s'), '');
+  }
+
   // API 服务预设
   static const String AI_PRESET_DEEPSEEK = 'deepseek';
   static const String AI_PRESET_CUSTOM = 'custom';

@@ -1523,7 +1523,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     // 🔧 改进：使用当前输入框的值进行测试，而不是已保存的配置
     // 这样用户可以在保存前测试新配置，符合大厂最佳实践
     final currentApiUrl = _apiUrlController.text.trim();
-    final currentApiKey = _apiKeyController.text.trim();
+    // 和保存走同一套清洗：免得「测试能过、保存下来的却是带引号的串」
+    final currentApiKey = AppConfig.sanitizeApiKey(_apiKeyController.text);
     final currentModel = _modelController.text.trim();
 
     if (currentApiUrl.isEmpty) {
@@ -1578,9 +1579,14 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             ),
           );
         } else {
-          SnackBarUtils.showError(
-            context,
-            error ?? _text('连接失败', 'Connection failed'),
+          // 失败原因塞进对话框：服务端会回显被拒 key 的尾巴（`****abcd`），
+          // SnackBar 一行显示不全，用户没法判断是「多了引号」还是「少了
+          // Bearer」。顺带把这次真正发出去的地址/模型/密钥长度摊开。
+          await _showConnectionFailureDialog(
+            message: error ?? _text('连接失败', 'Connection failed'),
+            apiUrl: currentApiUrl,
+            model: currentModel,
+            apiKey: currentApiKey,
           );
         }
       }
@@ -1592,6 +1598,82 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         );
       }
     }
+  }
+
+  /// 「测试连接」失败的详情弹窗。
+  ///
+  /// 只显示密钥长度与末尾四位：既能判断 key 是不是被截断，又不会把完整
+  /// 密钥摊在屏幕上。
+  Future<void> _showConnectionFailureDialog({
+    required String message,
+    required String apiUrl,
+    required String model,
+    required String apiKey,
+  }) async {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final textColor =
+        isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
+    final labelColor = isDarkMode
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
+    final maskedKey = apiKey.length > 4
+        ? '****${apiKey.substring(apiKey.length - 4)}'
+        : '****';
+
+    final rows = <(String, String)>[
+      (_text('请求地址', 'Endpoint'), apiUrl),
+      (_text('模型', 'Model'), model),
+      (
+        _text('密钥', 'API key'),
+        _text(
+          '长度 ${apiKey.length}，末尾 $maskedKey',
+          'length ${apiKey.length}, tail $maskedKey',
+        ),
+      ),
+      (_text('服务端返回', 'Response'), message),
+    ];
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: isDarkMode ? AppTheme.darkCardColor : Colors.white,
+        title: Text(
+          _text('连接失败', 'Connection failed'),
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final row in rows) ...[
+                Text(
+                  row.$1,
+                  style: TextStyle(fontSize: 12, color: labelColor),
+                ),
+                const SizedBox(height: 2),
+                SelectableText(
+                  row.$2,
+                  style:
+                      TextStyle(fontSize: 13, height: 1.45, color: textColor),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(_text('知道了', 'OK')),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _testIflytekConnection() async {
@@ -2252,23 +2334,21 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     );
   }
 
-  // 🔧 清理和验证 API Key（防止编码问题）
+  // 🔧 清理和验证 API Key（防止粘贴污染：零宽字符、引号、Bearer 前缀）
   String? _cleanAndValidateApiKey(String apiKey) {
     if (apiKey.isEmpty) {
       return null;
     }
 
-    // 移除所有不可见字符（空格、换行、制表符等）
-    final cleaned = apiKey.replaceAll(RegExp(r'\s'), '');
+    final cleaned = AppConfig.sanitizeApiKey(apiKey);
 
-    // 检查是否包含非 ASCII 字符
-    if (cleaned.runes.any((rune) => rune > 127)) {
-      throw const FormatException('API Key 包含非法字符，请重新复制粘贴');
-    }
-
-    // 检查是否为空
     if (cleaned.isEmpty) {
       throw const FormatException('API Key 不能为空');
+    }
+
+    // 非 ASCII 进不了请求头，服务端只会回「密钥无效」，不如在这里说清楚
+    if (cleaned.runes.any((rune) => rune > 127)) {
+      throw const FormatException('API Key 包含非法字符，请重新复制粘贴');
     }
 
     return cleaned;

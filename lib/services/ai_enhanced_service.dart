@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/services/ai_insight_engine.dart';
 
@@ -66,7 +67,7 @@ Flutter
             Uri.parse('$apiUrl/chat/completions'),
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer $apiKey',
+              'Authorization': 'Bearer ${AppConfig.sanitizeApiKey(apiKey)}',
             },
             body: json.encode({
               'model': model,

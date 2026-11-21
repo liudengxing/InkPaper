@@ -57,6 +57,13 @@ class _FeedMenuChoice {
   final NoteMediaFilter? filter;
 }
 
+/// 三个快捷入口是否已经露出来过。
+///
+/// 首页不再默认摆出「AI 洞察 / 周期回顾 / 随机回顾」三颗胶囊：一进来就
+/// 是笔记本身。第一次下拉把它们露出来，之后下拉才是刷新笔记。放在模块级
+/// 是为了在同一次运行里记住——切页回来又藏起来，用户会以为是 bug。
+bool _shortcutPillsRevealed = false;
+
 class HomeScreen extends StatefulWidget {
   // 🔥 接收分享的内容
 
@@ -541,6 +548,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   // 刷新笔记数据
   Future<void> _refreshNotes() async {
+    // 第一次下拉＝把三个快捷入口露出来；从那以后下拉才是刷新笔记。
+    if (!_shortcutPillsRevealed) {
+      if (mounted) {
+        setState(() => _shortcutPillsRevealed = true);
+      }
+      return;
+    }
+
     if (_isRefreshing) {
       return;
     }
@@ -1594,133 +1609,132 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ),
             Expanded(
-              child: AnimatedSwitcher(
-                duration: _searchTransition,
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                // 原来是横向 SizeTransition：宽度从 0 拉满的过程中，里面的
-                // 标题文字和输入框会被一路压扁再撑开，像在挤牙膏。改成整块
-                // 淡入 + 6px 上浮，新旧两块同场交叉，谁也不会变形。
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 0.14),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
+              // 高度必须给死：搜索框 42、标题行约 36，交叉淡入的那 220ms 里
+              // 新旧两个 child 同时存在，Stack 按较高者撑开、随后又缩回去。
+              // 表现就是输入框先往下「弹一下」再落位——用户说的「不是一次
+              // 定位的」就是这个。外层钉死 42，切换期间高度恒定。
+              child: SizedBox(
+                height: 42,
+                child: AnimatedSwitcher(
+                  duration: _searchTransition,
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  // 只做淡入淡出，不再叠 6px 上浮：位移和上面的高度变化
+                  // 叠在一起时，输入框落位要分两段才完成。
+                  transitionBuilder: (child, animation) =>
+                      FadeTransition(opacity: animation, child: child),
+                  // 默认的 Stack 是居中的，标题得靠左
+                  layoutBuilder: (currentChild, previousChildren) => Stack(
+                    alignment: Alignment.centerLeft,
+                    children: <Widget>[
+                      ...previousChildren,
+                      if (currentChild != null) currentChild,
+                    ],
                   ),
-                ),
-                // 默认的 Stack 是居中的，标题得靠左
-                layoutBuilder: (currentChild, previousChildren) => Stack(
-                  alignment: Alignment.centerLeft,
-                  children: <Widget>[
-                    ...previousChildren,
-                    if (currentChild != null) currentChild,
-                  ],
-                ),
-                child: _isSearchActive
-                    ? Container(
-                        key: const ValueKey('home_search_field'),
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: cardColor,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isDarkMode
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : Colors.black.withValues(alpha: 0.06),
-                          ),
-                        ),
-                        child: TextField(
-                          controller: _searchController,
-                          focusNode: _searchFocusNode,
-                          textInputAction: TextInputAction.search,
-                          decoration: InputDecoration(
-                            hintText: AppLocalizationsSimple.of(context)
-                                    ?.searchNotes ??
-                                '搜索笔记',
-                            hintStyle: TextStyle(
-                              color: hintColor,
-                              fontSize: 15,
-                            ),
-                            prefixIcon: Icon(
-                              Icons.search,
-                              color: secondaryTextColor,
-                              size: 20,
-                            ),
-                            suffixIcon: _searchController.text.isEmpty
-                                ? null
-                                : IconButton(
-                                    tooltip: AppLocalizationsSimple.of(context)
-                                            ?.clear ??
-                                        '清除',
-                                    icon: Icon(
-                                      Icons.cancel_rounded,
-                                      color: secondaryTextColor.withValues(
-                                        alpha: 0.7,
-                                      ),
-                                      size: 18,
-                                    ),
-                                    onPressed: _clearSearchQuery,
-                                  ),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 10,
-                            ),
-                          ),
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 15,
-                            height: 1.25,
-                          ),
-                          onChanged: _handleSearchChanged,
-                        ),
-                      )
-                    : GestureDetector(
-                        key: const ValueKey('home_title'),
-                        onTap: _showFeedOptions,
-                        child: Container(
-                          key: _titleAnchorKey,
-                          // 文字与列表内容左边缘对齐，不再额外缩进
-                          padding: const EdgeInsets.only(
-                            right: 6,
-                            top: 6,
-                            bottom: 6,
-                          ),
+                  child: _isSearchActive
+                      ? Container(
+                          key: const ValueKey('home_search_field'),
+                          height: 42,
                           decoration: BoxDecoration(
-                            color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
+                            color: cardColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDarkMode
+                                  ? Colors.white.withValues(alpha: 0.08)
+                                  : Colors.black.withValues(alpha: 0.06),
+                            ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // 标题就是当前视图的名字：筛选态显示「有图片 / 有视频」，
-                              // 否则保持品牌名。用 Selector 只订阅筛选值，切换排序
-                              // 之类的通知不会连带重建标题。
-                              Selector<AppProvider, String>(
-                                selector: (_, provider) =>
-                                    provider.mediaFilter.name,
-                                builder: (context, _, __) => Text(
-                                  _feedTitleText(),
-                                  style: TextStyle(
-                                    color: textColor,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 18,
-                                  ),
-                                ),
+                          child: TextField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            textInputAction: TextInputAction.search,
+                            decoration: InputDecoration(
+                              hintText: AppLocalizationsSimple.of(context)
+                                      ?.searchNotes ??
+                                  '搜索笔记',
+                              hintStyle: TextStyle(
+                                color: hintColor,
+                                fontSize: 15,
                               ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                color: textColor,
+                              prefixIcon: Icon(
+                                Icons.search,
+                                color: secondaryTextColor,
                                 size: 20,
                               ),
-                            ],
+                              suffixIcon: _searchController.text.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip:
+                                          AppLocalizationsSimple.of(context)
+                                                  ?.clear ??
+                                              '清除',
+                                      icon: Icon(
+                                        Icons.cancel_rounded,
+                                        color: secondaryTextColor.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                        size: 18,
+                                      ),
+                                      onPressed: _clearSearchQuery,
+                                    ),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                              ),
+                            ),
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 15,
+                              height: 1.25,
+                            ),
+                            onChanged: _handleSearchChanged,
+                          ),
+                        )
+                      : GestureDetector(
+                          key: const ValueKey('home_title'),
+                          onTap: _showFeedOptions,
+                          child: Container(
+                            key: _titleAnchorKey,
+                            // 文字与列表内容左边缘对齐，不再额外缩进
+                            padding: const EdgeInsets.only(
+                              right: 6,
+                              top: 6,
+                              bottom: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // 标题就是当前视图的名字：筛选态显示「有图片 / 有视频」，
+                                // 否则保持品牌名。用 Selector 只订阅筛选值，切换排序
+                                // 之类的通知不会连带重建标题。
+                                Selector<AppProvider, String>(
+                                  selector: (_, provider) =>
+                                      provider.mediaFilter.name,
+                                  builder: (context, _, __) => Text(
+                                    _feedTitleText(),
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: textColor,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                ),
               ),
             ),
           ],
@@ -1906,6 +1920,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                     physics:
                                         const AlwaysScrollableScrollPhysics(),
                                     children: [
+                                      // 空态下也要给快捷入口：虽然这会儿没有
+                                      // 笔记可刷，但周期回顾 / 洞察仍能打开
+                                      if (!_isSearchActive &&
+                                          _shortcutPillsRevealed)
+                                        _buildShortcutPills(),
                                       if (!_isSearchActive)
                                         _buildNotificationBanner(),
                                       // 固定高度只给需要撑满首屏的空态/加载态；
@@ -2000,7 +2019,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                                       // 三个快捷入口常驻列表顶部，
                                                       // 搜索态收起来（那时用户在找
                                                       // 具体一条，不需要入口）
-                                                      if (!_isSearchActive)
+                                                      if (!_isSearchActive &&
+                                                          _shortcutPillsRevealed)
                                                         _buildShortcutPills(),
                                                       // 有图片 / 有视频是「只看某类
                                                       // 媒体」的视图，那条横幅展示的

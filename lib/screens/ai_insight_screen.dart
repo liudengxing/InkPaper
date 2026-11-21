@@ -473,19 +473,8 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
                       color: muted.withValues(alpha: 0.85),
                     ),
                   ),
-                  // 内置视角全部署名 InkPaper，是噪音；只给自定义视角留署名
-                  if (lens.author.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'by ${lens.authorLabel}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontSize: 10.5,
-                        color: muted.withValues(alpha: 0.55),
-                      ),
-                    ),
-                  ],
+                  // 行里不回署名：内置视角全是「by InkPaper」，纯噪音；
+                  // 自定义视角本来就只有自己建的，也用不着标「by 我」。
                 ],
               ),
             ),

@@ -477,7 +477,7 @@ class Translations {
     'noNotesToReview': {'zh': '没有可回顾的笔记', 'en': 'No notes to review'},
     'reviewSettings': {'zh': '回顾设置', 'en': 'Review Settings'},
     'reviewTimeRange': {'zh': '回顾时间范围：', 'en': 'Review Time Range:'},
-    'reviewNotesCount': {'zh': '回顾笔记数量：', 'en': 'Number of Notes:'},
+    'reviewNotesCount': {'zh': '每批条数：', 'en': 'Notes per Batch:'},
     'all': {'zh': '全部', 'en': 'All'},
     'days': {'zh': '天', 'en': 'days'},
     'items': {'zh': '条', 'en': ''},

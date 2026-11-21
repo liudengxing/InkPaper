@@ -24,6 +24,66 @@ void main() {
       );
 
   group('RandomReviewSelectorService', () {
+    test('excludes the previous batch when shuffling a new one', () {
+      final now = DateTime.now();
+      final notes = [
+        for (var i = 0; i < 10; i++)
+          note(
+            id: 'note-$i',
+            content: '第 $i 条',
+            updatedAt: now.subtract(Duration(hours: i)),
+          ),
+      ];
+
+      final first = RandomReviewSelectorService.select(
+        notes: notes,
+        reviewCount: 5,
+        random: Random(1),
+      );
+      final second = RandomReviewSelectorService.select(
+        notes: notes,
+        reviewCount: 5,
+        excludeIds: first.map((note) => note.id).toSet(),
+        random: Random(2),
+      );
+
+      expect(first, hasLength(5));
+      expect(second, hasLength(5));
+      expect(
+        second.map((note) => note.id).toSet().intersection(
+              first.map((note) => note.id).toSet(),
+            ),
+        isEmpty,
+        reason: '换一批必须整批换掉，不能和上一批重复',
+      );
+    });
+
+    test('falls back to the whole pool when everything is excluded', () {
+      final now = DateTime.now();
+      final notes = [
+        note(
+          id: 'only-a',
+          content: '库里只有两条',
+          updatedAt: now.subtract(const Duration(days: 1)),
+        ),
+        note(
+          id: 'only-b',
+          content: '第二条',
+          updatedAt: now.subtract(const Duration(days: 2)),
+        ),
+      ];
+
+      final selected = RandomReviewSelectorService.select(
+        notes: notes,
+        reviewCount: 5,
+        excludeIds: {'only-a', 'only-b'},
+        random: Random(0),
+      );
+
+      // 库比一批还小时不能返回空，否则下拉一次就永远空着
+      expect(selected, hasLength(2));
+    });
+
     test('uses the same time range and tag AND filtering as random review', () {
       final now = DateTime.now();
       final notes = [

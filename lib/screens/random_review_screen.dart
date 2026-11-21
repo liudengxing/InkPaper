@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
@@ -10,15 +10,12 @@ import 'package:inkpaper/services/random_review_selector_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
-import 'package:inkpaper/utils/todo_parser.dart';
-import 'package:inkpaper/widgets/memos_markdown_renderer.dart';
+import 'package:inkpaper/widgets/note_actions_ui.dart';
+import 'package:inkpaper/widgets/note_card.dart';
 import 'package:inkpaper/widgets/note_editor_page.dart';
-import 'package:inkpaper/widgets/note_more_options_menu.dart';
 import 'package:inkpaper/widgets/on_this_day_card.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class RandomReviewScreen extends StatefulWidget {
   const RandomReviewScreen({super.key});
@@ -29,17 +26,20 @@ class RandomReviewScreen extends StatefulWidget {
 
 class _RandomReviewScreenState extends State<RandomReviewScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final PageController _pageController = PageController();
   final Random _random = Random();
 
   List<Note> _reviewNotes = [];
 
-  /// 被置顶到第一条的「那年今日」笔记 id（用于在时间后加标签）。
-  String? _onThisDayNoteId;
+  /// 往年同月同日的笔记，作为信息流顶部的「那年今日」卡片（与首页同款）。
+  List<Note> _onThisDayNotes = const <Note>[];
+  bool _onThisDayDismissed = false;
 
   // 回顾设置
   int _reviewDays = 999999; // 默认回顾全部笔记
-  int _reviewCount = 1; // 默认回顾1条笔记
+
+  /// 每批条数。随机回顾现在是信息流：一屏一批 N 条，下拉换下一批。
+  int _reviewCount = 5;
+
   Set<String> _selectedTags = {}; // 选中的标签集合
 
   @override
@@ -52,18 +52,16 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
     });
   }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
   // 加载回顾笔记
-  Future<void> _loadReviewNotes() async {
+  //
+  // [excludeIds] 非空时是「换一批」：这批刚看过的先排掉再抽。
+  Future<void> _loadReviewNotes({
+    Set<String> excludeIds = const <String>{},
+  }) async {
     final appProvider = Provider.of<AppProvider>(context, listen: false);
     final allNotes = appProvider.notes;
 
-    // 🕰️ 往年同月同日的笔记：默认作为第一条回顾
+    // 🕰️ 往年同月同日的笔记：独立成顶部的「那年今日」卡片，不占用本批名额
     var onThisDayNotes = const <Note>[];
     try {
       onThisDayNotes = await appProvider.loadNotesOnThisDay();
@@ -74,73 +72,77 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
       return;
     }
 
-    if (allNotes.isEmpty && onThisDayNotes.isEmpty) {
-      setState(() {
-        _reviewNotes = [];
-        _onThisDayNoteId = null;
-      });
-      return;
-    }
-
     final selectedNotes = RandomReviewSelectorService.select(
       notes: allNotes,
       reviewDays: _reviewDays,
       reviewCount: _reviewCount,
       selectedTags: _selectedTags,
+      excludeIds: excludeIds,
       random: _random,
     );
 
-    final pinned = onThisDayNotes.isEmpty ? null : onThisDayNotes.first;
-    final merged = <Note>[
-      if (pinned != null) pinned,
-      ...selectedNotes.where((note) => note.id != pinned?.id),
-    ];
-
     setState(() {
-      _reviewNotes = merged;
-      _onThisDayNoteId = pinned?.id;
+      _reviewNotes = selectedNotes;
+      _onThisDayNotes = onThisDayNotes;
     });
-
-    // 重置翻页位置（防止上一次停留页影响“新的一批”体验）
-    if (_pageController.hasClients) {
-      _pageController.jumpToPage(0);
-    }
   }
 
-  // 🎯 切换笔记中指定索引的待办事项
-  void _toggleTodoInNote(Note note, int todoIndex) {
-    final todos = TodoParser.parseTodos(note.content);
-    if (todoIndex < 0 || todoIndex >= todos.length) {
-      if (kDebugMode) {
-        debugPrint('RandomReviewScreen: 待办事项索引越界 $todoIndex/${todos.length}');
-      }
+  /// 换一批：整批换掉（下拉刷新与 AppBar 的「换一批」共用同一条路径）
+  Future<void> _shuffleBatch() {
+    return _loadReviewNotes(
+      excludeIds: _reviewNotes.map((note) => note.id).toSet(),
+    );
+  }
+
+  void _dismissOnThisDay() {
+    setState(() {
+      _onThisDayDismissed = true;
+    });
+  }
+
+  /// 把某条笔记在 provider 里的最新对象换回本批。
+  ///
+  /// 本批存的是抽签那一刻的 Note 快照，编辑、置顶、勾待办之后 provider 里
+  /// 已经是新对象了，不换回来卡片会一直显示旧内容。
+  void _syncNoteFromProvider(String id) {
+    if (!mounted) {
       return;
     }
-
-    final todo = todos[todoIndex];
-    final newContent =
-        TodoParser.toggleTodoAtLine(note.content, todo.lineNumber);
-    if (kDebugMode) {
-      debugPrint(
-        'RandomReviewScreen: 切换待办事项 #$todoIndex 行${todo.lineNumber}: "${todo.text}"',
-      );
+    final batchIndex = _reviewNotes.indexWhere((note) => note.id == id);
+    if (batchIndex == -1) {
+      return;
     }
-
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    appProvider.updateNote(note, newContent).then((_) {
-      if (kDebugMode) {
-        debugPrint('RandomReviewScreen: 待办事项状态已更新');
-      }
-      _loadReviewNotes(); // 刷新笔记列表
-    }).catchError((error) {
-      if (kDebugMode) {
-        debugPrint('RandomReviewScreen: 更新待办事项失败: $error');
-      }
-      if (!mounted) {
-        return;
-      }
-      SnackBarUtils.showError(context, '更新失败');
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    final freshIndex = provider.notes.indexWhere((note) => note.id == id);
+    if (freshIndex == -1) {
+      return;
+    }
+    final fresh = provider.notes[freshIndex];
+    setState(() {
+      _reviewNotes[batchIndex] = fresh;
     });
+  }
+
+  /// 批次提示条：这一批有几条、怎么换下一批（下拉或右上角换一批）
+  Widget _buildBatchHeader(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final subtleColor =
+        isDarkMode ? AppTheme.darkTimestampColor : AppTheme.timestampColor;
+    final l10n = AppLocalizationsSimple.of(context);
+    final style = TextStyle(fontSize: 13, color: subtleColor);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      child: Row(
+        children: [
+          Text('${_reviewNotes.length} ${l10n?.noteUnit ?? '条'}', style: style),
+          const Spacer(),
+          Icon(Icons.arrow_downward_rounded, size: 13, color: subtleColor),
+          const SizedBox(width: 4),
+          Text(l10n?.refreshBatch ?? '换一批', style: style),
+        ],
+      ),
+    );
   }
 
   // 🔥 获取所有可用的标签
@@ -174,7 +176,9 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
           if (!mounted || !context.mounted) {
             return;
           }
-          await _loadReviewNotes(); // 重新加载笔记
+          // 改完原地换掉这一条，不重新抽签：整批换掉会让用户刚写的
+          // 那一段从眼前消失
+          _syncNoteFromProvider(note.id);
         } on Object catch (e) {
           if (mounted && context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -756,84 +760,11 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
     _scaffoldKey.currentState?.openDrawer();
   }
 
-  // 🔥 处理链接点击
-  Future<void> _handleLinkTap(String? href) async {
-    if (href == null || href.isEmpty) {
-      return;
-    }
-
-    try {
-      // 处理笔记内部引用 [[noteId]]
-      if (href.startsWith('[[') && href.endsWith(']]')) {
-        final noteId = href.substring(2, href.length - 2);
-        if (mounted) {
-          unawaited(Navigator.of(context).pushNamed('/note/$noteId'));
-        }
-        return;
-      }
-
-      // 处理外部链接
-      final uri = Uri.parse(href);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.error, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      '${AppLocalizationsSimple.of(context)?.cannotOpenLink ?? '无法打开链接'}: $href',
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          );
-        }
-      }
-    } on Object catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '${AppLocalizationsSimple.of(context)?.linkError ?? '链接错误'}: $e',
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor =
         isDarkMode ? AppTheme.darkBackgroundColor : AppTheme.backgroundColor;
-    final cardColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
     final textColor =
         isDarkMode ? AppTheme.darkTextPrimaryColor : Colors.black87;
     final secondaryTextColor = isDarkMode ? Colors.grey[400] : Colors.grey[600];
@@ -910,7 +841,7 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
                 color: iconColor,
               ),
             ),
-            onPressed: _loadReviewNotes,
+            onPressed: _shuffleBatch,
           ),
           IconButton(
             icon: Container(
@@ -938,147 +869,106 @@ class _RandomReviewScreenState extends State<RandomReviewScreen> {
             );
           }
 
-          if (_reviewNotes.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.event_note,
-                    size: 80,
-                    color: isDarkMode
-                        ? Colors.grey.shade700
-                        : Colors.grey.shade300,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    AppLocalizationsSimple.of(context)?.noNotesToReview ??
-                        '没有可回顾的笔记',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: secondaryTextColor,
+          final hasOnThisDay =
+              !_onThisDayDismissed && _onThisDayNotes.isNotEmpty;
+
+          if (_reviewNotes.isEmpty && !hasOnThisDay) {
+            // 空态也要能下拉重试，所以不能直接给一个 Center
+            return RefreshIndicator(
+              onRefresh: _loadReviewNotes,
+              color: AppTheme.primaryColor,
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.event_note,
+                            size: 80,
+                            color: isDarkMode
+                                ? Colors.grey.shade700
+                                : Colors.grey.shade300,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            AppLocalizationsSimple.of(context)
+                                    ?.noNotesToReview ??
+                                '没有可回顾的笔记',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: secondaryTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ],
+                ),
               ),
             );
           }
 
-          return PageView.builder(
-            controller: _pageController,
-            itemCount: _reviewNotes.length,
-            physics: const BouncingScrollPhysics(),
-            itemBuilder: (context, index) {
-              final note = _reviewNotes[index];
-              return Padding(
-                padding: const EdgeInsets.all(16),
-                child: Card(
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+          // 信息流：和首页同一套卡片（NoteCard，12dp 圆角、左右 12、间距 8），
+          // 一屏一批，下拉整批换。
+          return RefreshIndicator(
+            onRefresh: _shuffleBatch,
+            color: AppTheme.primaryColor,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(top: 4, bottom: 96),
+              children: [
+                if (_reviewNotes.isNotEmpty) _buildBatchHeader(context),
+                if (hasOnThisDay)
+                  OnThisDayCard(
+                    notes: _onThisDayNotes,
+                    onClose: _dismissOnThisDay,
+                    onOpenNote: (note) => context.push('/note/${note.id}'),
                   ),
-                  color: cardColor,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 时间显示
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Text(
-                              DateFormat('yyyy-MM-dd HH:mm:ss')
-                                  .format(note.createdAt),
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: secondaryTextColor,
-                              ),
-                            ),
-                            if (note.id == _onThisDayNoteId) ...[
-                              const SizedBox(width: 8),
-                              OnThisDayBadge(
-                                label: '那年今日',
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? AppTheme.primaryLightColor
-                                    : AppTheme.primaryColor,
-                              ),
-                            ],
-                            const Spacer(),
-                            Builder(
-                              builder: (btnContext) => InkWell(
-                                onTap: () {
-                                  NoteMoreOptionsMenu.show(
-                                    context: btnContext,
-                                    note: note,
-                                    onNoteUpdated: _loadReviewNotes,
-                                  );
-                                },
-                                child: Icon(
-                                  Icons.more_horiz,
-                                  color: Colors.grey.shade400,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // 笔记内容（双击编辑）
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onDoubleTap: () => _showEditNoteForm(note),
-                            child: SingleChildScrollView(
-                              physics: const BouncingScrollPhysics(),
-                              child: Builder(
-                                builder: (context) {
-                                  final serverUrl = Provider.of<AppProvider>(
-                                    context,
-                                    listen: false,
-                                  ).appConfig.memosApiUrl;
-
-                                  return MemosMarkdownRenderer.fromNote(
-                                    note: note,
-                                    serverUrl: serverUrl,
-                                    onCheckboxTap: (index) => _toggleTodoInNote(
-                                      note,
-                                      index,
-                                    ), // 🎯 复选框点击回调（传递索引）
-                                    onLinkTap: _handleLinkTap,
-                                    mode: MemosMarkdownMode.review,
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // 底部导航 - 只显示笔记计数
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // 当前笔记索引/总数
-                            Text(
-                              '${index + 1}/${_reviewNotes.length}${AppLocalizationsSimple.of(context)?.itemsNote ?? '条笔记'}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: secondaryTextColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                for (final note in _reviewNotes)
+                  NoteCard(
+                    key: ValueKey('review_${note.id}'),
+                    note: note,
+                    onEdit: () => _showEditNoteForm(note),
+                    // 卡片内的编辑/置顶不重新抽签，只把这一个对象换成新的，
+                    // 否则刚改完的内容会被下一批顶掉
+                    onNoteUpdated: () => _syncNoteFromProvider(note.id),
+                    onDelete: () {
+                      // 与首页、详情页收敛到同一条删除路径（含撤销条）
+                      NoteActionsUi.deleteNote(
+                        context: context,
+                        note: note,
+                        onDeleted: () {
+                          setState(() {
+                            _reviewNotes.removeWhere((n) => n.id == note.id);
+                          });
+                        },
+                      );
+                    },
+                    onPin: () async {
+                      final willPin = !note.isPinned;
+                      await appProvider.togglePinStatus(note);
+                      _syncNoteFromProvider(note.id);
+                      if (!context.mounted) {
+                        return;
+                      }
+                      SnackBarUtils.showSuccess(
+                        context,
+                        willPin
+                            ? (AppLocalizationsSimple.of(context)?.pinned ??
+                                '已置顶')
+                            : (AppLocalizationsSimple.of(context)?.unpinned ??
+                                '已取消置顶'),
+                      );
+                    },
                   ),
-                ),
-              );
-            },
+              ],
+            ),
           );
         },
       ),

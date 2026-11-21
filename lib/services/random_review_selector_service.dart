@@ -12,6 +12,7 @@ abstract final class RandomReviewSelectorService {
     int reviewDays = allDays,
     int reviewCount = 1,
     Set<String> selectedTags = const {},
+    Set<String> excludeIds = const {},
     Random? random,
     bool requireVisibleText = false,
   }) {
@@ -46,8 +47,20 @@ abstract final class RandomReviewSelectorService {
     }
 
     final availableNotes = filteredNotes.isEmpty ? sourceNotes : filteredNotes;
-    final shuffled = List<Note>.from(availableNotes)
-      ..shuffle(random ?? Random());
+
+    // 「换一批」：先把上一批排掉再抽，抽完一条不剩（库比一批还小）才退回
+    // 全集，否则小库会越刷越空，看着像坏了。
+    var pool = availableNotes;
+    if (excludeIds.isNotEmpty) {
+      final remaining = availableNotes
+          .where((note) => !excludeIds.contains(note.id))
+          .toList();
+      if (remaining.isNotEmpty) {
+        pool = remaining;
+      }
+    }
+
+    final shuffled = List<Note>.from(pool)..shuffle(random ?? Random());
     return shuffled.take(reviewCount).toList();
   }
 

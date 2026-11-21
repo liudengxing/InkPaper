@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/widgets/note_action_card.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 
 class SnackBarUtils {
@@ -306,6 +307,82 @@ class SnackBarUtils {
       );
 
     unawaited(Future<void>.delayed(duration, settle));
+  }
+
+  /// 卡片式提示：与笔记右上角三点菜单同一套材质。
+  ///
+  /// 玻璃胶囊是「浮在界面上的另一层」，适合随手一瞥的成功/失败；删除笔记
+  /// 是用户刚在三点菜单里做完的动作，反馈就该是同一种卡片收个尾——圆角 16、
+  /// 一行字的高度、左右撑到页面留边。比胶囊扁，也比原生黑条轻。
+  ///
+  /// [actionLabel] 给了就在右侧挂一个操作（删除后的「撤销」）。
+  static void showCardOn(
+    ScaffoldMessengerState messenger,
+    String message, {
+    required bool isDarkMode,
+    required EdgeInsets margin,
+    IconData? icon,
+    String? actionLabel,
+    VoidCallback? onAction,
+    Duration duration = const Duration(milliseconds: 3200),
+  }) {
+    final foreground = isDarkMode ? Colors.white : Colors.black;
+    final iconColor = isDarkMode ? Colors.grey[400]! : Colors.grey[700]!;
+
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 20, color: iconColor),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.35,
+                    color: foreground,
+                  ),
+                ),
+              ),
+              if (actionLabel != null && onAction != null)
+                TextButton(
+                  onPressed: () {
+                    // 先收条再执行：撤销后的「笔记已恢复」要占用同一个位置
+                    messenger.hideCurrentSnackBar();
+                    onAction();
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: isDarkMode
+                        ? AppTheme.primaryLightColor
+                        : AppTheme.primaryColor,
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  child: Text(actionLabel),
+                ),
+            ],
+          ),
+          backgroundColor: NoteActionCard.surfaceOf(isDarkMode),
+          elevation: 8,
+          behavior: SnackBarBehavior.floating,
+          margin: margin,
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+          duration: duration,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(NoteActionCard.radius),
+          ),
+        ),
+      );
   }
 
   /// 带操作的提示（删除笔记后的「撤销」）：玻璃胶囊。

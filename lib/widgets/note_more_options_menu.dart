@@ -9,6 +9,7 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/widgets/note_action_card.dart';
 import 'package:inkpaper/widgets/note_actions_ui.dart';
 import 'package:provider/provider.dart';
 
@@ -266,20 +267,11 @@ class NoteMoreOptionsMenu {
     bool showAiSummary = false,
   }) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final surface = isDarkMode ? const Color(0xFF1C1C1E) : Colors.white;
     final secondaryText = isDarkMode ? Colors.grey[500] : Colors.grey[600];
-    final dividerColor = isDarkMode
-        ? Colors.white.withValues(alpha: 0.08)
-        : Colors.black.withValues(alpha: 0.06);
 
     void select(String value) => Navigator.of(context).pop(value);
 
-    return Material(
-      color: surface,
-      elevation: 12,
-      shadowColor: Colors.black.withValues(alpha: 0.28),
-      borderRadius: BorderRadius.circular(16),
-      clipBehavior: Clip.antiAlias,
+    return NoteActionCard(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -309,7 +301,7 @@ class NoteMoreOptionsMenu {
               ],
             ),
           ),
-          Divider(height: 0.5, thickness: 0.5, color: dividerColor),
+          const NoteActionCardDivider(),
           // 其它操作（超高时只让这一块滚动）
           Flexible(
             child: SingleChildScrollView(
@@ -408,7 +400,7 @@ class NoteMoreOptionsMenu {
               ),
             ),
           ),
-          Divider(height: 0.5, thickness: 0.5, color: dividerColor),
+          const NoteActionCardDivider(),
           // 元信息固定在卡片最下面
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),

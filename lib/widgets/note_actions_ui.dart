@@ -14,6 +14,7 @@ import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/intelligent_related_notes_sheet.dart';
 import 'package:inkpaper/widgets/ios_datetime_picker.dart';
+import 'package:inkpaper/widgets/note_action_card.dart';
 import 'package:inkpaper/widgets/note_editor_page.dart';
 import 'package:inkpaper/widgets/permission_guide_dialog.dart';
 import 'package:inkpaper/widgets/references_sidebar.dart';
@@ -76,10 +77,11 @@ class NoteActionsUi {
     );
   }
 
-  /// 删除笔记：二次确认 → 行退出动效 → 从列表与库里删除 → 原生提示条。
+  /// 删除笔记：二次确认 → 行退出动效 → 从列表与库里删除 → 卡片提示。
   ///
-  /// 不再用玻璃胶囊挂「撤销」：删除本身可逆（进回收站 30 天），与其在提示条上
-  /// 抢 2.8 秒让人点撤销，不如事先问一次「确认吗」，把不可逆感交给文案说明。
+  /// 提示条上带「撤销」：删除本身会先进回收站，但用户点错的那一刻是希望
+  /// 立刻退回来的，让他翻设置去找回收站太远。撤销直接调 `restoreNote`，
+  /// 原 id、原位置、引用关系都还在。
   ///
   /// [playExit] 由列表页提供：它把这一行标记为「正在离开」，等动效播完再返回。
   /// 详情页这类没有行的场景不传，确认后直接删。
@@ -113,14 +115,24 @@ class NoteActionsUi {
     onDeleted();
 
     if (messenger != null) {
-      // 与首页底部输入条同一套玻璃：原生 SnackBar 在深色壁纸上就是一块
-      // 贴底的大黑条，和整页的材质对不上。
-      SnackBarUtils.showGlassOn(
+      // 与三点菜单同一张卡片：刚在那张卡里点的删除，反馈就从同一套材质里出来
+      SnackBarUtils.showCardOn(
         messenger,
         l10n?.noteDeleted ?? '笔记已删除',
         isDarkMode: isDarkMode,
         margin: toastMargin,
         icon: Icons.delete_outline_rounded,
+        actionLabel: l10n?.undo ?? '撤销',
+        onAction: () => unawaited(
+          _undoDelete(
+            appProvider: appProvider,
+            note: note,
+            messenger: messenger,
+            l10n: l10n,
+            isDarkMode: isDarkMode,
+            margin: toastMargin,
+          ),
+        ),
       );
     }
 
@@ -136,57 +148,121 @@ class NoteActionsUi {
     }
   }
 
+  /// 撤销刚完成的删除：把笔记按原 id 恢复回原位。
+  static Future<void> _undoDelete({
+    required AppProvider appProvider,
+    required Note note,
+    required ScaffoldMessengerState messenger,
+    required AppLocalizationsSimple? l10n,
+    required bool isDarkMode,
+    required EdgeInsets margin,
+  }) async {
+    final ok = await appProvider.restoreNote(id: note.id);
+    SnackBarUtils.showCardOn(
+      messenger,
+      ok ? (l10n?.noteRestored ?? '笔记已恢复') : (l10n?.undoFailed ?? '撤销失败'),
+      isDarkMode: isDarkMode,
+      margin: margin,
+      icon: ok ? Icons.undo_rounded : Icons.error_outline_rounded,
+      duration: const Duration(milliseconds: 1800),
+    );
+  }
+
   /// 删除前的二次确认。
   ///
   /// 文案固定交代「进回收站、30 天内可恢复」——用户真正怕的是不可逆，
   /// 说清这一点，比在提示条里塞一个 2.8 秒就消失的撤销按钮更有效。
+  ///
+  /// 形态直接改用卡片右上角三点菜单那一套：同一个圆角、同一层阴影、同样的
+  /// 行高。原先的 AlertDialog 收窄到 320 宽之后，标题和两行正文挤成一块，
+  /// 在手机上看着矮胖；换成菜单式的竖排小卡片，一眼就认得出「这是笔记操作」。
   static Future<bool> showDeleteConfirmDialog(BuildContext context) async {
     final l10n = AppLocalizationsSimple.of(context);
-    final confirmed = await showDialog<bool>(
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDarkMode ? Colors.white : Colors.black;
+    final bodyColor = isDarkMode ? Colors.grey[500] : Colors.grey[600];
+
+    final confirmed = await showGeneralDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        // 细长一点：默认左右各 40 的留白，在 400dp 的屏上会把框撑到 320 宽，
-        // 两行提示一字排开，看着像块板子。收窄到 288、让正文多折一行，
-        // 才像「一句话确认」该有的样子。
-        insetPadding: const EdgeInsets.symmetric(horizontal: 56, vertical: 24),
-        constraints: const BoxConstraints(maxWidth: 320),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.delete_outline_rounded,
-                color: Colors.red.shade600,
-              ),
+      barrierDismissible: true,
+      barrierLabel: 'delete-note-confirm',
+      barrierColor: Colors.black.withValues(alpha: 0.2),
+      transitionDuration: const Duration(milliseconds: 160),
+      pageBuilder: (dialogContext, _, __) => Center(
+        child: Padding(
+          // 左右 44：窄屏也能留出边，卡片本身不会被压到边缘
+          padding: const EdgeInsets.symmetric(horizontal: 44),
+          child: NoteActionCard(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 20,
+                        color: NoteActionCard.danger,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          l10n?.deleteNoteConfirmTitle ?? '删除笔记',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: titleColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                  child: Text(
+                    l10n?.deleteNoteConfirmBody ??
+                        '是否确认删除，删除笔记会移至回收站，30 天内可以前往回收站恢复',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.45,
+                      color: bodyColor,
+                    ),
+                  ),
+                ),
+                const NoteActionCardDivider(),
+                NoteActionCardRow(
+                  icon: Icons.delete_rounded,
+                  label: l10n?.delete ?? '删除',
+                  isDanger: true,
+                  onTap: () => Navigator.of(dialogContext).pop(true),
+                ),
+                const NoteActionCardDivider(),
+                NoteActionCardRow(
+                  icon: Icons.close_rounded,
+                  label: l10n?.cancel ?? '取消',
+                  onTap: () => Navigator.of(dialogContext).pop(false),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(l10n?.deleteNoteConfirmTitle ?? '删除笔记'),
-            ),
-          ],
-        ),
-        content: Text(
-          l10n?.deleteNoteConfirmBody ?? '是否确认删除，删除笔记会移至回收站，30 天内可以前往回收站恢复',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n?.cancel ?? '取消'),
           ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red.shade600,
-            ),
-            child: Text(l10n?.delete ?? '删除'),
-          ),
-        ],
+        ),
       ),
+      transitionBuilder: (dialogContext, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.94, end: 1).animate(curved),
+            child: child,
+          ),
+        );
+      },
     );
     return confirmed ?? false;
   }

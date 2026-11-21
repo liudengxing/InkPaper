@@ -164,6 +164,45 @@ void main() {
       expect(plain, contains('今天爬山'));
     });
   });
+
+  group('InsightSource 图片', () {
+    test('喂给模型的正文剥掉图片，但来源里留着图片路径', () {
+      final context = NotesContextBuilder.buildForInsight([
+        _note(
+          id: 'with-image',
+          content: '今天爬山，山顶风很大\n\n![](file:///cache/a.jpg)',
+          createdAt: DateTime(2026, 1, 2),
+        ),
+      ]);
+
+      // 模型不该看到 file:// 这种本地路径
+      expect(context.text, isNot(contains('file://')));
+      expect(context.text, isNot(contains('![')));
+      expect(context.text, contains('今天爬山'));
+
+      // 角标弹层要能把它画出来
+      expect(context.sources, hasLength(1));
+      expect(context.sources.single.imagePaths, contains('file:///cache/a.jpg'));
+    });
+
+    test('纯图片笔记不进上下文，也不会出现在来源里', () {
+      final context = NotesContextBuilder.buildForInsight([
+        _note(
+          id: 'image-only',
+          content: '![](file:///cache/b.jpg)',
+          createdAt: DateTime(2026, 1, 3),
+        ),
+        _note(
+          id: 'text',
+          content: '只有这一条有文字',
+          createdAt: DateTime(2026, 1, 4),
+        ),
+      ]);
+
+      expect(context.sources, hasLength(1));
+      expect(context.sources.single.noteId, 'text');
+    });
+  });
 }
 
 Note _note({

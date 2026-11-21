@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:intl/intl.dart';
 
 /// 编号 → 笔记的对照表。
@@ -16,6 +17,7 @@ class InsightSource {
     required this.createdAt,
     required this.tags,
     required this.text,
+    this.imagePaths = const <String>[],
     this.truncated = false,
   });
 
@@ -31,6 +33,10 @@ class InsightSource {
 
   /// 这条在原笔记里更长，[text] 是当时喂给模型的截断版。
   final bool truncated;
+
+  /// 原笔记里的图片。喂给模型时已经剥掉了，这里只留给角标弹层展示：
+  /// 一条只有文字和一条带照片的记录，读起来的分量完全不同。
+  final List<String> imagePaths;
 }
 
 /// 打包好的笔记上下文。
@@ -471,6 +477,7 @@ class NotesContextBuilder {
           time: note.displayTime,
           tags: note.tags,
           text: plain,
+          imagePaths: MemosContentHelper.extractNoteImagePaths(note),
         ),
       );
     }
@@ -515,6 +522,7 @@ class NotesContextBuilder {
           createdAt: entry.time,
           tags: entry.tags,
           text: body,
+          imagePaths: entry.imagePaths,
           truncated: entry.text.length > perNoteLimit,
         ),
       );
@@ -600,12 +608,14 @@ class _Entry {
     required this.time,
     required this.tags,
     required this.text,
+    this.imagePaths = const <String>[],
   }) : lower = text.toLowerCase();
 
   final String id;
   final DateTime time;
   final List<String> tags;
   final String text;
+  final List<String> imagePaths;
   final String lower;
 }
 

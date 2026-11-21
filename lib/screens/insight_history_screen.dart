@@ -2,14 +2,17 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/insight_history_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/insight_text_spans.dart';
+import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:inkpaper/utils/note_timestamp_format.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/insight_reasoning_panel.dart';
 import 'package:inkpaper/widgets/insight_source_sheet.dart';
+import 'package:provider/provider.dart';
 
 /// 洞察历史列表。
 ///
@@ -395,7 +398,15 @@ class _InsightReportScreenState extends State<InsightReportScreen> {
       index: index,
       time: note?.displayTime ?? entry.createdAt,
       tags: note?.tags ?? const <String>[],
-      text: note?.content,
+      // 存的是 id，回库拿的是当前版本：正文剥掉 markdown 图片语法，
+      // 图片单独走九宫格，和详情页一致。
+      text: note == null
+          ? null
+          : MemosContentHelper.previewVisibleText(note.content),
+      imagePaths: note == null
+          ? const <String>[]
+          : MemosContentHelper.extractNoteImagePaths(note),
+      serverUrl: context.read<AppProvider>().appConfig.memosApiUrl,
     );
   }
 

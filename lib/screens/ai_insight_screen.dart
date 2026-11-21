@@ -99,6 +99,14 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   /// 一次的对齐会把他正在读的那段顶走。
   bool _liveFollow = true;
 
+  /// 自动滚动动画正在跑：这期间 controller 的位移是我们自己造成的，
+  /// 不能拿它去判断「用户是不是往上滑了」，否则第一次 animateTo 刚起步
+  /// 就会被判成「用户在看旧内容」，跟随直接断掉。
+  DateTime? _autoScrollUntil;
+
+  /// 补救重试期间的一句话（非流式阶段收不到 delta，界面得有个交代）。
+  String _liveStatus = '';
+
   @override
   void initState() {
     super.initState();
@@ -119,6 +127,10 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     if (!_liveScrollController.hasClients) {
       return;
     }
+    final until = _autoScrollUntil;
+    if (until != null && DateTime.now().isBefore(until)) {
+      return;
+    }
     final position = _liveScrollController.position;
     // 距底 12px 以内算「正在看最新」；再往上就说明用户在读旧内容。
     _liveFollow = position.pixels >= position.maxScrollExtent - 12;
@@ -127,8 +139,10 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   /// 内容增长后把视图对齐到最新一行。
   ///
   /// 必须等这一帧画完再滚：setState 里刚改的是文本，新的 maxScrollExtent
-  /// 要在布局之后才拿得到。用 jumpTo 而不是 animateTo——140ms 一次的刷新
-  /// 频率下动画会被不断打断，看起来反而一顿一顿的。
+  /// 要在布局之后才拿得到。滚动本身用短动画而不是 jumpTo——jump 是「瞬移」，
+  /// 每 70ms 跳一次看起来就是一顿一顿；用 110-240ms 的线性动画，连续调用
+  /// 时首尾相接，视觉上就是文字在匀速往上走。落后太多（比如刚开篇一次涌进
+  /// 来一大段）才直接跳，避免动画追不上。
   void _scrollLiveToBottom() {
     if (!_liveFollow) {
       return;
@@ -141,7 +155,26 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
       if (!controller.hasClients) {
         return;
       }
-      controller.jumpTo(controller.position.maxScrollExtent);
+      final position = controller.position;
+      final target = position.maxScrollExtent;
+      final distance = target - position.pixels;
+      if (distance.abs() < 1) {
+        return;
+      }
+      if (distance > 600) {
+        controller.jumpTo(target);
+        return;
+      }
+      _autoScrollUntil = DateTime.now().add(const Duration(milliseconds: 400));
+      unawaited(
+        controller.animateTo(
+          target,
+          duration: Duration(
+            milliseconds: (110 + distance * 0.6).clamp(110, 240).round(),
+          ),
+          curve: Curves.linear,
+        ),
+      );
     });
   }
 
@@ -200,6 +233,12 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
             _liveContent.write(delta);
           }
         },
+        onStatus: (message) {
+          if (!mounted) {
+            return;
+          }
+          setState(() => _liveStatus = message);
+        },
       );
       if (!mounted) {
         return;
@@ -251,13 +290,14 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     _liveContent.clear();
     _liveReasoningText = '';
     _liveContentText = '';
+    _liveStatus = '';
     // 每次重新生成都从头跟随，并从顶部开始，别继承上一次的滚动位置。
     _liveFollow = true;
     if (_liveScrollController.hasClients) {
       _liveScrollController.jumpTo(0);
     }
     _liveFlush?.cancel();
-    _liveFlush = Timer.periodic(const Duration(milliseconds: 140), (_) {
+    _liveFlush = Timer.periodic(const Duration(milliseconds: 80), (_) {
       if (!mounted) {
         return;
       }
@@ -312,6 +352,8 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
         tags: source.tags,
         text: source.text,
         truncated: source.truncated,
+        imagePaths: source.imagePaths,
+        serverUrl: context.read<AppProvider>().appConfig.memosApiUrl,
       ),
     );
   }
@@ -343,68 +385,81 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     final iconColor =
         isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
     final showResult = _result != null || _generating || _error != null;
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: backgroundColor,
-      drawer: const Sidebar(),
-      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.2,
-      appBar: AppBar(
+    // 结果页是「洞察页里的第二层」，不是独立页面：系统返回应该退回视角
+    // 列表，而不是一路退到笔记列表。生成中不拦——用户想中断就让他走。
+    final canLeavePage = _result == null && _error == null;
+    return PopScope(
+      canPop: canLeavePage,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          _backToPicker();
+        }
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
         backgroundColor: backgroundColor,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          icon: Icon(Icons.menu_rounded, color: iconColor),
-          onPressed: _openDrawer,
-          tooltip: '菜单',
-        ),
-        centerTitle: true,
-        title: Text(
-          l10n?.aiInsight ?? 'AI 洞察',
-          style: TextStyle(
-            color: textColor,
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
+        drawer: const Sidebar(),
+        drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.2,
+        appBar: AppBar(
+          backgroundColor: backgroundColor,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
+          automaticallyImplyLeading: false,
+          leading: IconButton(
+            icon: Icon(Icons.menu_rounded, color: iconColor),
+            onPressed: _openDrawer,
+            tooltip: '菜单',
           ),
-        ),
-        actions: [
-          if (showResult)
-            IconButton(
-              tooltip: '返回',
-              icon: Icon(Icons.close_rounded, color: iconColor),
-              onPressed: _backToPicker,
+          centerTitle: true,
+          title: Text(
+            l10n?.aiInsight ?? 'AI 洞察',
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.w600,
+              fontSize: 18,
             ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: AnimatedSwitcher(
-        duration: _switchDuration,
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        // 进出两页叠在一起做交叉淡入，避免切换瞬间页面高度塌一下
-        layoutBuilder: (current, previous) => Stack(
-          alignment: Alignment.topCenter,
-          children: [...previous, if (current != null) current],
-        ),
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.02),
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
           ),
+          actions: [
+            if (showResult)
+              IconButton(
+                tooltip: '返回',
+                icon: Icon(Icons.close_rounded, color: iconColor),
+                onPressed: _backToPicker,
+              ),
+            const SizedBox(width: 4),
+          ],
         ),
-        child: KeyedSubtree(
-          // 生成中 → 结果也算一次切换，重新渐入一遍
-          key: ValueKey(
-            showResult
-                ? (_generating ? 'gen' : (_error != null ? 'error' : 'result'))
-                : 'picker',
+        body: AnimatedSwitcher(
+          duration: _switchDuration,
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          // 进出两页叠在一起做交叉淡入，避免切换瞬间页面高度塌一下
+          layoutBuilder: (current, previous) => Stack(
+            alignment: Alignment.topCenter,
+            children: [...previous, if (current != null) current],
           ),
-          child: showResult ? _buildResultArea(l10n) : _buildPicker(l10n),
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.02),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          ),
+          child: KeyedSubtree(
+            // 生成中 → 结果也算一次切换，重新渐入一遍
+            key: ValueKey(
+              showResult
+                  ? (_generating
+                      ? 'gen'
+                      : (_error != null ? 'error' : 'result'))
+                  : 'picker',
+            ),
+            child: showResult ? _buildResultArea(l10n) : _buildPicker(l10n),
+          ),
         ),
       ),
     );
@@ -764,7 +819,8 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
 
     return ListView(
       controller: _liveScrollController,
-      padding: _pagePadding,
+      // 底部多留一截：最新一行要落在视线里，而不是贴着屏幕下边缘
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       children: [
         const SizedBox(height: 8),
         Row(
@@ -777,9 +833,13 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                hasReasoning
-                    ? '正在推理…'
-                    : (l10n?.aiInsightGenerating ?? '正在通读你的笔记…'),
+                _liveStatus.isNotEmpty
+                    ? _liveStatus
+                    : hasReasoning
+                        ? '正在推理…'
+                        : (l10n?.aiInsightGenerating ?? '正在通读你的笔记…'),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,

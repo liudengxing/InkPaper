@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:inkpaper/utils/note_timestamp_format.dart';
+import 'package:inkpaper/widgets/note_image_grid.dart';
 
 /// 点洞察正文里的 `[12]` 时弹出的「这一条是哪条笔记」。
 ///
@@ -15,6 +16,8 @@ Future<void> showInsightSourceSheet(
   List<String> tags = const <String>[],
   String? text,
   bool truncated = false,
+  List<String> imagePaths = const <String>[],
+  String? serverUrl,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -103,6 +106,15 @@ Future<void> showInsightSourceSheet(
                       ),
                     ),
                   ],
+                ],
+                // 图片不喂给模型，但读原文时它在场：一条带照片的记录
+                // 和一条纯文字，分量完全不同。
+                if (imagePaths.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  NoteImageGrid(
+                    imagePaths: imagePaths,
+                    serverUrl: serverUrl,
+                  ),
                 ],
               ],
             ),

@@ -445,8 +445,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           // 中间：笔记内容（单击进编辑态，长按复制全文）
           Expanded(
             child: Padding(
-              // 顶边距 8 与编辑页正文输入框的 top:8 对齐：两边切换时正文起点不跳
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              // 顶边距 8 与编辑页正文输入框的 top:8 对齐：两边切换时正文起点不跳；
+              // 底边距同样取 8，对齐输入框的 bottom:8
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
                 // 单击正文＝编辑。原来要双击，等于把「能改」藏起来了：
@@ -595,6 +596,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                   height: 1.6,
                                   color: textColor,
                                 ),
+                                // 空行按完整行高走：编辑页是普通 TextField，
+                                // 空行占满一行，这里压成 8px 会显得比编辑态紧
+                                compactBlankLines: false,
+                                // 详情页要看全文：卡片预览的 2400 字上限会把
+                                // 长笔记从中间截断，而编辑页是完整内容
+                                parseLimit: _note!.content.length,
                                 accentColor: isDarkMode
                                     ? AppTheme.primaryLightColor
                                     : AppTheme.primaryColor,

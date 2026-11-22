@@ -82,8 +82,12 @@ class NotePreview {
   bool get isEmpty => text.trim().isEmpty;
 }
 
-/// 解析前的字符上限。6 行预览最多用到一两百字，留足余量即可。
-const int _previewParseLimit = 2400;
+/// 解析前的字符上限默认值。列表卡片最多展开几行，一两百字就够，
+/// 2400 是给「展开卡片」留的余量。
+///
+/// 详情页要显示全文，必须显式传更大的值（`NotePreviewText.parseLimit`），
+/// 否则长笔记会在正文中间被无声截断。
+const int defaultPreviewParseLimit = 2400;
 
 // 正则与 InlineSyntax 都是「编译一次、反复使用」的东西，放在函数里等于每次
 // 缓存未命中都重新编译一遍模式。
@@ -105,7 +109,7 @@ final md.InlineSyntax _underlineSyntax = _UnderlineSyntax();
 /// 纯计算、无 IO，可以安全地在 isolate 里批量预跑。
 NotePreview buildNotePreview(
   String content, {
-  int parseLimit = _previewParseLimit,
+  int parseLimit = defaultPreviewParseLimit,
 }) {
   if (content.isEmpty) {
     return NotePreview.empty;
@@ -479,6 +483,10 @@ class NotePreviewCache {
   NotePreviewCache._();
 
   static const int _maxEntries = 400;
+
+  /// 全文预览（详情页）单独限条数：一条几万字，不能按 400 条算内存。
+  static const int _maxLongEntries = 4;
+
   static final LinkedHashMap<String, NotePreview> _entries =
       LinkedHashMap<String, NotePreview>();
 
@@ -487,25 +495,45 @@ class NotePreviewCache {
 
   /// 命中率，便于在性能面板里观察缓存是否有效。
   static double get hitRate {
-    final total = _hits + _misses;
-    return total == 0 ? 0 : _hits / total;
+    final hits = _hits;
+    final total = hits + _misses;
+    return total == 0 ? 0 : hits / total;
   }
 
-  static NotePreview resolve(String content) {
-    final cached = _entries.remove(content);
+  static NotePreview resolve(
+    String content, {
+    int parseLimit = defaultPreviewParseLimit,
+  }) {
+    // 卡片预览与详情页全文各缓存一份：key 带上上限，避免详情页的长文本
+    // 覆盖掉卡片的短预览（也避免反过来把长文本当短预览用）。
+    final key = parseLimit == defaultPreviewParseLimit
+        ? content
+        : '$parseLimit\u0000$content';
+    final cached = _entries.remove(key);
     if (cached != null) {
       _hits++;
-      _entries[content] = cached; // 重新插入队尾，维持 LRU 顺序
+      _entries[key] = cached; // 重新插入队尾，维持 LRU 顺序
       return cached;
     }
 
     _misses++;
-    final preview = buildNotePreview(content);
-    _entries[content] = preview;
-    if (_entries.length > _maxEntries) {
+    final preview = buildNotePreview(content, parseLimit: parseLimit);
+    _entries[key] = preview;
+    _trim(key);
+    return preview;
+  }
+
+  static void _trim(String key) {
+    if (key.contains('\u0000')) {
+      final longKeys =
+          _entries.keys.where((entry) => entry.contains('\u0000')).toList();
+      while (longKeys.length > _maxLongEntries) {
+        _entries.remove(longKeys.removeAt(0));
+      }
+    }
+    while (_entries.length > _maxEntries) {
       _entries.remove(_entries.keys.first);
     }
-    return preview;
   }
 
   static void clear() {

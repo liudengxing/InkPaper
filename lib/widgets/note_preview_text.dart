@@ -23,6 +23,8 @@ class NotePreviewText extends StatefulWidget {
     this.onLinkTap,
     this.accentColor,
     this.selectable = false,
+    this.compactBlankLines = true,
+    this.parseLimit = defaultPreviewParseLimit,
     super.key,
   });
 
@@ -52,6 +54,21 @@ class NotePreviewText extends StatefulWidget {
   /// 用 SelectableText 渲染，保留长按选择/复制能力。
   final bool selectable;
 
+  /// 段落之间的空行是否压缩成 8px 的紧凑行高。
+  ///
+  /// 卡片预览要紧凑，默认 true；详情页必须传 false——编辑页是一个普通
+  /// TextField，空行占满一行行高（bodyLarge 15 × 1.6 = 24px），详情页
+  /// 若压到 8px，同一条笔记在浏览态比编辑态紧一截，点进编辑像被重新
+  /// 排版了一次。
+  final bool compactBlankLines;
+
+  /// 解析前的字符上限。
+  ///
+  /// 默认只按卡片预览的长度解析；详情页要显示全文，必须传
+  /// `content.length`（否则长笔记在正文中间被无声截断，而编辑页是全文，
+  /// 两处看到的内容不一样）。
+  final int parseLimit;
+
   @override
   State<NotePreviewText> createState() => _NotePreviewTextState();
 }
@@ -61,6 +78,7 @@ class _NotePreviewTextState extends State<NotePreviewText> {
 
   NotePreview _preview = NotePreview.empty;
   String? _previewSource;
+  int? _previewLimit;
 
   @override
   void initState() {
@@ -71,7 +89,8 @@ class _NotePreviewTextState extends State<NotePreviewText> {
   @override
   void didUpdateWidget(NotePreviewText oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.content != widget.content) {
+    if (oldWidget.content != widget.content ||
+        oldWidget.parseLimit != widget.parseLimit) {
       _ensurePreview();
     }
   }
@@ -83,11 +102,16 @@ class _NotePreviewTextState extends State<NotePreviewText> {
   }
 
   void _ensurePreview() {
-    if (_previewSource == widget.content) {
+    if (_previewSource == widget.content &&
+        _previewLimit == widget.parseLimit) {
       return;
     }
     _previewSource = widget.content;
-    _preview = NotePreviewCache.resolve(widget.content);
+    _previewLimit = widget.parseLimit;
+    _preview = NotePreviewCache.resolve(
+      widget.content,
+      parseLimit: widget.parseLimit,
+    );
   }
 
   void _disposeRecognizers() {
@@ -211,21 +235,29 @@ class _NotePreviewTextState extends State<NotePreviewText> {
 
       final checkbox = checkboxByOffset[start];
       final isCheckboxSegment = checkbox != null && end == start + 1;
-      // 段落空行：4px 字号 × 2.0 行高 = 8px，与详情页 blockSpacing 对齐
+      // 段落空行：卡片里 4px 字号 × 2.0 行高 = 8px，让列表更紧凑；
+      // 详情页不压缩，交给父样式，空行高度与编辑页输入框一致。
       final isSpacerLine = spacerOffsets.contains(start) && end == start + 1;
+
+      final TextStyle? spanStyle;
+      if (isSpacerLine) {
+        spanStyle = widget.compactBlankLines
+            ? const TextStyle(fontSize: 4, height: 2)
+            : null;
+      } else {
+        spanStyle = _styleFor(
+          styles,
+          accent,
+          brightness,
+          isHighlighted,
+          isTag: tagPath != null,
+        );
+      }
 
       spans.add(
         TextSpan(
           text: text.substring(start, end),
-          style: isSpacerLine
-              ? const TextStyle(fontSize: 4, height: 2)
-              : _styleFor(
-                  styles,
-                  accent,
-                  brightness,
-                  isHighlighted,
-                  isTag: tagPath != null,
-                ),
+          style: spanStyle,
           recognizer: isCheckboxSegment && widget.onCheckboxTap != null
               ? _recognizerFor(checkbox.index)
               : (tagPath != null && widget.onTagTap != null)

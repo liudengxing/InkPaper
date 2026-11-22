@@ -47,13 +47,18 @@ void main() {
       }
     });
 
-    test('每个视角都写全内核、步骤、输出骨架与质量红线', () {
+    test('V4.1 版每个视角都写全分析步骤、质量要求与最终报告格式', () {
       for (final lens in builtInInsightLenses) {
+        // MBTI 在步骤前多了一节「参考框架」，其余视角都是「一、分析步骤」。
+        final steps = lens.id == 'mbti' ? '三、分析步骤' : '一、分析步骤';
+        final quality = lens.id == 'mbti' ? '四、质量要求' : '二、质量要求';
+        final format = lens.id == 'mbti' ? '五、最终报告格式' : '三、最终报告格式';
         for (final section in <String>[
-          '这个视角的内核',
-          '分析步骤',
-          '输出（约',
-          '质量红线',
+          '当前分析视角：',
+          steps,
+          quality,
+          format,
+          '标题：一句 12 至 22 个字的核心判断',
         ]) {
           expect(
             lens.prompt,
@@ -64,70 +69,89 @@ void main() {
       }
     });
 
-    test('统一规则要求开头给判断、字数交给视角、禁掉空词与 Markdown', () {
-      expect(AiInsightService.systemPrompt, contains('第一句就要是判断'));
-      expect(AiInsightService.systemPrompt, contains('字数按视角要求'));
-      expect(AiInsightService.systemPrompt, contains('第二人称「你」'));
-      expect(AiInsightService.systemPrompt, contains('emoji'));
+    test('MBTI 与 CBT 的界面名跟提示词自称一致', () {
+      final cbt = builtInInsightLenses.firstWhere((lens) => lens.id == 'cbt');
+      final mbti = builtInInsightLenses.firstWhere((lens) => lens.id == 'mbti');
+      expect(cbt.name, 'CBT 自我观察');
+      expect(cbt.prompt, contains('当前分析视角：CBT 自我观察'));
+      expect(mbti.name, 'MBTI 探索');
+      expect(mbti.prompt, contains('当前分析视角：MBTI 探索'));
     });
 
-    test('逆向思考演出来：先合成组合目标，再用人称扮演摧毁者，最后反转成原则', () {
+    test('通用规则强调准确高于深刻、证据优先、两段输出外壳', () {
+      const prompt = AiInsightService.systemPrompt;
+      expect(prompt, contains('准确性高于深刻性'));
+      expect(prompt, contains('证据高于表达效果'));
+      expect(prompt, contains('区分事实、推断和未知'));
+      expect(prompt, contains('不要从用户没有提及某件事，推断这件事从未发生'));
+      expect(prompt, contains('【分析摘要】'));
+      expect(prompt, contains('【最终报告】'));
+      expect(prompt, contains('不展示逐步思考过程'));
+      expect(prompt, contains('默认使用第二人称“你”'));
+      expect(prompt, contains('不刻意制造金句'));
+    });
+
+    test('逆向思考改为反向压力测试，明确假设不等于预测', () {
       final lens = builtInInsightLenses.firstWhere(
         (lens) => lens.id == 'inversion',
       );
-      expect(lens.prompt, contains('第一人称'));
-      expect(lens.prompt, contains('抽走'));
-      expect(lens.prompt, contains('现在说反转'));
-      expect(lens.prompt, contains('不是「坚持」'));
-      expect(lens.prompt, contains('与其问 A，不如问 B'));
-      // 曾经是四个编号板块的 500 字骨架，现在必须是连续散文
-      expect(lens.prompt, contains('不要列表'));
-      expect(lens.prompt, isNot(contains('输出（约 500 字）')));
+      expect(lens.prompt, contains('反向压力测试者'));
+      expect(lens.prompt, contains('找支撑条件'));
+      expect(lens.prompt, contains('这些是压力测试情境，不是对未来的预测'));
+      expect(lens.prompt, contains('现在说反转。'));
+      expect(lens.prompt, contains('2 至 3 条最有证据的失败路径'));
+      // 旧版「扮演摧毁者」的四板块骨架已替换
+      expect(lens.prompt, isNot(contains('角色：你用芒格的逆向思维')));
     });
 
-    test('其余四个视角各自换掉了最弱的一环', () {
+    test('其余视角各自保留了最关键的方法论约束', () {
       InsightLens byId(String id) =>
           builtInInsightLenses.firstWhere((lens) => lens.id == id);
 
-      // 价值澄清：排序证据必须来自取舍现场，不能从表态里推
-      expect(byId('values').prompt, contains('取舍现场'));
-      expect(byId('values').prompt, contains('最累的那天'));
+      expect(byId('values').prompt, contains('没有真实取舍现场，就不能给价值排先后'));
+      expect(byId('values').prompt, contains('目标，不自动等于'));
 
-      // 二阶思考：补上「问题在为他服务」和「解法的二阶后果」两条
-      expect(byId('second_order').prompt, contains('在为他服务'));
+      expect(byId('second_order').prompt, contains('隐含前提'));
       expect(byId('second_order').prompt, contains('二阶后果'));
 
-      // CBT：选材从「情绪最浓」改成「重复出现」，并往核心信念推一层
-      expect(byId('cbt').prompt, contains('看重复'));
-      expect(byId('cbt').prompt, contains('核心信念'));
-      expect(byId('cbt').prompt, contains('行为实验'));
+      expect(byId('cbt').prompt, contains('反复出现的想法'));
+      expect(byId('cbt').prompt, contains('反向证据'));
+      expect(byId('cbt').prompt, contains('不是心理治疗或诊断'));
 
-      // MBTI：判定之外要写功能怎么运转、在哪耗电、判错会错在哪
-      expect(byId('mbti').prompt, contains('耗电'));
-      expect(byId('mbti').prompt, contains('如果判错'));
+      expect(byId('mbti').prompt, contains('探索性假设'));
+      expect(byId('mbti').prompt, contains('不能声称已经测出用户真实的 MBTI 类型'));
     });
 
-    test('默认视角写成长文：交代时间跨度、三段主题带张力、结尾落小动作', () {
+    test('默认视角以行为模式、张力和边界为核心，写成长文', () {
       final lens = builtInInsightLenses.first;
       expect(lens.id, 'default');
-      expect(lens.prompt, contains('时间跨度'));
-      expect(lens.prompt, contains('张力'));
+      expect(lens.prompt, contains('触发条件 → 用户采取的行动 → 实际结果或代价'));
+      expect(lens.prompt, contains('找张力'));
       expect(lens.prompt, contains('拧一下'));
-      expect(lens.prompt, contains('约 950 字'));
-      expect(lens.prompt, contains('不要小标题'));
+      expect(lens.prompt, contains('正文约 900 至 1000 字'));
+      expect(lens.prompt, contains('不加正文小标题'));
     });
 
-    test('默认视角结尾要收成总结，动作不再单独成行', () {
-      final lens = builtInInsightLenses.first;
-      expect(lens.prompt, contains('整篇的收束'));
-      expect(lens.prompt, contains('总结句'));
-      // 旧版「最后单独一行只写动作」看着像话没说完，已改掉
-      expect(lens.prompt, isNot(contains('最后单独一行')));
-    });
-
-    test('通用规则要求全文以完整句子收尾', () {
-      expect(AiInsightService.systemPrompt, contains('全文最后一句必须是完整的一句话'));
-      expect(AiInsightService.systemPrompt, contains('以句号结束'));
+    test('每个内置视角都有对应的输出长度', () {
+      for (final lens in builtInInsightLenses) {
+        expect(
+          AiInsightService.outputLengthFor(lens),
+          isNotEmpty,
+          reason: '${lens.id} 缺少输出长度',
+        );
+      }
+      expect(
+        AiInsightService.outputLengthFor(
+          const InsightLens(
+            id: 'custom',
+            name: '自定义',
+            description: '',
+            prompt: '',
+            icon: InsightLensIcon.custom,
+          ),
+        ),
+        isEmpty,
+      );
     });
 
     test('图标 key 可以往返，未知 key 落到 custom', () {
@@ -202,7 +226,7 @@ void main() {
       expect(result.error, contains('没有可用的文字笔记'));
     });
 
-    test('用户消息交代了范围、条数和编号方向', () {
+    test('用户消息交代了视角、范围、条数、编号方向与两段式结构', () {
       final context = NotesContextBuilder.build([
         _note('1', '最新的想法，记一笔当下的感受。', DateTime(2026, 11, 20)),
         _note('2', '更早的想法，记一笔当时的感受。', DateTime(2026, 11, 10)),
@@ -211,14 +235,76 @@ void main() {
       final message = AiInsightService.buildUserMessage(
         context: context,
         scopeLabel: '最近 30 天',
+        lens: builtInInsightLenses.first,
       );
 
-      expect(message, contains('最近 30 天'));
-      expect(message, contains('纳入分析：2 条'));
-      expect(message, contains('1 是最近一条'));
+      expect(message, contains('【本次任务信息】'));
+      expect(message, contains('【笔记正文】'));
+      expect(message, contains('【笔记结束】'));
+      expect(message, contains('分析视角：深度挖掘'));
+      expect(message, contains('视角 ID：default'));
+      expect(message, contains('分析范围：最近 30 天'));
+      expect(message, contains('本次纳入笔记：2 条'));
+      expect(message, contains('编号 1 为最新'));
+      expect(message, contains('选取方式：全量纳入'));
+      expect(message, contains('分析摘要：输出'));
+      expect(message, contains('输出长度：约 950 字'));
       expect(message, contains('最新的想法'));
       // 报告开篇要交代跨度，模型自己数日期不可靠，得直接告诉它
-      expect(message, contains('时间跨度：2026-11-10 至 2026-11-20'));
+      expect(message, contains('本次笔记时间范围：2026-11-10 至 2026-11-20'));
+    });
+
+    test('抽样时如实写明口径，不让模型以为读到了全库', () {
+      final notes = [
+        for (var i = 0; i < 120; i++)
+          _note(
+            'n$i',
+            '第 $i 条想法，写下当时的一点感受和判断。',
+            DateTime(2024).add(Duration(days: i)),
+          ),
+      ];
+      final context = NotesContextBuilder.buildForInsight(notes);
+      final message = AiInsightService.buildUserMessage(
+        context: context,
+        scopeLabel: '全部笔记',
+        lens: builtInInsightLenses.first,
+      );
+      expect(message, contains('按年-季度分桶抽样'));
+      expect(message, contains('实际纳入 ${context.noteCount} 条'));
+    });
+
+    test('内容限制如实写明截断与媒体未发送', () {
+      final context = NotesContextBuilder.build([
+        _note('1', '${'很' * 500}，这是一条超长的笔记。', DateTime(2026, 11, 20)),
+        Note(
+          id: '2',
+          content: '带图片的一条记录，写点文字说明一下。![](images/a.png)',
+          createdAt: DateTime(2026, 11, 10),
+          updatedAt: DateTime(2026, 11, 10),
+        ),
+      ]);
+      final message = AiInsightService.buildUserMessage(
+        context: context,
+        scopeLabel: '全部笔记',
+        lens: builtInInsightLenses.first,
+      );
+      expect(message, contains('部分笔记正文已截断'));
+      expect(message, contains('图片/附件未发送给模型'));
+    });
+
+    test('分析摘要开关与补充要求进入任务信息', () {
+      final context = NotesContextBuilder.build([
+        _note('1', '最新的一条想法，写够十几个字。', DateTime(2026, 11, 20)),
+      ]);
+      final message = AiInsightService.buildUserMessage(
+        context: context,
+        scopeLabel: '全部笔记',
+        lens: builtInInsightLenses.first,
+        analysisSummary: false,
+        extraRequirement: '多用原文',
+      );
+      expect(message, contains('分析摘要：不输出'));
+      expect(message, contains('补充要求：多用原文'));
     });
 
     test('时间跨度按月算，不足一个月单独说明', () {
@@ -239,9 +325,42 @@ void main() {
       expect(AiInsightService.describeSpan(null, null), isEmpty);
     });
 
-    test('系统提示词强调第一条笔记权重最高', () {
-      expect(AiInsightService.systemPrompt, contains('编号 1 的笔记权重最高'));
+    test('系统提示词强调编号可信、事实与推断分开', () {
+      expect(AiInsightService.systemPrompt, contains('编号 1 是本次纳入笔记中最新的一条'));
       expect(AiInsightService.systemPrompt, contains('[序号]'));
+      expect(AiInsightService.systemPrompt, contains('不要把推断写成事实'));
+    });
+
+    test('两段式输出能拆开，标记不留在正文里', () {
+      final parsed = AiInsightService.splitAnalysisSections(
+        '【分析摘要】\n- 一条发现 [1]\n- 另一条发现 [2]\n\n【最终报告】\n标题：拿住是一种资格\n正文第一段。',
+      );
+      expect(parsed.summary, contains('一条发现 [1]'));
+      expect(parsed.summary, isNot(contains('【分析摘要】')));
+      expect(parsed.report, contains('标题：拿住是一种资格'));
+      expect(parsed.report, isNot(contains('【最终报告】')));
+    });
+
+    test('模型漏写标记时整段当报告，摘要留空', () {
+      final parsed =
+          AiInsightService.splitAnalysisSections('标题：直接给了正文\n下面就是报告。');
+      expect(parsed.summary, isEmpty);
+      expect(parsed.report, contains('标题：直接给了正文'));
+    });
+
+    test('只有摘要标记时，标记后的内容仍当报告', () {
+      final parsed = AiInsightService.splitAnalysisSections('【分析摘要】\n报告正文在这里。');
+      expect(parsed.summary, isEmpty);
+      expect(parsed.report, '报告正文在这里。');
+    });
+
+    test('两段式输出下标题仍从报告首行剥出', () {
+      final sections = AiInsightService.splitAnalysisSections(
+        '【分析摘要】\n- 发现 [1]\n\n【最终报告】\n标题：拿住是一种资格\n\n这批笔记从 2021 年开始……',
+      );
+      final split = AiInsightService.splitTitle(sections.report);
+      expect(split.title, '拿住是一种资格');
+      expect(split.body, '这批笔记从 2021 年开始……');
     });
 
     test('标题只在有显式前缀时才认，正文一句不动', () {
@@ -327,7 +446,7 @@ void main() {
       lenses = await store.load();
       cbt = lenses.firstWhere((lens) => lens.id == 'cbt');
       expect(cbt.edited, isFalse);
-      expect(cbt.prompt, contains('认知行为疗法'));
+      expect(cbt.prompt, contains('当前分析视角：CBT 自我观察'));
     });
 
     test('自定义视角可以新增、修改、删除', () async {

@@ -15,6 +15,7 @@ import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/typewriter_text.dart';
 import 'package:inkpaper/widgets/insight_reasoning_panel.dart';
 import 'package:inkpaper/widgets/insight_source_sheet.dart';
+import 'package:inkpaper/widgets/insight_summary_card.dart';
 import 'package:inkpaper/widgets/sidebar.dart';
 import 'package:provider/provider.dart';
 
@@ -271,6 +272,7 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
             noteCount: result.noteCount,
             content: result.text,
             title: result.title,
+            summary: result.summary,
             reasoning: result.reasoning,
             // 存 id 而不是正文快照：回看时点开就是这条笔记当前的版本。
             sourceIds: [
@@ -382,10 +384,19 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     if (result == null || result.text.isEmpty) {
       return;
     }
-    // 标题也带上：粘到别处时，一行标题比直接一段正文更有用。
-    final text = result.title.isEmpty
-        ? result.text
-        : '${result.title}\n\n${result.text}';
+    // 标题 + 摘要也带上：粘到别处时，读的人需要先看结论要点再看长文。
+    final buffer = StringBuffer();
+    if (result.title.isNotEmpty) {
+      buffer.writeln(result.title);
+      buffer.writeln();
+    }
+    if (result.summary.isNotEmpty) {
+      buffer.writeln('【分析摘要】');
+      buffer.writeln(result.summary);
+      buffer.writeln();
+    }
+    buffer.write(result.text);
+    final text = buffer.toString();
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) {
       return;
@@ -1099,6 +1110,15 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
               ),
             ),
           ),
+        if (result.summary.trim().isNotEmpty) ...[
+          const SizedBox(height: 16),
+          InsightSummaryCard(
+            summary: result.summary.trim(),
+            style: _bodyStyle(theme),
+            recognizers: _refRecognizers,
+            onTapRef: (index) => _showSource(result, index),
+          ),
+        ],
         if (result.reasoning.trim().isNotEmpty) ...[
           const SizedBox(height: 16),
           InsightReasoningPanel(reasoning: result.reasoning.trim()),

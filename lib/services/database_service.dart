@@ -193,6 +193,7 @@ class DatabaseService {
       note_count INTEGER DEFAULT 0,
       content TEXT NOT NULL,
       title TEXT DEFAULT '',
+      summary TEXT DEFAULT '',
       reasoning TEXT DEFAULT '',
       source_ids TEXT DEFAULT '',
       created_at TEXT NOT NULL
@@ -340,6 +341,16 @@ class DatabaseService {
             'ADD COLUMN ${entry.key} ${entry.value}',
           );
         }
+      }
+    }
+    if (oldVersion < 16) {
+      // v16: 洞察历史补「分析摘要」列。必须排在 v14 建表、v15 补列之后，
+      // 老库才能一路升上来。老记录没有摘要，读出来是空串，界面不挂卡片。
+      if (!await _hasColumn(db, tableInsightReports, 'summary')) {
+        await db.execute(
+          'ALTER TABLE $tableInsightReports '
+          "ADD COLUMN summary TEXT DEFAULT ''",
+        );
       }
     }
   }

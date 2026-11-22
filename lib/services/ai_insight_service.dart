@@ -17,6 +17,7 @@ class AiInsightResult {
     this.error,
     this.reasoning = '',
     this.title = '',
+    this.summary = '',
     this.sources = const <InsightSource>[],
   });
 
@@ -37,6 +38,9 @@ class AiInsightResult {
 
   /// 从正文首行剥出来的标题（模型没给就是空串，界面退回视角名）。
   final String title;
+
+  /// 「分析摘要」段：可核对的几点发现，不是模型的内部思维链。
+  final String summary;
 
   /// 本次喂给模型的笔记，下标 0 即正文里的编号 1——角标靠它取原文。
   final List<InsightSource> sources;
@@ -78,32 +82,76 @@ class AiInsightService {
 
   /// 所有视角共用的规则。
   ///
-  /// 「编号 1 权重最高」不是随手写的：少楠在访谈里明确说过官方提示词里专门
-  /// 强调「第一条笔记最重要」，理由是用户主动点开查看的那条，往往就是他
-  /// 心里最重要的那条。我们按时间倒序喂笔记，编号 1 即最新一条。
-  ///
-  /// 字数交给各视角自己定：默认视角是 900-1100 字的连续长文（对齐 flomo
-  /// 默认洞察的实际产出），其余方法论视角保持 500 字左右的骨架式输出。
+  /// 对应《六视角提示词 V4.1-Flash 适配版》第 2 节：核心原则是「准确性高于
+  /// 深刻性，证据高于表达效果」。文档明确「分析摘要」只是可核对的分析结果，
+  /// 不是模型的完整内部思维链，界面另有推理面板展示 reasoning_content。
   static const String systemPrompt = '''
-你是 InkPaper 的洞察助手。用户会交给你一批自己写的笔记（按时间倒序，编号从 1 开始）和一个分析视角。你的任务不是总结这批记录，而是读出一个连他自己都还没说出口的结论。
+你是 InkPaper 的个人笔记洞察助手。
 
-通用规则：
-1. 只依据给出的笔记，不补充笔记之外的事实，不编造日期、人物、事件、关系。
-2. 支撑判断的具体证据后面用 [序号] 标注，一句最多挂两个，如 [12]；不要求每句都挂，但每一段至少得有一处能核对的。序号必须是真实存在的编号，找不到依据的判断整句删掉。
-3. 不复述原文，不写「这篇笔记讲了」「从这些记录可以看出」。第一句就要是判断，不要铺垫，不要用「我读完了」「这是一段很真诚的记录」开头。
-4. 不做医学或心理诊断，不给人格下判决，不预测未来，不说「你应该」。
-5. 第二人称「你」，像当面说话。引用他的原话用「」，不要改字。
-6. 中文，纯文本。不要 Markdown 标题、加粗、表格、emoji、破折号（用逗号或句号断句）。段落结构听所在视角的：视角要求分条时用「一、二、三」起行，没要求就用自然段落、段与段之间空一行。
-7. 不要用「亲爱的」「加油」「相信自己」这类安慰话术，也不要用「成长」「复盘」「闭环」「赋能」「情绪价值」「底层逻辑」这类空词。
-8. 允许尖锐，但尖锐要落在具体的事上（他哪天写了什么），不是给他贴标签（「你是完美主义者」）。
-9. 证据只有一条就说只有一条；笔记里确实看不出就明说看不出，不要为了凑满结构硬编。
-10. 字数按视角要求；宁可少说一个点，也不要掺水。
-11. 编号 1 的笔记权重最高：它是用户最近主动记录的，做判断时优先从它出发。
-12. 写任何时间之前先核对该条笔记的日期。写「今年 6 月」「2024 年初」，日期就必须对得上；对不上就只写事、不写时间。
-13. 他的动机拿不准就不要替他判定（是裁员还是主动辞职、有没有后悔），用中性说法，把判断留空好过说错。
-14. 写成长文时，开篇要点明这批笔记覆盖的时间范围（用户消息里已经给了），别让报告读起来像一次随机抽样。
-15. 输出第一行固定写「标题：」加一句话（12-22 字），是这篇里最核心的那个判断，可以直接取自正文最有劲的那句。标题不要用视角名、不要用「洞察报告」「笔记分析」这类词，不要书名号或引号。第二行开始才是正文。
-16. 全文最后一句必须是完整的一句话，以句号结束。不要停在半句、省略号或问句上；写不完就压缩前面的段落，宁可少一个判断，也不能交一份没有收尾的报告。''';
+用户会提供一批自己写的笔记，以及一个分析视角。笔记通常按时间倒序排列，编号从 1 开始，1 是本次纳入分析的最新一条。
+
+你的任务不是复述或概括笔记，而是按照指定视角，从真实记录中找出有证据支持的模式、联系、矛盾或判断。
+
+核心原则：准确性高于深刻性，证据高于表达效果。宁可少说一个判断，也不要编造一个看起来深刻的结论。
+
+一、理解本次输入
+
+1. 本次任务信息中提供的笔记数量、时间范围、分析范围和抽样说明，由程序计算。优先使用这些信息，不要自行改写或猜测。
+2. 笔记编号由程序生成。引用证据时只能使用本次笔记中真实存在的编号。
+3. 编号 1 是本次纳入笔记中最新的一条。它适合作为分析起点，但不能仅凭它判断长期规律。
+4. 如果本次笔记经过抽样、筛选或截断，不要把它说成用户全部历史记录。只能分析实际提供的内容。
+5. 如果某条笔记标注了内容截断或图片、附件未发送，不要假设自己看到了未发送的部分。
+
+二、证据规则
+
+1. 只能依据本次提供的笔记和任务元数据，不补充笔记之外的事实，不编造人物、事件、关系、数字和动机。
+2. 区分事实、推断和未知。事实是笔记明确记录的内容；推断是由一条或多条事实支持的解释；未知是现有记录无法确认的内容。不要把推断写成事实，也不要把未知补成故事。
+3. 重要判断必须有证据。使用 [序号] 标注，例如 [3]。序号必须真实存在。
+4. 一句话最多引用两个编号。一个段落或分析要点至少要有一处可核对的证据；如果该段只是对前文的收束，当前视角另有要求时可以不新增证据。
+5. 引用必须真正支持对应判断，不能只因为笔记里出现了相同关键词就引用。
+6. 只有一条记录支持时，要明确它只是单次记录，不能称为长期模式。
+7. 不要从用户没有提及某件事，推断这件事从未发生。
+8. 发现与判断相反的记录时，必须考虑它。若存在其他合理解释，降低判断强度，或说明暂时无法确定。
+9. 写任何时间之前，核对对应笔记的实际日期。日期不明确时，只描述事件，不写具体时间。
+10. 如果任务元数据提供的是“本次纳入笔记的时间范围”，不要将它误写成用户全部笔记的时间范围。
+
+三、分析规则
+
+1. 先读完本次提供的笔记，再形成结论。不要看到一条有趣记录就立刻决定整篇报告的主题。
+2. 关注重复出现的行为、实际选择、结果、前后变化和不同事件之间的联系。
+3. 用户对自己的评价只能作为线索，不能直接当成事实结论。要尽量核对具体行为。
+4. 不确定用户动机时，使用中性描述，不擅自判断用户为什么这么做。
+5. 不要为了凑足主题、证据数量、段落或字数而编造内容。
+6. 如果证据不足，直接说明“这批记录暂时无法判断”，或不写该判断。
+7. 不做医学或心理诊断，不给用户贴人格标签，不预测未来。
+8. 除非当前视角明确要求，否则不给建议，不使用“你应该”“你必须”等命令式表达。
+
+四、表达规则
+
+1. 默认使用第二人称“你”，像当面与记录者交谈。当前视角如果明确要求其他人称，以视角要求为准。
+2. 第一段直接进入判断，不写客套话，不写“我读完了”“这是一段很真诚的记录”“从这些笔记可以看出”等开场套话。
+3. 不按时间顺序逐条复述笔记。要解释记录之间的联系，而不是重新讲一遍发生过什么。
+4. 可以尖锐，但必须落在具体行为、选择和结果上，不给人格下判决。
+5. 引用用户原话时使用中文引号「」，保持原文，不得擅自改字。
+6. 不使用“亲爱的”“加油”“相信自己”“愿你”“希望你能”等安慰或祝福话术。
+7. 避免“成长”“复盘”“闭环”“赋能”“情绪价值”“底层逻辑”等空泛词汇，除非它们是用户原话且确有必要引用。
+8. 不刻意制造金句，不煽情，不重复表达同一个判断。
+9. 中文输出。除非当前视角明确要求表格或列表，否则使用纯文本和自然段落。
+10. 最后一句必须完整，并以句号结束。当前视角对结尾另有具体要求时，同时满足该要求。
+
+五、统一输出外壳
+
+默认分为两个部分：
+
+【分析摘要】
+用 2 至 4 个简短要点呈现本次分析中最重要、最有证据的发现。每个要点尽量标注笔记编号。只写分析结果，不展示逐步思考过程。证据不足的地方要明确说明。
+
+【最终报告】
+按照当前视角专属提示词规定的结构、语气和长度写作。不要重复罗列分析摘要，而要将证据组织成完整的分析。
+
+如果任务信息明确要求不输出分析摘要，则只输出最终报告。
+
+当前视角专属提示词负责规定最终报告的具体结构。若通用规则与视角专属格式发生冲突，证据规则始终优先；输出结构以当前视角专属提示词为准。''';
 
   /// 生成一次洞察。
   ///
@@ -142,7 +190,7 @@ class AiInsightService {
         '$systemPrompt\n\n${lens.prompt.trim()}',
       ),
       DeepSeekApiService.buildUserMessage(
-        buildUserMessage(context: context, scopeLabel: scopeLabel),
+        buildUserMessage(context: context, scopeLabel: scopeLabel, lens: lens),
       ),
     ];
 
@@ -172,16 +220,57 @@ class AiInsightService {
     }
 
     final cleaned = cleanOutput(reply.content!);
-    final split = splitTitle(cleaned);
+    final sections = splitAnalysisSections(cleaned);
+    final split = splitTitle(sections.report);
     return AiInsightResult(
       text: split.body,
       title: split.title,
+      summary: sections.summary,
       noteCount: context.noteCount,
       totalCandidates: context.totalCandidates,
       truncated: context.truncated,
       reasoning: reply.reasoning.trim(),
       sources: context.sources,
     );
+  }
+
+  /// 把模型输出拆成「分析摘要」与「最终报告」两段。
+  ///
+  /// 新提示词要求分两段输出，但模型偶尔漏写标记、只给一段：那种情况下整段
+  /// 都当报告，摘要留空，界面不挂摘要卡片。标记本身不进最终正文。
+  static ({String summary, String report}) splitAnalysisSections(String text) {
+    final summaryHeader = RegExp(r'^【\s*分析摘要\s*】');
+    final reportHeader = RegExp(r'^【\s*最终报告\s*】');
+    final lines = text.split('\n');
+    var summaryStart = -1;
+    var reportStart = -1;
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (summaryHeader.hasMatch(line) && summaryStart < 0) {
+        summaryStart = i;
+      } else if (reportHeader.hasMatch(line) && reportStart < 0) {
+        reportStart = i;
+      }
+    }
+    if (reportStart < 0) {
+      // 没有最终报告标记：若只有摘要标记，把标记后的内容当报告；否则整段是报告。
+      if (summaryStart >= 0) {
+        return (
+          summary: '',
+          report: lines.skip(summaryStart + 1).join('\n').trim(),
+        );
+      }
+      return (summary: '', report: text.trim());
+    }
+    final summary = summaryStart >= 0 && summaryStart < reportStart
+        ? lines
+            .skip(summaryStart + 1)
+            .take(reportStart - summaryStart - 1)
+            .join('\n')
+            .trim()
+        : '';
+    final report = lines.skip(reportStart + 1).join('\n').trim();
+    return (summary: summary, report: report);
   }
 
   /// 模型自报的标题上限。超过这个长度基本是它把首段整段搬下来了，
@@ -339,23 +428,82 @@ class AiInsightService {
     return null;
   }
 
-  /// 拼用户消息。公开出来是为了让测试能直接断言「编号与范围都交代清楚了」。
+  /// 视角专属的输出长度，写进任务信息让模型按视角要求收尾。
+  ///
+  /// 和六个视角 prompt 里的「最终报告格式」保持一致；自定义视角返回空串，
+  /// 让它自己的 prompt 决定长度。
+  static String outputLengthFor(InsightLens lens) {
+    if (!lens.builtIn) {
+      return '';
+    }
+    return switch (lens.id) {
+      'default' => '约 950 字',
+      'values' => '约 800 至 1000 字',
+      'inversion' => '约 900 至 1200 字',
+      'second_order' => '约 800 至 1000 字',
+      'cbt' => '约 650 至 750 字',
+      'mbti' => '约 700 至 900 字',
+      _ => '',
+    };
+  }
+
+  /// 拼用户消息。公开出来是为了让测试能直接断言任务信息与编号都交代清楚了。
+  ///
+  /// 结构按《六视角提示词 V4.1-Flash 适配版》第 4 节：
+  /// 【本次任务信息】+【笔记正文】+【笔记结束】。动态字段全部由 App 根据
+  /// 最终实际发送的列表算好，模型不需要也不应该自己推算。
   static String buildUserMessage({
     required NotesContext context,
     required String scopeLabel,
+    required InsightLens lens,
+    bool analysisSummary = true,
+    String? extraRequirement,
   }) {
-    // 如实说明取样规模与口径（去掉了过短笔记、按时间加权抽取）。
-    final coverage = context.truncated
-        ? '（库内共 ${context.totalCandidates} 条可分析的笔记，按时间加权抽取了其中 ${context.noteCount} 条）'
-        : '';
-    final span = describeSpan(context.earliest, context.latest);
-    return '''
-洞察范围：$scopeLabel
-纳入分析：${context.noteCount} 条$coverage
-${span.isEmpty ? '' : '$span\n'}编号说明：1 是最近一条，编号越大时间越早。
+    final earliest = context.earliest;
+    final latest = context.latest;
+    final rawSpan = describeSpan(earliest, latest);
+    // describeSpan 自带「时间跨度：」前缀，任务信息字段名已经写了「本次笔记
+    // 时间范围」，去掉前缀免得叠成「时间范围：时间跨度：」。
+    final range = rawSpan.replaceFirst('时间跨度：', '');
 
-笔记如下：
+    // 抽样说明：条数/字数闸门拦下过就明说是抽样，别让模型以为读到了全库。
+    // 「按时间加权」与 NotesContextBuilder.buildForInsight 的实际口径一致。
+    final sampled = context.truncated;
+    final selection = sampled
+        ? '按年-季度分桶抽样，近桶每轮 3 条、中桶 2 条、早桶 1 条（库内可分析 ${context.totalCandidates} 条，实际纳入 ${context.noteCount} 条）'
+        : '全量纳入';
+
+    // 内容限制：把「截断」「媒体未发」如实告诉模型，避免它把缺失当成事实。
+    final limits = <String>[
+      if (context.sources.any((source) => source.truncated)) '部分笔记正文已截断',
+      if (context.sources.any((source) => source.imagePaths.isNotEmpty))
+        '图片/附件未发送给模型',
+    ];
+    final limitLine = limits.isEmpty ? '无' : limits.join('；');
+
+    final outputLength = outputLengthFor(lens);
+    final info = <String>[
+      '分析视角：${lens.name}',
+      '视角 ID：${lens.id}',
+      '分析范围：$scopeLabel',
+      '本次纳入笔记：${context.noteCount} 条',
+      '本次笔记时间范围：${range.isEmpty ? '日期缺失' : range}',
+      '笔记排序：按创建时间倒序，编号 1 为最新',
+      '选取方式：$selection',
+      '内容限制：$limitLine',
+      if (outputLength.isNotEmpty) '输出长度：$outputLength',
+      '分析摘要：${analysisSummary ? '输出' : '不输出'}',
+      if (extraRequirement != null && extraRequirement.trim().isNotEmpty)
+        '补充要求：${extraRequirement.trim()}',
+    ];
+    return '''
+【本次任务信息】
+${info.join('\n')}
+
+【笔记正文】
 ${context.text}
+
+【笔记结束】
 ''';
   }
 

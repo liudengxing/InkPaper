@@ -215,9 +215,13 @@ void main() {
       ]);
 
       expect(context.text, isNot(contains(longText)));
-      expect(context.text, contains('…'));
+      expect(context.text, contains('…[本条内容已截断]'));
       expect(context.sources.single.truncated, isTrue);
-      expect(context.sources.single.text.length, lessThanOrEqualTo(401));
+      // 正文截到 400 字，后面接一段明确的截断标记
+      expect(
+        context.sources.single.text.length,
+        lessThanOrEqualTo(400 + '[本条内容已截断]'.length + 2),
+      );
     });
 
     test('字数预算仍是硬闸门：见底后整条放弃，不放半截', () {

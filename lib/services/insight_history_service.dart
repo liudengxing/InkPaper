@@ -17,6 +17,7 @@ class InsightReportEntry {
     required this.content,
     required this.createdAt,
     this.title = '',
+    this.summary = '',
     this.reasoning = '',
     this.sourceIds = const <String>[],
   });
@@ -31,6 +32,9 @@ class InsightReportEntry {
 
   /// 模型从正文里提炼的标题；老记录为空，界面退回 [lensName]。
   final String title;
+
+  /// 「分析摘要」段：可核对的几点发现；老记录（v16 之前）为空。
+  final String summary;
 
   /// 思考链原文，可能为空（非推理模型、或老记录）。
   final String reasoning;
@@ -85,6 +89,7 @@ class InsightHistoryService {
     required int noteCount,
     required String content,
     String title = '',
+    String summary = '',
     String reasoning = '',
     List<String> sourceIds = const <String>[],
   }) async {
@@ -101,6 +106,7 @@ class InsightHistoryService {
         'note_count': noteCount,
         'content': text,
         'title': title.trim(),
+        'summary': summary.trim(),
         'reasoning': reasoning.trim(),
         // id 里不含逗号，拼起来比 JSON 省事，也不用多一层解码。
         'source_ids': sourceIds.join(','),
@@ -186,6 +192,7 @@ class InsightHistoryService {
       noteCount: (row['note_count'] as int?) ?? 0,
       content: (row['content'] ?? '') as String,
       title: (row['title'] ?? '') as String,
+      summary: (row['summary'] ?? '') as String,
       reasoning: (row['reasoning'] ?? '') as String,
       sourceIds: rawIds.isEmpty
           ? const <String>[]

@@ -592,8 +592,14 @@ class NotesContextBuilder {
       var body = entry.text;
       var truncated = false;
       if (body.length > perNoteLimit) {
-        body = '${body.substring(0, perNoteLimit)}…';
+        // 明确告诉模型这条只给了前半段，别把截断处当成完整句子来理解。
+        body = '${body.substring(0, perNoteLimit)}…[本条内容已截断]';
         truncated = true;
+      }
+      // 图片和附件不发给模型，但要把「有而未发」这件事说清楚，
+      // 否则模型会以为这条记录本来就只有文字。
+      if (entry.imagePaths.isNotEmpty) {
+        body = '$body [图片/附件未发送]';
       }
       final tags = entry.tags.isEmpty
           ? ''
@@ -686,11 +692,10 @@ class NotesContextBuilder {
     return 1.0;
   }
 
-  static String _formatDate(DateTime time) {
-    final now = DateTime.now();
-    final pattern = time.year == now.year ? 'MM-dd' : 'yyyy-MM-dd';
-    return DateFormat(pattern).format(time);
-  }
+  /// 喂给模型的日期一律写全 yyyy-MM-dd：模型要把日期写进报告里引用，
+  /// 缺了年份它只能猜，跨年记录尤其容易写错。界面展示另有自己的口径。
+  static String _formatDate(DateTime time) =>
+      DateFormat('yyyy-MM-dd').format(time);
 }
 
 class _Entry {

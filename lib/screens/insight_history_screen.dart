@@ -12,6 +12,7 @@ import 'package:inkpaper/utils/note_timestamp_format.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/widgets/insight_reasoning_panel.dart';
 import 'package:inkpaper/widgets/insight_source_sheet.dart';
+import 'package:inkpaper/widgets/insight_summary_card.dart';
 import 'package:provider/provider.dart';
 
 /// 洞察历史列表。
@@ -369,7 +370,18 @@ class _InsightReportScreenState extends State<InsightReportScreen> {
     if (entry == null) {
       return;
     }
-    await Clipboard.setData(ClipboardData(text: entry.content));
+    final buffer = StringBuffer();
+    if (entry.title.isNotEmpty) {
+      buffer.writeln(entry.title);
+      buffer.writeln();
+    }
+    if (entry.summary.isNotEmpty) {
+      buffer.writeln('【分析摘要】');
+      buffer.writeln(entry.summary);
+      buffer.writeln();
+    }
+    buffer.write(entry.content);
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
     if (!mounted) {
       return;
     }
@@ -456,6 +468,15 @@ class _InsightReportScreenState extends State<InsightReportScreen> {
               fontWeight: FontWeight.w600,
               letterSpacing: -0.2,
             ),
+          ),
+        ],
+        if (entry.summary.trim().isNotEmpty) ...[
+          const SizedBox(height: 16),
+          InsightSummaryCard(
+            summary: entry.summary.trim(),
+            style: base,
+            recognizers: tappable ? _refRecognizers : null,
+            onTapRef: tappable ? _showSource : null,
           ),
         ],
         if (entry.reasoning.trim().isNotEmpty) ...[

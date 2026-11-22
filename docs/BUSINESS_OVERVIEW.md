@@ -1,14 +1,14 @@
 # 业务框架与流程 / 参数手册
 
 > 配套 `docs/HANDOFF.md`：**HANDOFF 讲「怎么开工」，本文讲「这个 App 是怎么运转的」**。
-> 最后更新：2026-11-09 · 版本 `1.1.64+10160`
+> 最近更新：2026-11-22 · 首页标签屏蔽和 AI 洞察 · `1.1.137+10237`
 > 所有结论都带文件行号依据，行号为主分支 `main` 当时快照，重构后可能漂移，按方法名检索即可。
 
 ---
 
 ## 1. 产品一句话
 
-**InkPaper**：本地优先的笔记应用。核心是「纯文本 + Markdown + 本地图片」的快速记录，可选连自己的 Memos 服务器做多端同步；AI 侧提供「问笔记」（拿全库笔记当资料对话）与「周/月回顾」（AI 总结近期笔记）。
+**InkPaper** 是本地优先的笔记应用，支持用纯文本、Markdown 和本地图片快速记录。随机漫步在本机沿笔记关联探索。应用可连接自建 Memos 服务器做多端同步，并提供问笔记、周/月回顾和六视角 AI 洞察。
 
 - 平台范围：只做 Android（仓库内只有 `android/` 一个平台工程），全部迭代在真机
 - 数据主权：默认不登录也能用，全部数据在本机 `notes.db`；登录 Memos 后才双向同步
@@ -41,7 +41,7 @@ lib/
 
 | 分组 | 页面（`lib/screens`） |
 | --- | --- |
-| 主流程 | `home_screen`（首页列表+底部输入胶囊）、`note_detail_screen`、`note_chat_screen`（问笔记）、`random_review_screen`、`periodic_review_screen`（周/月回顾）、`tags_screen` / `tag_notes_screen`、`notifications_screen`、`draft_box_screen`、`recently_deleted_screen` |
+| 主流程 | `home_screen`（首页列表和快捷入口）、`note_detail_screen`、`note_chat_screen`（问笔记）、`random_review_screen`、`random_walk_screen`、`periodic_review_screen`（周/月回顾）、`ai_insight_screen`、`tags_screen` / `tag_notes_screen`、`notifications_screen`、`draft_box_screen`、`recently_deleted_screen` |
 | 账号/服务器 | `login_screen`、`register_screen`、`forgot_password_screen`、`server_info_screen`、`webdav_settings_screen`、`account_info_screen`、`account_deletion_screen` |
 | 设置 | `settings_screen`、`preferences_screen`、`user_preferences_screen`、`ai_settings_screen`、`sidebar_customization_screen`、`notion_settings_screen`、`data_cleanup_screen` |
 | 导入/导出 | `import_export_main_screen`、`local_backup_restore_screen`、`flomo_import_screen`、`weread_import_screen` |
@@ -49,7 +49,7 @@ lib/
 
 ### 路由（`lib/routes/app_router.dart`）
 
-`/`（shell，含 sidebar 抽屉）下挂：`note/:id`、`edit`、`draft-box`、`recently-deleted`、`notifications`、`preferences`、`ai-settings`、`sidebar-customization`、`webdav-settings`、`server-info`、`account-info`、`data-cleanup`、`import-export`（`local-backup-restore` / `flomo-import` / `weread-import` / `notion-settings`）、`login` / `register` / `forgot-password`、`/tags`、`/random-review`、`/note-chat`、`/periodic-review`、`/settings`、`/help`、`/feedback`、`/laboratory`、`/performance-dashboard`、`/onboarding`、`/welcome`、`/account-deletion`。
+`/`（shell，含 sidebar 抽屉）下挂 `note/:id`、`edit`、`draft-box`、`recently-deleted`、`notifications`、`preferences`、`ai-settings`、`sidebar-customization`、`webdav-settings`、`server-info`、`account-info`、`data-cleanup`、`import-export`（`local-backup-restore` / `flomo-import` / `weread-import` / `notion-settings`）、`login` / `register` / `forgot-password`、`/tags`、`/random-review`、`/random-walk`、`/note-chat`、`/periodic-review`、`/ai-insight`、`/settings`、`/help`、`/feedback`、`/laboratory`、`/performance-dashboard`、`/onboarding` 和 `/welcome`。
 深链 scheme：`inkpaper://`（分享回传用 `inkpaper://share`）。
 
 ---
@@ -164,17 +164,18 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
 - 快照字段：`schemaVersion / generatedAt / today{notes,words,tags,pendingTodos} / sync{mode,status,message,unsyncedCount} / quickTags(≤5) / reviewConfig{refreshIntervalMinutes,rangeDays} / reviewNotes(≤8)`
 - 只把 `rowStatus` 为 NORMAL/空 的笔记放进快照；**原生侧不展示日期**，不存在"首页改 createdAt 而小组件还是 updatedAt"的不一致
 
-### 4.11 AI：问笔记 + 周/月回顾
+### 4.11 AI 问笔记、周/月回顾和 AI 洞察
 
-- 通用：OpenAI 兼容 `POST {aiBaseUrl}/chat/completions`，`Authorization: Bearer <aiApiKey>`（key 由用户自填，默认模型 `deepseek-chat`）
+- 通用请求使用 AI 设置所选的模型，调用 OpenAI 兼容的 `POST {aiBaseUrl}/chat/completions`，使用用户配置的 API 密钥。
 - **问笔记**（`notes_qa_service.dart`）：先把问题做关键词检索（IDF 权重 + 标签提权），再用最近笔记填剩余预算 → 拼上下文 → `temperature 0.5 / max_tokens 1600`
 - **周/月回顾**（`periodic_review_service` + `ai_review_service`）：按 `displayTime` 窗口取近 7/30 天 → 生成提示词（可在 AI 设置里改）→ `temperature 0.45 / max_tokens 520`；提示词改动会让旧总结失效
+- **AI 洞察**从首页下拉或侧边栏进入。内置六种分析视角，按笔记 `createdAt` 取材，可在 AI 设置中关闭分析摘要。报告需有正文，启用摘要时会分别解析摘要和正文。 [洞察服务](../lib/services/ai_insight_service.dart) · [取材逻辑](../lib/utils/notes_context_builder.dart)
 - **上下文预算**（`notes_context_builder.dart:56-63`）：总字符 **28000**、最多 **200** 条笔记、其中相关命中最多 **80** 条、单条截断 **400** 字符
 - 全局兜底：`AppConfig.aiRequestTimeoutSeconds = 30`，`aiMaxTokens = 2000`
 
 - **自定义提示词**（1.1.61 / 1.1.62 整理后共三块）：点评 `customReviewPrompt`（`ai_review_service:79`）、续写 `customContinuationPrompt`、回顾 `customPeriodicReviewPrompt`（`periodic_review_service:406`）。三者由同一个开关 `useCustomPrompt` 统一放行
 - 开关语义（1.1.62 起）：**开着但某块留空 = 该功能用默认提示词**，不是「没启用」。两个消费者本来就是按字段判空再回退，保存时不再把开关改回 `false`（旧逻辑会让开关静默弹回，用户以为没保存成功）
-- 1.1.61 已删除没有入口的「AI 洞察」页与它的两块提示词（洞察 / 标签洞察）；1.1.63 又删掉同为零消费者的「标签推荐提示词」（`customTagRecommendationPrompt`）与配套孤儿文案，详见 `BLOCKERS.md` TAG-REC-001
+- 1.1.63 已移除旧的标签推荐提示词 `customTagRecommendationPrompt`。 [历史记录 TAG-REC-001](../BLOCKERS.md)
 
 ### 4.12 语音输入（1.1.57 起：默认关闭，仅讯飞）
 
@@ -196,6 +197,13 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
   - 打字时：`shiftImageOffsets` 用公共前后缀求出差异区间，把每个图片的 `offset` 平移过去（`null` 表示该图已删除，保留占位）
   - 保存时：`splitRangeByImages` 把加粗/斜体等样式区间**在图片位置断开**再平移，避免 `![]()` 被样式包进去
   - 它只返回 `({int start, int end})`，不认识 `MemoStyleRange`——因为后者定义在 `widgets/memo_editing_controller.dart`，让 utils 反过来依赖 widgets 会破坏分层
+
+### 4.14 离线随机漫步
+
+- 首页顶部下拉依次显示 AI 洞察、随机漫步和随机回顾。随机漫步也有独立侧栏入口，周期回顾通过侧栏进入。应用在后台从有正文或附件的正常本地笔记构建本次索引，再随机选起点。 [首页入口](../lib/screens/home_screen.dart) · [漫步页面](../lib/screens/random_walk_screen.dart)
+- 每步最多推荐四条。显式引用和反向引用优先，后续按正文相似度排序。正文匹配用 BM25，从最多 24 个较少见的词项取证，至少命中两个词项且原始正文分达到 0.5。共同标签给正文候选的额外加分上限为 0.35，剩余位置最多补一条仅靠标签匹配的笔记。覆盖过广的标签和 `#微信读书` 不参与标签推荐，候选之间过于相似会降分。 [关联索引](../lib/services/random_walk_index.dart)
+- 向前和随机跳跃都跳过仍在当前路径上的笔记。返回上一步会截掉后续路径，被撤掉的笔记可以重新成为候选。随机跳跃从剩余可用的本地笔记抽取。 [路径状态](../lib/screens/random_walk_screen.dart)
+- 候选卡片预留五行正文。正文相似的依据从目标笔记原文取句段，长句围绕命中位置截取。点进后，跳转原因随当前卡片显示，展开全文也可见。漫步小结按当前路径统计笔记数、可见文字量、笔记日期范围和日期跨度最大的一跳。 [卡片画布](../lib/widgets/random_walk_canvas.dart) · [漫步小结](../lib/widgets/random_walk_recap.dart)
 
 ---
 

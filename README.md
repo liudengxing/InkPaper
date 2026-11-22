@@ -6,9 +6,9 @@
 
 ## 当前版本
 
-`1.1.130`
+`1.1.137`
 
-正式版本构建（Android APK / AAB）
+当前源码已通过 Android 真机安装验收。公开安装包以发行页为准。
 
 ## 功能
 
@@ -16,14 +16,17 @@
 - Markdown 渲染、待办事项、链接、图片和标签。
 - 多层级标签，例如 `#工作/项目A`。
 - 全文搜索、置顶、提醒和随机回顾。
+- 随机漫步可在本机沿笔记关联向前探索、返回上一步并查看本次路径小结。
 - 图片上传、预览、保存和多图浏览。
 - WebDAV 备份和恢复，可选择是否备份图片附件。
 - Flomo、微信读书等数据导入。
 - Android 系统分享入口。
 - 快速记录和随机回顾桌面小组件。
-- AI 辅助写作和自定义提示词。
+- AI 辅助写作、自定义提示词和六视角 AI 洞察，分析摘要可在 AI 设置中关闭。
 - 中文和英文界面。
 - 仅维护 Android 单平台，发布 APK 与 AAB。
+
+在首页列表顶部下拉，即可打开 **AI 洞察、随机漫步、随机回顾**。随机漫步也可以从侧边栏进入。每张候选卡片预留五行正文，点进后可在卡片内查看跳转原因和展开全文。
 
 ## 下载
 
@@ -65,7 +68,7 @@ dart tool/inkpaper.dart build android-release
 2. 通过 `sdkmanager` 安装：
 
 ```bash
-sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 sdkmanager --licenses
 ```
 
@@ -76,10 +79,10 @@ sdkmanager --licenses
 版本号统一维护在 `pubspec.yaml`，`x.y.z` 是语义版本，`+N` 是构建号：
 
 ```yaml
-version: 1.1.130+10230
+version: 1.1.137+10237
 ```
 
-每次改动都要把 `x.y.z` 的 patch 与 `+N` 同时加 1，并同步本文件顶部「当前版本」的那个 `x.y.z`——`dart tool/inkpaper.dart store-check` 会断言两处一致，对不上直接失败。
+构建新版本时同步增加 `x.y.z` 的 patch 和 `+N`，并更新中英文 README 的当前版本。`dart tool/inkpaper.dart store-check` 会核对版本一致性。
 
 发布入口：
 
@@ -99,6 +102,8 @@ Gitee 镜像仓的代码、tag 和发行说明由 CI 同步；安装包因为 Ac
 ## 文档
 
 - [项目结构与构建指南](docs/PROJECT_STRUCTURE_AND_BUILD.md)
+- [业务说明与随机漫步规则](docs/BUSINESS_OVERVIEW.md)
+- [构建与真机测试](docs/BUILD_AND_DEVICE_TESTING.md)
 - [维护指南](docs/MAINTENANCE.md)
 - [商店合规清单](docs/STORE_COMPLIANCE.md)
 - [更新日志](CHANGELOG.md)

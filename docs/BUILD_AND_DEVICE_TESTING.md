@@ -7,14 +7,15 @@
 | 目标平台 | 必需环境 |
 | --- | --- |
 | 通用 | Flutter stable（当前验证版本 3.47.x）、Dart SDK、Git |
-| Android | Android SDK（compileSdk 34 / build-tools 34.0.0）、NDK `28.2.13676358`、JDK 17 |
+| Android | Android SDK（1.1.136 使用 compileSdk 36）、NDK `28.2.13676358`、JDK 17 |
 
 首次拉仓库后：
 
 ```bash
 flutter pub get
 dart tool/inkpaper.dart doctor    # 检查 Flutter、SDK、签名文件、平台工具
-dart tool/inkpaper.dart verify    # analyze + test + store-check 一把跑完
+dart tool/inkpaper.dart verify       # 依赖、格式、静态分析和测试
+dart tool/inkpaper.dart store-check  # 发版元数据与中英文 README 版本一致性
 ```
 
 ## 2. 常用开发命令
@@ -24,17 +25,17 @@ dart tool/inkpaper.dart analyze        # 静态分析
 dart tool/inkpaper.dart test           # 单元与组件测试
 dart tool/inkpaper.dart deps           # 依赖体检
 dart tool/inkpaper.dart store-check    # 商店合规自检（隐私清单、删除入口、签名证书等）
-dart tool/inkpaper.dart all            # 构建当前宿主可构建的全部 debug 产物
+dart tool/inkpaper.dart build all      # 构建 Android 发布 APK
 ```
 
-`all` 等价于 `android-release`，构建发布 APK。
+`build all` 等价于 `build android-release`。
 
 ### 构建目标
 
 | 命令 | 说明 |
 | --- | --- |
 | `build android-debug` | Android 调试 APK |
-| `build android-release` | Android 发布 APK（universal，含全部 ABI，发布/CI 用这个） |
+| `build android-release` | 单个签名 Android APK，包含 ARM 32 位与 ARM64 |
 | `build android-release-split` | 按 ABI 拆分的发布 APK（本机安装、测包体），产物三个 |
 | `build android-aab` | Google Play 用的签名 AAB |
 
@@ -107,6 +108,16 @@ ls -lh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 
 采集前先准备数据量：导入或批量创建 1000 条笔记（含 20% 带图笔记），否则测不出长列表的问题。
 
+### 3.2 安卓桌面图标
+
+1.1.136 的桌面图标母版是奶白底、青绿色折角便签。运行 `node tool/gen_icons.mjs` 生成五档密度的方形图标、圆形图标和自适应前景。自适应图标的底色在 `android/app/src/main/res/values/colors.xml`，与脚本输出的母版背景色一致。 [图标母版](picture/launcher-icon.png) · [生成脚本](../tool/gen_icons.mjs)
+
+### 3.3 委派安装已构建的 APK
+
+WorkBuddy 的任务工作树从 Git 提交检出，`build/` 下已生成的 APK 不会随之进入。1.1.136 部署时，主流程从原项目核对签名包的 SHA-256，将包推送到目标设备的 `/data/local/tmp/`，再核对手机上暂存包的 SHA-256。WorkBuddy 使用同一 USB 序列号，从已校验的暂存包执行 `pm install -r -d`，启动应用并清理这一份暂存文件。
+
+验收时用 `adb -s <序列号> shell dumpsys package com.didichou.inkpaper` 查版本，用 `pm path` 找到设备的 `base.apk`，再比对手机和本地包的 SHA-256。打开实际改动的页面确认能使用。 [1.1.136 验收记录](../PROGRESS.md)
+
 ## 4. 发布
 
 当前 `release.yml` **只发布 Android（APK + AAB）**。仓库已删除其他平台目录，
@@ -138,7 +149,7 @@ dart tool/inkpaper.dart release v1.0.1
 
 ### 5.1 安装与数据
 
-- 应用 ID 已从旧命名改为 `com.didichou.inkpaper`，覆盖安装会变成第二个 App，旧数据不会迁移。测试前请先卸载旧包，或明确以全新用户视角验证。
+- 同包名 `com.didichou.inkpaper`、同签名的升级使用覆盖安装，保留已有笔记和设置。采用其他应用 ID 的早期版本会作为独立 App 并存，迁移其笔记可用导出与导入。
 - 数据库文件为 `notes.db`，查看方式：
   ```bash
   adb shell run-as com.didichou.inkpaper ls databases
@@ -177,6 +188,7 @@ dart tool/inkpaper.dart release v1.0.1
 - 标签：多层级标签（`#工作/项目A`）、中文标签、侧边栏返回路径。
 - 搜索、置顶、随机回顾、导入导出（Flomo、微信读书）。
 - 字号设置验证不同档位下列表与详情页不出现布局溢出。
+- 随机漫步从首页下拉或侧栏进入。用长正文和两行关联线索检查候选卡片的五行正文空间，再点进候选，检查展开全文、跳转原因、回退和漫步小结。
 
 ## 6. 排查建议
 

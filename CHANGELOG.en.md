@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improved
 
 - **Note detail**: body layout matches the editor, and lists keep their bullets and numbers.
+- **AI Insight**: new prompts and report structure for all six lenses, grounded in evidence.
 
 ### Fixed
 

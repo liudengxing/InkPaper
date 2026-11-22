@@ -6,9 +6,9 @@ InkPaper is an Android note-taking app for personal knowledge capture. Local not
 
 ## Current Version
 
-`1.1.130`
+`1.1.137`
 
-Official build (Android APK / AAB)
+The current source has passed Android device installation checks. See the release page for public downloads.
 
 ## Features
 
@@ -16,14 +16,17 @@ Official build (Android APK / AAB)
 - Markdown rendering, todos, links, images, and tags.
 - Hierarchical tags such as `#work/projectA`.
 - Full-text search, pinning, reminders, and random review.
+- Random Walk follows related notes offline, lets you go back a step, and summarizes your path.
 - Image upload, preview, saving, and multi-image browsing.
 - WebDAV backup and restore, with optional image backup.
 - Import from Flomo, WeRead, and other sources.
 - Android system share targets.
 - Quick-note and random-review widgets.
-- AI-assisted writing and custom prompts.
+- AI-assisted writing, custom prompts, and six AI Insight lenses with an optional analysis summary.
 - Chinese and English UI.
 - Android only: releases ship as APK and AAB.
+
+Pull down at the top of the home feed to open **AI Insights, Random Walk, or Random Review**. Random Walk is also available in the sidebar. Candidate cards reserve five lines for the note preview. Open a card to see why it was suggested and expand the full note in place.
 
 ## Download
 
@@ -66,7 +69,7 @@ Builds need the Android SDK (see "Android environment" below) and JDK 17.
 2. Install components via `sdkmanager`:
 
 ```bash
-sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 sdkmanager --licenses
 ```
 
@@ -77,10 +80,10 @@ sdkmanager --licenses
 The app version is managed in `pubspec.yaml`, where `x.y.z` is the semantic version and `+N` is the build number:
 
 ```yaml
-version: 1.1.130+10230
+version: 1.1.137+10237
 ```
 
-Bump both the `x.y.z` patch and `+N` on every change, and update the `x.y.z` shown in the "Current Version" section above — `dart tool/inkpaper.dart store-check` asserts that the two match and fails otherwise.
+When preparing a new build version, bump both the `x.y.z` patch and `+N` and update the current version in both READMEs. `dart tool/inkpaper.dart store-check` verifies that they match.
 
 Release command:
 
@@ -99,6 +102,8 @@ CI mirrors the code, tags and release notes to the Gitee repository. The APK its
 
 ## Documentation
 
+- [Business flows and Random Walk rules](docs/BUSINESS_OVERVIEW.md)
+- [Build and device testing](docs/BUILD_AND_DEVICE_TESTING.md)
 - [Maintenance guide](docs/MAINTENANCE.md)
 - [Store compliance checklist](docs/STORE_COMPLIANCE.md)
 - [Changelog](CHANGELOG.en.md)

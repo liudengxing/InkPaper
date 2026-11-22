@@ -1,23 +1,25 @@
 # 交接文档（HANDOFF）
 
 > 面向「接着改代码的人 / 新开的 AI 窗口」。目标：读完这一篇就能开工，不用翻聊天记录。
-> 最后更新：2026-11-19 · 版本 `1.1.117+10217`
+> 最后更新：2026-11-22 · 已通过真机验收的版本 `1.1.137+10237`
 >
 > 配套文档：
 > - **`docs/development/LESSONS_LEARNED.md`** — 踩坑与经验（构建、时间戳、小组件、同步、发版），开工前先扫一遍
-> - **`docs/BUSINESS_OVERVIEW.md`** — 业务框架、13 条业务流程、参数速查、真机调试参数（改具体功能前必读）
+> - **`docs/BUSINESS_OVERVIEW.md`** — 业务流程、关联规则、参数速查和真机调试参数
 > - `PROGRESS.md` — 逐条工作记录（最新在最前）
 > - `BLOCKERS.md` — 未解决 / 待决策条目
-> - `CHANGELOG.md` — 对外发布日志（已跟到 1.1.117）
+> - `CHANGELOG.md` — 面向使用者的版本记录
 
 ---
 
 ## 1. 一句话现状
 
-Android 单端优先的笔记应用（Flutter），本地 SQLite + Memos 服务器同步，AI 侧有「问笔记」聊天、周/月回顾两套能力；最近一轮主要在收**图标视觉、首页滚动掉帧、卡片时间口径、语音识别卡死**四件事。
+InkPaper 是本地优先的 Android 笔记应用，使用 Flutter 和 SQLite，可选 Memos 同步。AI 入口包括问笔记、周/月回顾和六视角 AI 洞察。
 
 - 包名：`com.didichou.inkpaper`，深链 `inkpaper://`
 - 支持的构建目标：只有 Android（APK / AAB）；iOS、macOS、Windows、Linux、Web 工程已于 2026-11-12 删除
+- 首页下拉可进入 AI 洞察、随机漫步、随机回顾。随机漫步在本机沿一条路径浏览，支持返回、卡片内展开和漫步小结。 [随机漫步规则](BUSINESS_OVERVIEW.md#414-离线随机漫步)
+- `1.1.137+10237` 已覆盖安装到 `23127PN0CC` 测试机，包含首页标签屏蔽、详情页正文排版对齐编辑页和 AI 洞察新版提示词。真机验证过屏蔽标签后首页条目消失、取消后恢复。 [验收记录](../PROGRESS.md) · [部署指南](BUILD_AND_DEVICE_TESTING.md)
 
 ---
 
@@ -28,7 +30,7 @@ cd "f:\VibeCoding Project\InkPaper"
 dart tool/inkpaper.dart doctor            # 环境检查
 dart tool/inkpaper.dart deps              # flutter pub get
 dart tool/inkpaper.dart analyze           # 静态分析
-dart tool/inkpaper.dart test              # 全量单测（当前 579 项）
+dart tool/inkpaper.dart test              # 全量测试
 dart tool/inkpaper.dart verify            # deps + analyze + test
 dart tool/inkpaper.dart build android-debug
 dart tool/inkpaper.dart build android-release
@@ -90,6 +92,9 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 | 「引用笔记」选择框 | `lib/widgets/note_reference_dialog.dart` |
 | 语音服务（仅讯飞，默认关闭） | `lib/services/speech_service.dart`、`lib/services/iflytek_speech_service.dart` |
 | 周/月回顾 | `lib/services/periodic_review_service.dart`、`ai_review_service.dart`、`lib/screens/periodic_review_screen.dart` |
+| 随机漫步的路径、关联、画布和小结 | `lib/screens/random_walk_screen.dart`、`lib/services/random_walk_index.dart`、`lib/widgets/random_walk_canvas.dart`、`lib/widgets/random_walk_recap.dart` |
+| AI 洞察视角与报告生成 | `lib/models/insight_lens.dart`、`lib/services/ai_insight_service.dart` |
+| 安卓桌面图标 | `docs/picture/launcher-icon.png`、`tool/gen_icons.mjs`、`android/app/src/main/res/` |
 | 「问笔记」上下文预算 | `lib/utils/notes_context_builder.dart` |
 | 图片解码像素档位 | `lib/utils/image_decode_width.dart` |
 | Markdown 解析与缓存 | `lib/utils/memos_content_helper.dart` |
@@ -98,7 +103,19 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 
 ---
 
-## 4. 最近一轮改动（2026-10-29 ~ 11-05）
+## 4. 改动索引
+
+### 2026-11-22
+
+| 提交 | 改动 |
+| --- | --- |
+| `14ba985`、`a843001` | 新增离线随机漫步，改为单向路径，加入回退、卡片内阅读和小结 |
+| `05d8359`、`6426b7d` | 更新 AI 洞察六视角提示词，修复报告解析与预算提示，加入分析摘要开关 |
+| `cda118a` | 首页下拉加入随机漫步，候选优先匹配正文并限制纯标签推荐 |
+| `0779825` | 在当前卡片显示跳转原因，正文相似使用目标笔记的原文句段 |
+| `50d326b` | 更换奶白底折角便签图标，候选卡片预留五行正文 |
+
+### 2026-10-29 至 11-05
 
 | commit | 内容 | 关键实现 |
 | --- | --- | --- |
@@ -181,16 +198,16 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 
 ```text
 你在 InkPaper 仓库继续开发：F:\VibeCoding Project\InkPaper
-（Flutter 笔记应用，包名 com.didichou.inkpaper，深链 inkpaper://，当前版本见 pubspec.yaml，写作时 1.1.117+10217）
+（Flutter 笔记应用，包名 com.didichou.inkpaper，深链 inkpaper://，当前版本见 pubspec.yaml）
 
 【这是个什么项目】
 本地优先的笔记应用：纯文本/Markdown + 本地图片，数据全在本机 notes.db（schema v12，查询一律走 active_notes 视图）；
-可选登录用户自建的 Memos 服务器做双向同步；AI 侧有「问笔记」（全库笔记当资料对话）和「周/月回顾」；
-另有语音输入（系统/讯飞/百度三种模式）、定时提醒（Android 原生精确闹钟）、桌面小组件、Flomo/微信读书导入、JSON/ZIP 备份。
+可选登录用户自建的 Memos 服务器做双向同步。随机漫步在本机探索笔记关联。AI 入口包括问笔记、周/月回顾和 AI 洞察。
+应用还支持讯飞语音输入、Android 原生提醒、桌面小组件、Flomo 和微信读书导入，以及 JSON/ZIP 备份。
 
 【先读，再动手】
 1. docs/HANDOFF.md —— 现状、代码地图、未解决问题、硬性约定
-2. docs/BUSINESS_OVERVIEW.md —— 业务框架、13 条业务流程、参数速查（AI 预算/解码档位/防抖/分页）、真机调试参数
+2. docs/BUSINESS_OVERVIEW.md —— 业务流程、随机漫步规则、参数速查和真机调试参数
 3. PROGRESS.md 顶部 3 条记录 —— 最近做了什么
 4. BLOCKERS.md 的 VOICE-001 / ORIENT-001 / PERF-IMG-001 / DOC-001
 读完先用 3~5 行汇报：你理解的当前状态 + 你打算动哪几个文件 + 验收标准，等我确认后再写代码。

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
@@ -137,6 +138,52 @@ void main() {
     await tester.pumpAndSettle();
     expect(camera.value.getMaxScaleOnAxis(), greaterThan(beforeButton));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('candidate cards fit five body lines alongside the reason',
+      (tester) async {
+    final start = _note('start', 'Opening note');
+    final body = List.generate(5, (index) => 'Line $index').join('\n');
+    final candidate = _note('candidate', body);
+    final other = _note('other', 'Other note');
+    const evidence = 'Writing notes in a notebook';
+
+    for (final scale in [1.0, 1.3]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(scale),
+            ),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: RandomWalkCanvas(
+              notes: [_preview(start), _preview(candidate), _preview(other)],
+              edges: const [
+                ('start', 'candidate', WalkRelation.text, evidence),
+                ('start', 'other', WalkRelation.reference, ''),
+              ],
+              path: const ['start'],
+              current: start,
+              onSelect: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final paragraph = tester.renderObject<RenderParagraph>(find.text(body));
+      final lines = paragraph.getBoxesForSelection(
+        TextSelection(baseOffset: 0, extentOffset: body.length),
+      );
+      expect(lines.map((box) => box.top).toSet(), hasLength(5));
+      expect(lines.every((box) => box.bottom <= paragraph.size.height), isTrue);
+      expect(
+        tester.getBottomLeft(find.byKey(const ValueKey('candidate'))).dy,
+        lessThan(tester.getTopLeft(find.byKey(const ValueKey('other'))).dy),
+      );
+    }
   });
 
   testWidgets('recap uses calendar range and largest adjacent jump',

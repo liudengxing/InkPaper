@@ -10,6 +10,9 @@ import 'package:provider/provider.dart';
 
 typedef _WalkReason = ({String label, String evidence});
 
+const _candidatePreviewLines = 5;
+const _previewLineHeight = 1.4;
+
 class RandomWalkCanvas extends StatefulWidget {
   const RandomWalkCanvas({
     required this.notes,
@@ -42,9 +45,7 @@ class RandomWalkCanvas extends StatefulWidget {
 
 class _RandomWalkCanvasState extends State<RandomWalkCanvas>
     with SingleTickerProviderStateMixin {
-  static const _cardSize = Size(168, 130);
   static const _columnGap = 246.0;
-  static const _rowGap = 146.0;
   static const _minScale = 0.42;
   static const _maxScale = 1.65;
 
@@ -55,6 +56,7 @@ class _RandomWalkCanvasState extends State<RandomWalkCanvas>
   )..addListener(_moveCamera);
   Matrix4Tween? _flight;
   final _positions = <String, Offset>{};
+  late Size _cardSize;
   Size? _viewSize;
   Offset? _origin;
   String? _centeredFocus;
@@ -63,8 +65,18 @@ class _RandomWalkCanvasState extends State<RandomWalkCanvas>
   double? _pendingScale;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final text = Theme.of(context).textTheme;
+    final scaler = MediaQuery.textScalerOf(context);
+    final previewHeight = _candidatePreviewLines *
+        scaler.scale(text.bodyMedium?.fontSize ?? 14) *
+        _previewLineHeight;
+    final labelHeight = scaler.scale(text.labelSmall?.fontSize ?? 11) *
+        max(1.5, text.labelSmall?.height ?? 1.5);
+    // 日期一行、跳转原因两行，始终为正文保留五行空间。
+    _cardSize =
+        Size(168, (40 + previewHeight + 3 * labelHeight).ceilToDouble());
     _updatePositions();
   }
 
@@ -98,8 +110,9 @@ class _RandomWalkCanvasState extends State<RandomWalkCanvas>
       _positions[id] = Offset(i * _columnGap, _positions[id]?.dy ?? 0);
     }
     final focus = _positions[widget.focus]!;
+    final rowGap = _cardSize.height + 16;
     for (var i = 0; i < next.length; i++) {
-      final dy = (i - (next.length - 1) / 2) * _rowGap;
+      final dy = (i - (next.length - 1) / 2) * rowGap;
       _positions[next[i].$2] = focus + Offset(_columnGap, dy);
     }
   }
@@ -540,10 +553,12 @@ class _WalkCard extends StatelessWidget {
                   child: fullNote == null
                       ? Text(
                           preview.isEmpty ? l10n.randomWalkAttachment : preview,
-                          maxLines: selected && reason == null ? 4 : 3,
+                          maxLines: selected
+                              ? (reason == null ? 4 : 3)
+                              : _candidatePreviewLines,
                           overflow: TextOverflow.ellipsis,
                           style: style.bodyMedium?.copyWith(
-                            height: 1.4,
+                            height: _previewLineHeight,
                             color: colors.onSurface,
                           ),
                         )

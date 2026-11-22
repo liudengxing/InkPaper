@@ -1,14 +1,14 @@
 // InkPaper 图标生成脚本（零依赖，仅用 Node 内置 zlib）
 // 用法: node tool/gen_icons.mjs [master.png]
-// 默认母版: docs/picture/logo_v2.png（1024x1024）
-// 输出: iOS AppIcon.appiconset / Android mipmap-* / Android 自适应图标前景层
+// 默认母版: docs/picture/launcher-icon.png
+// 输出: Android 方形、圆形和自适应启动图标
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-const MASTER = path.resolve(ROOT, process.argv[2] ?? 'docs/picture/logo_v2.png');
+const MASTER = path.resolve(ROOT, process.argv[2] ?? 'docs/picture/launcher-icon.png');
 
 /* ---------------- PNG 解码 ---------------- */
 function decodePNG(buf) {
@@ -273,34 +273,21 @@ if (bx1 > 0) {
   console.log('警告: 未检测到内容，母版可能是单色');
 }
 
-/* 1. iOS 图标（不透明 RGB） */
-const iosDir = path.join(ROOT, 'ios/Runner/Assets.xcassets/AppIcon.appiconset');
-const iosIcons = {
-  'Icon-App-20x20@1x.png': 20,
-  'Icon-App-20x20@2x.png': 40,
-  'Icon-App-20x20@3x.png': 60,
-  'Icon-App-29x29@1x.png': 29,
-  'Icon-App-29x29@2x.png': 58,
-  'Icon-App-29x29@3x.png': 87,
-  'Icon-App-40x40@1x.png': 40,
-  'Icon-App-40x40@2x.png': 80,
-  'Icon-App-40x40@3x.png': 120,
-  'Icon-App-60x60@2x.png': 120,
-  'Icon-App-60x60@3x.png': 180,
-  'Icon-App-76x76@1x.png': 76,
-  'Icon-App-76x76@2x.png': 152,
-  'Icon-App-83.5x83.5@2x.png': 167,
-  'Icon-App-1024x1024@1x.png': 1024,
-};
-let n = 0;
-for (const [name, size] of Object.entries(iosIcons)) {
-  const data = resize(master.data, master.width, master.height, size, size);
-  fs.writeFileSync(path.join(iosDir, name), encodePNG({ width: size, height: size, data }, true));
-  n++;
+function circleMask(size, data) {
+  const result = new Uint8Array(data);
+  const radius = size / 2;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const alpha = (y * size + x) * 4 + 3;
+      const distance = Math.hypot(x + 0.5 - radius, y + 0.5 - radius);
+      const coverage = Math.max(0, Math.min(1, radius + 0.5 - distance));
+      result[alpha] = Math.round(data[alpha] * coverage);
+    }
+  }
+  return result;
 }
-console.log(`iOS: ${n} 张`);
 
-/* 2. Android 传统图标 */
+/* 1. Android 传统图标 */
 const mipmaps = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
 for (const [dens, size] of Object.entries(mipmaps)) {
   const data = resize(master.data, master.width, master.height, size, size);
@@ -308,16 +295,19 @@ for (const [dens, size] of Object.entries(mipmaps)) {
     path.join(ROOT, `android/app/src/main/res/mipmap-${dens}/ic_launcher.png`),
     encodePNG({ width: size, height: size, data }, true),
   );
+  fs.writeFileSync(
+    path.join(ROOT, `android/app/src/main/res/mipmap-${dens}/ic_launcher_round.png`),
+    encodePNG({ width: size, height: size, data: circleMask(size, data) }),
+  );
 }
-console.log(`Android 传统图标: ${Object.keys(mipmaps).length} 张`);
+console.log(`Android 传统图标: ${Object.keys(mipmaps).length} 个密度的方形和圆形图标`);
 
-/* 3. Android 自适应图标前景层
-   108dp 画布，内容缩放至中间 72dp（安全区），四周透明。
+/* 2. Android 自适应图标前景层
+   108dp 画布，主体居中，四周透明。
    抠图规则：只有「与画布边缘连通的背景色像素」才透明，
    这样被主体包住的白纸/浅色区域不会被误判成背景而挖空。 */
 const fgSizes = { mdpi: 108, hdpi: 162, xhdpi: 216, xxhdpi: 324, xxxhdpi: 432 };
-// 108dp 画布里内容的占位边长：母版主体只占中间约 68%，故取 96dp 让主体接近 66dp 安全圆，
-// 既不浪费留白，也不会被启动器遮罩裁掉。
+// 母版自带留白，缩进画布可让折角纸页落在启动器可见范围内。
 const CONTENT_DP = 96;
 const T0 = Math.max(18, maxNoise + 8); // 低于此色差视为背景色
 const MW = master.width, MH = master.height;
@@ -383,7 +373,7 @@ for (const [dens, size] of Object.entries(fgSizes)) {
 }
 console.log(`Android 自适应前景: ${Object.keys(fgSizes).length} 张`);
 
-/* 4. 预览图：圆/方圆遮罩下合成自适应图标，便于肉眼校验（写入系统临时目录，不入库） */
+/* 3. 预览图：合成圆形自适应图标，便于肉眼校验。 */
 const pvSize = 432;
 const pvContent = Math.round((pvSize * CONTENT_DP) / 108);
 const pvScaled = resize(keyed, master.width, master.height, pvContent, pvContent);
@@ -404,17 +394,7 @@ for (let y = 0; y < pvContent; y++) {
     pv[d + 3] = 255;
   }
 }
-// 圆形遮罩（模拟启动器圆形图标）
-const circle = new Uint8Array(pvSize * pvSize * 4);
-const r = pvSize / 2;
-for (let y = 0; y < pvSize; y++) {
-  for (let x = 0; x < pvSize; x++) {
-    const d = (y * pvSize + x) * 4;
-    const inside = Math.hypot(x + 0.5 - r, y + 0.5 - r) <= r - 1;
-    circle[d] = pv[d]; circle[d + 1] = pv[d + 1]; circle[d + 2] = pv[d + 2];
-    circle[d + 3] = inside ? 255 : 0;
-  }
-}
+const circle = circleMask(pvSize, pv);
 const pvPath = path.join(os.tmpdir(), 'inkpaper_icon_preview.png');
 fs.writeFileSync(pvPath, encodePNG({ width: pvSize, height: pvSize, data: circle }, false));
 console.log(`自适应图标预览: ${pvPath}`);

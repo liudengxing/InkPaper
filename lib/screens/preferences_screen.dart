@@ -81,6 +81,14 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
 
           const Divider(),
 
+          // 首页信息流
+          _buildSectionHeader(context, '首页'),
+
+          // 主页标签屏蔽
+          _buildHomeTagFilterSelector(context),
+
+          const Divider(),
+
           _buildSectionHeader(context, '桌面小组件'),
 
           _buildWidgetReviewRefreshSetting(context, appProvider, appConfig),
@@ -1946,6 +1954,111 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                   ),
                 ),
                 // 右侧箭头
+                Icon(
+                  Icons.chevron_right,
+                  color: subTextColor,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 首页标签屏蔽入口。
+  ///
+  /// 右侧直接显示「已屏蔽 N 个」：这个开关的价值不在「有没有开」，而在
+  /// 「屏蔽了多少」，藏在下一级页面里用户看不见当前状态会不敢确认。
+  Widget _buildHomeTagFilterSelector(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final primaryColorWithOpacity =
+        AppTheme.primaryColor.withValues(alpha: 0.1);
+    final iconColor =
+        isDarkMode ? AppTheme.primaryLightColor : AppTheme.primaryColor;
+    final textColor =
+        isDarkMode ? AppTheme.darkTextPrimaryColor : AppTheme.textPrimaryColor;
+    final subTextColor = isDarkMode ? Colors.grey[400] : Colors.grey[600];
+    final backgroundColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
+    final hiddenCount =
+        Provider.of<AppProvider>(context, listen: false).hiddenHomeTags.length;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        vertical: ResponsiveUtils.fontScaledSpacing(context, 8),
+        horizontal: ResponsiveUtils.fontScaledSpacing(context, 16),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => context.push('/preferences/home-tag-filter'),
+          borderRadius: BorderRadius.circular(
+            ResponsiveUtils.fontScaledBorderRadius(context, 12),
+          ),
+          child: Container(
+            padding:
+                EdgeInsets.all(ResponsiveUtils.fontScaledSpacing(context, 16)),
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(
+                ResponsiveUtils.fontScaledBorderRadius(context, 12),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color:
+                      Colors.black.withValues(alpha: isDarkMode ? 0.3 : 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isDarkMode
+                        ? AppTheme.primaryColor.withValues(alpha: 0.2)
+                        : primaryColorWithOpacity,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.filter_alt_outlined,
+                    color: iconColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '首页标签屏蔽',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '带这些标签的笔记不在首页显示',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: subTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  hiddenCount == 0 ? '未设置' : '$hiddenCount 个',
+                  style: TextStyle(fontSize: 14, color: subTextColor),
+                ),
+                const SizedBox(width: 4),
                 Icon(
                   Icons.chevron_right,
                   color: subTextColor,

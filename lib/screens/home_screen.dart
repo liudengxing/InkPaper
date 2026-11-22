@@ -1555,6 +1555,47 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  /// 标签屏蔽把首页清空时的空态。
+  ///
+  /// 不说清楚原因，用户会以为同步把笔记弄丢了；这里直接给出条数和一个
+  /// 回到屏蔽设置的入口。
+  Widget _buildTagFilterEmptyState() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final secondaryTextColor = isDarkMode
+        ? AppTheme.darkTextSecondaryColor
+        : AppTheme.textSecondaryColor;
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final hiddenCount = appProvider.hiddenHomeTags.length;
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.filter_alt_off_outlined,
+            size: 56,
+            color: secondaryTextColor.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '已屏蔽 $hiddenCount 个标签',
+            style: TextStyle(fontSize: 15, color: secondaryTextColor),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '首页暂时没有可显示的笔记',
+            style: TextStyle(fontSize: 13, color: secondaryTextColor),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => context.push('/preferences/home-tag-filter'),
+            child: const Text('调整屏蔽标签'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDarkMode ? AppTheme.darkCardColor : Colors.white;
@@ -2171,6 +2212,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                       // 而不是落到「欢迎笔记」（那是给全新用户的）
                                       else if (appProvider.isMediaFilterActive)
                                         _buildMediaFilterEmptyState()
+                                      // 首页被标签屏蔽清空了：给个回设置的入口，
+                                      // 否则用户只会以为笔记丢了
+                                      else if (appProvider.hasHiddenHomeTags &&
+                                          appProvider.notes.isNotEmpty)
+                                        _buildTagFilterEmptyState()
                                       // 确认本地一条笔记都没有时才展示欢迎笔记
                                       else
                                         _buildWelcomeNoteCard(),

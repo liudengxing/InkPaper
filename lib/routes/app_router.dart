@@ -13,6 +13,7 @@ import 'package:inkpaper/screens/feedback_screen.dart';
 import 'package:inkpaper/screens/flomo_import_screen.dart';
 import 'package:inkpaper/screens/help_screen.dart';
 import 'package:inkpaper/screens/home_screen.dart';
+import 'package:inkpaper/screens/home_tag_filter_screen.dart';
 import 'package:inkpaper/screens/image_gallery_screen.dart';
 import 'package:inkpaper/screens/import_export_main_screen.dart';
 import 'package:inkpaper/screens/laboratory_screen.dart';
@@ -353,6 +354,16 @@ class AppRouter {
                   context: context,
                   state: state,
                   child: const SidebarCustomizationScreen(),
+                ),
+              ),
+              // 首页标签屏蔽
+              GoRoute(
+                path: 'home-tag-filter',
+                name: 'homeTagFilter',
+                pageBuilder: (context, state) => buildSlideTransition(
+                  context: context,
+                  state: state,
+                  child: const HomeTagFilterScreen(),
                 ),
               ),
             ],

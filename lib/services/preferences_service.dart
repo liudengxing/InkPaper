@@ -642,6 +642,26 @@ class PreferencesService {
     }
   }
 
+  // ── 首页标签屏蔽 ───────────────────────────────────────────
+  //
+  // 只影响首页信息流。搜索、标签页、AI 洞察、随机回顾都用全量笔记，不能
+  // 因为首页看不顺眼就跟着少一块数据。
+  static const String _homeHiddenTagsKey = 'home_hidden_tags';
+
+  Future<List<String>> getHomeHiddenTags() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_homeHiddenTagsKey) ?? const <String>[];
+  }
+
+  Future<void> saveHomeHiddenTags(List<String> tags) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (tags.isEmpty) {
+      await prefs.remove(_homeHiddenTagsKey);
+      return;
+    }
+    await prefs.setStringList(_homeHiddenTagsKey, tags);
+  }
+
   // 清除导入导出历史记录
   Future<void> clearImportExportHistory() async {
     final prefs = await SharedPreferences.getInstance();

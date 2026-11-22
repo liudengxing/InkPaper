@@ -39,6 +39,7 @@ import 'package:inkpaper/services/webdav_service.dart';
 import 'package:inkpaper/services/webdav_sync_engine.dart';
 import 'package:inkpaper/services/widget_snapshot_service.dart';
 import 'package:inkpaper/utils/error_handler.dart';
+import 'package:inkpaper/utils/home_tag_filter.dart';
 // 🚀 大厂标准：监控工具
 import 'package:inkpaper/utils/logger.dart';
 import 'package:inkpaper/utils/media_paths.dart';
@@ -401,8 +402,70 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   bool get isMediaFilterActive => _mediaFilter != NoteMediaFilter.all;
   bool get isMediaFilterLoading => _isMediaFilterLoading;
 
-  /// 首页当前该展示的笔记：未筛选时用分页缓存，筛选时用全量查询结果。
-  List<Note> get feedNotes => isMediaFilterActive ? _mediaFilteredNotes : notes;
+  /// 首页当前该展示的笔记：未筛选时用分页缓存，筛选时用全量查询结果，
+  /// 两种情况都要再走一遍「首页标签屏蔽」。
+  List<Note> get feedNotes {
+    final base = isMediaFilterActive ? _mediaFilteredNotes : notes;
+    return _applyHomeTagFilter(base);
+  }
+
+  // ── 首页标签屏蔽 ───────────────────────────────────────────
+  //
+  // 只作用于首页信息流（[feedNotes]）。搜索、标签页、AI 洞察、随机回顾
+  // 都走各自的全量查询，不能因为首页看不顺眼就跟着少一块数据。
+  Set<String> _hiddenHomeTags = const <String>{};
+
+  /// 结果缓存。首页每帧都会读 [feedNotes]，而查标签要跑正则，不能每次都算。
+  /// `notes` 经 [notifyListeners] 后会换新实例，`identical` 一比对就失效。
+  List<Note>? _homeTagFilteredCache;
+  List<Note>? _homeTagFilteredSource;
+  Set<String>? _homeTagFilteredTags;
+
+  Set<String> get hiddenHomeTags => _hiddenHomeTags;
+  bool get hasHiddenHomeTags => _hiddenHomeTags.isNotEmpty;
+
+  List<Note> _applyHomeTagFilter(List<Note> base) {
+    if (_hiddenHomeTags.isEmpty) {
+      return base;
+    }
+    final cached = _homeTagFilteredCache;
+    if (cached != null &&
+        identical(_homeTagFilteredSource, base) &&
+        setEquals(_homeTagFilteredTags, _hiddenHomeTags)) {
+      return cached;
+    }
+    final filtered = List<Note>.unmodifiable(
+      filterNotesByHiddenTags(base, _hiddenHomeTags),
+    );
+    _homeTagFilteredSource = base;
+    _homeTagFilteredTags = _hiddenHomeTags;
+    _homeTagFilteredCache = filtered;
+    return filtered;
+  }
+
+  /// 改屏蔽名单。立刻生效：首页下次读 [feedNotes] 就是新结果。
+  Future<void> setHomeHiddenTags(Iterable<String> tags) async {
+    final next = <String>{
+      for (final tag in tags)
+        if (normalizeHomeTag(tag).isNotEmpty) normalizeHomeTag(tag),
+    };
+    if (setEquals(next, _hiddenHomeTags)) {
+      return;
+    }
+    _hiddenHomeTags = Set<String>.unmodifiable(next);
+    _homeTagFilteredCache = null;
+    _homeTagFilteredSource = null;
+    _homeTagFilteredTags = null;
+    final sorted = next.toList()..sort();
+    try {
+      await _preferencesService.saveHomeHiddenTags(sorted);
+    } on Object catch (e) {
+      // 写盘失败不回滚内存：界面已经按新名单渲染了，回滚反而会让勾选
+      // 状态自己跳回去。顶多下次启动读到旧名单。
+      debugPrint('AppProvider: 保存首页屏蔽标签失败: $e');
+    }
+    notifyListeners();
+  }
 
   Future<void> setMediaFilter(NoteMediaFilter filter) async {
     if (_mediaFilter == filter) {
@@ -678,6 +741,16 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       // 上次同步的冲突条数，用于服务器信息页展示
       _lastSyncConflicts = await _preferencesService.getLastSyncConflicts();
+
+      // 首页标签屏蔽名单。读不出来不影响启动，退化成「不屏蔽」。
+      try {
+        final hiddenTags = await _preferencesService.getHomeHiddenTags();
+        _hiddenHomeTags = Set<String>.unmodifiable(
+          hiddenTags.map(normalizeHomeTag).where((tag) => tag.isNotEmpty),
+        );
+      } on Object catch (e) {
+        debugPrint('AppProvider: 加载首页屏蔽标签失败: $e');
+      }
 
       // 字体缩放将通过MediaQuery.textScaleFactor全局应用
 

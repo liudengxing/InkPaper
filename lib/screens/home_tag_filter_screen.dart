@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/themes/app_theme.dart';
@@ -79,25 +80,16 @@ class _HomeTagFilterScreenState extends State<HomeTagFilterScreen> {
     });
   }
 
-  /// 这个标签是不是已经在屏蔽范围内（可能是它自己，也可能被父标签带着）。
-  bool _isCovered(String tag, Set<String> hidden) {
-    for (final blocked in hidden) {
-      if (tag == blocked || tag.startsWith('$blocked/')) {
-        return true;
-      }
-    }
-    return false;
-  }
+  String? _blockingParent(String tag, Set<String> hidden) =>
+      hidden.where((blocked) => tag.startsWith('$blocked/')).firstOrNull;
 
   Future<void> _toggleTag(String tag) async {
     final provider = Provider.of<AppProvider>(context, listen: false);
+    if (_blockingParent(tag, provider.hiddenHomeTags) != null) {
+      return;
+    }
     final next = Set<String>.from(provider.hiddenHomeTags);
-    if (next.contains(tag)) {
-      next.remove(tag);
-    } else if (next.any((blocked) => tag.startsWith('$blocked/'))) {
-      // 被父标签带着屏蔽：点一下等于取消那个父标签，否则点了没反应。
-      next.removeWhere((blocked) => tag.startsWith('$blocked/'));
-    } else {
+    if (!next.remove(tag)) {
       next.add(tag);
     }
     await provider.setHomeHiddenTags(next);
@@ -194,7 +186,9 @@ class _HomeTagFilterScreenState extends State<HomeTagFilterScreen> {
                             final entry = visible[index];
                             return _buildTagRow(
                               entry: entry,
-                              selected: _isCovered(entry.tag, hidden),
+                              selected: hidden.contains(entry.tag),
+                              blockingParent:
+                                  _blockingParent(entry.tag, hidden),
                               isDarkMode: isDarkMode,
                               textColor: textColor,
                               secondaryTextColor: secondaryTextColor,
@@ -301,6 +295,7 @@ class _HomeTagFilterScreenState extends State<HomeTagFilterScreen> {
   Widget _buildTagRow({
     required _TagEntry entry,
     required bool selected,
+    required String? blockingParent,
     required bool isDarkMode,
     required Color textColor,
     required Color secondaryTextColor,
@@ -315,38 +310,58 @@ class _HomeTagFilterScreenState extends State<HomeTagFilterScreen> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => _toggleTag(entry.tag),
+          onTap: blockingParent == null ? () => _toggleTag(entry.tag) : null,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: selected
+              border: selected || blockingParent != null
                   ? Border.all(color: accent.withValues(alpha: 0.5))
                   : null,
             ),
             child: Row(
               children: [
                 Icon(
-                  selected
-                      ? Icons.check_circle_rounded
-                      : Icons.radio_button_unchecked_rounded,
+                  blockingParent != null
+                      ? Icons.lock_outline_rounded
+                      : selected
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
                   size: 22,
-                  color: selected
+                  color: selected || blockingParent != null
                       ? accent
                       : secondaryTextColor.withValues(alpha: 0.5),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    '#${entry.tag}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                      color: textColor,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '#${entry.tag}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight:
+                              selected ? FontWeight.w600 : FontWeight.w400,
+                          color: textColor,
+                        ),
+                      ),
+                      if (blockingParent != null)
+                        Text(
+                          (AppLocalizationsSimple.of(context) ??
+                                  AppLocalizationsSimple(
+                                    Localizations.localeOf(context),
+                                  ))
+                              .homeTagFilterInherited(blockingParent),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: secondaryTextColor,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 Text(

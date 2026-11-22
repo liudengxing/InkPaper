@@ -13,49 +13,35 @@ RegExp getTagRegex() => RegExp(
       unicode: true,
     );
 
-/// 提取内容中的所有标签（排除URL中的#）
-List<String> extractTagsFromContent(String content) {
-  final tagRegex = getTagRegex();
-  final tags = <String>[];
-  final lines = content.split('\n');
+final _urlRegex = RegExp(r'[a-zA-Z]+://[^\s\)]+');
 
-  for (final line in lines) {
-    // 如果这行包含URL，需要排除URL中的#
-    if (line.contains(RegExp('[a-zA-Z]+://'))) {
-      // 找出所有URL的位置范围
-      final urlRegex = RegExp(r'[a-zA-Z]+://[^\s\)]+');
-      final urlMatches = urlRegex.allMatches(line).toList();
-      final urlRanges = urlMatches.map((m) => [m.start, m.end]).toList();
-
-      // 找出所有标签，但排除在URL范围内的
-      final tagMatches = tagRegex.allMatches(line);
-      for (final match in tagMatches) {
-        var inUrl = false;
-        for (final range in urlRanges) {
-          if (match.start >= range[0] && match.end <= range[1]) {
-            inUrl = true;
-            break;
-          }
-        }
-        if (!inUrl) {
-          tags.add(match.group(1)!);
-        }
-      }
-    } else {
-      // 没有URL的行，直接提取所有标签
-      tags.addAll(
-        tagRegex.allMatches(line).map((match) => match.group(1)!),
-      );
+/// 按原文顺序返回标签区间，正文很长时也只扫描一遍 URL。
+Iterable<RegExpMatch> tagMatchesOutsideUrls(String text) sync* {
+  if (!text.contains('#')) {
+    return;
+  }
+  final urls = _urlRegex.allMatches(text).iterator;
+  var hasUrl = urls.moveNext();
+  for (final tag in getTagRegex().allMatches(text)) {
+    while (hasUrl && urls.current.end <= tag.start) {
+      hasUrl = urls.moveNext();
+    }
+    if (!hasUrl ||
+        tag.start < urls.current.start ||
+        tag.end > urls.current.end) {
+      yield tag;
     }
   }
-
-  return tags;
 }
+
+/// 提取内容中的所有标签（排除URL中的#）
+List<String> extractTagsFromContent(String content) => [
+      for (final tag in tagMatchesOutsideUrls(content)) tag.group(1)!,
+    ];
 
 /// 检查标签是否在URL中
 bool isTagInUrl(String line, int tagStart, int tagEnd) {
-  final urlRegex = RegExp(r'[a-zA-Z]+://[^\s\)]+');
-  final urlMatches = urlRegex.allMatches(line);
+  final urlMatches = _urlRegex.allMatches(line);
 
   for (final match in urlMatches) {
     if (tagStart >= match.start && tagEnd <= match.end) {

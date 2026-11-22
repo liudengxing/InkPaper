@@ -1,5 +1,6 @@
 import 'dart:collection';
 
+import 'package:flutter/foundation.dart';
 import 'package:inkpaper/utils/memos_markdown_converter.dart';
 import 'package:markdown/markdown.dart' as md;
 
@@ -92,7 +93,7 @@ const int defaultPreviewParseLimit = 2400;
 // 正则与 InlineSyntax 都是「编译一次、反复使用」的东西，放在函数里等于每次
 // 缓存未命中都重新编译一遍模式。
 final RegExp _todoPattern = RegExp(
-  r'^([ \t]*)[-*+][ \t]+\[([ xX])\][ \t]?',
+  r'^([ \t]*[-*+][ \t]+)\[([ xX])\][ \t]?',
   multiLine: true,
 );
 final RegExp _imagePattern = RegExp(r'!\[[^\]]*\]\([^)]*\)');
@@ -123,6 +124,7 @@ NotePreview buildNotePreview(
 
   final nodes = md.Document(
     extensionSet: md.ExtensionSet.gitHubFlavored,
+    blockSyntaxes: [_SourceOrderedListSyntax()],
     inlineSyntaxes: <md.InlineSyntax>[_underlineSyntax],
     encodeHtml: false,
   ).parse(_prepare(source));
@@ -135,6 +137,61 @@ NotePreview buildNotePreview(
     links: walker.links,
     spacerOffsets: walker.spacerOffsets,
   );
+}
+
+const _sourceListMarker = 'data-inkpaper-marker';
+
+/// Markdown 的 AST 只记录有序列表的起始数字。解析后从本块已消费的
+/// 原文行补齐每一项的标记，保留 Markdown 原本的分组和层级。
+class _SourceOrderedListSyntax extends md.OrderedListWithCheckboxSyntax {
+  final _lineIndexes = Expando<Map<md.Line, int>>();
+
+  @override
+  bool canParse(md.BlockParser parser) =>
+      pattern.firstMatch(parser.current.content)?[1] != null;
+
+  @override
+  md.Node parse(md.BlockParser parser) {
+    final lines = parser.lines;
+    final indexes = _lineIndexes[parser] ??= {
+      for (var i = 0; i < lines.length; i++) lines[i]: i,
+    };
+    final start = indexes[parser.current]!;
+    final list = super.parse(parser) as md.Element;
+    final end = parser.isDone ? lines.length : indexes[parser.current]!;
+    final markers = <String>[];
+    var itemIndent = 0;
+    for (var i = start; i < end; i++) {
+      final line = lines[i];
+      final match = pattern.firstMatch(line.content);
+      final digits = match?[1];
+      if (digits == null) {
+        continue;
+      }
+      final leading = line.content.indexOf(digits);
+      final tabRemainder = line.tabRemaining ?? 0;
+      if (i != start && leading + tabRemainder >= itemIndent) {
+        continue;
+      }
+
+      final markerEnd = leading + digits.length + 1;
+      markers.add(line.content.substring(leading, markerEnd));
+      final contentLength = match![2]?.length ?? 0;
+      final spacing = line.content.length - markerEnd - contentLength;
+      // 与 ListSyntax 使用同一缩进口径。超出四空格的内缩是项目内容。
+      itemIndent = markerEnd + 1;
+      if (contentLength > 0 && spacing <= 4) {
+        itemIndent += spacing - 1 + tabRemainder;
+      }
+    }
+    final items = list.children!.whereType<md.Element>().toList();
+    if (items.length == markers.length) {
+      for (var i = 0; i < items.length; i++) {
+        items[i].attributes[_sourceListMarker] = markers[i];
+      }
+    }
+    return list;
+  }
 }
 
 /// `<u>下划线</u>` 的轻量解析，与详情页 `UnderlineSyntax` 行为保持一致。
@@ -402,7 +459,9 @@ class _PreviewWalker {
       // 待办项本身就有勾选框，再补一个 `-` 会变成「- ☐ 任务」
       final isTodo = child.textContent.trimLeft().startsWith('☐') ||
           child.textContent.trimLeft().startsWith('☑');
-      final marker = ordered ? '$index. ' : (isTodo ? '' : '- ');
+      final marker = ordered
+          ? '${child.attributes[_sourceListMarker] ?? '$index.'} '
+          : (isTodo ? '' : '- ');
       if (marker.isEmpty) {
         _flushPendingBreak();
         if (indent.isNotEmpty) {
@@ -590,11 +649,33 @@ class NotePreviewCache {
     String content, {
     int parseLimit = defaultPreviewParseLimit,
   }) {
-    // 卡片预览与详情页全文各缓存一份：key 带上上限，避免详情页的长文本
-    // 覆盖掉卡片的短预览（也避免反过来把长文本当短预览用）。
-    final key = parseLimit == defaultPreviewParseLimit
-        ? content
-        : '$parseLimit\u0000$content';
+    final key = _key(content, parseLimit);
+    return _read(key) ??
+        _store(key, buildNotePreview(content, parseLimit: parseLimit));
+  }
+
+  /// 详情页的长文解析放到后台，复用同一份全文缓存。
+  static Future<NotePreview> resolveAsync(
+    String content, {
+    required int parseLimit,
+  }) async {
+    final key = _key(content, parseLimit);
+    final cached = _read(key);
+    if (cached != null) {
+      return cached;
+    }
+    final preview = await compute(_parsePreview, (content, parseLimit));
+    return _store(key, preview);
+  }
+
+  static String _key(String content, int parseLimit) =>
+      // 卡片预览与详情页全文各缓存一份：key 带上上限，避免详情页的长文本
+      // 覆盖掉卡片的短预览（也避免反过来把长文本当短预览用）。
+      parseLimit == defaultPreviewParseLimit
+          ? content
+          : '$parseLimit\u0000$content';
+
+  static NotePreview? _read(String key) {
     final cached = _entries.remove(key);
     if (cached != null) {
       _hits++;
@@ -603,7 +684,10 @@ class NotePreviewCache {
     }
 
     _misses++;
-    final preview = buildNotePreview(content, parseLimit: parseLimit);
+    return null;
+  }
+
+  static NotePreview _store(String key, NotePreview preview) {
     _entries[key] = preview;
     _trim(key);
     return preview;
@@ -628,3 +712,6 @@ class NotePreviewCache {
     _misses = 0;
   }
 }
+
+NotePreview _parsePreview((String, int) request) =>
+    buildNotePreview(request.$1, parseLimit: request.$2);

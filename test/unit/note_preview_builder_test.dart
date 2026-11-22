@@ -102,9 +102,18 @@ void main() {
         '1. 第一\n2. 第二',
       );
       expect(
-        buildNotePreview('3. 第三\n4. 第四').text,
-        '3. 第三\n4. 第四',
+        buildNotePreview('3. 第三\n7. 第七').text,
+        '3. 第三\n7. 第七',
       );
+      expect(
+        buildNotePreview('03) **第三**\n  07) 第七').text,
+        '03) 第三\n07) 第七',
+      );
+      expect(
+        buildNotePreview('3. 父项\n   8. 子项\n   11. 子项\n7. 同层').text,
+        '3. 父项\n  8. 子项\n  11. 子项\n7. 同层',
+      );
+      expect(buildNotePreview('> 3. 引用\n> 7. 后一项').text, '3. 引用\n7. 后一项');
     });
 
     test('嵌套列表按层级缩进两格', () {
@@ -120,6 +129,14 @@ void main() {
       expect(preview.text, '☐ 买牛奶\n☑ 交房租');
       expect(preview.text.contains('- ☐'), isFalse);
       expect(preview.checkboxes, hasLength(2));
+    });
+
+    test('待办父项保留子列表层级和勾选索引', () {
+      final preview = buildNotePreview('- [ ] 父待办\n  - 子项\n  - [x] 子待办');
+
+      expect(preview.text, '☐ 父待办\n  - 子项\n  ☑ 子待办');
+      expect(preview.checkboxes.map((item) => item.index), [0, 1]);
+      expect(preview.checkboxes.map((item) => item.checked), [false, true]);
     });
 
     test('空内容返回空预览', () {

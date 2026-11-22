@@ -182,6 +182,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // 🚀 分页加载相关
   final ScrollController _scrollController = ScrollController();
   bool _isLoadingMore = false;
+  (Set<String>, int)? _lastFilteredPageAttempt;
   bool _hasHandledWidgetQuickAction = false;
 
   // 🕰️ 那年今日：往年同月同日的笔记（去年在最前），首页顶部展示
@@ -437,6 +438,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  // 屏蔽后首批可能不足一屏，甚至没有列表可滚动。布局完成后再判断是否补页。
+  bool _canFillFilteredFeed(AppProvider provider) =>
+      !_isSearchActive &&
+      !_isRefreshing &&
+      provider.isInitialized &&
+      provider.hasHiddenHomeTags &&
+      provider.hasMoreData;
+
+  void _scheduleFilteredPage(AppProvider provider) {
+    final page = (provider.hiddenHomeTags, provider.loadedNotesCount);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_canFillFilteredFeed(provider) ||
+          _isLoadingMore ||
+          provider.isLoadingMore ||
+          page == _lastFilteredPageAttempt ||
+          page != (provider.hiddenHomeTags, provider.loadedNotesCount)) {
+        return;
+      }
+      if (provider.feedNotes.isEmpty ||
+          (_scrollController.hasClients &&
+              _scrollController.position.maxScrollExtent <= 0)) {
+        // 失败后条数不变，同一批交由用户重试，避免持续自动重试。
+        _lastFilteredPageAttempt = page;
+        unawaited(_loadMoreNotes());
+      }
+    });
+  }
+
   // 🚀 加载更多笔记
   Future<void> _loadMoreNotes() async {
     if (_isLoadingMore) {
@@ -680,6 +710,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     setState(() {
       _isRefreshing = true;
+      _lastFilteredPageAttempt = null;
     });
 
     try {
@@ -1559,7 +1590,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   ///
   /// 不说清楚原因，用户会以为同步把笔记弄丢了；这里直接给出条数和一个
   /// 回到屏蔽设置的入口。
-  Widget _buildTagFilterEmptyState() {
+  Widget _buildTagFilterEmptyState({required bool canRetry}) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final secondaryTextColor = isDarkMode
         ? AppTheme.darkTextSecondaryColor
@@ -1583,10 +1614,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 8),
           Text(
-            '首页暂时没有可显示的笔记',
+            canRetry
+                ? AppLocalizationsSimple.of(context)?.loadFailed ?? '加载失败'
+                : '首页暂时没有可显示的笔记',
             style: TextStyle(fontSize: 13, color: secondaryTextColor),
           ),
           const SizedBox(height: 8),
+          if (canRetry) _buildFilteredPageRetry(),
           TextButton(
             onPressed: () => context.push('/preferences/home-tag-filter'),
             child: const Text('调整屏蔽标签'),
@@ -1595,6 +1629,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
     );
   }
+
+  Widget _buildFilteredPageRetry() => TextButton(
+        onPressed: _loadMoreNotes,
+        child: Text(
+          (AppLocalizationsSimple.of(context) ??
+                  AppLocalizationsSimple(Localizations.localeOf(context)))
+              .retry,
+        ),
+      );
 
   Widget _buildEmptyState() {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -2127,6 +2170,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           // 如果没有数据会显示空白状态，数据加载完立即刷新
           final appProvider = Provider.of<AppProvider>(context, listen: false);
 
+          final canFillFilteredFeed = _canFillFilteredFeed(appProvider);
+          final filteredPage = (appProvider.hiddenHomeTags, feed.loadedCount);
+          final shouldFill = canFillFilteredFeed &&
+              !_isLoadingMore &&
+              !feed.isLoadingMore &&
+              filteredPage != _lastFilteredPageAttempt;
+          if (shouldFill) {
+            _scheduleFilteredPage(appProvider);
+          }
+
           final allVisibleNotes = feed.notes;
           final notes = _isSearchActive
               ? (_searchController.text.isEmpty
@@ -2208,6 +2261,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                       // 筛选态还没查到结果：继续给骨架，别闪欢迎卡片
                                       else if (feed.isMediaFilterLoading)
                                         _buildFeedSkeleton()
+                                      else if (canFillFilteredFeed &&
+                                          (shouldFill ||
+                                              _isLoadingMore ||
+                                              feed.isLoadingMore))
+                                        _buildFeedSkeleton()
                                       // 筛出来是空的：明确告诉用户这个口径下没有笔记，
                                       // 而不是落到「欢迎笔记」（那是给全新用户的）
                                       else if (appProvider.isMediaFilterActive)
@@ -2215,8 +2273,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                       // 首页被标签屏蔽清空了：给个回设置的入口，
                                       // 否则用户只会以为笔记丢了
                                       else if (appProvider.hasHiddenHomeTags &&
-                                          appProvider.notes.isNotEmpty)
-                                        _buildTagFilterEmptyState()
+                                          (appProvider.notes.isNotEmpty ||
+                                              canFillFilteredFeed))
+                                        _buildTagFilterEmptyState(
+                                          canRetry: canFillFilteredFeed,
+                                        )
                                       // 确认本地一条笔记都没有时才展示欢迎笔记
                                       else
                                         _buildWelcomeNoteCard(),
@@ -2691,6 +2752,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ? AppTheme.darkTextSecondaryColor
         : AppTheme.textSecondaryColor;
 
+    if (_canFillFilteredFeed(appProvider) &&
+        !_isLoadingMore &&
+        !appProvider.isLoadingMore &&
+        _lastFilteredPageAttempt ==
+            (appProvider.hiddenHomeTags, appProvider.loadedNotesCount)) {
+      return _buildFilteredPageRetry();
+    }
     // 如果还有更多数据，显示加载中
     if (appProvider.hasMoreData) {
       return Container(

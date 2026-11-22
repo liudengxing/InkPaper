@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:inkpaper/utils/note_preview_builder.dart';
@@ -6,7 +8,7 @@ import 'package:inkpaper/utils/tag_utils.dart';
 /// 列表卡片用的轻量 Markdown 预览。
 ///
 /// 与 `MemosMarkdownRenderer` 的区别：这里不构建任何 Markdown widget 树，
-/// 整段正文只产出一个 [Text.rich]。加粗、斜体、行内代码、删除线、链接、
+/// 卡片预览只产出一个 [Text.rich]。加粗、斜体、行内代码、删除线、链接、
 /// 引用、待办勾选框都保留，块级结构被拍平成纯文本。
 ///
 /// 详情页也用这个组件了（样式一致性优先）：传 [onLinkTap] 后外部链接
@@ -74,9 +76,13 @@ class NotePreviewText extends StatefulWidget {
 }
 
 class _NotePreviewTextState extends State<NotePreviewText> {
+  static const _backgroundParseThreshold = 12000;
+  static const _paragraphSpanLimit = 256;
+
   final List<TapGestureRecognizer> _recognizers = <TapGestureRecognizer>[];
 
   NotePreview _preview = NotePreview.empty;
+  Future<NotePreview>? _pendingPreview;
   String? _previewSource;
   int? _previewLimit;
 
@@ -108,6 +114,16 @@ class _NotePreviewTextState extends State<NotePreviewText> {
     }
     _previewSource = widget.content;
     _previewLimit = widget.parseLimit;
+    if (widget.content.length >= _backgroundParseThreshold &&
+        widget.parseLimit >= _backgroundParseThreshold) {
+      _preview = NotePreview.empty;
+      _pendingPreview = NotePreviewCache.resolveAsync(
+        widget.content,
+        parseLimit: widget.parseLimit,
+      );
+      return;
+    }
+    _pendingPreview = null;
     _preview = NotePreviewCache.resolve(
       widget.content,
       parseLimit: widget.parseLimit,
@@ -124,8 +140,29 @@ class _NotePreviewTextState extends State<NotePreviewText> {
   @override
   Widget build(BuildContext context) {
     _ensurePreview();
+    if (_pendingPreview case final pending?) {
+      return FutureBuilder<NotePreview>(
+        future: pending,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            );
+          }
+          if (snapshot.hasError) {
+            return Text(widget.content, style: widget.style);
+          }
+          return _renderPreview(context, snapshot.requireData);
+        },
+      );
+    }
+    return _renderPreview(context, _preview);
+  }
 
-    if (_preview.isEmpty) {
+  Widget _renderPreview(BuildContext context, NotePreview preview) {
+    if (preview.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -133,7 +170,7 @@ class _NotePreviewTextState extends State<NotePreviewText> {
     _disposeRecognizers();
 
     final accent = widget.accentColor ?? Theme.of(context).colorScheme.primary;
-    final spans = _buildSpans(accent, Theme.of(context).brightness);
+    final spans = _buildSpans(preview, accent, Theme.of(context).brightness);
 
     if (widget.selectable) {
       // SelectableText 不支持 overflow，选择模式下不做省略号截断
@@ -144,26 +181,127 @@ class _NotePreviewTextState extends State<NotePreviewText> {
       );
     }
 
-    return Text.rich(
-      TextSpan(children: spans),
-      maxLines: widget.maxLines,
-      overflow:
-          widget.maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis,
-      softWrap: true,
-      style: widget.style,
-    );
+    if (!widget.compactBlankLines &&
+        widget.maxLines == null &&
+        spans.length > _paragraphSpanLimit) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          if (!constraints.hasBoundedWidth || constraints.maxWidth == 0) {
+            return _richText(spans);
+          }
+          final paragraphs =
+              _splitAtWrappedLines(spans, context, constraints.maxWidth);
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final paragraph in paragraphs) _richText(paragraph),
+            ],
+          );
+        },
+      );
+    }
+
+    return _richText(spans);
   }
 
-  List<InlineSpan> _buildSpans(Color accent, Brightness brightness) {
-    final text = _preview.text;
+  Widget _richText(List<TextSpan> spans) => Text.rich(
+        TextSpan(children: spans),
+        maxLines: widget.maxLines,
+        overflow:
+            widget.maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis,
+        softWrap: true,
+        style: widget.style,
+      );
+
+  // 控制单个 Flutter 文本段落的样式片段数。在实际换行位置切分，
+  // 即使是一整段没有显式换行的长文，也能保留原来的折行位置。
+  List<List<TextSpan>> _splitAtWrappedLines(
+    List<TextSpan> spans,
+    BuildContext context,
+    double width,
+  ) {
+    final defaults = DefaultTextStyle.of(context);
+    var style = defaults.style.merge(widget.style);
+    if (MediaQuery.boldTextOf(context)) {
+      style = style.merge(const TextStyle(fontWeight: FontWeight.bold));
+    }
+    final painter = TextPainter(
+      textAlign: defaults.textAlign ?? TextAlign.start,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      textHeightBehavior: defaults.textHeightBehavior,
+      locale: Localizations.maybeLocaleOf(context),
+    );
+    final paragraphs = <List<TextSpan>>[];
+    var first = 0;
+    var offset = 0;
+    try {
+      while (first < spans.length) {
+        final limit = math.min(first + _paragraphSpanLimit, spans.length);
+        final batch = spans.sublist(first, limit);
+        if (offset > 0) {
+          batch[0] = _sliceSpan(batch[0], offset, batch[0].text!.length);
+        }
+        if (limit == spans.length) {
+          paragraphs.add(batch);
+          break;
+        }
+        painter.text = TextSpan(style: style, children: batch);
+        painter.layout(maxWidth: width);
+        final length = batch.fold(0, (sum, span) => sum + span.text!.length);
+        var split =
+            painter.getLineBoundary(TextPosition(offset: length - 1)).start;
+        if (split <= 0) {
+          return [spans];
+        }
+
+        var count = 0;
+        while (split >= batch[count].text!.length) {
+          split -= batch[count].text!.length;
+          count++;
+        }
+        final paragraph = batch.sublist(0, count);
+        if (split > 0) {
+          paragraph.add(_sliceSpan(batch[count], 0, split));
+        }
+        // 下个段落自行换行，末尾的显式换行在这里消耗一次。
+        final tail = paragraph.last;
+        if (tail.text!.endsWith('\n')) {
+          paragraph[paragraph.length - 1] =
+              _sliceSpan(tail, 0, tail.text!.length - 1);
+        }
+        paragraphs.add(paragraph);
+        offset = count == 0 ? offset + split : split;
+        first += count;
+      }
+      return paragraphs;
+    } finally {
+      painter.dispose();
+    }
+  }
+
+  TextSpan _sliceSpan(TextSpan span, int start, int end) => TextSpan(
+        text: span.text!.substring(start, end),
+        style: span.style,
+        recognizer: span.recognizer,
+      );
+
+  List<TextSpan> _buildSpans(
+    NotePreview preview,
+    Color accent,
+    Brightness brightness,
+  ) {
+    final text = preview.text;
     final query = widget.highlightQuery?.trim() ?? '';
     final highlights = _findHighlightRanges(text, query);
     final tags = _findTagRanges(text);
-    final links = _preview.links;
+    final links = preview.links;
+    final ranges = preview.ranges;
 
     // 所有需要切断文本的边界：样式区间 + 高亮区间 + 勾选框字符 + 标签
     final cuts = <int>{0, text.length};
-    for (final range in _preview.ranges) {
+    for (final range in ranges) {
       cuts.add(range.start.clamp(0, text.length));
       cuts.add(range.end.clamp(0, text.length));
     }
@@ -179,24 +317,29 @@ class _NotePreviewTextState extends State<NotePreviewText> {
       cuts.add(link.start.clamp(0, text.length));
       cuts.add(link.end.clamp(0, text.length));
     }
-    for (final checkbox in _preview.checkboxes) {
+    for (final checkbox in preview.checkboxes) {
       cuts.add(checkbox.offset);
       cuts.add((checkbox.offset + 1).clamp(0, text.length));
     }
     // 段落空行的换行符单独成段，便于给它压缩行高
-    for (final offset in _preview.spacerOffsets) {
+    for (final offset in preview.spacerOffsets) {
       cuts.add(offset.clamp(0, text.length));
       cuts.add((offset + 1).clamp(0, text.length));
     }
 
-    final spacerOffsets = _preview.spacerOffsets.toSet();
+    final spacerOffsets = preview.spacerOffsets.toSet();
 
     final sorted = cuts.toList()..sort();
     final checkboxByOffset = <int, PreviewCheckbox>{
-      for (final checkbox in _preview.checkboxes) checkbox.offset: checkbox,
+      for (final checkbox in preview.checkboxes) checkbox.offset: checkbox,
     };
 
-    final spans = <InlineSpan>[];
+    // 解析器和正则都按正文顺序产出互不重叠的区间。随着切点推进，每个区间只经过一次。
+    var styleIndex = 0;
+    var highlightIndex = 0;
+    var tagIndex = 0;
+    var linkIndex = 0;
+    final spans = <TextSpan>[];
     for (var i = 0; i < sorted.length - 1; i++) {
       final start = sorted[i];
       final end = sorted[i + 1];
@@ -204,34 +347,40 @@ class _NotePreviewTextState extends State<NotePreviewText> {
         continue;
       }
 
-      final styles = <PreviewInlineStyle>{};
-      for (final range in _preview.ranges) {
-        if (range.start <= start && range.end >= end) {
-          styles.addAll(range.styles);
-        }
+      while (styleIndex < ranges.length && ranges[styleIndex].end <= start) {
+        styleIndex++;
       }
+      final styles = styleIndex < ranges.length &&
+              ranges[styleIndex].start <= start &&
+              ranges[styleIndex].end >= end
+          ? ranges[styleIndex].styles
+          : const <PreviewInlineStyle>{};
 
-      final isHighlighted = highlights.any(
-        (range) => range.$1 <= start && range.$2 >= end,
-      );
+      while (highlightIndex < highlights.length &&
+          highlights[highlightIndex].$2 <= start) {
+        highlightIndex++;
+      }
+      final isHighlighted = highlightIndex < highlights.length &&
+          highlights[highlightIndex].$1 <= start &&
+          highlights[highlightIndex].$2 >= end;
 
       // 落在某个 `#标签` 区间内的片段：整段着色 + 可点击跳转
-      String? tagPath;
-      for (final tag in tags) {
-        if (tag.$1 <= start && tag.$2 >= end) {
-          tagPath = text.substring(tag.$1, tag.$2).substring(1);
-          break;
-        }
+      while (tagIndex < tags.length && tags[tagIndex].$2 <= start) {
+        tagIndex++;
       }
+      final tag = tagIndex < tags.length ? tags[tagIndex] : null;
+      final tagPath = tag != null && tag.$1 <= start && tag.$2 >= end
+          ? text.substring(tag.$1 + 1, tag.$2)
+          : null;
 
       // 落在某个链接区间内的片段：可点击（外部 URL / 站内引用 ref:）
-      String? linkHref;
-      for (final link in links) {
-        if (link.start <= start && link.end >= end) {
-          linkHref = link.href;
-          break;
-        }
+      while (linkIndex < links.length && links[linkIndex].end <= start) {
+        linkIndex++;
       }
+      final link = linkIndex < links.length ? links[linkIndex] : null;
+      final linkHref = link != null && link.start <= start && link.end >= end
+          ? link.href
+          : null;
 
       final checkbox = checkboxByOffset[start];
       final isCheckboxSegment = checkbox != null && end == start + 1;
@@ -294,24 +443,9 @@ class _NotePreviewTextState extends State<NotePreviewText> {
   }
 
   /// 找出预览文本里所有 `#标签` 的区间（含 `#`），排除 URL 里的 `#`。
-  List<(int, int)> _findTagRanges(String text) {
-    if (!text.contains('#')) {
-      return const <(int, int)>[];
-    }
-    final hasUrl = text.contains(RegExp('[a-zA-Z]+://'));
-    final ranges = <(int, int)>[];
-    for (final match in getTagRegex().allMatches(text)) {
-      final name = match.group(1);
-      if (name == null || name.isEmpty) {
-        continue;
-      }
-      if (hasUrl && isTagInUrl(text, match.start, match.end)) {
-        continue;
-      }
-      ranges.add((match.start, match.end));
-    }
-    return ranges;
-  }
+  List<(int, int)> _findTagRanges(String text) => [
+        for (final tag in tagMatchesOutsideUrls(text)) (tag.start, tag.end),
+      ];
 
   TextStyle _styleFor(
     Set<PreviewInlineStyle> styles,

@@ -1,5 +1,7 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:inkpaper/utils/note_preview_builder.dart';
 import 'package:inkpaper/widgets/note_preview_text.dart';
 
 /// 详情页正文与编辑页输入框必须是同一套排版。
@@ -76,5 +78,85 @@ void main() {
         tester.widget<Text>(find.byType(Text).first).textSpan!.toPlainText();
     expect(rendered.length, long.length);
     expect(rendered.endsWith('结尾标记ABC'), isTrue);
+  });
+
+  testWidgets('同一片段可同时保留正文样式、高亮和交互', (tester) async {
+    final tags = <String>[];
+    final urls = <String>[];
+    final tasks = <int>[];
+    await tester.pumpWidget(
+      _wrap(
+        NotePreviewText(
+          content: '- [ ] **#读书** [站点](https://example.com)',
+          style: _bodyStyle,
+          highlightQuery: '读',
+          onTagTap: tags.add,
+          onLinkTap: urls.add,
+          onCheckboxTap: tasks.add,
+        ),
+      ),
+    );
+
+    final root = tester.widget<Text>(find.byType(Text).first).textSpan!;
+    final children = (root as TextSpan).children!.cast<TextSpan>();
+    final highlighted = children.singleWhere((span) => span.text == '读');
+    expect(highlighted.style?.backgroundColor, isNotNull);
+    (highlighted.recognizer! as TapGestureRecognizer).onTap!();
+    for (final text in ['☐', '站点']) {
+      final span = children.singleWhere((part) => part.text == text);
+      (span.recognizer! as TapGestureRecognizer).onTap!();
+    }
+    expect(tags, ['读书']);
+    expect(urls, ['https://example.com']);
+    expect(tasks, [0]);
+  });
+
+  testWidgets('长文可后台解析，分段排版保留全文和折行', (tester) async {
+    final document = '${'**重点** 普通文字 ' * 1200}结尾标记';
+    final parsed = await tester.runAsync(
+      () =>
+          NotePreviewCache.resolveAsync(document, parseLimit: document.length),
+    );
+    expect(parsed, isNotNull);
+    expect(
+      identical(
+        NotePreviewCache.resolve(document, parseLimit: document.length),
+        parsed,
+      ),
+      isTrue,
+    );
+
+    final preview = NotePreviewText(
+      content: document,
+      style: _bodyStyle,
+      compactBlankLines: false,
+      parseLimit: document.length,
+    );
+    await tester.pumpWidget(_wrap(SingleChildScrollView(child: preview)));
+    await tester.pumpAndSettle();
+    final texts = tester
+        .widgetList<Text>(
+          find.descendant(
+            of: find.byType(NotePreviewText),
+            matching: find.byType(Text),
+          ),
+        )
+        .toList();
+    expect(texts.length, greaterThan(1));
+    expect(
+      texts.map((text) => text.textSpan!.toPlainText()).join(),
+      parsed!.text,
+    );
+
+    final context = tester.element(find.byType(NotePreviewText));
+    final painter = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        style: DefaultTextStyle.of(context).style.merge(_bodyStyle),
+        children: [for (final text in texts) text.textSpan!],
+      ),
+    )..layout(maxWidth: tester.getSize(find.byType(NotePreviewText)).width);
+    addTearDown(painter.dispose);
+    expect(tester.getSize(find.byType(NotePreviewText)).height, painter.height);
   });
 }

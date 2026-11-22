@@ -990,6 +990,9 @@ class AppLocalizationsSimple {
   // ===== NoteEditor Widget =====
   String get saveFailed => _t('saveFailed', fallback: '保存失败');
   String get loadFailed => _t('loadFailed', fallback: '加载失败');
+  String get retry => _t('retry');
+  String homeTagFilterInherited(String tag) =>
+      _t('homeTagFilterInherited').replaceAll('{tag}', tag);
   String get selectImageFailed => _t('selectImageFailed', fallback: '选择图片失败');
   String get noteNotFound => _t('noteNotFound', fallback: '找不到要引用的笔记');
   String get referenceFailed => _t('referenceFailed', fallback: '引用失败');

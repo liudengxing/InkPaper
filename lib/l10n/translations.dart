@@ -1145,6 +1145,11 @@ class Translations {
       'en': 'Start Insight ({count} notes)',
     },
     'loadFailed': {'zh': '加载失败', 'en': 'Load Failed'},
+    'retry': {'zh': '重试', 'en': 'Retry'},
+    'homeTagFilterInherited': {
+      'zh': '由 #{tag} 屏蔽',
+      'en': 'Hidden by #{tag}',
+    },
 
     // ===== 版本更新 =====
     'latestVersion': {

@@ -224,7 +224,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     final reviewRangeDays = _appConfig.widgetReviewRangeDays;
 
     Future<void> scheduleWithNotes(List<Note> snapshotNotes) async {
-      if (updateId != _widgetStore.snapshotUpdateId) {
+      if (!mounted || updateId != _widgetStore.snapshotUpdateId) {
         return;
       }
       _maybePersistFeedSnapshot(snapshotNotes);
@@ -249,7 +249,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         if (delay > Duration.zero) {
           await Future<void>.delayed(delay);
         }
-        if (updateId != _widgetStore.snapshotUpdateId) {
+        if (!mounted || updateId != _widgetStore.snapshotUpdateId) {
           return;
         }
 
@@ -464,7 +464,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 状态自己跳回去。顶多下次启动读到旧名单。
       debugPrint('AppProvider: 保存首页屏蔽标签失败: $e');
     }
-    notifyListeners();
+    notifyUiStateChanged();
   }
 
   Future<void> setMediaFilter(NoteMediaFilter filter) async {
@@ -790,12 +790,14 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       } on Object {
         // 加载本地数据失败
         _notesStore.notes = []; // 确保有默认空列表
+        _clearNotesCache();
       }
 
       // 设置初始化标志为true，让UI可以立即显示本地数据
       _notesStore.isInitialized = true;
-      notifyListeners(); // 通知UI更新，此时已经有本地数据可以显示
-      refreshWidgetSnapshotNow();
+      notifyUiStateChanged();
+      // 给首屏留出渲染时间，再读取小组件需要的全量笔记。
+      _scheduleWidgetSnapshotUpdate(delay: const Duration(milliseconds: 750));
 
       // 🌐 在后台继续处理网络相关操作，不阻塞UI显示
       unawaited(_initializeNetworkOperationsInBackground());
@@ -1170,7 +1172,6 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       );
 
       notifyListeners();
-      _scheduleWidgetSnapshotUpdate();
       if (kDebugMode) {
         debugPrint(
           'AppProvider: ✅ 本地数据加载完成，已加载 ${_notesStore.notes.length}/$_notesStore.totalNotesCount 条笔记',
@@ -1216,7 +1217,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     try {
       // 5️⃣ 更新状态为加载中
       _notesStore.pagingState = paging.beginLoadMore(_notesStore.pagingState);
-      notifyListeners();
+      notifyUiStateChanged();
       debugPrint(
         'AppProvider: 📄 开始加载第 ${_notesStore.pagingState.currentPage} 页笔记... (状态: ${_notesStore.pagingState.loadMoreState.description})',
       );
@@ -1259,7 +1260,11 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         success: true,
       );
 
-      notifyListeners();
+      if (moreNotes.isEmpty) {
+        notifyUiStateChanged();
+      } else {
+        notifyListeners();
+      }
 
       // 🔟 完成 Completer
       _notesStore.loadMoreCompleter!.complete();
@@ -1285,7 +1290,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         error: e.toString(),
       );
 
-      notifyListeners();
+      notifyUiStateChanged();
 
       // 完成 Completer（带错误）
       _notesStore.loadMoreCompleter!.completeError(e, stackTrace);

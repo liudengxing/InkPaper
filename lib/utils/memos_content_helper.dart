@@ -69,33 +69,9 @@ abstract final class MemosContentHelper {
         .trimRight();
   }
 
-  /// 「展开」按钮判断用的全文（已剔除图片）。
-  ///
-  /// 内部要走完整 Markdown 解析（转换器 + `Document.parse`），一张卡片一次几十
-  /// 毫秒；而卡片在滚动、翻页、状态变化时会被反复重建，每次重算就会掉帧。
-  /// 这里按原始正文做一个有上限的小缓存（满了丢最早的），语义与
-  /// `previewTextForExpansion(removeMarkdownImages(...))` 完全一致。
-  static const int _expansionCacheCapacity = 300;
-  static final Map<String, String> _expansionCache = <String, String>{};
-
-  static String cachedExpansionText(String rawContent) {
-    final cached = _expansionCache[rawContent];
-    if (cached != null) {
-      return cached;
-    }
-
-    final computed = previewTextForExpansion(
-      removeMarkdownImages(rawContent),
-    );
-    if (_expansionCache.length >= _expansionCacheCapacity) {
-      _expansionCache.remove(_expansionCache.keys.first);
-    }
-    _expansionCache[rawContent] = computed;
-    return computed;
-  }
-
-  static String previewTextForExpansion(String content) {
-    final lines = previewVisibleText(content).split('\n');
+  /// 用已渲染的预览正文判断是否需要展开，尾部标签不计入行数。
+  static String previewTextForExpansion(String renderedText) {
+    final lines = renderedText.split('\n');
 
     while (lines.isNotEmpty && lines.last.trim().isEmpty) {
       lines.removeLast();

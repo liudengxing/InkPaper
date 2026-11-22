@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
@@ -89,13 +90,6 @@ class _NoteCardState extends State<NoteCard>
   // Feed cards collapse only the text body. Media is laid out separately.
   static const int _maxLines = 6;
 
-  /// 缩略图延迟挂载：先铺静态占位，过一小段再真正解码。
-  ///
-  /// 一张九图笔记会在同一帧发起 9 次解码（每张 480px 级别的纹理上传），
-  /// 直接把一帧的预算撑爆，滑到带图笔记就会顿一下。首个延迟让卡片先完成布局，
-  /// 再按序号错开，把解码摊到后面几帧，滚动帧就不会被集中砸中。
-  static const Duration _thumbDecodeDelay = Duration(milliseconds: 90);
-  static const Duration _thumbDecodeStep = Duration(milliseconds: 30);
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   final ValueNotifier<bool> _expandedNotifier = ValueNotifier<bool>(false);
@@ -155,9 +149,9 @@ class _NoteCardState extends State<NoteCard>
     final preview = NotePreviewCache.resolve(note.content);
     final hasTextContent = !preview.isEmpty;
 
-    // 「全文」按钮的估算文本：剔除图片与纯标签行，避免把标签列表算进 6 行预览。
-    // 走缓存版：卡片会被反复重建，每次重跑 Markdown 解析是滚动/翻页掉帧的主因之一。
-    final expansionText = MemosContentHelper.cachedExpansionText(note.content);
+    // 用实际显示的正文估算行数，避免为了「展开」重新解析原文。
+    final expansionText =
+        MemosContentHelper.previewTextForExpansion(preview.text);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -398,8 +392,9 @@ class _NoteCardState extends State<NoteCard>
     int? decodeWidth,
   }) {
     try {
-      // 持久化缩略图命中就立刻渲染，不再排队错峰（见 _DeferredThumbnail 注释）
       final thumb = _lookupThumb(imagePath, decodeWidth: decodeWidth);
+      final cachedInMemory = thumb != null &&
+          PaintingBinding.instance.imageCache.containsKey(FileImage(thumb));
       return GestureDetector(
         onTap: () => _showFullscreenImage(
           imagePath,
@@ -419,9 +414,8 @@ class _NoteCardState extends State<NoteCard>
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: _DeferredThumbnail(
-                  delay:
-                      _thumbDecodeDelay + _thumbDecodeStep * index.clamp(0, 8),
-                  immediate: thumb != null,
+                  key: ValueKey((imagePath, _memDecodeWidth(decodeWidth))),
+                  immediate: cachedInMemory,
                   placeholder: _buildThumbPlaceholder(),
                   builder: () => _buildImageWidget(
                     imagePath,
@@ -575,12 +569,17 @@ class _NoteCardState extends State<NoteCard>
     final memWidth = _memDecodeWidth(decodeWidth);
     final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);
     if (cachedAttachment != null) {
-      return ThumbCache.instance.lookup(cachedAttachment.path, width: memWidth);
+      return ThumbCache.instance.lookup(
+        cachedAttachment.path,
+        width: memWidth,
+        generateOnMiss: false,
+      );
     }
     if (imagePath.startsWith('file://')) {
       return ThumbCache.instance.lookup(
         imagePath.replaceFirst('file://', ''),
         width: memWidth,
+        generateOnMiss: false,
       );
     }
     return null;
@@ -1258,23 +1257,15 @@ class _NoteCardState extends State<NoteCard>
 }
 
 /// 先占位、延迟挂载的缩略图。
-///
-/// [delay] 到了之后才执行 [builder]，让同一张卡片里的多张图不要挤在同一帧解码；
-/// 卡片被回收重建时会重新计时，但命中 ImageCache 的图会立刻出图，不会闪。
-///
-/// [immediate] 为 true 时跳过延迟，首帧就构建。持久化缩略图命中时走这条路：
-/// 480px JPEG 解码只要 5~10ms，为它压 90~330ms 的错峰毫无意义，那段空白
-/// 正是「明明缓存过、滑到还是要白一下」的来源。只有退回原图（12MP，单张
-/// 150~250ms）才值得摊到后面几帧。
+/// 冷图片跨卡片共享每帧的加载额度，命中内存图片缓存则直接显示。
 class _DeferredThumbnail extends StatefulWidget {
   const _DeferredThumbnail({
-    required this.delay,
     required this.placeholder,
     required this.builder,
     this.immediate = false,
+    super.key,
   });
 
-  final Duration delay;
   final Widget placeholder;
   final Widget Function() builder;
   final bool immediate;
@@ -1284,48 +1275,52 @@ class _DeferredThumbnail extends StatefulWidget {
 }
 
 class _DeferredThumbnailState extends State<_DeferredThumbnail> {
-  Timer? _timer;
+  static const int _loadsPerFrame = 2;
+  static final _pending = <_DeferredThumbnailState>{};
+  static bool _frameScheduled = false;
+
   bool _ready = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.immediate) {
-      _ready = true;
-      return;
+    _ready = widget.immediate;
+    if (!_ready) {
+      _pending.add(this);
+      _scheduleFrame();
     }
-    _schedule();
   }
 
   @override
   void didUpdateWidget(covariant _DeferredThumbnail oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 命中状态变了（缩略图刚生成好）就立刻放行，不必等下一次延迟
     if (widget.immediate && !_ready) {
-      _timer?.cancel();
+      _pending.remove(this);
       _ready = true;
-      return;
-    }
-    if (oldWidget.delay != widget.delay) {
-      _timer?.cancel();
-      _ready = false;
-      _schedule();
     }
   }
 
-  void _schedule() {
-    _timer?.cancel();
-    _timer = Timer(widget.delay, () {
-      if (!mounted) {
-        return;
+  static void _scheduleFrame() {
+    if (_frameScheduled || _pending.isEmpty) {
+      return;
+    }
+    _frameScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _frameScheduled = false;
+      for (var count = 0;
+          count < _loadsPerFrame && _pending.isNotEmpty;
+          count++) {
+        final thumbnail = _pending.first;
+        _pending.remove(thumbnail);
+        thumbnail.setState(() => thumbnail._ready = true);
       }
-      setState(() => _ready = true);
+      _scheduleFrame();
     });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _pending.remove(this);
     super.dispose();
   }
 

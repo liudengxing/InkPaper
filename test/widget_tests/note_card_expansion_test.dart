@@ -1,8 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/widgets/note_card.dart';
+import 'package:inkpaper/widgets/note_preview_text.dart';
 import 'package:provider/provider.dart';
 
 Widget _wrap(Widget child) => ChangeNotifierProvider(
@@ -55,7 +59,7 @@ https://testflight.apple.com/join/e1v9O7jC
             .join('\n');
 
         expect(renderedText, contains('Message link'));
-        expect(find.text('全文'), findsNothing);
+        expect(find.text('展开'), findsNothing);
       },
     );
 
@@ -85,7 +89,7 @@ https://testflight.apple.com/join/e1v9O7jC
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('全文'), findsNothing);
+        expect(find.text('展开'), findsNothing);
       },
     );
 
@@ -130,6 +134,68 @@ https://testflight.apple.com/join/e1v9O7jC
           );
       expect(underlineSpans, isNotEmpty);
     });
+    testWidgets('expands and collapses the rendered body', (tester) async {
+      final date = DateTime(2026);
+      final note = Note(
+        id: 'long-text',
+        content: List.generate(7, (index) => '正文第 $index 段').join('\n\n'),
+        createdAt: date,
+        updatedAt: date,
+      );
+      await tester.pumpWidget(
+        _wrap(
+          NoteCard(note: note, onEdit: () {}, onDelete: () {}, onPin: () {}),
+        ),
+      );
+      NotePreviewText preview() => tester.widget(find.byType(NotePreviewText));
+
+      expect(preview().maxLines, 6);
+      await tester.tap(find.text('展开'));
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(preview().maxLines, isNull);
+      await tester.tap(find.text('收起'));
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(preview().maxLines, 6);
+    });
+  });
+
+  testWidgets('uncached images share a frame budget across cards',
+      (tester) async {
+    final directory = Directory.systemTemp.createTempSync('inkpaper-card-test');
+    addTearDown(() {
+      for (final file in directory.listSync()) {
+        file.deleteSync();
+      }
+      directory.deleteSync();
+    });
+    final png = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    );
+    final cards = List.generate(2, (cardIndex) {
+      final content = List.generate(2, (imageIndex) {
+        final image = File('${directory.path}/$cardIndex-$imageIndex.png')
+          ..writeAsBytesSync(png);
+        return '![image](file://${image.path.replaceAll(r'\', '/')})';
+      }).join('\n');
+      return NoteCard(
+        note: Note(
+          id: 'card-$cardIndex',
+          content: content,
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+        ),
+        onEdit: () {},
+        onDelete: () {},
+        onPin: () {},
+      );
+    });
+
+    await tester.pumpWidget(_wrap(ListView(children: cards)));
+    expect(find.byType(Image), findsNothing);
+    await tester.pump();
+    expect(find.byType(Image), findsNWidgets(2));
+    await tester.pump();
+    expect(find.byType(Image), findsNWidgets(4));
   });
 }
 

@@ -19,18 +19,9 @@ String normalizeHomeTag(String tag) {
   return value.trim();
 }
 
-/// 一条笔记身上出现的全部标签：结构化 `tags` 与正文 `#标签` 的并集。
-///
-/// 少看一边都不行：同步来的笔记标签常只存在字段里，手写的常只在正文里。
-Set<String> collectNoteTags(Note note) {
+Set<String> _normalizeTags(Iterable<String> values) {
   final tags = <String>{};
-  for (final tag in note.tags) {
-    final normalized = normalizeHomeTag(tag);
-    if (normalized.isNotEmpty) {
-      tags.add(normalized);
-    }
-  }
-  for (final tag in Note.extractTagsFromContent(note.content)) {
+  for (final tag in values) {
     final normalized = normalizeHomeTag(tag);
     if (normalized.isNotEmpty) {
       tags.add(normalized);
@@ -39,32 +30,30 @@ Set<String> collectNoteTags(Note note) {
   return tags;
 }
 
+// 正文在 Note 实例内不可变。分页复用旧实例时跳过正文扫描，笔记离开内存后
+// 缓存也能随实例回收。结构化 tags 是列表，每次读取当前值。
+final _bodyTagsByNote = Expando<Set<String>>();
+
+/// 一条笔记身上出现的全部标签：结构化 `tags` 与正文 `#标签` 的并集。
+Set<String> collectNoteTags(Note note) {
+  final bodyTags = _bodyTagsByNote[note] ??=
+      _normalizeTags(Note.extractTagsFromContent(note.content));
+  return _normalizeTags(note.tags)..addAll(bodyTags);
+}
+
 /// 这条笔记是否命中了任一被屏蔽的标签。
 ///
 /// 层级标签按前缀算：屏蔽「读书」同时屏蔽「读书/笔记」，否则用户得把每
 /// 一个子标签都勾一遍，还得随新增的子标签反复回来补。
-bool isNoteHiddenByTags(Note note, Set<String> hiddenTags) {
+bool isNoteHiddenByTags(Note note, Set<String> hiddenTags) =>
+    _matchesHiddenTags(note, _normalizeTags(hiddenTags));
+
+bool _matchesHiddenTags(Note note, Set<String> hiddenTags) {
   if (hiddenTags.isEmpty) {
     return false;
   }
-  final tags = collectNoteTags(note);
-  if (tags.isEmpty) {
-    return false;
-  }
-  // 名单本身也归一化：来源可能是用户手输、旧版本存的带 `#` 的值，
-  // 不归一化会出现「明明屏蔽了却还在首页」。
-  final hidden = <String>{};
-  for (final tag in hiddenTags) {
-    final normalized = normalizeHomeTag(tag);
-    if (normalized.isNotEmpty) {
-      hidden.add(normalized);
-    }
-  }
-  if (hidden.isEmpty) {
-    return false;
-  }
-  for (final tag in tags) {
-    for (final blocked in hidden) {
+  for (final tag in collectNoteTags(note)) {
+    for (final blocked in hiddenTags) {
       if (tag == blocked || tag.startsWith('$blocked/')) {
         return true;
       }
@@ -78,7 +67,11 @@ List<Note> filterNotesByHiddenTags(List<Note> notes, Set<String> hiddenTags) {
   if (hiddenTags.isEmpty) {
     return notes;
   }
+  final normalizedHiddenTags = _normalizeTags(hiddenTags);
+  if (normalizedHiddenTags.isEmpty) {
+    return notes;
+  }
   return notes
-      .where((note) => !isNoteHiddenByTags(note, hiddenTags))
+      .where((note) => !_matchesHiddenTags(note, normalizedHiddenTags))
       .toList(growable: false);
 }

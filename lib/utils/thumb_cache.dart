@@ -240,7 +240,12 @@ class ThumbCache {
   /// 同步查缩略图。命中返回文件，否则返回 null（调用方回退原图）。
   ///
   /// 未命中时顺手触发一次后台生成：用户这次看的是原图，下次进来就是缩略图。
-  File? lookup(String sourcePath, {int width = defaultWidth}) {
+  /// [generateOnMiss] 为 false 时只检查缓存，供延迟加载的调用方先判断命中。
+  File? lookup(
+    String sourcePath, {
+    int width = defaultWidth,
+    bool generateOnMiss = true,
+  }) {
     final dirPath = _dirPath;
     if (dirPath == null) {
       return null;
@@ -265,7 +270,8 @@ class ThumbCache {
       _known.remove(name);
     }
     _lookupMisses++;
-    if (_autoGenerateOnMiss &&
+    if (generateOnMiss &&
+        _autoGenerateOnMiss &&
         !_inflight.contains(name) &&
         !_giveUp.contains(name)) {
       unawaited(ensure(sourcePath, width: width));

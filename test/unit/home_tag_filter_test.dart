@@ -101,5 +101,14 @@ void main() {
 
       expect(filtered.map((note) => note.id), <String>['1', '3']);
     });
+
+    test('同一 ID 的笔记改正文后按新标签过滤', () {
+      final hidden = <String>{' #读书 '};
+      final original = _note('1', '#读书/小说');
+      final edited = original.copyWith(content: '#日记');
+
+      expect(filterNotesByHiddenTags([original], hidden), isEmpty);
+      expect(filterNotesByHiddenTags([edited], hidden), [edited]);
+    });
   });
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
+import 'package:inkpaper/utils/note_preview_builder.dart';
 
 void main() {
   group('MemosContentHelper', () {
@@ -52,7 +53,9 @@ https://testflight.apple.com/join/e1v9O7jC
 ''';
 
       expect(
-        MemosContentHelper.previewTextForExpansion(content),
+        MemosContentHelper.previewTextForExpansion(
+          buildNotePreview(content).text,
+        ),
         '成长的代价就是失去原有的样子，不管你现在混成什么样子，都要觉得自己前途无量，没人扶的时候，自己要站稳，路是走出来的，越低谷的时候越要撑起自己，要赢得起，也要输得起，一直在学走路，总有一天会站起来，成长会把你们带动下一个旅程。',
       );
     });

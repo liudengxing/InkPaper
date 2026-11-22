@@ -6,7 +6,7 @@ InkPaper is an Android note-taking app for personal knowledge capture. Local not
 
 ## Current Version
 
-`1.1.137`
+`1.1.138`
 
 The current source has passed Android device installation checks. See the release page for public downloads.
 
@@ -80,7 +80,7 @@ sdkmanager --licenses
 The app version is managed in `pubspec.yaml`, where `x.y.z` is the semantic version and `+N` is the build number:
 
 ```yaml
-version: 1.1.137+10237
+version: 1.1.138+10238
 ```
 
 When preparing a new build version, bump both the `x.y.z` patch and `+N` and update the current version in both READMEs. `dart tool/inkpaper.dart store-check` verifies that they match.

@@ -827,7 +827,11 @@ class NoteActionsUi {
       final result = <RelatedNoteItem>[
         for (var i = 0; i < links.length; i++)
           if (notes[i] case final target?)
-            (note: target, link: links[i], preview: index.note(target.id)!.preview),
+            (
+              note: target,
+              link: links[i],
+              preview: index.note(target.id)!.preview
+            ),
       ];
 
       messenger?.hideCurrentSnackBar();

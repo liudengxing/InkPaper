@@ -1541,7 +1541,8 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   Future<RandomWalkIndex> loadNoteDiscoveryIndex() async {
     while (true) {
       final building = _noteDiscoveryIndex ??= loadRandomWalkNotes().then(
-        (notes) => compute(RandomWalkIndex.new, notes, debugLabel: 'note-discovery'),
+        (notes) =>
+            compute(RandomWalkIndex.new, notes, debugLabel: 'note-discovery'),
       );
       try {
         final index = await building;

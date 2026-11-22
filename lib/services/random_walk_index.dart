@@ -1,6 +1,5 @@
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/services/weread_note_builder.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
@@ -109,34 +108,6 @@ class RandomWalkIndex {
   Iterable<String> get ids => _documents.keys;
 
   WalkNote? note(String id) => _documents[id]?.note;
-
-  bool sameEvidence(String id, RandomWalkIndex previous) {
-    final current = _documents[id];
-    final old = previous._documents[id];
-    return current != null &&
-        old != null &&
-        setEquals(current.tags, old.tags) &&
-        setEquals(current.terms, old.terms) &&
-        mapEquals(_linksById[id], previous._linksById[id]);
-  }
-
-  bool retains(WalkConnection edge) {
-    final (from, to, kind, evidence) = edge;
-    final source = _documents[from];
-    final target = _documents[to];
-    if (source == null || target == null) {
-      return false;
-    }
-    return switch (kind) {
-      WalkRelation.reference => _linksById[from]?[to] == WalkRelation.reference,
-      WalkRelation.backlink => _linksById[to]?[from] == WalkRelation.reference,
-      WalkRelation.tag =>
-        source.tags.contains(evidence) && target.tags.contains(evidence),
-      WalkRelation.text =>
-        source.terms.contains(evidence) && target.terms.contains(evidence),
-      WalkRelation.jump => true,
-    };
-  }
 
   void _link(String from, String to) {
     (_linksById[from] ??= {})[to] = WalkRelation.reference;

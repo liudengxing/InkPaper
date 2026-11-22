@@ -58,7 +58,8 @@ class AppLocalizationsSimple {
   String get randomWalkMissing => _t('randomWalkMissing');
   String get randomWalkBack => _t('randomWalkBack');
   String get randomWalkCenter => _t('randomWalkCenter');
-  String get randomWalkOpen => _t('randomWalkOpen');
+  String get randomWalkZoomIn => _t('randomWalkZoomIn');
+  String get randomWalkZoomOut => _t('randomWalkZoomOut');
   String get randomWalkJump => _t('randomWalkJump');
   String get randomWalkEnd => _t('randomWalkEnd');
   String get randomWalkAttachment => _t('randomWalkAttachment');
@@ -66,6 +67,20 @@ class AppLocalizationsSimple {
   String get randomWalkBacklink => _t('randomWalkBacklink');
   String get randomWalkTag => _t('randomWalkTag');
   String get randomWalkText => _t('randomWalkText');
+  String get randomWalkRecap => _t('randomWalkRecap');
+  String get randomWalkRecapRange => _t('randomWalkRecapRange');
+  String get randomWalkRecapFrom => _t('randomWalkRecapFrom');
+  String get randomWalkRecapTo => _t('randomWalkRecapTo');
+  String get randomWalkRecapNotes => _t('randomWalkRecapNotes');
+  String get randomWalkRecapChars => _t('randomWalkRecapChars');
+  String get randomWalkRecapFarthest => _t('randomWalkRecapFarthest');
+  String get randomWalkContinue => _t('randomWalkContinue');
+  String get randomWalkExit => _t('randomWalkExit');
+  String randomWalkRecapDays(int days) => days == 1
+      ? _t('randomWalkRecapDay')
+      : _t('randomWalkRecapDays').replaceAll('{days}', '$days');
+  String randomWalkRecapStep(int step) =>
+      _t('randomWalkRecapStep').replaceAll('{step}', '$step');
   String get imageGallery => _t('imageGallery', fallback: '有图片');
   String get videoGallery => _t('videoGallery', fallback: '有视频');
   String get mediaFilter => _t('mediaFilter', fallback: '筛选');

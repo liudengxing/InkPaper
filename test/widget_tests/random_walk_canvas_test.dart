@@ -1,75 +1,143 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/random_walk_index.dart';
+import 'package:inkpaper/widgets/memos_markdown_renderer.dart';
 import 'package:inkpaper/widgets/random_walk_canvas.dart';
+import 'package:inkpaper/widgets/random_walk_recap.dart';
+import 'package:provider/provider.dart';
+
+Note _note(String id, String content, [int day = 1]) => Note(
+      id: id,
+      content: content,
+      createdAt: DateTime(2024, 3, day),
+      updatedAt: DateTime(2024, 3, day),
+    );
+
+WalkNote _preview(Note note, [String? text]) =>
+    (id: note.id, preview: text ?? note.content, createdAt: note.createdAt);
 
 void main() {
-  testWidgets('expands a branch and keeps existing nodes in place on return',
+  testWidgets(
+      'follows one forward branch, reads in the card and returns to the parent',
       (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(360, 640);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
-    final date = DateTime(2024);
-    var focus = 'start';
-    var expanded = false;
-    var request = 0;
+    final body = List.filled(22, 'Line to read.').join('\n\n');
+    final start = _note('start', '> Opening line\n\n$body\n\nFull note ending');
+    final branch = _note('branch', 'First branch');
+    final other = _note('other', 'Other branch');
+    final next = _note('next', 'Next step');
+    var advanced = false;
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: StatefulBuilder(
-            builder: (context, setState) => RandomWalkCanvas(
-              notes: [
-                (id: 'start', preview: 'Starting note', createdAt: date),
-                (id: 'branch', preview: 'First branch', createdAt: date),
-                if (expanded)
-                  (id: 'next', preview: 'Next step', createdAt: date),
-              ],
-              edges: [
-                ('start', 'branch', WalkRelation.tag, 'writing'),
-                if (expanded) ('branch', 'next', WalkRelation.reference, ''),
-                if (expanded) ('next', 'start', WalkRelation.backlink, ''),
-              ],
-              path: focus == 'start' ? ['start'] : ['start', focus],
-              focus: focus,
-              centerRequest: request,
-              onSelect: (id) => setState(() {
-                focus = id;
-                request++;
-                expanded = true;
-              }),
+      ChangeNotifierProvider(
+        create: (_) => AppProvider(initialFeed: [start, branch, other, next]),
+        child: MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => RandomWalkCanvas(
+                notes: [
+                  _preview(start, '> Opening line'),
+                  _preview(branch),
+                  if (advanced) _preview(next) else _preview(other),
+                ],
+                edges: [
+                  ('start', 'branch', WalkRelation.tag, 'writing'),
+                  if (advanced)
+                    ('branch', 'next', WalkRelation.reference, '')
+                  else
+                    ('start', 'other', WalkRelation.text, 'notebook'),
+                ],
+                path: advanced ? ['start', 'branch'] : ['start'],
+                current: advanced ? branch : start,
+                onSelect: (id) => setState(() => advanced = id != start.id),
+                action: TextButton(
+                  onPressed: () => setState(() => advanced = false),
+                  child: const Text('Previous step'),
+                ),
+              ),
             ),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    final start = find.text('Starting note');
-    final branch = find.text('First branch');
-    final originalPosition = tester.getCenter(branch);
-    expect(find.text('Shared tag #writing'), findsOneWidget);
+    final branchFinder = find.text('First branch');
+    final previousPosition = tester.getCenter(branchFinder);
+    expect(
+      previousPosition.dx,
+      greaterThan(tester.getCenter(find.text('Opening line')).dx),
+    );
+    expect(find.text('Other branch'), findsOneWidget);
 
-    await tester.tap(branch);
+    await tester.tap(find.text('Expand'));
     await tester.pumpAndSettle();
-    expect(find.text('Next step'), findsOneWidget);
-    expect(find.text('Starting note'), findsOneWidget);
+    final original = tester
+        .widget<MemosMarkdownRenderer>(find.byType(MemosMarkdownRenderer));
+    expect(original.content, contains('Full note ending'));
+    final scrollView = find.byType(SingleChildScrollView);
+    final scrolling = tester.state<ScrollableState>(
+      find.descendant(of: scrollView, matching: find.byType(Scrollable)).first,
+    );
+    await tester.drag(scrollView, const Offset(0, -160));
+    await tester.pumpAndSettle();
+    expect(scrolling.position.pixels, greaterThan(0));
+    scrolling.position.jumpTo(scrolling.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Full note ending', findRichText: true).hitTestable(),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Collapse'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MemosMarkdownRenderer), findsNothing);
 
-    await tester.tap(start);
+    await tester.tap(branchFinder);
     await tester.pumpAndSettle();
-    expect(tester.getCenter(branch), originalPosition);
+    expect(find.text('Other branch'), findsNothing);
+    expect(
+      tester.getCenter(find.text('Next step')).dx,
+      greaterThan(tester.getCenter(branchFinder).dx),
+    );
+
+    await tester.tap(find.text('Previous step'));
+    await tester.pumpAndSettle();
+    expect(tester.getCenter(branchFinder), previousPosition);
+    expect(find.text('Other branch'), findsOneWidget);
 
     final viewer =
         tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
     final camera = viewer.transformationController!;
-    final initialScale = camera.value.getMaxScaleOnAxis();
-    final left = await tester.startGesture(const Offset(125, 300));
-    final right = await tester.startGesture(const Offset(235, 300));
-    await left.moveTo(const Offset(80, 300));
-    await right.moveTo(const Offset(280, 300));
-    await left.up();
-    await right.up();
+    final beforeButton = camera.value.getMaxScaleOnAxis();
+    await tester.tap(find.byTooltip('Zoom in'));
     await tester.pumpAndSettle();
-    expect(camera.value.getMaxScaleOnAxis(), greaterThan(initialScale));
+    expect(camera.value.getMaxScaleOnAxis(), greaterThan(beforeButton));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('recap uses calendar range and largest adjacent jump',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RandomWalkRecapSheet(
+            notes: [
+              _note('a', 'First stop', 10),
+              _note('b', 'Waypoint'),
+              _note('c', 'Last stop', 5),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(find.text('9 days'), findsOneWidget);
+    expect(find.text('Step 1'), findsOneWidget);
+    expect(find.text('First stop'), findsOneWidget);
+    expect(find.text('Last stop'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+    expect(find.text('25'), findsOneWidget);
   });
 }

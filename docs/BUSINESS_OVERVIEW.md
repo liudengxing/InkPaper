@@ -200,10 +200,15 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
 
 ### 4.14 离线随机漫步
 
-- 首页顶部下拉依次显示 AI 洞察、随机漫步和随机回顾。随机漫步也有独立侧栏入口，周期回顾通过侧栏进入。应用在后台从有正文或附件的正常本地笔记构建本次索引，再随机选起点。 [首页入口](../lib/screens/home_screen.dart) · [漫步页面](../lib/screens/random_walk_screen.dart)
+- 首页顶部下拉依次显示 AI 洞察、随机漫步和随机回顾。随机漫步也有独立侧栏入口，周期回顾通过侧栏进入。应用按需在后台从有正文或附件的正常本地笔记构建全库索引，再随机选起点。 [首页入口](../lib/screens/home_screen.dart) · [漫步页面](../lib/screens/random_walk_screen.dart)
 - 每步最多推荐四条。显式引用和反向引用优先，后续按正文相似度排序。正文匹配用 BM25，从最多 24 个较少见的词项取证，至少命中两个词项且原始正文分达到 0.5。共同标签给正文候选的额外加分上限为 0.35，剩余位置最多补一条仅靠标签匹配的笔记。覆盖过广的标签和 `#微信读书` 不参与标签推荐，候选之间过于相似会降分。 [关联索引](../lib/services/random_walk_index.dart)
 - 向前和随机跳跃都跳过仍在当前路径上的笔记。返回上一步会截掉后续路径，被撤掉的笔记可以重新成为候选。随机跳跃从剩余可用的本地笔记抽取。 [路径状态](../lib/screens/random_walk_screen.dart)
 - 候选卡片预留五行正文。正文相似的依据从目标笔记原文取句段，长句围绕命中位置截取。点进后，跳转原因随当前卡片显示，展开全文也可见。漫步小结按当前路径统计笔记数、可见文字量、笔记日期范围和日期跨度最大的一跳。 [卡片画布](../lib/widgets/random_walk_canvas.dart) · [漫步小结](../lib/widgets/random_walk_recap.dart)
+
+### 4.15 离线相关笔记
+
+- 首页卡片左滑进入「相关笔记」。它与随机漫步共享全库索引，不受首页分页限制。排序依次考虑显式引用、BM25 正文命中、同一网页和少量罕见标签。正文近重复只留一条，显式引用保留。 [左滑入口](../lib/widgets/note_actions_ui.dart) · [排序](../lib/services/random_walk_index.dart)
+- 面板显示引用方向、命中片段、共同网页或标签。查找与排序全程在本机完成。 [结果面板](../lib/widgets/intelligent_related_notes_sheet.dart)
 
 ---
 

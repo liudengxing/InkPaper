@@ -1,8 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:inkpaper/models/note_model.dart';
-import 'package:inkpaper/services/intelligent_related_notes_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 🧠 用户行为学习服务
@@ -10,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 功能：
 /// 1. 记录点击行为
 /// 2. 分析用户偏好（标签、关系类型、主题）
-/// 3. 提供个性化权重调整
 class UserBehaviorService {
   static const String _clickHistoryKey = 'user_click_history';
   static const String _preferenceKey = 'user_preferences';
@@ -31,7 +28,7 @@ class UserBehaviorService {
   Future<void> recordClick({
     required String noteId,
     required List<String> noteTags,
-    RelationType? relationType, // 从哪种关系类型点击的（仅相关笔记面板有）
+    String? relationType,
     String source = 'unknown',
     int viewDurationSeconds = 0,
   }) async {
@@ -48,7 +45,7 @@ class UserBehaviorService {
       history.insert(0, {
         'noteId': noteId,
         'tags': noteTags,
-        'relationType': relationType?.name,
+        'relationType': relationType,
         'source': source,
         'viewDuration': viewDurationSeconds,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
@@ -214,42 +211,6 @@ class UserBehaviorService {
       debugPrint('⚠️ 读取偏好失败: $e');
       return UserPreference.empty();
     }
-  }
-
-  /// 🎨 为笔记计算个性化权重加成
-  double calculatePersonalizedBoost({
-    required Note note,
-    required RelationType relationType,
-    required UserPreference preference,
-  }) {
-    if (preference.totalClicks < 5) {
-      return 0; // 数据太少，不调整
-    }
-
-    var boost = 0.0;
-
-    // 1. 标签匹配加成（最高 +30%）——用笔记自带的结构化标签，
-    //    不再从正文里猜（正文里的 # 标签可能不全也不准）
-    final noteTags = note.tags.toSet();
-    var tagBoost = 0.0;
-    for (final tag in noteTags) {
-      final frequency = preference.favoriteTags[tag] ?? 0;
-      if (frequency > 0) {
-        // 频率越高，加成越大
-        tagBoost += (frequency / preference.totalClicks) * 0.5;
-      }
-    }
-    boost += tagBoost.clamp(0.0, 0.3); // 最多加30%
-
-    // 2. 关系类型匹配加成（最高 +20%）
-    final relationFrequency =
-        preference.favoriteRelationTypes[relationType.name] ?? 0;
-    if (relationFrequency > 0) {
-      final relationBoost = (relationFrequency / preference.totalClicks) * 0.4;
-      boost += relationBoost.clamp(0.0, 0.2); // 最多加20%
-    }
-
-    return boost; // 总加成：0-50%
   }
 
   /// 📈 获取浏览历史（用于可视化）

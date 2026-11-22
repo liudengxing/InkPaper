@@ -90,8 +90,7 @@ class AppLocalizationsSimple {
       _t('localAiPreferences', fallback: '本地 AI 学习偏好');
   String get localAiPreferencesDetail => _t(
         'localAiPreferencesDetail',
-        fallback: '记录你在应用内的浏览习惯，并据此调整「相关笔记」的推荐排序。'
-            '所有数据仅保存在本机，可随时一键清除。',
+        fallback: '记录你打开过的笔记和停留时长，可随时清除本机的浏览记录。',
       );
   String get noteHistory => _t('noteHistory', fallback: '历史版本');
   String get noHistory => _t('noHistory', fallback: '暂无历史版本');
@@ -327,6 +326,7 @@ class AppLocalizationsSimple {
   // ===== 排序 =====
   String get sortBy => locale.languageCode == 'zh' ? '排序方式' : 'Sort By';
   String get relatedNotes => _t('relatedNotes', fallback: '相关笔记');
+  String get relatedNotesSameSource => _t('relatedNotesSameSource');
   String get findingRelatedNotes =>
       _t('findingRelatedNotes', fallback: '正在查找相关笔记…');
 
@@ -1953,7 +1953,7 @@ class AppLocalizationsSimple {
   String get clearAllDataTitle => _t('clearAllDataTitle', fallback: '清除所有数据');
   String get clearLearningPreferencesMessage => _t(
         'clearLearningPreferencesMessage',
-        fallback: '确定要清除所有学习偏好数据吗？这将重置个性化推荐。',
+        fallback: '确定要清除本机的浏览记录和学习偏好数据吗？',
       );
   String get allDataCleared => _t('allDataCleared', fallback: '已清除所有数据');
   String get noDataYet => _t('noDataYet', fallback: '暂无数据');

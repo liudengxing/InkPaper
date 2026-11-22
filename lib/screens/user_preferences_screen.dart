@@ -48,7 +48,7 @@ class _UserPreferencesScreenState extends State<UserPreferencesScreen> {
       builder: (context) => AlertDialog(
         title: Text(l10n?.clearAllDataTitle ?? '清除所有数据'),
         content: Text(
-          l10n?.clearLearningPreferencesMessage ?? '确定要清除所有学习偏好数据吗？这将重置个性化推荐。',
+          l10n?.clearLearningPreferencesMessage ?? '确定要清除本机的浏览记录和学习偏好数据吗？',
         ),
         actions: [
           TextButton(
@@ -153,8 +153,7 @@ class _UserPreferencesScreenState extends State<UserPreferencesScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 40),
               child: Text(
                 AppLocalizationsSimple.of(context)?.localAiPreferencesDetail ??
-                    '记录你在应用内的浏览习惯，并据此调整「相关笔记」的推荐排序。'
-                        '所有数据仅保存在本机，可随时一键清除。',
+                    '记录你打开过的笔记和停留时长，可随时清除本机的浏览记录。',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: isDark ? Colors.grey[600] : Colors.grey[500],
@@ -214,8 +213,7 @@ class _UserPreferencesScreenState extends State<UserPreferencesScreen> {
                 child: Text(
                   AppLocalizationsSimple.of(context)
                           ?.localAiPreferencesDetail ??
-                      '记录你在应用内的浏览习惯，并据此调整「相关笔记」的推荐排序。'
-                          '所有数据仅保存在本机，可随时一键清除。',
+                      '记录你打开过的笔记和停留时长，可随时清除本机的浏览记录。',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: isDark
                         ? AppTheme.darkTextSecondaryColor
@@ -693,6 +691,16 @@ class _UserPreferencesScreenState extends State<UserPreferencesScreen> {
   String _getRelationTypeLabel(String type) {
     final l10n = AppLocalizationsSimple.of(context);
     switch (type.toUpperCase()) {
+      case 'REFERENCE':
+        return l10n?.randomWalkReference ?? '引用';
+      case 'BACKLINK':
+        return l10n?.randomWalkBacklink ?? '反向引用';
+      case 'TEXT':
+        return l10n?.randomWalkText ?? '正文相似';
+      case 'TAG':
+        return l10n?.randomWalkTag ?? '共同标签';
+      case 'SOURCE':
+        return l10n?.relatedNotesSameSource ?? '共同来源';
       case 'CONTINUE':
         return l10n?.relationContinue ?? '📚 延续学习';
       case 'COMPLEMENT':

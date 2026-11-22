@@ -8,6 +8,14 @@ import 'package:inkpaper/utils/text_analysis_utils.dart';
 
 enum WalkRelation { reference, backlink, tag, text, jump }
 
+enum RelatedNoteEvidence { reference, backlink, text, source, tag }
+
+typedef RelatedNoteLink = ({
+  String id,
+  RelatedNoteEvidence kind,
+  String evidence,
+});
+
 typedef WalkConnection = (
   String from,
   String to,
@@ -32,7 +40,8 @@ class RandomWalkIndex {
         ...note.tags,
         ...tags.extractTagsFromContent(note.content),
       }
-          .map((tag) => tag.trim().toLowerCase())
+          .map((tag) => tag.trim().replaceFirst(_leadingHashes, '').trim())
+          .map((tag) => tag.toLowerCase())
           .where((tag) => tag.isNotEmpty)
           .toSet();
       final body = plainText.replaceAll(_tagPattern, ' ');
@@ -62,10 +71,21 @@ class RandomWalkIndex {
       for (final entry in frequencies.entries) {
         (_terms[entry.key] ??= {})[note.id] = entry.value;
       }
+      for (final url in _sourceUrls(note.content)) {
+        (_sources[url] ??= <String>{}).add(note.id);
+        (_sourcesByNote[note.id] ??= <String>{}).add(url);
+      }
     }
     _averageLength = max(1, totalTerms / max(1, _documents.length));
 
     for (final note in notes) {
+      for (final match in _internalLinks.allMatches(note.content)) {
+        final rawId = match.group(1)!.split('?').first.trim();
+        final target = _documents.containsKey(rawId) ? rawId : remoteIds[rawId];
+        if (target != null && target != note.id) {
+          _link(note.id, target);
+        }
+      }
       for (final relation in note.relations) {
         final rawId = relation['relatedMemoId']?.toString();
         if (rawId == null) {
@@ -86,8 +106,12 @@ class RandomWalkIndex {
   }
 
   static final _tagPattern = tags.getTagRegex();
+  static final _leadingHashes = RegExp('^#+');
+  static final _sourceUrl =
+      RegExp(r'https?://[^\s\])>"。，、；！？]+', caseSensitive: false);
+  static final _urlTrailingPunctuation = RegExp(r'[.,;!?]+$');
   static final _links = RegExp(r'\[([^\]]+)\]\([^)]+\)');
-  static final _internalLinks = RegExp(r'\[\[[^\]]+\]\]');
+  static final _internalLinks = RegExp(r'\[\[([^\]]+)\]\]');
   static final _urls = RegExp(r'https?://[^\s]+');
   static final _html = RegExp('<[^>]+>');
   static final _spaces = RegExp(r'\s+');
@@ -108,6 +132,8 @@ class RandomWalkIndex {
   final _tags = <String, List<String>>{};
   final _terms = <String, Map<String, int>>{};
   final _linksById = <String, Map<String, WalkRelation>>{};
+  final _sources = <String, Set<String>>{};
+  final _sourcesByNote = <String, Set<String>>{};
   late final double _averageLength;
 
   Iterable<String> get ids => _documents.keys;
@@ -121,6 +147,123 @@ class RandomWalkIndex {
 
   double _idf(int frequency) =>
       log(1 + (_documents.length - frequency + 0.5) / (frequency + 0.5));
+
+  static Iterable<String> _sourceUrls(String content) sync* {
+    final text = content.replaceAll(MemosContentHelper.markdownMediaRegex, ' ');
+    for (final match in _sourceUrl.allMatches(text)) {
+      final url = Uri.tryParse(
+        match.group(0)!.replaceFirst(_urlTrailingPunctuation, ''),
+      );
+      if (url != null && url.host.isNotEmpty) {
+        yield url.removeFragment().toString();
+      }
+    }
+  }
+
+  /// 相关笔记优先返回显式引用，再按正文、共同网页和少量罕见标签排序。
+  List<RelatedNoteLink> rankRelatedNotes(String id, {int limit = 12}) {
+    final source = _documents[id];
+    if (source == null || limit <= 0) {
+      return [];
+    }
+    final links = _linksById[id] ?? const <String, WalkRelation>{};
+    final direct = links.keys.toList()..sort();
+    final picks = <RelatedNoteLink>[
+      for (final target in direct.take(limit))
+        (
+          id: target,
+          kind: links[target] == WalkRelation.reference
+              ? RelatedNoteEvidence.reference
+              : RelatedNoteEvidence.backlink,
+          evidence: '',
+        ),
+    ];
+    if (picks.length == limit) {
+      return picks;
+    }
+
+    const shown = <String>{};
+    final excluded = links.keys.toSet();
+    final scores = <String, _WalkScore>{};
+    _scoreTags(source, shown, excluded, scores, relatedNotes: true);
+    final query = _scoreText(source, shown, excluded, scores);
+    final sameSources = <String, String>{};
+    for (final url in _sourcesByNote[id] ?? const <String>{}) {
+      for (final target in _sources[url]!) {
+        if (target != id && !excluded.contains(target)) {
+          sameSources.putIfAbsent(target, () => url);
+          scores.putIfAbsent(target, _WalkScore.new);
+        }
+      }
+    }
+
+    RelatedNoteEvidence evidenceKind(MapEntry<String, _WalkScore> candidate) {
+      if (candidate.value.hasTextMatch) {
+        return RelatedNoteEvidence.text;
+      }
+      return sameSources.containsKey(candidate.key)
+          ? RelatedNoteEvidence.source
+          : RelatedNoteEvidence.tag;
+    }
+
+    double relevance(MapEntry<String, _WalkScore> candidate) {
+      final score = candidate.value;
+      return score.hasTextMatch
+          ? log(1 + score.textScore) +
+              min(0.15, score.tagScore * 0.04) +
+              (sameSources.containsKey(candidate.key) ? 0.1 : 0)
+          : score.tagScore;
+    }
+
+    final ranked = scores.entries
+        .where(
+          (entry) =>
+              entry.value.hasTextMatch ||
+              sameSources.containsKey(entry.key) ||
+              entry.value.tag != null,
+        )
+        .toList()
+      ..sort((a, b) {
+        final byTier = evidenceKind(a).index.compareTo(evidenceKind(b).index);
+        if (byTier != 0) {
+          return byTier;
+        }
+        final byScore = relevance(b).compareTo(relevance(a));
+        return byScore != 0 ? byScore : a.key.compareTo(b.key);
+      });
+
+    for (final candidate in ranked) {
+      final kind = evidenceKind(candidate);
+      final document = _documents[candidate.key]!;
+      final isDuplicate = document.terms.length >= 4 &&
+          picks.any(
+            (pick) =>
+                TextAnalysisUtils.jaccardSimilarity(
+                  document.terms,
+                  _documents[pick.id]!.terms,
+                ) >=
+                0.88,
+          );
+      if (isDuplicate) {
+        continue;
+      }
+      picks.add(
+        (
+          id: candidate.key,
+          kind: kind,
+          evidence: switch (kind) {
+            RelatedNoteEvidence.text => _textEvidence(document, query),
+            RelatedNoteEvidence.source => sameSources[candidate.key]!,
+            _ => candidate.value.tag!,
+          },
+        ),
+      );
+      if (picks.length == limit || kind == RelatedNoteEvidence.tag) {
+        break;
+      }
+    }
+    return picks;
+  }
 
   List<WalkConnection> related(
     String id, {
@@ -204,14 +347,17 @@ class RandomWalkIndex {
     _WalkDocument source,
     Set<String> shown,
     Set<String> excluded,
-    Map<String, _WalkScore> scores,
-  ) {
+    Map<String, _WalkScore> scores, {
+    bool relatedNotes = false,
+  }) {
     for (final tag in source.tags) {
       if (tag == WeReadNoteBuilder.sourceTag) {
         continue;
       }
       final postings = _tags[tag]!;
-      if (postings.length > max(3, _documents.length * 0.35)) {
+      final maxFrequency = max(relatedNotes ? 2 : 3, _documents.length * 0.35);
+      if (postings.length > maxFrequency ||
+          (relatedNotes && postings.length == _documents.length)) {
         continue;
       }
       final weight = _idf(postings.length);

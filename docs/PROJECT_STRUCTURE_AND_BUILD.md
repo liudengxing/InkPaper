@@ -143,7 +143,7 @@ InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`�
 - `lib/services/ai_review_service.dart`：AI 点评。
 - `lib/services/ai_insight_engine.dart`：AI 洞察。
 - `lib/services/ai_enhanced_service.dart`：摘要、续写、标签推荐等增强能力。
-- `lib/services/intelligent_related_notes_service.dart`：相关笔记计算。
+- `lib/services/random_walk_index.dart`：相关笔记与随机漫步共用的本地索引。
 - `lib/services/local_note_analysis_service.dart`：本地笔记分析。
 - `lib/services/tag_ai_service.dart`：标签推荐和标签洞察。
 - `lib/services/sentry_monitoring_service.dart`：Sentry 监控（Dart 侧错误上报，可选）。
@@ -247,7 +247,7 @@ InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`�
 - `deepseek_api_service.dart`：DeepSeek/OpenAI 兼容 AI API 调用。
 - `feature_flag_service.dart`：功能开关、本地缓存和远程配置读取。
 - `incremental_sync_service.dart`：增量同步流程。
-- `intelligent_related_notes_service.dart`：本地相关笔记算法。
+- `random_walk_index.dart`：本地相关笔记排序与随机漫步选路。
 - `local_note_analysis_service.dart`：本地笔记内容分析。
 - `local_reference_service.dart`：本地引用关系处理。
 - `logger_service.dart`：结构化日志服务。

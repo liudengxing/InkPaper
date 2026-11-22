@@ -33,6 +33,7 @@ import 'package:inkpaper/services/memos_resource_service.dart'; // 图片上传�
 import 'package:inkpaper/services/note_edit_history_service.dart';
 import 'package:inkpaper/services/notification_service.dart';
 import 'package:inkpaper/services/preferences_service.dart';
+import 'package:inkpaper/services/random_walk_index.dart';
 import 'package:inkpaper/services/reminder_notification_service.dart';
 import 'package:inkpaper/services/unified_reference_manager.dart';
 import 'package:inkpaper/services/webdav_service.dart';
@@ -345,6 +346,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   @override
   void notifyListeners() {
     _clearNotesCache();
+    _noteDiscoveryIndex = null;
     super.notifyListeners();
   }
 
@@ -612,6 +614,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
   /// 更新内存中的笔记（用于本地引用服务通知）
   void updateNoteInMemory(Note updatedNote) {
+    _noteDiscoveryIndex = null;
     final index =
         _notesStore.notes.indexWhere((note) => note.id == updatedNote.id);
     if (index != -1) {
@@ -1260,11 +1263,10 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         success: true,
       );
 
-      if (moreNotes.isEmpty) {
-        notifyUiStateChanged();
-      } else {
-        notifyListeners();
+      if (moreNotes.isNotEmpty) {
+        _clearNotesCache();
       }
+      notifyUiStateChanged();
 
       // 🔟 完成 Completer
       _notesStore.loadMoreCompleter!.complete();
@@ -1530,6 +1532,28 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     } on Object catch (e) {
       debugPrint('加载全量笔记快照失败: $e');
       return notes;
+    }
+  }
+
+  Future<RandomWalkIndex>? _noteDiscoveryIndex;
+
+  /// 两个探索入口共用按需创建的全库索引。首页翻页只改变已加载的页数。
+  Future<RandomWalkIndex> loadNoteDiscoveryIndex() async {
+    while (true) {
+      final building = _noteDiscoveryIndex ??= loadRandomWalkNotes().then(
+        (notes) => compute(RandomWalkIndex.new, notes, debugLabel: 'note-discovery'),
+      );
+      try {
+        final index = await building;
+        if (identical(building, _noteDiscoveryIndex)) {
+          return index;
+        }
+      } on Object {
+        if (identical(building, _noteDiscoveryIndex)) {
+          _noteDiscoveryIndex = null;
+          rethrow;
+        }
+      }
     }
   }
 

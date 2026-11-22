@@ -1,6 +1,5 @@
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/models/note_model.dart';
@@ -49,9 +48,7 @@ class _RandomWalkScreenState extends State<RandomWalkScreen> {
       _failed = false;
     });
     try {
-      final notes = await _provider.loadRandomWalkNotes();
-      final index =
-          await compute(RandomWalkIndex.new, notes, debugLabel: 'random-walk');
+      final index = await _provider.loadNoteDiscoveryIndex();
       if (!mounted) {
         return;
       }

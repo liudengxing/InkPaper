@@ -8,7 +8,6 @@ import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/screens/note_detail_screen.dart';
 import 'package:inkpaper/screens/share_image_preview_screen.dart';
 import 'package:inkpaper/services/ai_review_service.dart';
-import 'package:inkpaper/services/intelligent_related_notes_service.dart';
 import 'package:inkpaper/services/note_actions_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
@@ -800,8 +799,7 @@ class NoteActionsUi {
 
   /// 查找并展示与当前笔记相关的笔记。
   ///
-  /// 走详情页同一套智能相关笔记服务：先给一个浮动的"查找中"提示，
-  /// 有结果就弹抽屉，没有结果给一条轻提示。
+  /// 使用本机全库索引查找当前笔记的关联。
   static Future<void> showRelatedNotes({
     required BuildContext context,
     required Note note,
@@ -821,14 +819,16 @@ class NoteActionsUi {
     );
 
     try {
-      final result =
-          await IntelligentRelatedNotesService().findIntelligentRelatedNotes(
-        currentNote: note,
-        allNotes: appProvider.notes,
-        apiKey: appProvider.appConfig.aiApiKey,
-        apiUrl: appProvider.appConfig.aiApiUrl,
-        model: appProvider.appConfig.aiModel,
+      final index = await appProvider.loadNoteDiscoveryIndex();
+      final links = index.rankRelatedNotes(note.id);
+      final notes = await Future.wait(
+        links.map((link) => appProvider.loadRandomWalkNote(link.id)),
       );
+      final result = <RelatedNoteItem>[
+        for (var i = 0; i < links.length; i++)
+          if (notes[i] case final target?)
+            (note: target, link: links[i], preview: index.note(target.id)!.preview),
+      ];
 
       messenger?.hideCurrentSnackBar();
       if (!context.mounted) {

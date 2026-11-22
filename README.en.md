@@ -6,7 +6,7 @@ InkPaper is an Android note-taking app for personal knowledge capture. Local not
 
 ## Current Version
 
-`1.1.138`
+`1.1.139`
 
 The current source has passed Android device installation checks. See the release page for public downloads.
 
@@ -17,6 +17,7 @@ The current source has passed Android device installation checks. See the releas
 - Hierarchical tags such as `#work/projectA`.
 - Full-text search, pinning, reminders, and random review.
 - Random Walk follows related notes offline, lets you go back a step, and summarizes your path.
+- Swipe left on a home card to find related notes offline and see what connects them.
 - Image upload, preview, saving, and multi-image browsing.
 - WebDAV backup and restore, with optional image backup.
 - Import from Flomo, WeRead, and other sources.
@@ -80,7 +81,7 @@ sdkmanager --licenses
 The app version is managed in `pubspec.yaml`, where `x.y.z` is the semantic version and `+N` is the build number:
 
 ```yaml
-version: 1.1.138+10238
+version: 1.1.139+10239
 ```
 
 When preparing a new build version, bump both the `x.y.z` patch and `+N` and update the current version in both READMEs. `dart tool/inkpaper.dart store-check` verifies that they match.

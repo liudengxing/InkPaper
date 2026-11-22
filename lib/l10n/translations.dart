@@ -996,6 +996,7 @@ class Translations {
           'Used by the weekly/monthly review in the sidebar. Leave empty for default.',
     },
     'relatedNotes': {'zh': '相关笔记', 'en': 'Related'},
+    'relatedNotesSameSource': {'zh': '共同来源', 'en': 'Shared source'},
     'findingRelatedNotes': {'zh': '正在查找相关笔记…', 'en': 'Finding related notes…'},
     'newestFirst': {'zh': '创建时间：从新到旧', 'en': 'Created: newest first'},
     'oldestFirst': {'zh': '创建时间：从旧到新', 'en': 'Created: oldest first'},
@@ -1197,14 +1198,10 @@ class Translations {
     'detailedInfo': {'zh': '详细信息', 'en': 'Detailed Info'},
     'localAiPreferences': {'zh': '本地 AI 学习偏好', 'en': 'Local AI Preferences'},
     'localAiPreferencesDetail': {
-      'zh': '记录你在应用内的浏览习惯——点开了哪些笔记、停留多久、从哪里进入，'
-          '并据此调整「相关笔记」的推荐排序：你常看的标签和关系类型会被适当提前。'
-          '所有数据仅保存在本机，不上传、不参与同步，可随时一键清除。',
-      'en': 'Learns how you browse — which notes you open, how long you stay '
-          'and where you came from — then re-ranks related-note suggestions '
-          'toward your favorite tags and relation types. All data stays on '
-          'this device: nothing is uploaded or synced, and you can clear it '
-          'any time.',
+      'zh': '记录你打开过的笔记、停留时长和浏览入口，供你查看常读标签和浏览统计。'
+          '可以随时清除本机的浏览记录。',
+      'en': 'See which notes you opened, how long you stayed, and which tags '
+          'you read most. You can clear your local browsing history at any time.',
     },
     'noteHistory': {'zh': '历史版本', 'en': 'Version History'},
     'noHistory': {'zh': '暂无历史版本', 'en': 'No version history'},
@@ -1756,9 +1753,8 @@ class Translations {
     'clearDataTooltip': {'zh': '清除数据', 'en': 'Clear data'},
     'clearAllDataTitle': {'zh': '清除所有数据', 'en': 'Clear all data'},
     'clearLearningPreferencesMessage': {
-      'zh': '确定要清除所有学习偏好数据吗？这将重置个性化推荐。',
-      'en':
-          'Clear all learning preference data? This will reset personalized recommendations.',
+      'zh': '确定要清除本机的浏览记录和学习偏好数据吗？',
+      'en': 'Clear local browsing history and learning preferences?',
     },
     'allDataCleared': {'zh': '已清除所有数据', 'en': 'All data cleared'},
     'noDataYet': {'zh': '暂无数据', 'en': 'No Data Yet'},

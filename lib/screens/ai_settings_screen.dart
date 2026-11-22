@@ -230,8 +230,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                   Text(
                     AppLocalizationsSimple.of(context)
                             ?.localAiPreferencesDetail ??
-                        '记录你在应用内的浏览习惯，并据此调整「相关笔记」的推荐排序。'
-                            '所有数据仅保存在本机，可随时一键清除。',
+                        '记录你打开过的笔记和停留时长，可随时清除本机的浏览记录。',
                     style: TextStyle(
                       fontSize: 12,
                       height: 1.6,

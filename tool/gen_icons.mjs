@@ -106,8 +106,8 @@ function chunk(type, data) {
   return Buffer.concat([len, body, crc]);
 }
 
-function encodePNG({ width, height, data }, opaque = false) {
-  const ch = opaque ? 3 : 4;
+function encodePNG({ width, height, data }) {
+  const ch = 4;
   const stride = width * ch;
   const raw = Buffer.alloc((stride + 1) * height);
   for (let y = 0; y < height; y++) {
@@ -116,12 +116,12 @@ function encodePNG({ width, height, data }, opaque = false) {
       const s = (y * width + x) * 4;
       const d = y * (stride + 1) + 1 + x * ch;
       raw[d] = data[s]; raw[d + 1] = data[s + 1]; raw[d + 2] = data[s + 2];
-      if (!opaque) raw[d + 3] = data[s + 3];
+      raw[d + 3] = data[s + 3];
     }
   }
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; ihdr[9] = opaque ? 2 : 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', ihdr),
@@ -235,8 +235,8 @@ const corners = [
   sampleCorner(master, master.width - 32, master.height - 32),
 ];
 const bg = [0, 1, 2].map((i) => Math.round(corners.reduce((s, c) => s + c[i], 0) / 4));
-const hex = '#' + bg.map((v) => v.toString(16).padStart(2, '0').toUpperCase()).join('');
-console.log(`背景色: rgb(${bg.join(',')}) = ${hex}`);
+const toHex = (rgb) => '#' + rgb.map((v) => v.toString(16).padStart(2, '0').toUpperCase()).join('');
+console.log(`母版留白: ${toHex(bg)}`);
 
 // 背景噪声评估（决定抠图阈值）
 let maxNoise = 0;
@@ -273,13 +273,17 @@ if (bx1 > 0) {
   console.log('警告: 未检测到内容，母版可能是单色');
 }
 
-function circleMask(size, data) {
+function iconMask(size, data, radius = size / 2) {
   const result = new Uint8Array(data);
-  const radius = size / 2;
+  const half = size / 2;
+  const inset = half - radius;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const alpha = (y * size + x) * 4 + 3;
-      const distance = Math.hypot(x + 0.5 - radius, y + 0.5 - radius);
+      const distance = Math.hypot(
+        Math.max(0, Math.abs(x + 0.5 - half) - inset),
+        Math.max(0, Math.abs(y + 0.5 - half) - inset),
+      );
       const coverage = Math.max(0, Math.min(1, radius + 0.5 - distance));
       result[alpha] = Math.round(data[alpha] * coverage);
     }
@@ -287,22 +291,7 @@ function circleMask(size, data) {
   return result;
 }
 
-/* 1. Android 传统图标 */
-const mipmaps = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
-for (const [dens, size] of Object.entries(mipmaps)) {
-  const data = resize(master.data, master.width, master.height, size, size);
-  fs.writeFileSync(
-    path.join(ROOT, `android/app/src/main/res/mipmap-${dens}/ic_launcher.png`),
-    encodePNG({ width: size, height: size, data }, true),
-  );
-  fs.writeFileSync(
-    path.join(ROOT, `android/app/src/main/res/mipmap-${dens}/ic_launcher_round.png`),
-    encodePNG({ width: size, height: size, data: circleMask(size, data) }),
-  );
-}
-console.log(`Android 传统图标: ${Object.keys(mipmaps).length} 个密度的方形和圆形图标`);
-
-/* 2. Android 自适应图标前景层
+/* 保留深绿色底板和被它包住的纸张，去掉母版外围的留白。
    108dp 画布，主体居中，四周透明。
    抠图规则：只有「与画布边缘连通的背景色像素」才透明，
    这样被主体包住的白纸/浅色区域不会被误判成背景而挖空。 */
@@ -311,14 +300,12 @@ const fgSizes = { mdpi: 108, hdpi: 162, xhdpi: 216, xxhdpi: 324, xxxhdpi: 432 };
 const CONTENT_DP = 96;
 const T0 = Math.max(18, maxNoise + 8); // 低于此色差视为背景色
 const MW = master.width, MH = master.height;
-const dist = new Float32Array(MW * MH);
 const bgLike = new Uint8Array(MW * MH);
 for (let p = 0; p < MW * MH; p++) {
   const o = p * 4;
   const d = Math.hypot(
     master.data[o] - bg[0], master.data[o + 1] - bg[1], master.data[o + 2] - bg[2],
   );
-  dist[p] = d;
   bgLike[p] = d < T0 ? 1 : 0;
 }
 // 从四条边向内做洪泛，标记真正的「外部背景」
@@ -353,6 +340,39 @@ for (let p = 0; p < MW * MH; p++) {
 }
 console.log(`抠图: 前景占比 ${((opaquePx / (MW * MH)) * 100).toFixed(1)}%`);
 
+// 从图案上沿的深绿底板取样，补齐系统裁切后可能露出的区域。
+const plate = by1 > by0
+  ? sampleCorner(master, Math.floor(MW / 2) - 16, by0 + Math.round((by1 - by0) * 0.05))
+  : bg;
+function onPlate(data) {
+  const result = new Uint8Array(data);
+  for (let i = 0; i < result.length; i += 4) {
+    const alpha = data[i + 3] / 255;
+    for (let c = 0; c < 3; c++) {
+      result[i + c] = Math.round(data[i + c] * alpha + plate[c] * (1 - alpha));
+    }
+    result[i + 3] = 255;
+  }
+  return result;
+}
+
+/* 1. Android 传统图标 */
+const mipmaps = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
+for (const [dens, size] of Object.entries(mipmaps)) {
+  const data = resize(keyed, MW, MH, size, size);
+  fs.writeFileSync(
+    path.join(ROOT, `android/app/src/main/res/mipmap-${dens}/ic_launcher.png`),
+    encodePNG({ width: size, height: size, data }),
+  );
+  fs.writeFileSync(
+    path.join(ROOT, `android/app/src/main/res/mipmap-${dens}/ic_launcher_round.png`),
+    encodePNG({ width: size, height: size, data: iconMask(size, onPlate(data)) }),
+  );
+}
+console.log(`Android 传统图标: ${Object.keys(mipmaps).length} 个密度的方形和圆形图标`);
+
+/* 2. Android 自适应图标前景层 */
+let previewLayer;
 for (const [dens, size] of Object.entries(fgSizes)) {
   const content = Math.round((size * CONTENT_DP) / 108);
   const scaled = resize(keyed, master.width, master.height, content, content);
@@ -370,32 +390,23 @@ for (const [dens, size] of Object.entries(fgSizes)) {
     path.join(ROOT, `android/app/src/main/res/drawable-${dens}/ic_launcher_foreground.png`),
     encodePNG({ width: size, height: size, data: canvas }, false),
   );
+  if (dens === 'xxxhdpi') previewLayer = { size, data: canvas };
 }
 console.log(`Android 自适应前景: ${Object.keys(fgSizes).length} 张`);
 
-/* 3. 预览图：合成圆形自适应图标，便于肉眼校验。 */
-const pvSize = 432;
-const pvContent = Math.round((pvSize * CONTENT_DP) / 108);
-const pvScaled = resize(keyed, master.width, master.height, pvContent, pvContent);
+/* 3. 预览使用系统实际可见的中心 72dp，分别模拟圆形和圆角方形。 */
+const pvSize = (previewLayer.size * 72) / 108;
 const pv = new Uint8Array(pvSize * pvSize * 4);
-const pvOff = Math.round((pvSize - pvContent) / 2);
+const pvOff = (previewLayer.size - pvSize) / 2;
 for (let y = 0; y < pvSize; y++) {
-  for (let x = 0; x < pvSize; x++) {
-    const d = (y * pvSize + x) * 4;
-    pv[d] = bg[0]; pv[d + 1] = bg[1]; pv[d + 2] = bg[2]; pv[d + 3] = 255;
-  }
+  const from = ((y + pvOff) * previewLayer.size + pvOff) * 4;
+  pv.set(previewLayer.data.subarray(from, from + pvSize * 4), y * pvSize * 4);
 }
-for (let y = 0; y < pvContent; y++) {
-  for (let x = 0; x < pvContent; x++) {
-    const s = (y * pvContent + x) * 4;
-    const d = ((y + pvOff) * pvSize + (x + pvOff)) * 4;
-    const a = pvScaled[s + 3] / 255;
-    for (let c = 0; c < 3; c++) pv[d + c] = Math.round(pvScaled[s + c] * a + bg[c] * (1 - a));
-    pv[d + 3] = 255;
-  }
+const composite = onPlate(pv);
+for (const [shape, radius] of [['round', pvSize / 2], ['rounded', pvSize / 4]]) {
+  const pvPath = path.join(os.tmpdir(), `inkpaper_icon_${shape}.png`);
+  const data = iconMask(pvSize, composite, radius);
+  fs.writeFileSync(pvPath, encodePNG({ width: pvSize, height: pvSize, data }));
+  console.log(`自适应图标预览: ${pvPath}`);
 }
-const circle = circleMask(pvSize, pv);
-const pvPath = path.join(os.tmpdir(), 'inkpaper_icon_preview.png');
-fs.writeFileSync(pvPath, encodePNG({ width: pvSize, height: pvSize, data: circle }, false));
-console.log(`自适应图标预览: ${pvPath}`);
-console.log(`\nic_launcher_background 应为 ${hex}`);
+console.log(`\nic_launcher_background 应为 ${toHex(plate)}`);

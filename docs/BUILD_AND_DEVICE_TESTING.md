@@ -110,7 +110,7 @@ ls -lh build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 
 ### 3.2 安卓桌面图标
 
-1.1.136 的桌面图标母版是奶白底、青绿色折角便签。运行 `node tool/gen_icons.mjs` 生成五档密度的方形图标、圆形图标和自适应前景。自适应图标的底色在 `android/app/src/main/res/values/colors.xml`，与脚本输出的母版背景色一致。 [图标母版](picture/launcher-icon.png) · [生成脚本](../tool/gen_icons.mjs)
+1.1.140 的桌面图标母版采用深绿底、米白折角纸张与墨绿笔触。运行 `node tool/gen_icons.mjs` 生成五档密度的方形图标、圆形图标和自适应前景，并在临时目录输出圆形和圆角方形预览。自适应底色从母版底板取样，与 `android/app/src/main/res/values/colors.xml` 保持一致。 [图标母版](picture/launcher-icon.png) · [生成脚本](../tool/gen_icons.mjs)
 
 ### 3.3 委派安装已构建的 APK
 

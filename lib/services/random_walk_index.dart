@@ -1,0 +1,335 @@
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
+import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/services/weread_note_builder.dart';
+import 'package:inkpaper/utils/memos_content_helper.dart';
+import 'package:inkpaper/utils/tag_utils.dart' as tags;
+import 'package:inkpaper/utils/text_analysis_utils.dart';
+
+enum WalkRelation { reference, backlink, tag, text, jump }
+
+typedef WalkConnection = (
+  String from,
+  String to,
+  WalkRelation kind,
+  String evidence
+);
+
+typedef WalkNote = ({String id, String preview, DateTime createdAt});
+
+/// 每次漫步建一次索引，只检索和当前笔记共享线索的局部邻居。
+class RandomWalkIndex {
+  RandomWalkIndex(List<Note> notes) {
+    final remoteIds = {
+      for (final note in notes)
+        if (note.remoteId case final id?) id: note.id,
+    };
+    var totalTerms = 0;
+    for (final note in notes) {
+      final preview = _plainText(note.content);
+      final noteTags = {
+        ...note.tags,
+        ...tags.extractTagsFromContent(note.content),
+      }
+          .map((tag) => tag.trim().toLowerCase())
+          .where((tag) => tag.isNotEmpty)
+          .toSet();
+      final body = preview.replaceAll(_tagPattern, ' ');
+      final terms = TextAnalysisUtils.extractTerms(body);
+      final frequencies = <String, int>{};
+      for (final term in terms) {
+        frequencies.update(term, (count) => count + 1, ifAbsent: () => 1);
+      }
+      final compact = preview.runes.take(180).toList();
+      _documents[note.id] = _WalkDocument(
+        note: (
+          id: note.id,
+          preview: String.fromCharCodes(compact),
+          createdAt: note.createdAt
+        ),
+        tags: noteTags,
+        terms: frequencies.keys.toSet(),
+        length: terms.length,
+        isWeRead: noteTags.contains(WeReadNoteBuilder.sourceTag) ||
+            WeReadNoteBuilder.isWeReadNoteId(note.id),
+      );
+      totalTerms += terms.length;
+      for (final tag in noteTags) {
+        (_tags[tag] ??= []).add(note.id);
+      }
+      for (final entry in frequencies.entries) {
+        (_terms[entry.key] ??= {})[note.id] = entry.value;
+      }
+    }
+    _averageLength = max(1, totalTerms / max(1, _documents.length));
+
+    for (final note in notes) {
+      for (final relation in note.relations) {
+        final rawId = relation['relatedMemoId']?.toString();
+        if (rawId == null) {
+          continue;
+        }
+        final id = _documents.containsKey(rawId) ? rawId : remoteIds[rawId];
+        if (id == null || id == note.id) {
+          continue;
+        }
+        switch (relation['type']) {
+          case 'REFERENCE':
+            _link(note.id, id);
+          case 'REFERENCED_BY':
+            _link(id, note.id);
+        }
+      }
+    }
+  }
+
+  static final _tagPattern = tags.getTagRegex();
+  static final _links = RegExp(r'\[([^\]]+)\]\([^)]+\)');
+  static final _internalLinks = RegExp(r'\[\[[^\]]+\]\]');
+  static final _urls = RegExp(r'https?://[^\s]+');
+  static final _html = RegExp('<[^>]+>');
+  static final _spaces = RegExp(r'\s+');
+
+  static String _plainText(String text) => text
+      .replaceAll(MemosContentHelper.markdownMediaRegex, ' ')
+      .replaceAllMapped(_links, (match) => match.group(1)!)
+      .replaceAll(_internalLinks, ' ')
+      .replaceAll(_urls, ' ')
+      .replaceAll(_html, ' ')
+      .replaceAll(_spaces, ' ')
+      .trim();
+
+  final _documents = <String, _WalkDocument>{};
+  final _tags = <String, List<String>>{};
+  final _terms = <String, Map<String, int>>{};
+  final _linksById = <String, Map<String, WalkRelation>>{};
+  late final double _averageLength;
+
+  Iterable<String> get ids => _documents.keys;
+
+  WalkNote? note(String id) => _documents[id]?.note;
+
+  bool sameEvidence(String id, RandomWalkIndex previous) {
+    final current = _documents[id];
+    final old = previous._documents[id];
+    return current != null &&
+        old != null &&
+        setEquals(current.tags, old.tags) &&
+        setEquals(current.terms, old.terms) &&
+        mapEquals(_linksById[id], previous._linksById[id]);
+  }
+
+  bool retains(WalkConnection edge) {
+    final (from, to, kind, evidence) = edge;
+    final source = _documents[from];
+    final target = _documents[to];
+    if (source == null || target == null) {
+      return false;
+    }
+    return switch (kind) {
+      WalkRelation.reference => _linksById[from]?[to] == WalkRelation.reference,
+      WalkRelation.backlink => _linksById[to]?[from] == WalkRelation.reference,
+      WalkRelation.tag =>
+        source.tags.contains(evidence) && target.tags.contains(evidence),
+      WalkRelation.text =>
+        source.terms.contains(evidence) && target.terms.contains(evidence),
+      WalkRelation.jump => true,
+    };
+  }
+
+  void _link(String from, String to) {
+    (_linksById[from] ??= {})[to] = WalkRelation.reference;
+    (_linksById[to] ??= {}).putIfAbsent(from, () => WalkRelation.backlink);
+  }
+
+  double _idf(int frequency) =>
+      log(1 + (_documents.length - frequency + 0.5) / (frequency + 0.5));
+
+  List<WalkConnection> related(
+    String id, {
+    required Set<String> shown,
+    required Set<String> excluded,
+    int limit = 4,
+  }) {
+    final source = _documents[id];
+    if (source == null || limit <= 0) {
+      return [];
+    }
+    final scores = <String, _WalkScore>{};
+    final links = _linksById[id] ?? const <String, WalkRelation>{};
+    final references = <WalkConnection>[];
+    for (final entry in links.entries) {
+      if (!excluded.contains(entry.key)) {
+        references.add((id, entry.key, entry.value, ''));
+      }
+    }
+    // 显式关系可以回连到已有节点。探索名额优先留给还没看到的笔记。
+    references.sort((a, b) {
+      final order = (shown.contains(a.$2) ? 1 : 0)
+          .compareTo(shown.contains(b.$2) ? 1 : 0);
+      return order != 0 ? order : a.$2.compareTo(b.$2);
+    });
+    final picks =
+        references.where((ref) => !shown.contains(ref.$2)).take(limit).toList();
+    if (picks.length < limit) {
+      _scoreTags(source, shown, excluded, scores);
+      _scoreText(source, shown, excluded, scores);
+      final candidates = scores.entries
+          .where(
+            (entry) => !links.containsKey(entry.key) && entry.value.isRelated,
+          )
+          .toList();
+      while (picks.length < limit && candidates.isNotEmpty) {
+        var bestIndex = 0;
+        var bestScore = -1.0;
+        for (var i = 0; i < candidates.length; i++) {
+          final value = _branchScore(candidates[i], picks);
+          if (value > bestScore) {
+            bestIndex = i;
+            bestScore = value;
+          }
+        }
+        final best = candidates.removeAt(bestIndex);
+        final score = best.value;
+        final hasTag = score.tag != null;
+        picks.add(
+          (
+            id,
+            best.key,
+            hasTag ? WalkRelation.tag : WalkRelation.text,
+            score.tag ?? score.term!,
+          ),
+        );
+      }
+    }
+    // 只补少量真实的跨分支连线，长路径仍然容易读。
+    return [
+      ...picks,
+      ...references.where((ref) => shown.contains(ref.$2)).take(2),
+    ];
+  }
+
+  void _scoreTags(
+    _WalkDocument source,
+    Set<String> shown,
+    Set<String> excluded,
+    Map<String, _WalkScore> scores,
+  ) {
+    for (final tag in source.tags) {
+      if (tag == WeReadNoteBuilder.sourceTag) {
+        continue;
+      }
+      final postings = _tags[tag]!;
+      if (postings.length > max(3, _documents.length * 0.35)) {
+        continue;
+      }
+      final weight = _idf(postings.length);
+      for (final id in postings) {
+        if (id == source.note.id ||
+            shown.contains(id) ||
+            excluded.contains(id)) {
+          continue;
+        }
+        final score = scores.putIfAbsent(id, _WalkScore.new);
+        score.tagScore += weight;
+        if (weight > score.bestTagWeight) {
+          score
+            ..tag = tag
+            ..bestTagWeight = weight;
+        }
+      }
+    }
+  }
+
+  void _scoreText(
+    _WalkDocument source,
+    Set<String> shown,
+    Set<String> excluded,
+    Map<String, _WalkScore> scores,
+  ) {
+    final query = source.terms.where((term) {
+      final count = _terms[term]!.length;
+      return count > 1 && count <= max(3, _documents.length * 0.25);
+    }).toList()
+      ..sort((a, b) {
+        final frequency = _terms[a]!.length.compareTo(_terms[b]!.length);
+        return frequency != 0 ? frequency : b.length.compareTo(a.length);
+      });
+    const k1 = 1.2;
+    const b = 0.75;
+    for (final term in query.take(24)) {
+      final postings = _terms[term]!;
+      final weight = _idf(postings.length);
+      for (final entry in postings.entries) {
+        final id = entry.key;
+        if (id == source.note.id ||
+            shown.contains(id) ||
+            excluded.contains(id)) {
+          continue;
+        }
+        final length = _documents[id]!.length;
+        final frequency = entry.value;
+        final bm25 = weight *
+            frequency *
+            (k1 + 1) /
+            (frequency + k1 * (1 - b + b * length / _averageLength));
+        final score = scores.putIfAbsent(id, _WalkScore.new);
+        score.textScore += bm25;
+        score.termCount++;
+        if (term.length >= 3 && term.length > (score.term?.length ?? 0)) {
+          score.term = term;
+        }
+        score.term ??= term;
+      }
+    }
+  }
+
+  double _branchScore(
+    MapEntry<String, _WalkScore> entry,
+    List<WalkConnection> picks,
+  ) {
+    final score = entry.value;
+    final document = _documents[entry.key]!;
+    var redundancy = 0.0;
+    for (final pick in picks) {
+      final other = _documents[pick.$2]!;
+      final similarity =
+          TextAnalysisUtils.jaccardSimilarity(document.terms, other.terms);
+      final sameTag = score.tag != null && other.tags.contains(score.tag);
+      final sameSource = document.isWeRead && other.isWeRead;
+      redundancy = max(
+        redundancy,
+        similarity * 0.65 + (sameTag ? 0.15 : 0) + (sameSource ? 0.12 : 0),
+      );
+    }
+    return (score.tagScore * 1.5 + log(1 + score.textScore)) * (1 - redundancy);
+  }
+}
+
+class _WalkDocument {
+  const _WalkDocument({
+    required this.note,
+    required this.tags,
+    required this.terms,
+    required this.length,
+    required this.isWeRead,
+  });
+
+  final WalkNote note;
+  final Set<String> tags;
+  final Set<String> terms;
+  final int length;
+  final bool isWeRead;
+}
+
+class _WalkScore {
+  double tagScore = 0;
+  double bestTagWeight = 0;
+  double textScore = 0;
+  int termCount = 0;
+  String? tag;
+  String? term;
+
+  bool get isRelated => tag != null || (termCount >= 2 && textScore >= 0.5);
+}

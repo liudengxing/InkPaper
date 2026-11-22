@@ -1455,6 +1455,15 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
   }
 
+  /// 漫步需要区分空库和读取失败，且起点不受首页分页限制。
+  Future<List<Note>> loadRandomWalkNotes() async =>
+      (await _databaseService.getNotes()).where(_isSearchVisibleNote).toList();
+
+  Future<Note?> loadRandomWalkNote(String id) async {
+    final note = await _databaseService.getNoteById(id);
+    return note != null && _isSearchVisibleNote(note) ? note : null;
+  }
+
   List<Note> _excludePendingDeletedNotes(List<Note> notes) {
     if (_notesStore.pendingDeleteIds.isEmpty) {
       return notes;

@@ -29,6 +29,7 @@ import 'package:inkpaper/screens/periodic_review_screen.dart';
 import 'package:inkpaper/screens/preferences_screen.dart';
 
 import 'package:inkpaper/screens/random_review_screen.dart';
+import 'package:inkpaper/screens/random_walk_screen.dart';
 import 'package:inkpaper/screens/recently_deleted_screen.dart';
 import 'package:inkpaper/screens/register_screen.dart';
 import 'package:inkpaper/screens/settings_screen.dart';
@@ -462,6 +463,17 @@ class AppRouter {
             child: const RandomReviewScreen(),
           );
         },
+      ),
+
+      GoRoute(
+        path: '/random-walk',
+        name: 'randomWalk',
+        pageBuilder: (context, state) => buildSlideTransition(
+          context: context,
+          state: state,
+          begin: const Offset(-0.15, 0),
+          child: const RandomWalkScreen(),
+        ),
       ),
 
       GoRoute(

@@ -1616,6 +1616,8 @@ class _SidebarState extends State<Sidebar> {
         return l10n?.allNotes ?? '全部笔记';
       case 'random_review':
         return l10n?.randomReview ?? '随机回顾';
+      case 'random_walk':
+        return menuItem.getLocalizedLabel(context);
       case 'all_tags':
         return l10n?.allTags ?? '全部标签';
       case 'periodic_review':

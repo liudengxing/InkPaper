@@ -35,6 +35,13 @@ enum SidebarMenuItem {
     Icons.shuffle_rounded,
     true,
   ),
+  randomWalk(
+    'random_walk',
+    '随机漫步',
+    '/random-walk',
+    Icons.hub_outlined,
+    true,
+  ),
   allTags('all_tags', '全部标签', '/tags', Icons.local_offer_outlined, true),
   periodicReview(
     'periodic_review',
@@ -86,6 +93,8 @@ enum SidebarMenuItem {
         return l10n?.videoGallery ?? label;
       case 'random_review':
         return l10n?.randomReview ?? label;
+      case 'random_walk':
+        return l10n?.randomWalk ?? label;
       case 'all_tags':
         return l10n?.allTags ?? label;
       case 'periodic_review':
@@ -135,7 +144,8 @@ class SidebarConfig {
       // 已被移除的菜单项（如「帮助中心」）要从旧配置里清掉，否则会留下脏 id
       savedVisibleItems.removeWhere((id) => !allItemIds.contains(id));
       for (final itemId in allItemIds) {
-        if (!savedVisibleItems.contains(itemId)) {
+        if (!savedVisibleItems.contains(itemId) &&
+            !(savedItemOrder?.contains(itemId) ?? false)) {
           // 新增的菜单项默认添加到可见列表
           savedVisibleItems.add(itemId);
         }
@@ -144,6 +154,12 @@ class SidebarConfig {
 
     if (savedItemOrder != null) {
       savedItemOrder.removeWhere((id) => !allItemIds.contains(id));
+      final walkId = SidebarMenuItem.randomWalk.id;
+      final reviewIndex =
+          savedItemOrder.indexOf(SidebarMenuItem.randomReview.id);
+      if (!savedItemOrder.contains(walkId) && reviewIndex >= 0) {
+        savedItemOrder.insert(reviewIndex + 1, walkId);
+      }
       for (final itemId in allItemIds) {
         if (!savedItemOrder.contains(itemId)) {
           // 新增的菜单项添加到顺序列表末尾

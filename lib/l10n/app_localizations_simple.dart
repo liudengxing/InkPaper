@@ -52,6 +52,20 @@ class AppLocalizationsSimple {
         fallback: '把微信读书的划线与想法增量导入本地，一条划线一条笔记',
       );
   String get randomReview => _t('randomReview', fallback: '随机回顾');
+  String get randomWalk => _t('randomWalk');
+  String get randomWalkEmpty => _t('randomWalkEmpty');
+  String get randomWalkError => _t('randomWalkError');
+  String get randomWalkMissing => _t('randomWalkMissing');
+  String get randomWalkBack => _t('randomWalkBack');
+  String get randomWalkCenter => _t('randomWalkCenter');
+  String get randomWalkOpen => _t('randomWalkOpen');
+  String get randomWalkJump => _t('randomWalkJump');
+  String get randomWalkEnd => _t('randomWalkEnd');
+  String get randomWalkAttachment => _t('randomWalkAttachment');
+  String get randomWalkReference => _t('randomWalkReference');
+  String get randomWalkBacklink => _t('randomWalkBacklink');
+  String get randomWalkTag => _t('randomWalkTag');
+  String get randomWalkText => _t('randomWalkText');
   String get imageGallery => _t('imageGallery', fallback: '有图片');
   String get videoGallery => _t('videoGallery', fallback: '有视频');
   String get mediaFilter => _t('mediaFilter', fallback: '筛选');

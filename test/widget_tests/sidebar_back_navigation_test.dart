@@ -29,6 +29,7 @@ GoRouter _buildRouter(String initialLocation) => GoRouter(
         for (final path in const [
           '/',
           '/random-review',
+          '/random-walk',
           '/periodic-review',
           '/ai-insight',
           '/settings',
@@ -55,6 +56,7 @@ void _expectVisiblePage(String path) {
   for (final other in const [
     '/',
     '/random-review',
+    '/random-walk',
     '/periodic-review',
     '/ai-insight',
     '/settings',
@@ -88,6 +90,19 @@ Future<void> _tapMenu(WidgetTester tester, String label) async {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('随机漫步是独立侧栏入口，系统返回回到首页', (tester) async {
+    _useTallScreen(tester);
+    final router = _buildRouter('/');
+    await tester.pumpWidget(_wrap(router));
+    await tester.pumpAndSettle();
+
+    await _tapMenu(tester, '随机漫步');
+    _expectVisiblePage('/random-walk');
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await tester.pumpAndSettle();
+    _expectVisiblePage('/');
+  });
 
   testWidgets('SBG-07 进「周期回顾」后按返回，回「全部笔记」而不是退出 App', (
     tester,

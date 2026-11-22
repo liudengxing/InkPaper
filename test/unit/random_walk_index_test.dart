@@ -59,6 +59,36 @@ void main() {
     expect(index.related('a', shown: {'a'}, excluded: {}), isEmpty);
   });
 
+  test('prioritizes body matches and allows just one tag-only branch', () {
+    final index = RandomWalkIndex([
+      _note('root', 'orchard terrace', tags: ['project', 'idea']),
+      _note('tag-first', 'ceramics', tags: ['project', 'idea']),
+      _note('tag-second', 'sailing', tags: ['idea']),
+      _note('mixed', 'orchard terrace', tags: ['project']),
+      _note('body', 'orchard terrace'),
+    ]);
+
+    final results = index.related('root', shown: {'root'}, excluded: {});
+    expect(results.map((edge) => (edge.$2, edge.$3)), [
+      ('mixed', WalkRelation.text),
+      ('body', WalkRelation.text),
+      ('tag-first', WalkRelation.tag),
+    ]);
+  });
+
+  test('several shared tags do not outrank a stronger body match', () {
+    final tags = List.generate(10, (index) => 'tag-$index');
+    final index = RandomWalkIndex([
+      _note('root', 'orchard terrace planter irrigation', tags: tags),
+      _note('weak', 'orchard terrace', tags: tags),
+      _note('strong', 'orchard terrace planter irrigation'),
+      _note('other', 'ceramics wheel clay sculpture glaze firing pottery vase'),
+    ]);
+
+    final results = index.related('root', shown: {'root'}, excluded: {});
+    expect(results.map((edge) => edge.$2), ['strong', 'weak']);
+  });
+
   test('body retrieval finds more related notes across thirty short memos', () {
     const topics = [
       ['写作前先收集素材', '为写作整理素材', '写作素材放进卡片盒', '素材用标签分类，方便写作', '写作时从素材里找例子'],

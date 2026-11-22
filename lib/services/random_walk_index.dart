@@ -146,12 +146,21 @@ class RandomWalkIndex {
     if (picks.length < limit) {
       _scoreTags(source, shown, excluded, scores);
       _scoreText(source, shown, excluded, scores);
-      final candidates = scores.entries
-          .where(
-            (entry) => !links.containsKey(entry.key) && entry.value.isRelated,
-          )
-          .toList();
-      while (picks.length < limit && candidates.isNotEmpty) {
+      final textMatches = <MapEntry<String, _WalkScore>>[];
+      final tagMatches = <MapEntry<String, _WalkScore>>[];
+      for (final entry in scores.entries) {
+        if (links.containsKey(entry.key)) {
+          continue;
+        }
+        if (entry.value.hasTextMatch) {
+          textMatches.add(entry);
+        } else if (entry.value.tag != null) {
+          tagMatches.add(entry);
+        }
+      }
+      while (picks.length < limit &&
+          (textMatches.isNotEmpty || tagMatches.isNotEmpty)) {
+        final candidates = textMatches.isNotEmpty ? textMatches : tagMatches;
         var bestIndex = 0;
         var bestScore = -1.0;
         for (var i = 0; i < candidates.length; i++) {
@@ -163,15 +172,18 @@ class RandomWalkIndex {
         }
         final best = candidates.removeAt(bestIndex);
         final score = best.value;
-        final hasTag = score.tag != null;
         picks.add(
           (
             id,
             best.key,
-            hasTag ? WalkRelation.tag : WalkRelation.text,
-            score.tag ?? score.term!,
+            score.hasTextMatch ? WalkRelation.text : WalkRelation.tag,
+            score.hasTextMatch ? score.term! : score.tag!,
           ),
         );
+        // 只留一个纯标签候选，让短笔记也有机会连上主题。
+        if (!score.hasTextMatch) {
+          break;
+        }
       }
     }
     // 只补少量真实的跨分支连线，长路径仍然容易读。
@@ -274,7 +286,11 @@ class RandomWalkIndex {
         similarity * 0.65 + (sameTag ? 0.15 : 0) + (sameSource ? 0.12 : 0),
       );
     }
-    return (score.tagScore * 1.5 + log(1 + score.textScore)) * (1 - redundancy);
+    // 少量标签加分用于区分正文相近的候选，避免多个标签压过强正文。
+    final relevance = score.hasTextMatch
+        ? log(1 + score.textScore) + min(0.35, score.tagScore * 0.1)
+        : score.tagScore;
+    return relevance * (1 - redundancy);
   }
 }
 
@@ -302,5 +318,5 @@ class _WalkScore {
   String? tag;
   String? term;
 
-  bool get isRelated => tag != null || (termCount >= 2 && textScore >= 0.5);
+  bool get hasTextMatch => termCount >= 2 && textScore >= 0.5;
 }

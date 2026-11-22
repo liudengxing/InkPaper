@@ -879,16 +879,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  /// 首页顶部的三个快捷入口。
-  ///
-  /// 对齐 flomo 首页 `fragment_main.xml` 的 `headerLayout`：那三颗白色胶囊
-  /// （AI 洞察 / 每日回顾 / 随机漫步）挂在可折叠 AppBar 上，滚动时跟着收起。
-  /// 我们没有可折叠 AppBar，就把它们放进信息流第一条——滚到顶就看得见，
-  /// 往下滚跟着列表走，观感一致。
-  ///
-  /// 尺寸照抄反编译资源，不自己估：整行上下各留 12 → 胶囊高 40，圆角
-  /// 12（cornerRadiusLarge），左右内边距 16，胶囊间距 8，图标 16，
-  /// 文字 14sp（textRegular）。
+  /// 下拉露出的三个快捷入口，跟随信息流收起。
   Widget _buildShortcutPills() {
     final l10n = AppLocalizationsSimple.of(context);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -903,9 +894,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         route: '/ai-insight',
       ),
       (
-        label: l10n?.periodicReview ?? '周期回顾',
-        icon: Icons.auto_stories_rounded,
-        route: '/periodic-review',
+        label: l10n?.randomWalk ?? '随机漫步',
+        icon: Icons.hub_outlined,
+        route: '/random-walk',
       ),
       (
         label: l10n?.randomReview ?? '随机回顾',

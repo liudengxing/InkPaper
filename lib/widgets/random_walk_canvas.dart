@@ -8,6 +8,8 @@ import 'package:inkpaper/services/random_walk_index.dart';
 import 'package:inkpaper/widgets/memos_markdown_renderer.dart';
 import 'package:provider/provider.dart';
 
+typedef _WalkReason = ({String label, String evidence});
+
 class RandomWalkCanvas extends StatefulWidget {
   const RandomWalkCanvas({
     required this.notes,
@@ -194,12 +196,28 @@ class _RandomWalkCanvasState extends State<RandomWalkCanvas>
           );
           final points =
               _positions.map((id, offset) => MapEntry(id, offset + origin));
+          final theme = Theme.of(context);
+          final l10n = AppLocalizationsSimple.of(context) ??
+              AppLocalizationsSimple(Localizations.localeOf(context));
+          final previous = widget.path.length > 1
+              ? widget.path[widget.path.length - 2]
+              : null;
+          final outgoingReasons = <String, _WalkReason>{};
+          _WalkReason? currentReason;
+          for (final edge in widget.edges) {
+            if (edge.$1 == widget.focus) {
+              outgoingReasons[edge.$2] = _edgeReason(l10n, edge);
+            } else if (edge.$1 == previous && edge.$2 == widget.focus) {
+              currentReason = _edgeReason(l10n, edge);
+            }
+          }
+          final hasEvidence = currentReason?.evidence.isNotEmpty ?? false;
           final focusSize = _reading
               ? Size(
                   min(288, viewport.width - 42),
-                  (viewport.height * 0.72).clamp(125, 440),
+                  (viewport.height * 0.72).clamp(150, 440),
                 )
-              : const Size(216, 184);
+              : Size(216, hasEvidence ? 224 : 184);
           final cards = points.map((id, offset) {
             final size = id == widget.focus ? focusSize : _cardSize;
             return MapEntry(
@@ -212,29 +230,10 @@ class _RandomWalkCanvasState extends State<RandomWalkCanvas>
             );
           });
           _updateCamera(viewport, origin, points[widget.focus]!);
-          final theme = Theme.of(context);
-          final l10n = AppLocalizationsSimple.of(context) ??
-              AppLocalizationsSimple(Localizations.localeOf(context));
-          final connectedToFocus = <String, String>{};
-          for (final edge in widget.edges) {
-            if (edge.$1 == widget.focus) {
-              connectedToFocus[edge.$2] = _edgeLabel(l10n, edge.$3, edge.$4);
-            } else if (edge.$2 == widget.focus) {
-              final kind = switch (edge.$3) {
-                WalkRelation.reference => WalkRelation.backlink,
-                WalkRelation.backlink => WalkRelation.reference,
-                final kind => kind,
-              };
-              connectedToFocus[edge.$1] = _edgeLabel(l10n, kind, edge.$4);
-            }
-          }
           final walked = <(String, String)>{
             for (var i = 1; i < widget.path.length; i++)
               (widget.path[i - 1], widget.path[i]),
           };
-          final previous = widget.path.length > 1
-              ? widget.path[widget.path.length - 2]
-              : null;
           return Stack(
             fit: StackFit.expand,
             children: [
@@ -278,12 +277,13 @@ class _RandomWalkCanvasState extends State<RandomWalkCanvas>
                                   note: note,
                                   selected: note.id == widget.focus,
                                   visited: widget.path.contains(note.id),
-                                  reason: connectedToFocus[note.id],
-                                  onTap:
-                                      connectedToFocus.containsKey(note.id) ||
-                                              note.id == previous
-                                          ? () => widget.onSelect(note.id)
-                                          : null,
+                                  reason: note.id == widget.focus
+                                      ? currentReason
+                                      : outgoingReasons[note.id],
+                                  onTap: outgoingReasons.containsKey(note.id) ||
+                                          note.id == previous
+                                      ? () => widget.onSelect(note.id)
+                                      : null,
                                   onRead: note.id == widget.focus
                                       ? _toggleReading
                                       : null,
@@ -320,20 +320,18 @@ class _RandomWalkCanvasState extends State<RandomWalkCanvas>
       );
 }
 
-String _edgeLabel(
-  AppLocalizationsSimple l10n,
-  WalkRelation kind,
-  String evidence,
-) {
-  final tag = l10n.randomWalkTag;
-  final text = l10n.randomWalkText;
-  return switch (kind) {
+_WalkReason _edgeReason(AppLocalizationsSimple l10n, WalkConnection edge) {
+  final label = switch (edge.$3) {
     WalkRelation.reference => l10n.randomWalkReference,
     WalkRelation.backlink => l10n.randomWalkBacklink,
-    WalkRelation.tag => '$tag #$evidence',
-    WalkRelation.text => '$text · $evidence',
+    WalkRelation.tag => l10n.randomWalkTag,
+    WalkRelation.text => l10n.randomWalkText,
     WalkRelation.jump => l10n.randomWalkJump,
   };
+  return (
+    label: label,
+    evidence: edge.$3 == WalkRelation.tag ? '#${edge.$4}' : edge.$4
+  );
 }
 
 class _WalkDock extends StatelessWidget {
@@ -466,7 +464,7 @@ class _WalkCard extends StatelessWidget {
   final WalkNote note;
   final bool selected;
   final bool visited;
-  final String? reason;
+  final _WalkReason? reason;
   final VoidCallback? onTap;
   final VoidCallback? onRead;
   final Note? fullNote;
@@ -561,7 +559,7 @@ class _WalkCard extends StatelessWidget {
                           ),
                         ),
                 ),
-                if (reason case final text?) ...[
+                if (reason case final reason?) ...[
                   const SizedBox(height: 5),
                   DecoratedBox(
                     decoration: BoxDecoration(
@@ -573,11 +571,29 @@ class _WalkCard extends StatelessWidget {
                         horizontal: 6,
                         vertical: 3,
                       ),
-                      child: Text(
-                        text,
-                        maxLines: 1,
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: reason.label,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            if (reason.evidence.isNotEmpty)
+                              TextSpan(
+                                text: selected
+                                    ? '\n${reason.evidence}'
+                                    : ' · ${reason.evidence}',
+                                style: selected
+                                    ? TextStyle(color: colors.onSurface)
+                                    : null,
+                              ),
+                          ],
+                        ),
+                        maxLines: selected ? 4 : 2,
                         overflow: TextOverflow.ellipsis,
-                        style: style.labelSmall?.copyWith(
+                        style: (selected ? style.bodySmall : style.labelSmall)
+                            ?.copyWith(
                           color: accent,
                           fontWeight: FontWeight.w500,
                         ),

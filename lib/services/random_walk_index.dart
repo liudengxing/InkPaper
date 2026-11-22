@@ -26,7 +26,8 @@ class RandomWalkIndex {
     };
     var totalTerms = 0;
     for (final note in notes) {
-      final preview = _plainText(note.content);
+      final plainText = _plainText(note.content);
+      final preview = plainText.replaceAll(_spaces, ' ');
       final noteTags = {
         ...note.tags,
         ...tags.extractTagsFromContent(note.content),
@@ -34,7 +35,7 @@ class RandomWalkIndex {
           .map((tag) => tag.trim().toLowerCase())
           .where((tag) => tag.isNotEmpty)
           .toSet();
-      final body = preview.replaceAll(_tagPattern, ' ');
+      final body = plainText.replaceAll(_tagPattern, ' ');
       final terms = TextAnalysisUtils.extractTerms(body);
       final frequencies = <String, int>{};
       for (final term in terms) {
@@ -49,6 +50,7 @@ class RandomWalkIndex {
         ),
         tags: noteTags,
         terms: frequencies.keys.toSet(),
+        body: body,
         length: terms.length,
         isWeRead: noteTags.contains(WeReadNoteBuilder.sourceTag) ||
             WeReadNoteBuilder.isWeReadNoteId(note.id),
@@ -89,6 +91,10 @@ class RandomWalkIndex {
   static final _urls = RegExp(r'https?://[^\s]+');
   static final _html = RegExp('<[^>]+>');
   static final _spaces = RegExp(r'\s+');
+  static final _clauseBoundary = RegExp(r'[，。！？；、!?;\r\n]+|[.,](?:\s+|$)');
+  static final _chineseTerm = RegExp(r'^[\u4e00-\u9fa5]+$');
+  static final _wordCharacter =
+      RegExp(r'[\p{Script=Latin}\p{M}\p{N}]', unicode: true);
 
   static String _plainText(String text) => text
       .replaceAll(MemosContentHelper.markdownMediaRegex, ' ')
@@ -96,7 +102,6 @@ class RandomWalkIndex {
       .replaceAll(_internalLinks, ' ')
       .replaceAll(_urls, ' ')
       .replaceAll(_html, ' ')
-      .replaceAll(_spaces, ' ')
       .trim();
 
   final _documents = <String, _WalkDocument>{};
@@ -145,7 +150,7 @@ class RandomWalkIndex {
         references.where((ref) => !shown.contains(ref.$2)).take(limit).toList();
     if (picks.length < limit) {
       _scoreTags(source, shown, excluded, scores);
-      _scoreText(source, shown, excluded, scores);
+      final query = _scoreText(source, shown, excluded, scores);
       final textMatches = <MapEntry<String, _WalkScore>>[];
       final tagMatches = <MapEntry<String, _WalkScore>>[];
       for (final entry in scores.entries) {
@@ -177,7 +182,9 @@ class RandomWalkIndex {
             id,
             best.key,
             score.hasTextMatch ? WalkRelation.text : WalkRelation.tag,
-            score.hasTextMatch ? score.term! : score.tag!,
+            score.hasTextMatch
+                ? _textEvidence(_documents[best.key]!, query)
+                : score.tag!,
           ),
         );
         // 只留一个纯标签候选，让短笔记也有机会连上主题。
@@ -225,7 +232,7 @@ class RandomWalkIndex {
     }
   }
 
-  void _scoreText(
+  List<String> _scoreText(
     _WalkDocument source,
     Set<String> shown,
     Set<String> excluded,
@@ -239,9 +246,10 @@ class RandomWalkIndex {
         final frequency = _terms[a]!.length.compareTo(_terms[b]!.length);
         return frequency != 0 ? frequency : b.length.compareTo(a.length);
       });
+    final searchTerms = query.take(24).toList();
     const k1 = 1.2;
     const b = 0.75;
-    for (final term in query.take(24)) {
+    for (final term in searchTerms) {
       final postings = _terms[term]!;
       final weight = _idf(postings.length);
       for (final entry in postings.entries) {
@@ -260,12 +268,69 @@ class RandomWalkIndex {
         final score = scores.putIfAbsent(id, _WalkScore.new);
         score.textScore += bm25;
         score.termCount++;
-        if (term.length >= 3 && term.length > (score.term?.length ?? 0)) {
-          score.term = term;
-        }
-        score.term ??= term;
       }
     }
+    return searchTerms;
+  }
+
+  String _textEvidence(_WalkDocument document, List<String> query) {
+    // 只为入选笔记查找原文，同一个词项的重复出现不提高句段优先级。
+    final patterns = [
+      for (final term in query.where(document.terms.contains))
+        RegExp(
+          _chineseTerm.hasMatch(term)
+              ? RegExp.escape(term)
+              : '(?<![\\p{L}\\p{N}])${RegExp.escape(term)}(?![\\p{L}\\p{N}])',
+          caseSensitive: false,
+          unicode: true,
+        ),
+    ];
+    var bestCount = 0;
+    var evidence = '';
+    for (final raw in document.body.split(_clauseBoundary)) {
+      final clause = raw.replaceAll(_spaces, ' ').trim();
+      RegExpMatch? anchor;
+      var count = 0;
+      for (final pattern in patterns) {
+        final match = pattern.firstMatch(clause);
+        if (match != null) {
+          anchor ??= match;
+          count++;
+        }
+      }
+      if (anchor != null && count > bestCount) {
+        bestCount = count;
+        evidence = _excerptAround(clause, anchor);
+      }
+    }
+    return evidence;
+  }
+
+  String _excerptAround(String clause, RegExpMatch anchor) {
+    final matchLength = anchor.group(0)!.runes.length;
+    final limit = max(36, matchLength);
+    final characters = clause.runes.toList();
+    if (characters.length <= limit) {
+      return clause;
+    }
+
+    final matchStart = clause.substring(0, anchor.start).runes.length;
+    final matchEnd = matchStart + matchLength;
+    final contextBefore = (limit - matchLength) ~/ 2;
+    var start =
+        (matchStart - contextBefore).clamp(0, characters.length - limit);
+    var end = start + limit;
+    bool cutsWord(int at) =>
+        _wordCharacter.hasMatch(String.fromCharCode(characters[at - 1])) &&
+        _wordCharacter.hasMatch(String.fromCharCode(characters[at]));
+    while (start > 0 && start < matchStart && cutsWord(start)) {
+      start++;
+    }
+    while (end < characters.length && end > matchEnd && cutsWord(end)) {
+      end--;
+    }
+    final excerpt = String.fromCharCodes(characters, start, end).trim();
+    return '${start > 0 ? '…' : ''}$excerpt${end < characters.length ? '…' : ''}';
   }
 
   double _branchScore(
@@ -299,6 +364,7 @@ class _WalkDocument {
     required this.note,
     required this.tags,
     required this.terms,
+    required this.body,
     required this.length,
     required this.isWeRead,
   });
@@ -306,6 +372,7 @@ class _WalkDocument {
   final WalkNote note;
   final Set<String> tags;
   final Set<String> terms;
+  final String body;
   final int length;
   final bool isWeRead;
 }
@@ -316,7 +383,6 @@ class _WalkScore {
   double textScore = 0;
   int termCount = 0;
   String? tag;
-  String? term;
 
   bool get hasTextMatch => termCount >= 2 && textScore >= 0.5;
 }

@@ -38,8 +38,8 @@ void main() {
     expect(results.first, ('root', 'reference', WalkRelation.reference, ''));
     expect(results, contains(('root', 'tagged', WalkRelation.tag, '创作')));
     expect(
-      results.where((entry) => entry.$3 == WalkRelation.text).single.$2,
-      'text',
+      results.where((entry) => entry.$3 == WalkRelation.text).single,
+      ('root', 'text', WalkRelation.text, '培养写作习惯'),
     );
     expect(results.map((entry) => entry.$2), isNot(contains('unrelated')));
     expect(
@@ -57,6 +57,20 @@ void main() {
     ]);
 
     expect(index.related('a', shown: {'a'}, excluded: {}), isEmpty);
+  });
+
+  test('keeps matching text in context when the best clause is long', () {
+    final unrelated = List.filled(7, '清晨整理厨房桌面').join();
+    final index = RandomWalkIndex([
+      _note('root', '手冲咖啡需要稳定水温'),
+      _note('target', '手冲很有趣\n$unrelated用稳定水温练习手冲咖啡 #备忘'),
+    ]);
+
+    final edge = index.related('root', shown: {'root'}, excluded: {}).single;
+    expect(edge.$3, WalkRelation.text);
+    expect(edge.$4, startsWith('…'));
+    expect(edge.$4, endsWith('用稳定水温练习手冲咖啡'));
+    expect(edge.$4.runes.length, lessThanOrEqualTo(38));
   });
 
   test('prioritizes body matches and allows just one tag-only branch', () {

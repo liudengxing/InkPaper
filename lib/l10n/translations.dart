@@ -41,7 +41,7 @@ class Translations {
     'randomWalkReference': {'zh': '引用', 'en': 'Reference'},
     'randomWalkBacklink': {'zh': '反向引用', 'en': 'Backlink'},
     'randomWalkTag': {'zh': '共同标签', 'en': 'Shared tag'},
-    'randomWalkText': {'zh': '共同片段', 'en': 'Shared text'},
+    'randomWalkText': {'zh': '正文相似', 'en': 'Similar text'},
     'randomWalkRecap': {'zh': '漫步小结', 'en': 'Walk recap'},
     'randomWalkRecapRange': {
       'zh': '笔记时间跨度',

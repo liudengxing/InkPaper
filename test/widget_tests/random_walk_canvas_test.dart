@@ -31,6 +31,7 @@ void main() {
     final branch = _note('branch', 'First branch');
     final other = _note('other', 'Other branch');
     final next = _note('next', 'Next step');
+    const evidence = 'Writing notes in a notebook';
     var advanced = false;
     await tester.pumpWidget(
       ChangeNotifierProvider(
@@ -45,11 +46,11 @@ void main() {
                   if (advanced) _preview(next) else _preview(other),
                 ],
                 edges: [
-                  ('start', 'branch', WalkRelation.tag, 'writing'),
+                  ('start', 'branch', WalkRelation.text, evidence),
                   if (advanced)
                     ('branch', 'next', WalkRelation.reference, '')
                   else
-                    ('start', 'other', WalkRelation.text, 'notebook'),
+                    ('start', 'other', WalkRelation.tag, 'writing'),
                 ],
                 path: advanced ? ['start', 'branch'] : ['start'],
                 current: advanced ? branch : start,
@@ -72,6 +73,10 @@ void main() {
       greaterThan(tester.getCenter(find.text('Opening line')).dx),
     );
     expect(find.text('Other branch'), findsOneWidget);
+    final candidateReason =
+        find.text('Similar text · $evidence', findRichText: true);
+    expect(candidateReason, findsOneWidget);
+    expect(tester.widget<RichText>(candidateReason).maxLines, 2);
 
     await tester.tap(find.text('Expand'));
     await tester.pumpAndSettle();
@@ -98,15 +103,31 @@ void main() {
     await tester.tap(branchFinder);
     await tester.pumpAndSettle();
     expect(find.text('Other branch'), findsNothing);
+    final selectedReason =
+        find.text('Similar text\n$evidence', findRichText: true);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('branch')),
+        matching: selectedReason.hitTestable(),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.widget<RichText>(selectedReason).maxLines, 4);
     expect(
       tester.getCenter(find.text('Next step')).dx,
       greaterThan(tester.getCenter(branchFinder).dx),
     );
 
+    await tester.tap(find.text('Expand'));
+    await tester.pumpAndSettle();
+    expect(selectedReason.hitTestable(), findsOneWidget);
+
     await tester.tap(find.text('Previous step'));
     await tester.pumpAndSettle();
     expect(tester.getCenter(branchFinder), previousPosition);
     expect(find.text('Other branch'), findsOneWidget);
+    expect(selectedReason, findsNothing);
+    expect(candidateReason, findsOneWidget);
 
     final viewer =
         tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));

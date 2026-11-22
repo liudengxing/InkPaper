@@ -17,6 +17,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.137] - 2026-11-22
+
+### Added
+
+- **Home tag filter**: hide notes with chosen tags from the home feed.
+
+### Improved
+
+- **Note detail**: body layout matches the editor, and lists keep their bullets and numbers.
+
+### Fixed
+
+- Fixed known issues, improved stability and runtime efficiency.
+
+## [1.1.136] - 2026-11-22
+
+### Improved
+
+- **Random Walk** reserves five lines for note previews and still shows why each note was suggested.
+- **Launcher icon** now shows a jade folded note on a warm ivory background.
+
+## [1.1.135] - 2026-11-22
+
+### Improved
+
+- **Random Walk** shows why you arrived at the current note, with an excerpt for text matches.
+
+## [1.1.134] - 2026-11-22
+
+### Improved
+
+- **Random Walk** prioritizes notes with similar text and shows fewer tag-only suggestions.
+- **Home shortcuts** let you open Random Walk by pulling down at the top of the feed.
+
+## [1.1.133] - 2026-11-22
+
+### Added
+
+- **AI Insights** lets you turn off the analysis summary in AI Settings.
+
+### Fixed
+
+- Fixed known issues, improved stability and runtime efficiency.
+
 ## [1.1.98] - 2026-11-15
 
 This release consolidates everything since 1.1.88 (the previous release notes listed only three of them).

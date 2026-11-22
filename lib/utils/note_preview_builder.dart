@@ -310,9 +310,10 @@ class _PreviewWalker {
         _gap();
       case 'ul':
       case 'ol':
-        _walkChildren(children, styles);
+        _walkList(node, styles, 0);
         _gap();
       case 'li':
+        // 正常路径由 _walkList 展开；这里兜底处理游离的 li。
         _break();
         _walkChildren(children, styles);
         _break();
@@ -382,6 +383,71 @@ class _PreviewWalker {
     _append(rows.take(2).join('  '), styles);
   }
 
+  /// 展开一层列表。`depth` 只影响行首缩进，嵌套列表靠它对齐编辑页的原文。
+  ///
+  /// 符号必须补：编辑页里就是 `- 项` / `1. 项`，详情页若只换行不写符号，
+  /// 多行列表会糊成一段散句，和编辑页看到的完全是两回事。
+  void _walkList(md.Element node, Set<PreviewInlineStyle> styles, int depth) {
+    final ordered = node.tag == 'ol';
+    final start =
+        ordered ? int.tryParse(node.attributes['start'] ?? '') ?? 1 : 1;
+    final indent = '  ' * depth;
+    var index = start;
+
+    for (final child in node.children ?? const <md.Node>[]) {
+      if (child is! md.Element || child.tag != 'li') {
+        continue;
+      }
+      _break();
+      // 待办项本身就有勾选框，再补一个 `-` 会变成「- ☐ 任务」
+      final isTodo = child.textContent.trimLeft().startsWith('☐') ||
+          child.textContent.trimLeft().startsWith('☑');
+      final marker = ordered ? '$index. ' : (isTodo ? '' : '- ');
+      if (marker.isEmpty) {
+        _flushPendingBreak();
+        if (indent.isNotEmpty) {
+          _writeRaw(indent, const <PreviewInlineStyle>{});
+        }
+      } else {
+        _append(marker, const <PreviewInlineStyle>{}, indent: indent);
+      }
+      index++;
+      _walkListItem(child.children, styles, depth);
+      _break();
+    }
+  }
+
+  /// 列表项内部：段落不再制造块间距（否则每项之间都会空一行），
+  /// 嵌套列表按层级继续展开。
+  void _walkListItem(
+    List<md.Node>? children,
+    Set<PreviewInlineStyle> styles,
+    int depth,
+  ) {
+    var paragraphs = 0;
+    for (final child in children ?? const <md.Node>[]) {
+      if (child is! md.Element) {
+        _walk(child, styles);
+        continue;
+      }
+      switch (child.tag) {
+        case 'p':
+        case 'div':
+          // 项内第二段起换个行：不分段会粘成一整句
+          if (paragraphs > 0) {
+            _break();
+          }
+          paragraphs++;
+          _walkChildren(child.children, styles);
+        case 'ul':
+        case 'ol':
+          _walkList(child, styles, depth + 1);
+        default:
+          _walk(child, styles);
+      }
+    }
+  }
+
   /// 需要换行但不额外留白的边界（例如列表项之间）。
   ///
   /// 迟到写入：只有后面真的还有内容时才落一个换行，避免预览尾部挂着空行。
@@ -415,23 +481,38 @@ class _PreviewWalker {
     }
   }
 
-  void _append(String value, Set<PreviewInlineStyle> styles) {
+  /// 落地挂起的换行（以及段落空行）。
+  ///
+  /// 抽出来是为了让「没有前缀的列表项」（待办）也能在同一套时机换行，
+  /// 而不必为了触发换行写一个占位字符。
+  void _flushPendingBreak() {
+    if (!_pendingBreak) {
+      return;
+    }
+    _pendingBreak = false;
+    final gap = _pendingGap;
+    _pendingGap = false;
+    if (_length > 0 && _tail != '\n') {
+      _writeRaw('\n', const <PreviewInlineStyle>{});
+      if (gap) {
+        _spacerOffsets.add(_length);
+        _writeRaw('\n', const <PreviewInlineStyle>{});
+      }
+    }
+  }
+
+  void _append(
+    String value,
+    Set<PreviewInlineStyle> styles, {
+    String indent = '',
+  }) {
     if (value.isEmpty) {
       return;
     }
 
     var content = value;
     if (_pendingBreak) {
-      _pendingBreak = false;
-      final gap = _pendingGap;
-      _pendingGap = false;
-      if (_length > 0 && _tail != '\n') {
-        _writeRaw('\n', const <PreviewInlineStyle>{});
-        if (gap) {
-          _spacerOffsets.add(_length);
-          _writeRaw('\n', const <PreviewInlineStyle>{});
-        }
-      }
+      _flushPendingBreak();
       // 行首缩进在预览里没有意义
       content = content.replaceFirst(_leadingSpacePattern, '');
     } else if (_length == 0 || _tail == '\n') {
@@ -440,6 +521,11 @@ class _PreviewWalker {
 
     if (content.isEmpty) {
       return;
+    }
+
+    // 缩进在剥完行首空白之后补，否则会被当成行首空白一起吃掉
+    if (indent.isNotEmpty) {
+      _writeRaw(indent, const <PreviewInlineStyle>{});
     }
 
     final start = _length;

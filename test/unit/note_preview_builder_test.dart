@@ -85,9 +85,41 @@ void main() {
     test('列表项之间只换行，不插入段间距空行', () {
       final preview = buildNotePreview('- 第一项\n- 第二项');
 
-      expect(preview.text, contains('第一项\n第二项'));
+      expect(preview.text, '- 第一项\n- 第二项');
       expect(preview.text.contains('\n\n'), isFalse);
       expect(preview.spacerOffsets, isEmpty);
+    });
+
+    test('无序列表补回减号，与编辑页原文一致', () {
+      final preview = buildNotePreview('- 苹果\n- 香蕉');
+
+      expect(preview.text, '- 苹果\n- 香蕉');
+    });
+
+    test('有序列表补回序号，并尊重起始编号', () {
+      expect(
+        buildNotePreview('1. 第一\n2. 第二').text,
+        '1. 第一\n2. 第二',
+      );
+      expect(
+        buildNotePreview('3. 第三\n4. 第四').text,
+        '3. 第三\n4. 第四',
+      );
+    });
+
+    test('嵌套列表按层级缩进两格', () {
+      final preview = buildNotePreview('- 香蕉\n  - 富士\n  - 香蕉品种');
+
+      expect(preview.text, '- 香蕉\n  - 富士\n  - 香蕉品种');
+      expect(preview.text.contains('\n\n'), isFalse);
+    });
+
+    test('待办项不再重复补减号', () {
+      final preview = buildNotePreview('- [ ] 买牛奶\n- [x] 交房租');
+
+      expect(preview.text, '☐ 买牛奶\n☑ 交房租');
+      expect(preview.text.contains('- ☐'), isFalse);
+      expect(preview.checkboxes, hasLength(2));
     });
 
     test('空内容返回空预览', () {
@@ -113,6 +145,23 @@ void main() {
 
       expect(a.text, '粗');
       expect(b.text, '斜');
+    });
+
+    test('同一内容不同解析上限各缓存一份，长文本不被短预览顶掉', () {
+      NotePreviewCache.clear();
+      final long = '很长的正文。' * 600;
+
+      final card = NotePreviewCache.resolve(long);
+      final detail = NotePreviewCache.resolve(
+        long,
+        parseLimit: long.length,
+      );
+
+      expect(card.text.length, lessThanOrEqualTo(defaultPreviewParseLimit));
+      expect(detail.text, long);
+      expect(identical(card, detail), isFalse);
+      // 再取短预览仍是短的那份，说明两个 key 没有互相覆盖
+      expect(NotePreviewCache.resolve(long).text, card.text);
     });
   });
 }

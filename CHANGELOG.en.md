@@ -17,6 +17,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.140] - 2026-11-23
+
+### Improved
+
+- **Launcher icon**: a deep green background with an ivory folded note and a dark green stroke.
+
+## [1.1.139] - 2026-11-23
+
+### Improved
+
+- **Related notes**: swipe left in the home feed to find related notes offline and see why each was suggested.
+
+## [1.1.138] - 2026-11-23
+
+### Improved
+
+- **Home feed**: less jank when the app starts, pages through notes, and scrolls quickly.
+
+### Fixed
+
+- Fixed known issues, improved stability and runtime efficiency.
+
 ## [1.1.137] - 2026-11-22
 
 ### Added

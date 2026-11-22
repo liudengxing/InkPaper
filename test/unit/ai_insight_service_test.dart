@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:inkpaper/models/app_config_model.dart';
 import 'package:inkpaper/models/insight_lens.dart';
 import 'package:inkpaper/models/note_model.dart';
@@ -12,6 +16,26 @@ Note _note(String id, String content, DateTime time) => Note(
       createdAt: time,
       updatedAt: time,
     );
+
+http.Response _mockReply(String content, {required bool streamed}) {
+  final payload = jsonEncode({
+    'choices': [
+      {
+        (streamed ? 'delta' : 'message'): {'content': content},
+        'finish_reason': 'stop',
+      },
+    ],
+  });
+  return http.Response(
+    streamed ? 'data: $payload\n\ndata: [DONE]\n\n' : payload,
+    200,
+    headers: {
+      'content-type': streamed
+          ? 'text/event-stream; charset=utf-8'
+          : 'application/json; charset=utf-8',
+    },
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -273,6 +297,25 @@ void main() {
       expect(message, contains('实际纳入 ${context.noteCount} 条'));
     });
 
+    test('不足 100 条但达到字数预算时仍按日期倒序标注', () {
+      final context = NotesContextBuilder.buildForInsight([
+        for (var i = 0; i < 80; i++)
+          _note('n$i', '文' * 400, DateTime(2018, i + 1)),
+      ]);
+
+      final message = AiInsightService.buildUserMessage(
+        context: context,
+        scopeLabel: '全部笔记',
+        lens: builtInInsightLenses.first,
+      );
+
+      expect(context.noteCount, lessThan(80));
+      expect(context.sources.first.noteId, 'n79');
+      expect(context.sources.last.noteId, 'n${80 - context.noteCount}');
+      expect(message, contains('按创建时间倒序纳入，达到字数预算'));
+      expect(message, isNot(contains('按年-季度分桶抽样')));
+    });
+
     test('内容限制如实写明截断与媒体未发送', () {
       final context = NotesContextBuilder.build([
         _note('1', '${'很' * 500}，这是一条超长的笔记。', DateTime(2026, 11, 20)),
@@ -292,6 +335,28 @@ void main() {
       expect(message, contains('图片/附件未发送给模型'));
     });
 
+    test('没图片的视频和文件附件也说明未发送', () {
+      final date = DateTime(2026, 11, 20);
+      final context = NotesContextBuilder.buildForInsight([
+        _note('video', '记录了一条值得保留的完整想法。![视频](file:///cache/clip.mp4)', date),
+        _note('file', '记录了一条关于原始文件的笔记。[文件](content://docs/handout.pdf)', date),
+      ]);
+      final message = AiInsightService.buildUserMessage(
+        context: context,
+        scopeLabel: '全部笔记',
+        lens: builtInInsightLenses.first,
+      );
+
+      expect(context.sources, hasLength(2));
+      for (final source in context.sources) {
+        expect(source.imagePaths, isEmpty);
+        expect(source.text, contains('[图片/附件未发送]'));
+      }
+      expect(message, contains('内容限制：图片/附件未发送给模型'));
+      expect(message, isNot(contains('clip.mp4')));
+      expect(message, isNot(contains('handout.pdf')));
+    });
+
     test('分析摘要开关与补充要求进入任务信息', () {
       final context = NotesContextBuilder.build([
         _note('1', '最新的一条想法，写够十几个字。', DateTime(2026, 11, 20)),
@@ -305,6 +370,70 @@ void main() {
       );
       expect(message, contains('分析摘要：不输出'));
       expect(message, contains('补充要求：多用原文'));
+    });
+
+    test('摘要配置默认为开，关闭后生成请求与展示都遵循设置', () async {
+      expect(AppConfig.fromJson({}).aiInsightSummaryEnabled, isTrue);
+      final stored = AppConfig(
+        aiEnabled: true,
+        aiApiUrl: 'https://api.example.com/v1',
+        aiApiKey: 'sk-test',
+      ).copyWith(aiInsightSummaryEnabled: false);
+      final lens = builtInInsightLenses.first.copyWith(
+        prompt: '正文约 120 字。',
+        edited: true,
+      );
+      final requests = <List<Map<String, dynamic>>>[];
+
+      final result = await http.runWithClient(
+        () => const AiInsightService().generate(
+          config: AppConfig.fromJson(stored.toJson()),
+          lens: lens,
+          notes: [_note('1', '这是一条有足够文字的笔记。', DateTime(2026))],
+        ),
+        () => MockClient((request) async {
+          final json = jsonDecode(utf8.decode(request.bodyBytes))
+              as Map<String, dynamic>;
+          requests.add((json['messages'] as List).cast<Map<String, dynamic>>());
+          return _mockReply('【分析摘要】一条发现。\n【最终报告】完整正文。', streamed: true);
+        }),
+      );
+
+      final messages = requests.single;
+      expect(messages.first['content'], contains('正文约 120 字'));
+      expect(messages.last['content'], contains('分析摘要：不输出'));
+      expect(messages.last['content'], isNot(contains('输出长度：')));
+      expect(result.text, '完整正文。');
+      expect(result.summary, isEmpty);
+    });
+
+    test('有完整摘要但报告为空时重试，保留重试返回的正文', () async {
+      final requests = <bool>[];
+      final result = await http.runWithClient(
+        () => const AiInsightService().generate(
+          config: AppConfig(
+            aiEnabled: true,
+            aiApiUrl: 'https://api.example.com/v1',
+            aiApiKey: 'sk-test',
+          ),
+          lens: builtInInsightLenses.first,
+          notes: [_note('1', '这是一条有足够文字的笔记。', DateTime(2026))],
+        ),
+        () => MockClient((request) async {
+          final json = jsonDecode(utf8.decode(request.bodyBytes))
+              as Map<String, dynamic>;
+          final streamed = json['stream'] == true;
+          requests.add(streamed);
+          return _mockReply(
+            streamed ? '【分析摘要】${'摘' * 400}\n【最终报告】' : '【最终报告】补回的完整正文。',
+            streamed: streamed,
+          );
+        }),
+      );
+
+      expect(requests, [true, false]);
+      expect(result.isError, isFalse);
+      expect(result.text, '补回的完整正文。');
     });
 
     test('时间跨度按月算，不足一个月单独说明', () {
@@ -339,6 +468,14 @@ void main() {
       expect(parsed.summary, isNot(contains('【分析摘要】')));
       expect(parsed.report, contains('标题：拿住是一种资格'));
       expect(parsed.report, isNot(contains('【最终报告】')));
+    });
+
+    test('保留紧跟摘要或报告标记的同行文字', () {
+      final parsed = AiInsightService.splitAnalysisSections(
+        '【分析摘要】：一条发现 [1]。\n【最终报告】这是真正返回的正文。',
+      );
+      expect(parsed.summary, '一条发现 [1]。');
+      expect(parsed.report, '这是真正返回的正文。');
     });
 
     test('模型漏写标记时整段当报告，摘要留空', () {

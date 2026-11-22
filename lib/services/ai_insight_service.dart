@@ -190,7 +190,12 @@ class AiInsightService {
         '$systemPrompt\n\n${lens.prompt.trim()}',
       ),
       DeepSeekApiService.buildUserMessage(
-        buildUserMessage(context: context, scopeLabel: scopeLabel, lens: lens),
+        buildUserMessage(
+          context: context,
+          scopeLabel: scopeLabel,
+          lens: lens,
+          analysisSummary: config.aiInsightSummaryEnabled,
+        ),
       ),
     ];
 
@@ -206,26 +211,25 @@ class AiInsightService {
     // 正文为空、被 max_tokens 截在半句（finish_reason=length），或流没正常
     // 收尾（网关掐了连接，但 await for 是正常结束的），都值得补救一次。
     // 最后一种最隐蔽：正文停在一句话中间，看着像模型水平就这样。
+    var parsed = _parseOutput(reply.content);
     final tooShort =
-        lens.builtIn && (reply.content ?? '').trim().length < minBuiltInChars;
-    if (!reply.hasContent ||
+        lens.builtIn && !lens.edited && parsed.body.length < minBuiltInChars;
+    if (parsed.body.isEmpty ||
         reply.finishReason == 'length' ||
         reply.incomplete ||
         tooShort) {
       reply = await _retry(service, messages, reply, onStatus: onStatus);
+      parsed = _parseOutput(reply.content);
     }
 
-    if (!reply.hasContent) {
+    if (parsed.body.isEmpty) {
       return AiInsightResult.error(reply.error ?? 'AI 没有返回内容，请稍后重试');
     }
 
-    final cleaned = cleanOutput(reply.content!);
-    final sections = splitAnalysisSections(cleaned);
-    final split = splitTitle(sections.report);
     return AiInsightResult(
-      text: split.body,
-      title: split.title,
-      summary: sections.summary,
+      text: parsed.body,
+      title: parsed.title,
+      summary: config.aiInsightSummaryEnabled ? parsed.summary : '',
       noteCount: context.noteCount,
       totalCandidates: context.totalCandidates,
       truncated: context.truncated,
@@ -234,13 +238,21 @@ class AiInsightService {
     );
   }
 
+  static ({String summary, String title, String body}) _parseOutput(
+    String? text,
+  ) {
+    final sections = splitAnalysisSections(cleanOutput(text ?? ''));
+    final report = splitTitle(sections.report);
+    return (summary: sections.summary, title: report.title, body: report.body);
+  }
+
   /// 把模型输出拆成「分析摘要」与「最终报告」两段。
   ///
   /// 新提示词要求分两段输出，但模型偶尔漏写标记、只给一段：那种情况下整段
   /// 都当报告，摘要留空，界面不挂摘要卡片。标记本身不进最终正文。
   static ({String summary, String report}) splitAnalysisSections(String text) {
-    final summaryHeader = RegExp(r'^【\s*分析摘要\s*】');
-    final reportHeader = RegExp(r'^【\s*最终报告\s*】');
+    final summaryHeader = RegExp(r'^【\s*分析摘要\s*】\s*[:：]?\s*');
+    final reportHeader = RegExp(r'^【\s*最终报告\s*】\s*[:：]?\s*');
     final lines = text.split('\n');
     var summaryStart = -1;
     var reportStart = -1;
@@ -252,24 +264,28 @@ class AiInsightService {
         reportStart = i;
       }
     }
+    String readSection(int start, RegExp header, [int? end]) {
+      final line = lines[start].trim();
+      final inlineText = line.substring(header.firstMatch(line)!.end);
+      return [inlineText, ...lines.getRange(start + 1, end ?? lines.length)]
+          .join('\n')
+          .trim();
+    }
+
     if (reportStart < 0) {
       // 没有最终报告标记：若只有摘要标记，把标记后的内容当报告；否则整段是报告。
       if (summaryStart >= 0) {
         return (
           summary: '',
-          report: lines.skip(summaryStart + 1).join('\n').trim(),
+          report: readSection(summaryStart, summaryHeader),
         );
       }
       return (summary: '', report: text.trim());
     }
     final summary = summaryStart >= 0 && summaryStart < reportStart
-        ? lines
-            .skip(summaryStart + 1)
-            .take(reportStart - summaryStart - 1)
-            .join('\n')
-            .trim()
+        ? readSection(summaryStart, summaryHeader, reportStart)
         : '';
-    final report = lines.skip(reportStart + 1).join('\n').trim();
+    final report = readSection(reportStart, reportHeader);
     return (summary: summary, report: report);
   }
 
@@ -332,7 +348,7 @@ class AiInsightService {
     void Function(String message)? onStatus,
   }) async {
     final error = first.error ?? '';
-    final worthRetrying = !first.hasContent ||
+    final worthRetrying = _parseOutput(first.content).body.isEmpty ||
         first.finishReason == 'length' ||
         first.incomplete ||
         first.reasoning.isNotEmpty ||
@@ -352,7 +368,8 @@ class AiInsightService {
     );
     // 有正文、且不是被截断的，直接用；但两次都完整时取更长的那次——
     // 关思考重来有可能写得更短，用短换长等于白花一次额度。
-    if (plain.hasContent && plain.finishReason != 'length') {
+    final plainHasReport = _parseOutput(plain.content).body.isNotEmpty;
+    if (plainHasReport && plain.finishReason != 'length') {
       return _preferLonger(
         first,
         AiChatReply(
@@ -371,7 +388,7 @@ class AiInsightService {
       maxTokens: maxOutputTokens,
       thinking: false,
     );
-    if (noThinking.hasContent) {
+    if (_parseOutput(noThinking.content).body.isNotEmpty) {
       return _preferLonger(
         first,
         AiChatReply(
@@ -385,7 +402,7 @@ class AiInsightService {
     }
 
     // 两次都没拿到完整正文：如果普通请求至少给了（截断的）正文，也比报错好
-    if (plain.hasContent) {
+    if (plainHasReport) {
       return _preferLonger(first, plain);
     }
 
@@ -400,8 +417,8 @@ class AiInsightService {
 
   /// 两份回复取正文更长的那份，思考过程也各取更长的一段。
   static AiChatReply _preferLonger(AiChatReply first, AiChatReply second) {
-    final firstLength = (first.content ?? '').trim().length;
-    final secondLength = (second.content ?? '').trim().length;
+    final firstLength = _parseOutput(first.content).body.length;
+    final secondLength = _parseOutput(second.content).body.length;
     final content = secondLength >= firstLength ? second : first;
     final reasoning =
         second.reasoning.trim().length >= first.reasoning.trim().length
@@ -433,7 +450,7 @@ class AiInsightService {
   /// 和六个视角 prompt 里的「最终报告格式」保持一致；自定义视角返回空串，
   /// 让它自己的 prompt 决定长度。
   static String outputLengthFor(InsightLens lens) {
-    if (!lens.builtIn) {
+    if (!lens.builtIn || lens.edited) {
       return '';
     }
     return switch (lens.id) {
@@ -466,17 +483,18 @@ class AiInsightService {
     // 时间范围」，去掉前缀免得叠成「时间范围：时间跨度：」。
     final range = rawSpan.replaceFirst('时间跨度：', '');
 
-    // 抽样说明：条数/字数闸门拦下过就明说是抽样，别让模型以为读到了全库。
-    // 「按时间加权」与 NotesContextBuilder.buildForInsight 的实际口径一致。
-    final sampled = context.truncated;
-    final selection = sampled
-        ? '按年-季度分桶抽样，近桶每轮 3 条、中桶 2 条、早桶 1 条（库内可分析 ${context.totalCandidates} 条，实际纳入 ${context.noteCount} 条）'
-        : '全量纳入';
+    final coverage =
+        '（候选 ${context.totalCandidates} 条，实际纳入 ${context.noteCount} 条）';
+    final selection = context.sampledByQuarter
+        ? '按年-季度分桶抽样，近桶每轮 3 条、中桶 2 条、早桶 1 条$coverage'
+        : context.truncated
+            ? '按创建时间倒序纳入，达到字数预算后省略剩余笔记$coverage'
+            : '全量纳入';
 
     // 内容限制：把「截断」「媒体未发」如实告诉模型，避免它把缺失当成事实。
     final limits = <String>[
       if (context.sources.any((source) => source.truncated)) '部分笔记正文已截断',
-      if (context.sources.any((source) => source.imagePaths.isNotEmpty))
+      if (context.sources.any((source) => source.hasOmittedMedia))
         '图片/附件未发送给模型',
     ];
     final limitLine = limits.isEmpty ? '无' : limits.join('；');

@@ -24,6 +24,7 @@ class AppConfig {
     this.aiModel = AI_MODEL_DEEPSEEK, // 默认使用DeepSeek
     this.aiApiPreset = AI_PRESET_DEEPSEEK, // API 服务预设
     this.aiEnabled = false, // 默认不启用AI
+    this.aiInsightSummaryEnabled = true,
     this.autoShowEditorOnLaunch = false, // 默认不自动弹出编辑框
     this.widgetReviewRefreshIntervalMinutes = 60,
     this.widgetReviewRangeDays = 0,
@@ -73,6 +74,7 @@ class AppConfig {
           normalizeAiModel(json['aiModel']?.toString() ?? AI_MODEL_DEEPSEEK),
       aiApiPreset: aiApiPreset,
       aiEnabled: json['aiEnabled'] ?? false,
+      aiInsightSummaryEnabled: json['aiInsightSummaryEnabled'] != false,
       autoShowEditorOnLaunch: json['autoShowEditorOnLaunch'] ?? false,
       widgetReviewRefreshIntervalMinutes:
           json['widgetReviewRefreshIntervalMinutes'] ?? 60,
@@ -176,6 +178,7 @@ class AppConfig {
   final String aiModel; // AI模型：deepseek-chat, gpt-3.5-turbo等
   final String aiApiPreset; // API 服务预设：AI_PRESET_DEEPSEEK / AI_PRESET_CUSTOM
   final bool aiEnabled; // 是否启用AI功能
+  final bool aiInsightSummaryEnabled;
 
   // AI自定义Prompt配置
   final bool useCustomPrompt; // 是否使用自定义Prompt
@@ -430,6 +433,7 @@ class AppConfig {
     String? aiModel,
     String? aiApiPreset,
     bool? aiEnabled,
+    bool? aiInsightSummaryEnabled,
     bool updateAiApiUrl = false,
     bool updateAiApiKey = false,
     bool? autoShowEditorOnLaunch,
@@ -478,6 +482,8 @@ class AppConfig {
         aiModel: aiModel ?? this.aiModel,
         aiApiPreset: aiApiPreset ?? this.aiApiPreset,
         aiEnabled: aiEnabled ?? this.aiEnabled,
+        aiInsightSummaryEnabled:
+            aiInsightSummaryEnabled ?? this.aiInsightSummaryEnabled,
         autoShowEditorOnLaunch:
             autoShowEditorOnLaunch ?? this.autoShowEditorOnLaunch,
         widgetReviewRefreshIntervalMinutes:
@@ -532,6 +538,7 @@ class AppConfig {
         'aiModel': aiModel,
         'aiApiPreset': aiApiPreset,
         'aiEnabled': aiEnabled,
+        'aiInsightSummaryEnabled': aiInsightSummaryEnabled,
         'autoShowEditorOnLaunch': autoShowEditorOnLaunch,
         'widgetReviewRefreshIntervalMinutes':
             widgetReviewRefreshIntervalMinutes,

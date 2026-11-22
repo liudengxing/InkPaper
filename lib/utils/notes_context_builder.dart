@@ -19,6 +19,7 @@ class InsightSource {
     required this.text,
     this.imagePaths = const <String>[],
     this.truncated = false,
+    this.hasOmittedMedia = false,
   });
 
   /// 编号，1 = 最近一条。
@@ -37,6 +38,9 @@ class InsightSource {
   /// 原笔记里的图片。喂给模型时已经剥掉了，这里只留给角标弹层展示：
   /// 一条只有文字和一条带照片的记录，读起来的分量完全不同。
   final List<String> imagePaths;
+
+  /// 正文之外已有媒体或附件，模型仅收到文字。
+  final bool hasOmittedMedia;
 }
 
 /// 打包好的笔记上下文。
@@ -52,6 +56,7 @@ class NotesContext {
     this.earliest,
     this.latest,
     this.sources = const <InsightSource>[],
+    this.sampledByQuarter = false,
   });
 
   /// 拼给模型的文本。
@@ -67,6 +72,9 @@ class NotesContext {
 
   /// 是否因为预算被截断。
   final bool truncated;
+
+  /// 只有真正运行季度分桶时才设置，与字数到顶造成的截断区分。
+  final bool sampledByQuarter;
 
   /// 其中按问题检索出来的相关笔记条数。
   final int relevantCount;
@@ -291,7 +299,7 @@ class NotesContextBuilder {
         : notes
             .where((note) => !_hasAnyTag(note, excludedTags))
             .toList(growable: false);
-    final entries = _prepare(candidates);
+    final entries = _prepare(candidates, includeNonImageAttachments: true);
     // 条数没超限就按原样给，不必为了分层打乱时间顺序
     if (entries.length <= maxNotes) {
       return _render(
@@ -361,6 +369,7 @@ class NotesContextBuilder {
       maxCharacters: maxCharacters,
       maxNotes: maxNotes,
       perNoteLimit: perNoteLimit,
+      sampledByQuarter: true,
     );
   }
 
@@ -504,21 +513,20 @@ class NotesContextBuilder {
     return terms.toList(growable: false);
   }
 
+  static final _markdownMedia = RegExp(r'!\[[^\]]*\]\([^)]*\)');
+  static final _attachmentLink =
+      RegExp(r'\[[^\]]*\]\((?:file|content|blob):[^)]*\)');
+  static final _attachmentAddress = RegExp(r'(?:file|content)://\S+');
+
   /// 去掉图片、音频、附件这类非文字内容，只留下正文。
   static String stripMedia(String content) {
     var text = content;
     // ![alt](url)
-    text = text.replaceAll(RegExp(r'!\[[^\]]*\]\([^)]*\)'), ' ');
+    text = text.replaceAll(_markdownMedia, ' ');
     // [文字](file://… / content://… / blob:…) —— 附件链接没有阅读价值
-    text = text.replaceAll(
-      RegExp(r'\[[^\]]*\]\((?:file|content|blob):[^)]*\)'),
-      ' ',
-    );
+    text = text.replaceAll(_attachmentLink, ' ');
     // 裸附件地址
-    text = text.replaceAll(
-      RegExp(r'(?:file|content)://\S+'),
-      ' ',
-    );
+    text = text.replaceAll(_attachmentAddress, ' ');
     // 分隔线 / 多余空行
     text = text.replaceAll(RegExp(r'^\s*[-*_]{3,}\s*$', multiLine: true), '');
     text = text.replaceAll(RegExp(r'[ \t]+'), ' ');
@@ -542,7 +550,10 @@ class NotesContextBuilder {
     return false;
   }
 
-  static List<_Entry> _prepare(List<Note> notes) {
+  static List<_Entry> _prepare(
+    List<Note> notes, {
+    bool includeNonImageAttachments = false,
+  }) {
     final entries = <_Entry>[];
     for (final note in notes) {
       final plain = stripMedia(note.content);
@@ -550,6 +561,13 @@ class NotesContextBuilder {
       if (plain.length < minNoteLength) {
         continue;
       }
+      final imagePaths = MemosContentHelper.extractNoteImagePaths(note);
+      final hasOmittedMedia = imagePaths.isNotEmpty ||
+          (includeNonImageAttachments &&
+              (note.resourceList.isNotEmpty ||
+                  _markdownMedia.hasMatch(note.content) ||
+                  _attachmentLink.hasMatch(note.content) ||
+                  _attachmentAddress.hasMatch(note.content)));
       entries.add(
         _Entry(
           id: note.id,
@@ -560,7 +578,8 @@ class NotesContextBuilder {
           time: note.createdAt,
           tags: note.tags,
           text: plain,
-          imagePaths: MemosContentHelper.extractNoteImagePaths(note),
+          imagePaths: imagePaths,
+          hasOmittedMedia: hasOmittedMedia,
         ),
       );
     }
@@ -576,6 +595,7 @@ class NotesContextBuilder {
     required int maxNotes,
     required int perNoteLimit,
     List<String> queryTerms = const <String>[],
+    bool sampledByQuarter = false,
   }) {
     final buffer = StringBuffer();
     var used = 0;
@@ -598,7 +618,7 @@ class NotesContextBuilder {
       }
       // 图片和附件不发给模型，但要把「有而未发」这件事说清楚，
       // 否则模型会以为这条记录本来就只有文字。
-      if (entry.imagePaths.isNotEmpty) {
+      if (entry.hasOmittedMedia) {
         body = '$body [图片/附件未发送]';
       }
       final tags = entry.tags.isEmpty
@@ -620,6 +640,7 @@ class NotesContextBuilder {
           tags: entry.tags,
           text: body,
           imagePaths: entry.imagePaths,
+          hasOmittedMedia: entry.hasOmittedMedia,
           truncated: truncated,
         ),
       );
@@ -662,6 +683,7 @@ class NotesContextBuilder {
       earliest: earliest,
       latest: latest,
       sources: sources,
+      sampledByQuarter: sampledByQuarter,
     );
   }
 
@@ -704,6 +726,7 @@ class _Entry {
     required this.time,
     required this.tags,
     required this.text,
+    required this.hasOmittedMedia,
     this.imagePaths = const <String>[],
   }) : lower = text.toLowerCase();
 
@@ -712,6 +735,7 @@ class _Entry {
   final List<String> tags;
   final String text;
   final List<String> imagePaths;
+  final bool hasOmittedMedia;
   final String lower;
 }
 

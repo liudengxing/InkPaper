@@ -285,6 +285,9 @@ class AppLocalizationsSimple {
   // ===== AI 洞察 =====
   String get aiInsight => _t('aiInsight', fallback: 'AI 洞察');
   String get aiInsightScope => _t('aiInsightScope', fallback: '分析范围');
+  String get aiInsightSummarySetting => _t('aiInsightSummarySetting');
+  String get aiInsightSummarySettingDescription =>
+      _t('aiInsightSummarySettingDescription');
   String get aiInsightScopeAll => _t('aiInsightScopeAll', fallback: '全部笔记');
   String get aiInsightScope30 => _t('aiInsightScope30', fallback: '最近 30 天');
   String get aiInsightScope90 => _t('aiInsightScope90', fallback: '最近 90 天');

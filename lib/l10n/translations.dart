@@ -81,6 +81,14 @@ class Translations {
           'Import WeRead highlights and thoughts incrementally, one note per highlight',
     },
     'aiInsightScope': {'zh': '分析范围', 'en': 'Scope'},
+    'aiInsightSummarySetting': {
+      'zh': 'AI 洞察分析摘要',
+      'en': 'AI insight summary',
+    },
+    'aiInsightSummarySettingDescription': {
+      'zh': '在新生成的洞察报告前显示分析要点',
+      'en': 'Show key findings before newly generated insight reports.',
+    },
     'aiInsightScopeAll': {'zh': '全部笔记', 'en': 'All notes'},
     'aiInsightScope30': {'zh': '最近 30 天', 'en': 'Last 30 days'},
     'aiInsightScope90': {'zh': '最近 90 天', 'en': 'Last 90 days'},

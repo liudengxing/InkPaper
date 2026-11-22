@@ -95,6 +95,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   Widget build(BuildContext context) {
     final appProvider = Provider.of<AppProvider>(context);
     final appConfig = appProvider.appConfig;
+    final l10n = AppLocalizationsSimple.of(context) ??
+        AppLocalizationsSimple(Localizations.localeOf(context));
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor =
         isDarkMode ? AppTheme.darkSurfaceColor : Colors.white;
@@ -260,6 +262,20 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               appProvider.updateConfig(updatedConfig);
             },
           ),
+
+          if (appConfig.aiEnabled) ...[
+            const SizedBox(height: 12),
+            _buildSwitchCard(
+              context,
+              icon: Icons.summarize_outlined,
+              title: l10n.aiInsightSummarySetting,
+              subtitle: l10n.aiInsightSummarySettingDescription,
+              value: appConfig.aiInsightSummaryEnabled,
+              onChanged: (value) => appProvider.updateConfig(
+                appProvider.appConfig.copyWith(aiInsightSummaryEnabled: value),
+              ),
+            ),
+          ],
 
           const SizedBox(height: 24),
           _buildSectionHeader(context, _text('语音输入', 'Voice Input')),

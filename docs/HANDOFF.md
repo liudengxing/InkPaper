@@ -4,6 +4,7 @@
 > 最后更新：2026-11-22 · 已通过真机验收的版本 `1.1.137+10237`
 >
 > 配套文档：
+> - **`docs/architecture/ENGINEERING_AUDIT.md`** — 工程优化执行队列与当轮交接卡片（新会话先读文首「交接卡片」）
 > - **`docs/development/LESSONS_LEARNED.md`** — 踩坑与经验（构建、时间戳、小组件、同步、发版），开工前先扫一遍
 > - **`docs/BUSINESS_OVERVIEW.md`** — 业务流程、关联规则、参数速查和真机调试参数
 > - `PROGRESS.md` — 逐条工作记录（最新在最前）

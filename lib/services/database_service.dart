@@ -39,6 +39,24 @@ class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   static Database? _database;
 
+  /// 笔记语料版本号：每写一次 note 行就自增。
+  ///
+  /// 随机漫步 / 相关笔记的索引是从全库笔记派生出来的，只在语料变化时才需要
+  /// 重建。以前靠「任何 `notifyListeners()` 都清空索引」来保证新鲜，代价是
+  /// 切排序、翻页、切筛选也会让下一次探索重查全库并重跑后台 isolate。改成
+  /// 版本号后，派生数据的缓存只需比较这一个数。
+  ///
+  /// 只在「确实改变了笔记行」的方法里自增；读路径（分页、搜索、按媒体筛选）
+  /// 一律不动它。宁可多重建一次，也不要漏一次让探索结果过期，所以元数据写入
+  /// （`remote_id`、`is_synced`）也算在内。
+  static int _notesRevision = 0;
+
+  static int get notesRevision => _notesRevision;
+
+  static void _bumpNotesRevision() {
+    _notesRevision++;
+  }
+
   Future<Database> get database async {
     if (_database != null) {
       return _database!;
@@ -407,6 +425,7 @@ class DatabaseService {
       whereArgs: [note.id],
     );
     if (updated > 0) {
+      _bumpNotesRevision();
       return;
     }
     await db.insert(
@@ -414,6 +433,7 @@ class DatabaseService {
       map,
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
+    _bumpNotesRevision();
   }
 
   // 更新笔记
@@ -425,6 +445,7 @@ class DatabaseService {
       where: "id = ? AND IFNULL(rowStatus, 'NORMAL') <> 'DELETED'",
       whereArgs: [note.id],
     );
+    _bumpNotesRevision();
   }
 
   /// 修正历史数据里「updatedAt 早于 createdAt」的行（时区错位一天等）。
@@ -453,6 +474,7 @@ class DatabaseService {
       fixed++;
     }
     if (fixed > 0) {
+      _bumpNotesRevision();
       debugPrint('DatabaseService: 修正 $fixed 条笔记的 updatedAt（早于 createdAt）');
     }
     return fixed;
@@ -466,6 +488,7 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+    _bumpNotesRevision();
   }
 
   // ── 软删除 / 最近删除 ─────────────────────────────────────────────────
@@ -487,6 +510,7 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+    _bumpNotesRevision();
 
     // 服务端笔记需要删除远端数据：先入队，删除失败时由同步补交
     if (!Note.isLocalId(id)) {
@@ -510,6 +534,7 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+    _bumpNotesRevision();
   }
 
   /// 「最近删除」列表，按删除时间倒序。
@@ -544,15 +569,20 @@ class DatabaseService {
       where: "id = ? AND IFNULL(rowStatus, 'NORMAL') = 'DELETED'",
       whereArgs: [id],
     );
+    _bumpNotesRevision();
   }
 
   /// 清空「最近删除」，返回被彻底删除的条数。
   Future<int> purgeAllDeletedNotes({DatabaseExecutor? executor}) async {
     final db = executor ?? await database;
-    return db.delete(
+    final removed = await db.delete(
       'notes',
       where: "IFNULL(rowStatus, 'NORMAL') = 'DELETED'",
     );
+    if (removed > 0) {
+      _bumpNotesRevision();
+    }
+    return removed;
   }
 
   // ── 待同步的远端操作（删除补交） ─────────────────────────────────────
@@ -886,6 +916,7 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [localId],
     );
+    _bumpNotesRevision();
   }
 
   // 标记笔记为已同步
@@ -897,6 +928,7 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+    _bumpNotesRevision();
   }
 
   // 清空所有笔记
@@ -906,6 +938,7 @@ class DatabaseService {
       await txn.delete('reminder_notifications');
       await txn.delete('notes');
     });
+    _bumpNotesRevision();
   }
 
   // 批量保存笔记（upsert：存在则更新，不存在则插入，已软删的行不会被复活）
@@ -933,6 +966,7 @@ class DatabaseService {
         await txn.insert('notes', note.toMap());
       }
     });
+    _bumpNotesRevision();
   }
 
   /// 把云备份的笔记合并进本地库（不清空现有数据）。
@@ -990,9 +1024,13 @@ class DatabaseService {
     final db = executor ?? await database;
     if (executor != null) {
       // 调用方已在事务里（测试场景），不再嵌套
-      return runMerge(db);
+      final result = await runMerge(db);
+      _bumpNotesRevision();
+      return result;
     }
-    return (await database).transaction(runMerge);
+    final result = await (await database).transaction(runMerge);
+    _bumpNotesRevision();
+    return result;
   }
 
   /// 删除服务器已不存在的本地已同步笔记（安全清理，不影响未同步数据）
@@ -1003,12 +1041,15 @@ class DatabaseService {
     final db = await database;
     final placeholders = List.filled(serverIds.length, '?').join(',');
     // 软删行由删除同步与 GC 负责，这里不参与剪枝
-    await db.delete(
+    final removed = await db.delete(
       'notes',
       where: "is_synced = 1 AND IFNULL(rowStatus, 'NORMAL') <> 'DELETED' "
           'AND id NOT IN ($placeholders)',
       whereArgs: serverIds,
     );
+    if (removed > 0) {
+      _bumpNotesRevision();
+    }
   }
 
   // 按标签获取笔记（整词精确匹配，不会把“工作”匹配到“工作会议”）
@@ -1408,6 +1449,7 @@ class DatabaseService {
       }
       await batch.commit(noResult: true);
     });
+    _bumpNotesRevision();
   }
 
   // 批量插入笔记（增量同步专用）
@@ -1428,5 +1470,6 @@ class DatabaseService {
       }
       await batch.commit(noResult: true);
     });
+    _bumpNotesRevision();
   }
 }

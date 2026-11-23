@@ -101,8 +101,14 @@ void main() {
     expect(await provider.loadNoteDiscoveryIndex(), same(first));
     expect(provider.reads, 1);
 
-    provider.library = [_note('current', '一条记录')];
+    // 切排序、翻页这类只是列表视图状态：通知了也不该让语料索引失效。
     provider.notifyListeners();
+    expect(await provider.loadNoteDiscoveryIndex(), same(first));
+    expect(provider.reads, 1);
+
+    // 真正的语料变化（这里用版本号模拟写库）才重建。
+    provider.library = [_note('current', '一条记录')];
+    provider.revision++;
 
     final updated = await provider.loadNoteDiscoveryIndex();
     expect(updated.rankRelatedNotes('current'), isEmpty);
@@ -145,10 +151,14 @@ void main() {
 
 class _LibraryProvider extends AppProvider {
   int reads = 0;
+  int revision = 0;
   List<Note> library = [
     _note('current', '一条记录 [[older]]'),
     _note('older', '早期记录'),
   ];
+
+  @override
+  int get noteDiscoveryRevision => revision;
 
   @override
   Future<List<Note>> loadRandomWalkNotes() async {

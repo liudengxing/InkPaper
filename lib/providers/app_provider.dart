@@ -49,6 +49,7 @@ import 'package:inkpaper/utils/note_sorting_helper.dart';
 import 'package:inkpaper/utils/note_tags_helper.dart' as note_tags;
 import 'package:inkpaper/utils/notes_pagination_helper.dart' as paging;
 import 'package:inkpaper/utils/performance_tracker.dart';
+import 'package:inkpaper/utils/revisioned_future_cache.dart';
 import 'package:inkpaper/utils/sync_merge_helper.dart' as sync_merge;
 import 'package:inkpaper/utils/sync_status_helper.dart' as sync_status;
 import 'package:inkpaper/widgets/cached_avatar.dart';
@@ -353,7 +354,9 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   @override
   void notifyListeners() {
     _clearNotesCache();
-    _noteDiscoveryIndex = null;
+    // 探索索引不在这里清。它只依赖库里的语料，由 `DatabaseService.notesRevision`
+    // 判定是否过期：切排序、翻页、切筛选、同步进度这些通知都不该让下一次
+    // 进入随机漫步重查全库并重跑后台 isolate。
     super.notifyListeners();
   }
 
@@ -640,8 +643,10 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   bool get isWebDavEnabled => _webDavStore.config.enabled;
 
   /// 更新内存中的笔记（用于本地引用服务通知）
+  ///
+  /// 索引不在这里失效：引用重建本身会写库，语料版本号随之自增；只有内存里
+  /// 这一份变了、库里没变时，探索索引也不该为了它重查全库。
   void updateNoteInMemory(Note updatedNote) {
-    _noteDiscoveryIndex = null;
     final index =
         _notesStore.notes.indexWhere((note) => note.id == updatedNote.id);
     if (index != -1) {
@@ -1594,28 +1599,28 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
   }
 
-  Future<RandomWalkIndex>? _noteDiscoveryIndex;
+  /// 探索索引依赖的语料版本号。
+  ///
+  /// 生产环境取数据库的写入版本；测试覆盖它就能模拟「写库了/没写库」，不必
+  /// 真的落盘。
+  @protected
+  int get noteDiscoveryRevision => DatabaseService.notesRevision;
 
-  /// 两个探索入口共用按需创建的全库索引。首页翻页只改变已加载的页数。
-  Future<RandomWalkIndex> loadNoteDiscoveryIndex() async {
-    while (true) {
-      final building = _noteDiscoveryIndex ??= loadRandomWalkNotes().then(
-        (notes) =>
-            compute(RandomWalkIndex.new, notes, debugLabel: 'note-discovery'),
-      );
-      try {
-        final index = await building;
-        if (identical(building, _noteDiscoveryIndex)) {
-          return index;
-        }
-      } on Object {
-        if (identical(building, _noteDiscoveryIndex)) {
-          _noteDiscoveryIndex = null;
-          rethrow;
-        }
-      }
-    }
-  }
+  /// 两个探索入口共用按需创建的全库索引。
+  ///
+  /// 缓存是否有效由 [noteDiscoveryRevision] 判定：只有写库改变了语料
+  /// （正文、标签、关系、可见性、增删）才重建。切排序、首页翻页、切换筛选都
+  /// 只改列表视图状态，下一次进入随机漫步应直接命中这份索引。
+  late final RevisionedFutureCache<RandomWalkIndex> _noteDiscoveryIndex =
+      RevisionedFutureCache<RandomWalkIndex>(
+    revision: () => noteDiscoveryRevision,
+    build: () => loadRandomWalkNotes().then(
+      (notes) =>
+          compute(RandomWalkIndex.new, notes, debugLabel: 'note-discovery'),
+    ),
+  );
+
+  Future<RandomWalkIndex> loadNoteDiscoveryIndex() => _noteDiscoveryIndex.value;
 
   /// 漫步需要区分空库和读取失败，且起点不受首页分页限制。
   Future<List<Note>> loadRandomWalkNotes() async =>

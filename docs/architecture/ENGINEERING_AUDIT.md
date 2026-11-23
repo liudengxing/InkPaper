@@ -8,15 +8,15 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-23 · 代码提交 `6a75cca`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-04（P2 · §4 桌面小组件） |
+| 最后更新 | 2026-11-23 · 代码提交 `54e0242`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-06A（P2 · §6 首屏并行读取） |
 | 任务状态 | 待验收 |
-| 可复查改动 | ① 回顾候选改为「洗牌后边取边判可见文字，取满即停」，不再对全库跑 `previewVisibleText`；② 新增 `DatabaseService.getWidgetStatNotes()`（窄列，不读 relations JSON）供统计与回顾，`getRecentActiveNotes(20)` 取完整行供首屏快照落盘；③ `AppProvider` 快照调度拆成「统计笔记 + 首屏笔记」两批传入 |
-| 验证结果 | `analyze` 无 issue；`flutter test --concurrency=4` 全量 **1089 项全过**（原 1084 + 5）；本机内存库校准（1500 条）：改造前 `getNotes()` 302ms + 全库解析 544ms，改造后窄列 242ms + 首屏 5ms + 构建 98~131ms，解析次数 1500 → 8；反向验证三项各自失败：窄列改回 `SELECT *` → WSR-01 红、首屏改窄列 → WSR-03 红、选择器改回全筛 → WSR-04 红（解析 300 次） |
-| 未验证 / 待测 | 无真机（保存/删除后帧时间、冷启动首帧交 OPT-M01）；统计行仍是逐条构造 `Note`（约占 242ms 读的一半），待办计数仍每次全库重算；只测了 1500 条的合成库，未覆盖万条或超长正文 |
-| 下一项 | OPT-04B（统计行按行聚合 + 待办计数增量，见本轮未验证项）或 OPT-06A（§6 首屏）；OPT-02B 等 OPT-02A 验收、OPT-09B 等 OPT-09A 验收 |
+| 可复查改动 | ① 新增 `lib/utils/startup_essentials.dart` 的 `loadStartupEssentials()`：六项首帧准备（日期格式、图片/附件/缩略图缓存、首屏快照、外壳配置）连续发起后一次 `Future.wait`，首屏快照与主题配置不再排在前四项之后；② `FeatureFlagService` 拆成 `loadLocal()`（首帧前只读 SharedPreferences）与 `refreshRemote()`（首帧后异步），开屏不再可能等远程 HTTP 的 5 秒超时；③ `lib/main.dart` 相应收薄 |
+| 验证结果 | `analyze` 无 issue；`dart tool/inkpaper.dart format` → 319 文件 0 changed；`flutter test --concurrency=4` **1096 项全过**（原 1089 + 7）。首跑有一次 `note_editor_draft_image_test` 的清理竞态失败（单跑 9 项全过，复跑全量全绿），与启动改动无关。反向验证（改回逐项 await 再发起）SE-01/02/03 分别失败：发起数 6 → 1、耗时 52ms → 258ms、「快照先好」变 false |
+| 未验证 / 待测 | 无真机（首帧与可交互时间、Keystore 冷启动读取耗时交 OPT-M01）；收益只在本机合成夹具上量过（六个 50ms 任务并行 52ms / 串行 258ms；单项实测 DateFormatting 11ms、空配置读取 7ms、20 条快照回读 5~13ms）；缩略图索引扫描仍卡在首帧前，冷缓存下的真实耗时未测 |
+| 下一项 | OPT-06C（缩略图索引移出首帧）或 OPT-07A（§7 图片）；OPT-02B / OPT-09B / OPT-04B 仍等各自前置验收 |
 | 待用户决策 | ① OPT-01 顺带发现的「归档行被剪枝」是 bug 还是设计；② 完整空清单的同步产品规则；③ `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓，等明确启用 |
-| 工作区注意事项 | 另有会话在改启动图（`flutter_native_splash.yaml`、`android/app/src/main/res/values*/styles.xml`、`colors.xml`、`lib/main.dart`、`assets/images/splash_inkpaper.png`），另有一处未提交的 `docs/README.md` 增加审查文档索引链接，均非本轮产物，勿回退或顺手带上；发版、推送、装机需单独授权 |
+| 工作区注意事项 | 另有会话在改启动图（`flutter_native_splash.yaml`、`android/app/src/main/res/values*/styles.xml`、`colors.xml`、`lib/main.dart`、`assets/images/splash_inkpaper.png`、`drawable/inkpaper_launch_background.xml`），另有一处未提交的 `docs/README.md` 增加审查文档索引链接，均非本轮产物，勿回退或顺手带上。**`lib/main.dart` 同时被两边改**：本轮只提交了自己那 5 个 hunk（`git hash-object` + `update-index` 精确入索引），启动图那笔仍留在工作区；发版、推送、装机需单独授权 |
 
 ## 执行队列
 
@@ -34,7 +34,8 @@
 | OPT-10B | P2 | 待验收 | §10 笔记引用 | `rebuildAllReferences` 只遍历已加载页（见 OPT-10 顺带发现）。改成按库全量重建，验证引用多的老库与分页状态。 |
 | OPT-04 | P2 | 待验收 | §4 小组件 | 先缩减一次快照构建中读取的完整笔记范围，核对待办计数、回顾和首屏结果。 |
 | OPT-04B | P3 | 待办 | §4 小组件 | 统计行仍逐条构造 `Note`、待办计数每次重算。评估按行聚合与待办计数增量维护（见 OPT-04 未验证项）。 |
-| OPT-06A | P2 | 待办 | §6 首屏 | 先调整配置和首屏快照的并行读取，验证主题与语言、离线和空缓存启动。 |
+| OPT-06A | P2 | 待验收 | §6 首屏 | 先调整配置和首屏快照的并行读取，验证主题与语言、离线和空缓存启动。 |
+| OPT-06C | P3 | 待办 | §6 首屏 | 缩略图索引仍卡在首帧前（5000 个文件约 37ms，冷缓存更慢）。评估 `lookup` 按需 stat 兜底后把扫描移到首帧后，验证首帧出图与内存。 |
 | OPT-07A | P2 | 待办 | §7 图片 | 先约束缩略图像素和查看器预取保留范围，验证长图、方向、透明度和回看。可拆成两轮。 |
 | OPT-07B | P2 | 待办 | §7 本地备份 | 优先验证现有 Dart 的流式归档方案。导入暂存与失败清理单独交付。均需覆盖历史备份、附件和失败重试。 |
 | OPT-05 | P2 | 待评估 | §5 搜索 | 先用可复现样本判定 SQL 扫描或结果装载的主要成本，再决定分批或全文索引。 |
@@ -162,6 +163,23 @@
 - **未验证**：① 无真机，保存/删除后的实际帧时间与冷启动首帧表现未测，交 OPT-M01；② 统计这批仍是逐条构造 `Note`（约 240ms 里大半是 `DateTime.parse` ×3 + 构造），要再降得改成「按行聚合 + 只在选中项上取完整笔记」，已登记 OPT-04B；③ 待办计数仍每次全库重算（1500 条约 5ms，暂不是瓶颈）；④ 只测了 1500 条的合成库，万条或超长正文未覆盖。
 - **提交**：`6a75cca`（代码 + 测试）。
 - **建议下一项**：OPT-04B（OPT-04 的剩余部分）或 OPT-06A（§6 首屏）；OPT-02B 等 OPT-02A 验收、OPT-09B 等 OPT-09A 验收。
+
+### 2026-11-23 · OPT-06A · 待验收
+
+- **问题核对**：`_initializeApp` 里日期格式、图片缓存、附件缓存、缩略图索引四项先并发发起（这一点早已改过），但**首屏快照与主题/语言配置是在这四项 `await` 完之后才起跑**的，总耗时 = 最慢的四项 + 较慢的这两项。另外 `FeatureFlagService.init()` 在首帧前 `await`，它内部 `_fetchFromRemote` 是一次 HTTP（超时 5 秒）：默认 `FEATURE_FLAG_URL` 为空会早退，一旦构建时配了就是开屏等网络。全仓无任何 `FeatureFlagService().isEnabled` 调用点，这笔等待目前只服务本地缓存。
+- **改动**：
+  - `lib/utils/startup_essentials.dart`（新增）：`loadStartupEssentials()` 把六项准备连续发起再一次 `Future.wait` 收口，返回 `StartupEssentials(feedSnapshot, appConfig)`。六项都能注入（`StartupTask<T>`），测试可替换。文件头逐项标注「为什么它必须卡在首帧前」。
+  - `lib/main.dart`：改为 `final essentials = await essentialsFuture`，`timeago` 注册与图片缓存上限仍在这段等待之间同步设置；`runApp` 之后新增 `unawaited(FeatureFlagService().refreshRemote())`。
+  - `lib/services/feature_flag_service.dart`：拆出 `loadLocal()` / `refreshRemote()`，`init()` 保留为两者串联的兼容入口并注明启动路径不要用它。
+- **测试**：新增 `test/unit/startup_essentials_test.dart` 7 条——SE-01 六项全部发起后才开始等待（闸门夹具，发起数必须为 6）；SE-02 六个 50ms 任务总耗时 < 150ms（串行是 300ms）；SE-03 缩略图卡住时快照与配置已先好、整体仍未完成；SE-04 空缓存 + 离线（真实默认加载器 + path_provider/安全存储 mock）返回空快照、默认主题、locale 为 null，且 `DateFormat('zh_CN')` 已可用；SE-05 20 条快照回读字段完整；SE-06 功能开关 `loadLocal()` 后 `isEnabled` 立刻反映本地缓存；SE-07 已保存的深色主题与 en_US 通过 `AppProvider(initialConfig:)` 在首帧即生效（系统为浅色）。
+- **验证**：`dart analyze lib test` → No issues found；`dart tool/inkpaper.dart format` → 319 文件 0 changed；`flutter test --concurrency=4` → **1096 项全过**（原 1089 + 7）。首跑出现过一次 `test/widget_tests/note_editor_draft_image_test.dart` 的 tearDown 清理竞态失败（该文件单跑 9 项全过，紧接着的全量复跑全绿），与启动代码无关，属既有的并发抖动。
+- **反向验证**：把六项改回「前一项 `await` 完再发起下一项」——SE-01 发起数 6 → 1、SE-02 实测 258ms（阈值 150ms）、SE-03「快照已好」变 false；SE-04/05/06/07 仍过（它们不测顺序）。恢复后全绿。
+- **量级校准**（本机、内存库/合成数据、**非真机**）：六个 50ms 合成任务并行 50~52ms、串行 258ms；单项实测 `initializeDateFormatting('zh_CN')` 11ms、`loadAppConfig()`（空配置、安全存储走 mock）7ms、20 条快照（13.8KB）回读 5~13ms、`ThumbCache.prepare()` 空目录 9ms / 5000 文件 37ms。按此估算本机合成样本省 10~20ms；真机上配置读取要过 4 次 Keystore、磁盘是冷缓存，实际收益更大，但必须真机校准。
+- **行为变化**：快照与配置内容不变；区别只有时序。功能开关的**远程**值现在首帧之后才可能生效——目前没有任何读取点，安全。
+- **未验证**：① 无真机，首帧/可交互时间未测（交 OPT-M01）；② 缩略图索引扫描仍在首帧前，冷缓存下的真实耗时未测；③ `StartupCover` 那段启动图改动属另一会话，未参与本轮验证。
+- **顺带登记**：OPT-06C——用「`lookup` 未命中索引时按需 stat」把缩略图扫描移到首帧后，代价是每张卡多一次同步 stat。
+- **提交**：`54e0242`（代码 + 测试）。`lib/main.dart` 与另一会话的启动图改动同文件，本轮用 `git hash-object -w --path` + `update-index --cacheinfo` 只把自己那 5 个 hunk 写进索引，未把启动图那笔带进提交。
+- **建议下一项**：OPT-06C（本轮量出来的剩余项）或 OPT-07A（§7 图片）；OPT-02B / OPT-09B / OPT-04B 仍等各自前置验收。
 
 ## 现有架构
 

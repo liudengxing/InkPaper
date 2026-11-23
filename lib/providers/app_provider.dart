@@ -90,6 +90,13 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   // 🚀 大厂标准：分页加载相关
   static const int _pageSize = 50;
 
+  /// 首页分页查询的代数号。
+  ///
+  /// 每次重查首屏（启动、导入后刷新、切换排序）都 +1，异步结果回来时对不上
+  /// 就整份丢弃：否则切换排序时，上一版查询的迟到结果会把新排序的列表覆盖
+  /// 回去，而且分页偏移也属于旧口径。
+  int _notesQueryEpoch = 0;
+
   /// 单条笔记连续上传失败达到这个次数后暂停自动重试。
   ///
   /// 内容被服务端拒绝（超长、格式不合规、权限不足）时重试多少次都不会成功，
@@ -361,12 +368,25 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   void notifyUiStateChanged() => super.notifyListeners();
 
   // 设置排序方式
-  void setSortOrder(SortOrder sortOrder) {
-    if (_notesStore.sortOrder != sortOrder) {
-      _notesStore.sortOrder = sortOrder;
-      _clearNotesCache();
+  //
+  // 排序字段参与 SQL 的 ORDER BY，所以切换后必须从第 0 页重查：只对已加载的
+  // 50 条重排，等于把「最近编辑」当成「最近 50 条里按编辑时间排」，更深处的
+  // 老笔记永远出不来。
+  Future<void> setSortOrder(SortOrder sortOrder) async {
+    if (_notesStore.sortOrder == sortOrder) {
+      return;
+    }
+    _notesStore.sortOrder = sortOrder;
+    _clearNotesCache();
+    try {
+      await loadInitialNotes();
+    } on Object catch (e) {
+      debugPrint('AppProvider: 切换排序后重查首页失败: $e');
+      // 重查失败时至少把已加载的部分按新规则排好，界面不会停在旧顺序
       notifyListeners();
     }
+    // 筛选态的列表是另一份全量结果，排序规则同源，也要跟着重查
+    _refreshMediaFilterIfActive();
   }
 
   // Getters
@@ -489,13 +509,20 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     if (!isMediaFilterActive) {
       return;
     }
+    final sortOrder = _notesStore.sortOrder;
     try {
-      final matched = await _databaseService.getNotesByMedia(_mediaFilter);
-      final visible = matched.where(_isVisibleNote).toList()
-        ..sort(noteComparator(_getCurrentSortOrder()));
-      if (!isMediaFilterActive || _mediaFilter == NoteMediaFilter.all) {
+      final matched = await _databaseService.getNotesByMedia(
+        _mediaFilter,
+        sortOrder: sortOrder,
+      );
+      if (!isMediaFilterActive ||
+          _mediaFilter == NoteMediaFilter.all ||
+          sortOrder != _notesStore.sortOrder) {
+        // 筛选已关闭，或期间用户又换了排序（新的一次 reload 已经在路上）
         return;
       }
+      final visible = matched.where(_isVisibleNote).toList()
+        ..sort(noteComparator(sortOrder));
       _mediaFilteredNotes = List<Note>.unmodifiable(visible);
     } on Object catch (e) {
       debugPrint('AppProvider: 媒体筛选查询失败: $e');
@@ -1155,6 +1182,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   /// 🚀 分页加载初始笔记（性能优化 - 大厂最佳实践）
   /// 三阶段加载：极速首屏 → 预加载 → 后台任务
   Future<void> loadInitialNotes() async {
+    final epoch = ++_notesQueryEpoch;
     try {
       _notesStore.pagingState = paging.initialNotesPaginationState();
 
@@ -1163,8 +1191,18 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       // SQLite 本地读取极快（< 10ms），直接加载完整第一页，无需分步延迟
       final firstPage = _excludePendingDeletedNotes(
-        await _databaseService.getNotesPaged(),
+        await _databaseService.getNotesPaged(
+          sortOrder: _notesStore.sortOrder,
+        ),
       );
+
+      if (epoch != _notesQueryEpoch) {
+        // 期间又发起了一次重查（切换排序 / 导入后刷新），这份结果已过期
+        if (kDebugMode) {
+          debugPrint('AppProvider: 丢弃过期的首屏查询结果');
+        }
+        return;
+      }
 
       _notesStore.notes = firstPage;
       _notesStore.pagingState = paging.applyInitialPageResult(
@@ -1213,6 +1251,10 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     // 3️⃣ 创建新的 Completer
     _notesStore.loadMoreCompleter = Completer<void>();
 
+    // 记下本次查询属于哪一版：期间若切换了排序（首屏已从第 0 页重查），
+    // 这一页的偏移属于旧口径，结果必须丢掉
+    final epoch = _notesQueryEpoch;
+
     // 4️⃣ 开始性能监控
     _notesStore.loadStopwatch.reset();
     _notesStore.loadStopwatch.start();
@@ -1228,8 +1270,15 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       final moreNotes = _excludePendingDeletedNotes(
         await _databaseService.getNotesPaged(
           page: _notesStore.pagingState.currentPage,
+          sortOrder: _notesStore.sortOrder,
         ),
       );
+
+      if (epoch != _notesQueryEpoch) {
+        debugPrint('AppProvider: 丢弃过期的续页结果（排序或筛选已变化）');
+        _notesStore.loadMoreCompleter!.complete();
+        return;
+      }
 
       // 7️⃣ 处理加载结果
       if (moreNotes.isNotEmpty) {
@@ -1272,6 +1321,13 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     } on Object catch (e, stackTrace) {
       // ❌ 错误处理
       _notesStore.loadStopwatch.stop();
+
+      if (epoch != _notesQueryEpoch) {
+        // 属于旧口径的失败，不该把新查询的分页状态改成 failed
+        _notesStore.loadMoreCompleter!.complete();
+        return;
+      }
+
       _notesStore.pagingState =
           paging.applyLoadMoreFailure(_notesStore.pagingState);
 
@@ -1298,8 +1354,12 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       rethrow;
     } finally {
-      // 重置状态（如果不是 noMore）
-      _notesStore.pagingState = paging.endLoadAttempt(_notesStore.pagingState);
+      // 重置状态（如果不是 noMore）；过期查询不碰新查询的分页状态
+      if (epoch == _notesQueryEpoch) {
+        _notesStore.pagingState = paging.endLoadAttempt(
+          _notesStore.pagingState,
+        );
+      }
     }
   }
 
@@ -2723,7 +2783,11 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   }
 
   // 获取当前的排序方式
-  SortOrder _getCurrentSortOrder() => inferCurrentSortOrder(_notesStore.notes);
+  //
+  // 直接用用户选中的排序，不再从列表内容反推。反推只在「列表永远按 createdAt
+  // DESC 装载」时才成立；现在 DB 会按选中字段排序，content 顺序里已经看不出
+  // 是哪种排序，反推会把它认成 newest 并在置顶/编辑后整表重排错。
+  SortOrder _getCurrentSortOrder() => _notesStore.sortOrder;
 
   // 切换到本地模式
   Future<void> switchToLocalMode() async {

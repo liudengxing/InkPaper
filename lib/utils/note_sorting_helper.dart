@@ -1,81 +1,50 @@
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/models/sort_order.dart';
 
+/// 首页列表的排序子句，供 SQLite 分页查询使用。
+///
+/// 必须和 [noteComparator] 逐级对应：先置顶，再所选时间字段，最后用 `id`
+/// 兜底。没有第三级时，同一秒创建的多条笔记在两次查询里的先后可能不同，
+/// 而分页是按 `OFFSET` 取页的 —— 并列项一换位就会重复显示或漏掉。
+///
+/// `isPinned` 用 `IFNULL` 兜老库里可能存在的 NULL（SQLite 把 NULL 当最小值，
+/// 不兜的话 `DESC` 会把它们排到有置顶标记的行后面，和 Dart 侧 `isPinned=false`
+/// 的口径对不上）。
+String noteOrderBySql(SortOrder order) => switch (order) {
+      SortOrder.newest => 'IFNULL(isPinned, 0) DESC, createdAt DESC, id DESC',
+      SortOrder.oldest => 'IFNULL(isPinned, 0) DESC, createdAt ASC, id ASC',
+      SortOrder.updated => 'IFNULL(isPinned, 0) DESC, updatedAt DESC, id DESC',
+      SortOrder.updatedOldest =>
+        'IFNULL(isPinned, 0) DESC, updatedAt ASC, id ASC',
+    };
+
+/// 该排序是倒序还是正序；`id` 并列兜底跟着同一方向，让「从旧到新」正好是
+/// 「从新到旧」的镜像。
+bool _isDescending(SortOrder order) =>
+    order == SortOrder.newest || order == SortOrder.updated;
+
 int Function(Note a, Note b) noteComparator(SortOrder order) => (a, b) {
-      // pinned first
-      if (a.isPinned && !b.isPinned) {
-        return -1;
-      }
-      if (!a.isPinned && b.isPinned) {
-        return 1;
+      // 置顶优先，和 noteOrderBySql 的第一级一致
+      if (a.isPinned != b.isPinned) {
+        return a.isPinned ? -1 : 1;
       }
 
-      return switch (order) {
+      final byTime = switch (order) {
         SortOrder.newest => b.createdAt.compareTo(a.createdAt),
         SortOrder.oldest => a.createdAt.compareTo(b.createdAt),
         SortOrder.updated => b.updatedAt.compareTo(a.updatedAt),
         SortOrder.updatedOldest => a.updatedAt.compareTo(b.updatedAt),
       };
+      if (byTime != 0) {
+        return byTime;
+      }
+
+      // 时间相同用 id 兜底，保证总序与 SQL 的 ORDER BY 完全一致
+      return _isDescending(order) ? b.id.compareTo(a.id) : a.id.compareTo(b.id);
     };
 
 List<Note> sortedNotesCopy(List<Note> notes, SortOrder order) {
   final sorted = List<Note>.from(notes);
   sorted.sort(noteComparator(order));
   return sorted;
-}
-
-/// Infers current sort order from a list already sorted with pinned notes first.
-///
-/// 用相邻对投票而不是只比较前两条：创建时间整列单调就认定是按创建时间排序，
-/// 否则再看编辑时间。只比较前两条时，「创建顺序与编辑顺序恰好相反」的列表
-/// 会被误判成按编辑时间排序。
-SortOrder inferCurrentSortOrder(List<Note> notes) {
-  final unpinned = notes.where((n) => !n.isPinned).toList();
-  if (unpinned.length < 2) {
-    return SortOrder.newest;
-  }
-
-  final pairs = unpinned.length - 1;
-  var createdDesc = 0;
-  var createdAsc = 0;
-  var updatedDesc = 0;
-  var updatedAsc = 0;
-
-  for (var i = 0; i < pairs; i++) {
-    final a = unpinned[i];
-    final b = unpinned[i + 1];
-    if (!a.createdAt.isBefore(b.createdAt)) {
-      createdDesc++;
-    }
-    if (!a.createdAt.isAfter(b.createdAt)) {
-      createdAsc++;
-    }
-    if (!a.updatedAt.isBefore(b.updatedAt)) {
-      updatedDesc++;
-    }
-    if (!a.updatedAt.isAfter(b.updatedAt)) {
-      updatedAsc++;
-    }
-  }
-
-  if (createdDesc == pairs) {
-    return SortOrder.newest;
-  }
-  if (createdAsc == pairs) {
-    return SortOrder.oldest;
-  }
-  if (updatedDesc == pairs) {
-    return SortOrder.updated;
-  }
-  if (updatedAsc == pairs) {
-    return SortOrder.updatedOldest;
-  }
-
-  // 数据不严格单调（例如同一秒创建的笔记）时按多数方向兜底
-  if (createdDesc >= createdAsc) {
-    return SortOrder.newest;
-  }
-  return updatedDesc >= updatedAsc
-      ? SortOrder.updated
-      : SortOrder.updatedOldest;
 }

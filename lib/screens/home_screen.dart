@@ -1120,7 +1120,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     if (selected.sortOrder != null) {
       setState(() => _currentSortOrder = selected.sortOrder!);
-      _applySorting();
+      await _applySorting();
       return;
     }
 
@@ -1247,9 +1247,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   // 应用排序
-  void _applySorting() {
+  //
+  // 排序字段进 SQL 之后，切换排序是从第 0 页重查，不是对已加载的 50 条重排。
+  Future<void> _applySorting() async {
     final appProvider = Provider.of<AppProvider>(context, listen: false);
-    appProvider.setSortOrder(_currentSortOrder);
+    await appProvider.setSortOrder(_currentSortOrder);
   }
 
   // 显示添加笔记表单

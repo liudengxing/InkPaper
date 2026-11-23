@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/models/note_media_filter.dart';
 import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/models/sort_order.dart';
+import 'package:inkpaper/utils/note_sorting_helper.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -720,17 +722,23 @@ class DatabaseService {
   }
 
   /// 分页获取笔记（性能优化）
+  ///
+  /// 排序完全由 [sortOrder] 决定（置顶优先 → 时间字段 → id 兜底），与首页
+  /// 内存里的 [noteComparator] 同一套规则。以前这里写死 `createdAt DESC`、
+  /// 再由首页对已加载的部分重排，切到「最近编辑」时深页里那条刚编辑过的
+  /// 老笔记要翻到底才会出现。
   Future<List<Note>> getNotesPaged({
     int page = 0,
     int pageSize = 50,
-    String? orderBy,
+    SortOrder sortOrder = SortOrder.newest,
+    DatabaseExecutor? executor,
   }) async {
-    final db = await database;
+    final db = executor ?? await database;
     final offset = page * pageSize;
 
     final List<Map<String, dynamic>> maps = await db.query(
       viewActiveNotes,
-      orderBy: orderBy ?? 'createdAt DESC',
+      orderBy: noteOrderBySql(sortOrder),
       limit: pageSize,
       offset: offset,
     );
@@ -752,10 +760,11 @@ class DatabaseService {
   /// 这几条规则散在 `MediaPaths` 里，抄一份到 SQL 里迟早和 Dart 侧对不上。
   Future<List<Note>> getNotesByMedia(
     NoteMediaFilter filter, {
-    String orderBy = 'createdAt DESC',
+    SortOrder sortOrder = SortOrder.newest,
     DatabaseExecutor? executor,
   }) async {
     final db = executor ?? await database;
+    final orderBy = noteOrderBySql(sortOrder);
     final List<Map<String, dynamic>> maps;
     if (filter == NoteMediaFilter.all) {
       maps = await db.query(viewActiveNotes, orderBy: orderBy);

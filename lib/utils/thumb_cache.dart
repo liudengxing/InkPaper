@@ -83,7 +83,10 @@ class ThumbCache {
   static Set<String> get skippedExtensions => _skipExtensions;
 
   /// 已生成的缩略图文件名。渲染发生在 build 里，不能做异步 IO，
-  /// 所以启动时扫一遍目录把名字读进内存，`lookup` 只查这个 Set。
+  /// 所以扫一遍目录把名字读进内存，`lookup` 只查这个 Set。
+  ///
+  /// 扫描不挡首帧（见 [prepare]），在它结束之前这个 Set 只含本进程新生成的
+  /// 条目，`lookup` 会用一次 stat 兜底，见 [_indexComplete]。
   final Set<String> _known = <String>{};
 
   /// 正在生成的，避免同一张图被列表里多个格子同时触发编码。
@@ -175,12 +178,36 @@ class ThumbCache {
   String? _imagesDirPath;
   Future<void>? _prepareFuture;
 
+  /// 目录扫描是否已经出结果。
+  ///
+  /// 扫描已从首帧前挪到首帧后（[prepare] 只等到目录建好就返回），在这个标志
+  /// 变 true 之前 [_known] 是不完整的：`lookup` 必须对未收录的名字补一次
+  /// stat，否则首屏会以为「一张缩略图都没有」而集体退回原图。
+  bool _indexComplete = false;
+
+  /// 目录扫描的 Future，给需要完整清单的后台任务（补齐、磁盘整理）等待用。
+  Future<void>? _indexFuture;
+
   bool get isReady => _dirPath != null;
 
   /// 缩略图目录路径，`main()` 里预热后才有值。
   String? get directoryPath => _dirPath;
 
-  /// 扫目录建索引。`main()` 里 `await` 一次，之后所有查询都是同步的。
+  /// 索引扫描完成（或扫描失败也照样完成）的 Future。
+  ///
+  /// 没有任何一次 [prepare] 时立即完成。`lookup` 不依赖它，只有「必须看到
+  /// 完整清单」的后台任务才等。
+  Future<void> get indexReady => _indexFuture ?? Future<void>.value();
+
+  /// 准备目录并开始扫索引。
+  ///
+  /// `main()` 里 `await` 这一次，但**只等到目录可用**：`getTemporaryDirectory`
+  /// 与 `create` 是毫秒级，真正慢的是把目录里几千个缩略图名字读进内存
+  /// （冷缓存下更慢），那一步放到 [indexReady] 后面跑，不再挡首帧。
+  ///
+  /// 扫描完成前 `lookup` 用一次同步 stat 兜底，命中就顺手补进索引，所以
+  /// 「首帧卡片退化成原图」这件事不会发生；代价只是这段时间里每张卡片多
+  /// 一次 stat（页缓存内微秒级）。
   Future<void> prepare({String? overrideDir, String? overrideImagesDir}) async {
     if (_dirPath != null && overrideDir == null) {
       return;
@@ -206,8 +233,14 @@ class ThumbCache {
     String? overrideImagesDir,
   }) async {
     try {
-      final docs = await getApplicationDocumentsDirectory();
-      _imagesDirPath = overrideImagesDir ?? '${docs.path}/images';
+      // 只在没有注入时才问平台要 documents 目录：测试注入图片目录时可以完全
+      // 不碰 path_provider。
+      var imagesDirPath = overrideImagesDir;
+      if (imagesDirPath == null) {
+        final docs = await getApplicationDocumentsDirectory();
+        imagesDirPath = '${docs.path}/images';
+      }
+      _imagesDirPath = imagesDirPath;
       final dirPath =
           overrideDir ?? '${(await getTemporaryDirectory()).path}/$_dirName';
       final dir = Directory(dirPath);
@@ -217,15 +250,33 @@ class ThumbCache {
       _dirPath = dirPath;
       _known.clear();
       _giveUp.clear();
-      await for (final entity in dir.list()) {
+      _startDiskIndex(dirPath);
+    } on Object catch (e) {
+      // 建不了缓存目录就退化成「永远不命中」，渲染会走原图，不该影响启动。
+      debugPrint('ThumbCache 初始化失败: $e');
+      _dirPath = null;
+    }
+  }
+
+  /// 发起目录扫描，不等待结果。
+  void _startDiskIndex(String dirPath) {
+    _indexComplete = false;
+    _indexFuture = _scanDisk(dirPath);
+  }
+
+  Future<void> _scanDisk(String dirPath) async {
+    try {
+      await for (final entity in Directory(dirPath).list()) {
         if (entity is File && !entity.path.endsWith('.writing')) {
           _known.add(p.basename(entity.path));
         }
       }
     } on Object catch (e) {
-      // 建不了缓存目录就退化成「永远不命中」，渲染会走原图，不该影响启动。
-      debugPrint('ThumbCache 初始化失败: $e');
-      _dirPath = null;
+      // 扫不动就当没有缩略图：`lookup` 的 stat 兜底仍然能找到已有的文件，
+      // 只是每张卡片都要 stat 一次。
+      debugPrint('ThumbCache 目录扫描失败: $e');
+    } finally {
+      _indexComplete = true;
     }
   }
 
@@ -265,17 +316,25 @@ class ThumbCache {
     if (name == null) {
       return null;
     }
-    if (_known.contains(name)) {
-      final file = File(p.join(dirPath, name));
+    final indexed = _known.contains(name);
+    // 扫描还没跑完时索引不完整，未收录的名字再花一次 stat 确认：
+    // 命中就补进索引，之后走快速路径；真没有才按未命中处理。
+    final file = File(p.join(dirPath, name));
+    if (indexed || !_indexComplete) {
       // 系统低存储、用户点「清理缓存」都会把 cacheDir 清空，而索引还在内存里。
       // 这里一次 stat 就能发现，顺手把条目踢掉、退回原图并触发重建；
       // stat 在页缓存里是微秒级，比让 Image.file 渲染成破图划算得多。
       if (file.existsSync()) {
+        if (!indexed) {
+          _known.add(name);
+        }
         _lookupHits++;
         _diskEntries[name]?.usedAt = DateTime.now();
         return file;
       }
-      _forget(name);
+      if (indexed) {
+        _forget(name);
+      }
     }
     _lookupMisses++;
     if (generateOnMiss &&
@@ -317,6 +376,11 @@ class ThumbCache {
         return target;
       }
       _forget(name);
+    } else if (!_indexComplete && await target.exists()) {
+      // 目录扫描还没跑完：文件可能早就在盘上（上次启动生成的），补进索引
+      // 直接复用，别把这张图重新解码一遍。
+      _known.add(name);
+      return target;
     }
     if (_clearing != null) {
       return null;
@@ -584,6 +648,10 @@ class ThumbCache {
     if (imagesDirPath == null) {
       return const <File>[];
     }
+    // 索引不完整时 `_known` 里没有存量缩略图，会把已经生成过的图全排进队列
+    // （`ensure` 会靠 stat 兜住、不会真重编码，但白扫一遍目录）。补齐本来就是
+    // 后台任务，等索引扫完再开始。
+    await indexReady;
     final imagesDir = Directory(imagesDirPath);
     if (!await imagesDir.exists()) {
       return const <File>[];
@@ -629,6 +697,9 @@ class ThumbCache {
       return;
     }
     try {
+      // 磁盘记账（`_diskBytes`）按 `_known` 逐条 stat，索引没扫完就记不全，
+      // 淘汰会算错。整理是后台任务，等扫描收尾即可。
+      await indexReady;
       if (!_diskIndexed) {
         for (final name in _known.toList()) {
           if (_diskEntries.containsKey(name)) {
@@ -735,6 +806,8 @@ class ThumbCache {
       return;
     }
     await Future.wait(_inflight.values.toList());
+    // 扫描可能还在读目录：先让它跑完，否则它会把刚删掉的名字又加回 `_known`。
+    await indexReady;
     await _maintenance;
     try {
       final dir = Directory(dirPath);
@@ -750,6 +823,9 @@ class ThumbCache {
       _diskEntries.clear();
       _diskBytes = 0;
       _diskIndexed = false;
+      // 目录已被清空重建，空索引就是完整索引。
+      _indexComplete = true;
+      _indexFuture = null;
     }
   }
 
@@ -805,12 +881,15 @@ class ThumbCache {
   }
 
   /// 仅测试用：直接注入索引与目录，跳过 path_provider。
+  ///
+  /// [indexScanned] 传 false 模拟「目录扫描还没跑完」的首帧窗口。
   @visibleForTesting
   void debugSeed({
     required String dirPath,
     String? imagesDirPath,
     Iterable<String> known = const <String>[],
     int diskLimit = _defaultDiskLimit,
+    bool indexScanned = true,
   }) {
     _dirPath = dirPath;
     _imagesDirPath = imagesDirPath;
@@ -823,7 +902,13 @@ class ThumbCache {
     _diskBytes = 0;
     _diskIndexed = false;
     _prepareFuture = null;
+    _indexFuture = null;
+    _indexComplete = indexScanned;
   }
+
+  /// 仅测试用：目录扫描是否已经有结果。
+  @visibleForTesting
+  bool get debugIndexComplete => _indexComplete;
 
   /// 仅测试用：换成同步编码器，避开 isolate。
   @visibleForTesting

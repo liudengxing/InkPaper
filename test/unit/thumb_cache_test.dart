@@ -425,4 +425,128 @@ void main() {
       expect(encodes, 1);
     });
   });
+
+  group('ThumbCache 索引扫描不挡首帧', () {
+    test('TC-22 prepare 只等到目录可用，扫描在后台完成', () async {
+      final cache = ThumbCache.instance;
+      final source = File(p.join(imagesDir, 'image_700.jpg'))
+        ..writeAsBytesSync(_makeImage(1200, 900));
+      final name = cache.fileNameFor(source.path)!;
+      final thumb = File(p.join(thumbsDir, name))
+        ..writeAsBytesSync(_makeImage(480, 360));
+
+      // 清掉 setUp 的索引，走真实的 prepare：目录已存在，扫描要另起
+      cache.debugSeed(
+        dirPath: thumbsDir,
+        imagesDirPath: imagesDir,
+        indexScanned: false,
+      );
+
+      await cache.prepare(overrideDir: thumbsDir, overrideImagesDir: imagesDir);
+      expect(
+        cache.debugIndexComplete,
+        isFalse,
+        reason: 'prepare 不该等目录扫描，否则首帧继续被它拖住',
+      );
+      expect(cache.knownCount, 0);
+
+      // 扫描窗口内首帧卡片照样命中已有缩略图
+      final hitsBefore = cache.lookupHits;
+      expect(cache.lookup(source.path)?.path, thumb.path);
+      expect(cache.lookupHits, hitsBefore + 1);
+
+      await cache.indexReady;
+      expect(cache.debugIndexComplete, isTrue);
+      expect(cache.knownCount, 1);
+    });
+
+    test('TC-23 兜底命中会补进索引，未命中的名字不入索引', () async {
+      final cache = ThumbCache.instance;
+      final cached = File(p.join(imagesDir, 'image_710.jpg'))
+        ..writeAsBytesSync(_makeImage(1200, 900));
+      final missing = File(p.join(imagesDir, 'image_711.jpg'))
+        ..writeAsBytesSync(_makeImage(1200, 900));
+      final name = cache.fileNameFor(cached.path)!;
+      File(p.join(thumbsDir, name)).writeAsBytesSync(_makeImage(480, 360));
+      cache.debugSeed(
+        dirPath: thumbsDir,
+        imagesDirPath: imagesDir,
+        indexScanned: false,
+      );
+
+      expect(cache.lookup(cached.path), isNotNull);
+      expect(cache.knownCount, 1, reason: '兜底命中的条目要收进索引');
+      // 再查一次走的是索引快速路径，仍然命中
+      expect(cache.lookup(cached.path), isNotNull);
+
+      final missesBefore = cache.lookupMisses;
+      expect(cache.lookup(missing.path), isNull);
+      expect(cache.knownCount, 1, reason: '没有文件的名字不能进索引');
+      expect(cache.lookupMisses, missesBefore + 1);
+    });
+
+    test('TC-24 扫描未完成时 ensure 复用盘上缩略图，不重新解码', () async {
+      var encodes = 0;
+      ThumbCache.instance.debugSetEncoder((bytes, width, lossless) async {
+        encodes++;
+        return ThumbCache.debugEncode(bytes, width, lossless: lossless);
+      });
+      final source = File(p.join(imagesDir, 'image_720.jpg'))
+        ..writeAsBytesSync(_makeImage(1600, 1200));
+      final name = ThumbCache.instance.fileNameFor(source.path)!;
+      final thumb = File(p.join(thumbsDir, name))
+        ..writeAsBytesSync(_makeImage(480, 360));
+      ThumbCache.instance.debugSeed(
+        dirPath: thumbsDir,
+        imagesDirPath: imagesDir,
+        indexScanned: false,
+      );
+
+      final result = await ThumbCache.instance.ensure(source.path);
+      expect(result?.path, thumb.path);
+      expect(encodes, 0, reason: '盘上已有的缩略图不能被重新编码一遍');
+      expect(ThumbCache.instance.knownCount, 1);
+    });
+
+    test('TC-25 索引扫描完成后不再对未知名字做 stat 兜底', () {
+      final cache = ThumbCache.instance;
+      final source = File(p.join(imagesDir, 'image_730.jpg'))
+        ..writeAsBytesSync(_makeImage(1200, 900));
+      final name = cache.fileNameFor(source.path)!;
+      File(p.join(thumbsDir, name)).writeAsBytesSync(_makeImage(480, 360));
+      // 索引标记为已完成但没有收录这个名字：以索引为准，退回原图
+      cache.debugSeed(dirPath: thumbsDir, imagesDirPath: imagesDir);
+
+      final missesBefore = cache.lookupMisses;
+      expect(cache.lookup(source.path), isNull);
+      expect(cache.lookupMisses, missesBefore + 1);
+    });
+
+    test('TC-26 prepare 后立刻补齐，不重复编码已有缩略图', () async {
+      final cache = ThumbCache.instance;
+      var encodes = 0;
+      cache.debugSetEncoder((bytes, width, lossless) async {
+        encodes++;
+        return ThumbCache.debugEncode(bytes, width, lossless: lossless);
+      });
+      final cached = File(p.join(imagesDir, 'image_740.jpg'))
+        ..writeAsBytesSync(_makeImage(1200, 900));
+      final name = cache.fileNameFor(cached.path)!;
+      File(p.join(thumbsDir, name)).writeAsBytesSync(_makeImage(480, 360));
+      File(p.join(imagesDir, 'image_741.jpg'))
+          .writeAsBytesSync(_makeImage(1200, 900));
+      cache.debugSeed(
+        dirPath: thumbsDir,
+        imagesDirPath: imagesDir,
+        indexScanned: false,
+      );
+
+      await cache.prepare(overrideDir: thumbsDir, overrideImagesDir: imagesDir);
+      await cache.startBackfill();
+
+      expect(encodes, 1, reason: '补齐只该生成缺的那张');
+      final files = Directory(thumbsDir).listSync().whereType<File>();
+      expect(files, hasLength(2));
+    });
+  });
 }

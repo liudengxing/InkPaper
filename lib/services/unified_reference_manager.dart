@@ -383,6 +383,124 @@ class UnifiedReferenceManager {
     }
   }
 
+  /// 维护入口：按库重建全部引用关系。
+  ///
+  /// 这段逻辑原先在 `AppProvider.rebuildAllReferences` 里，遍历的是
+  /// `_notesStore.notes` —— 首页分页缓存，只覆盖已加载的那几十条，剩下的笔记
+  /// 的引用关系从来不会被重建；中间还两次 `loadNotesFromLocal()` 把分页状态
+  /// 重置回初始（`hasMoreData` 变回 true 但 `currentPage` 也是 0），滑到底会按
+  /// 第 1 页再 `addAll` 一次已加载的笔记。
+  ///
+  /// 现在整段落在库里：
+  /// 1. `getNotes()` 全库读一次（重建本来就是全库操作）；
+  /// 2. 清空所有 REFERENCE / REFERENCED_BY —— 关系完全由正文决定，先清后建
+  ///    才不会留下正文里已经删掉的旧关系；
+  /// 3. 在内存里按正文解析引用，双向配对后一次批量写回。
+  ///
+  /// 与逐条 `updateReferencesFromContent` 的差别：不触发服务端同步、不逐条
+  /// 通知 UI（调用方重建后自己刷新列表）；自引用（`[[自己的 id]]`）不算引用，
+  /// 双向关系对一条笔记没有意义。返回带引用的笔记数。
+  Future<int> rebuildAllFromDatabase() async {
+    if (_databaseService == null) {
+      return 0;
+    }
+
+    final notes = await _databaseService!.getNotes();
+    if (notes.isEmpty) {
+      return 0;
+    }
+
+    final byId = <String, Note>{for (final note in notes) note.id: note};
+    final rebuiltRelations = <String, List<Map<String, dynamic>>>{
+      for (final note in notes) note.id: <Map<String, dynamic>>[],
+    };
+    final timestamp = DateTime.now().toIso8601String();
+
+    var notesWithReferences = 0;
+    for (final note in notes) {
+      final references = _parseReferencesFromText(note.content);
+      if (references.isEmpty) {
+        continue;
+      }
+
+      // 与保存路径同一套解析顺序：先按 id，再回落到正文/前缀。
+      final resolved = <String>{};
+      final unresolved = <String>[];
+      for (final refId in references) {
+        if (byId.containsKey(refId)) {
+          resolved.add(refId);
+        } else {
+          unresolved.add(refId);
+        }
+      }
+      for (final refId in unresolved) {
+        final targetId = _resolveLegacyReference(refId, notes);
+        if (targetId != null) {
+          resolved.add(targetId);
+        }
+      }
+      resolved.remove(note.id);
+
+      if (resolved.isEmpty) {
+        continue;
+      }
+      notesWithReferences++;
+      for (final targetId in resolved) {
+        rebuiltRelations[note.id]!.add({
+          'memoId': note.id,
+          'relatedMemoId': targetId,
+          'type': 'REFERENCE',
+          'synced': false,
+          'createdAt': timestamp,
+        });
+        rebuiltRelations[targetId]!.add({
+          'memoId': note.id,
+          'relatedMemoId': targetId,
+          'type': 'REFERENCED_BY',
+          'synced': false,
+          'createdAt': timestamp,
+        });
+      }
+    }
+
+    final changed = <Note>[];
+    for (final note in notes) {
+      final next = rebuiltRelations[note.id]!;
+      if (note.relations.isEmpty && next.isEmpty) {
+        continue;
+      }
+      if (_sameRelationSet(note.relations, next)) {
+        continue;
+      }
+      changed.add(note.copyWith(relations: next));
+    }
+
+    if (changed.isNotEmpty) {
+      await _databaseService!.updateNotesBatch(changed);
+      await _notifyNotesChanged(changed);
+    }
+    return notesWithReferences;
+  }
+
+  /// 两组关系是否等价（只看 type / memoId / relatedMemoId，不看时间戳与同步标记）。
+  bool _sameRelationSet(
+    List<Map<String, dynamic>> current,
+    List<Map<String, dynamic>> next,
+  ) {
+    if (current.length != next.length) {
+      return false;
+    }
+    String key(Map<String, dynamic> relation) =>
+        '${relation['type']}|${relation['memoId']}|'
+        '${relation['relatedMemoId']}';
+    final currentKeys = current.map(key).toSet();
+    final nextKeys = next.map(key).toSet();
+    return currentKeys.length == current.length &&
+        nextKeys.length == next.length &&
+        currentKeys.length == nextKeys.length &&
+        currentKeys.containsAll(nextKeys);
+  }
+
   /// 历史兼容：`[[正文]]` / `[[正文前缀]]` 形式的引用解析到笔记 id。
   ///
   /// 只在「按 id 查不到」时调用，语义与原实现一致：先精确比较 `content.trim()`，

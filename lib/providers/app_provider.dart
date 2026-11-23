@@ -4189,43 +4189,22 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   }
 
   // 🔧 数据恢复：重新构建所有引用关系
+  //
+  // 具体重建在 `UnifiedReferenceManager.rebuildAllFromDatabase()` 里按库跑完
+  // （以前这里遍历 `_notesStore.notes`，也就是首页分页缓存，只有已加载的
+  // 那几十条会被重建）。重建只改 `relations` 字段，重查首屏即可：
+  // 不再调 `loadNotesFromLocal()` —— 那个会把 `hasMoreData` 置回 true 却把
+  // `currentPage` 留在 0，滑到底会按第 1 页重复追加已加载的笔记。
   Future<void> rebuildAllReferences() async {
     try {
-      var totalRebuilt = 0;
-
-      // 🔧 首先清理所有现有的引用关系，重新开始
-      for (final note in _notesStore.notes) {
-        if (note.relations.isNotEmpty) {
-          final cleanNote = note.copyWith(relations: <Map<String, dynamic>>[]);
-          await _databaseService.updateNote(cleanNote);
-        }
-      }
-
-      // 重新加载清理后的笔记
-      await loadNotesFromLocal();
-
-      // 🚀 遍历所有笔记，重新解析引用关系（静默处理）
-      for (final note in _notesStore.notes) {
-        // 使用UnifiedReferenceManager重新处理每个笔记
-        final success = await UnifiedReferenceManager()
-            .updateReferencesFromContent(note.id, note.content);
-        if (success) {
-          totalRebuilt++;
-        }
-
-        // 添加小延迟避免处理过快
-        await Future.delayed(const Duration(milliseconds: 50));
-      }
-
-      // 重新加载笔记以获取最新的引用关系
-      await loadNotesFromLocal();
+      final notesWithReferences =
+          await UnifiedReferenceManager().rebuildAllFromDatabase();
+      await loadInitialNotes();
 
       if (kDebugMode) {
-        // 🚀 只打印汇总，不打印每条笔记（避免137行日志）
-        final totalRelations =
-            _notesStore.notes.fold(0, (sum, n) => sum + n.relations.length);
         debugPrint(
-          'AppProvider: 重建引用完成，处理 $totalRebuilt 条笔记，当前 $totalRelations 条引用',
+          'AppProvider: 重建引用完成，$notesWithReferences 条笔记带引用，'
+          '当前已加载 ${_notesStore.notes.length}/$_notesStore.totalNotesCount 条',
         );
       }
     } on Object catch (_) {

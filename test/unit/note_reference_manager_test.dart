@@ -207,4 +207,121 @@ void main() {
       reason: '回调语义是「改了哪条给哪条」，传整表会让分页列表被整体替换',
     );
   });
+
+  /// 造一批「分页之后根本不在首页缓存里」的笔记。
+  Future<void> seedBulk(int count) async {
+    for (var i = 0; i < count; i++) {
+      final created = DateTime(2025, 6).add(Duration(minutes: i));
+      final content = i == 5 ? '最老的一条，引用 [[n-2]]' : '批量笔记 $i';
+      await service.saveNote(_note('bulk-$i', content, created));
+    }
+  }
+
+  test('REF-09 按库重建：首页缓存之外的老笔记也能建起引用', () async {
+    await seedBulk(120);
+
+    final rebuilt = await UnifiedReferenceManager().rebuildAllFromDatabase();
+
+    // n-1 的样本正文本来就带 [[n-2]]，加上 bulk-115。
+    expect(rebuilt, 2);
+    final deep = await service.getNoteById('bulk-5');
+    expect(_referenceTargets(deep!), {'n-2'});
+    final target = await service.getNoteById('n-2');
+    expect(
+      target!.relations.any(
+        (rel) =>
+            rel['type'] == 'REFERENCED_BY' &&
+            rel['memoId'] == 'bulk-5' &&
+            rel['relatedMemoId'] == 'n-2',
+      ),
+      isTrue,
+      reason: 'bulk-5 是最老的一条，首页 50 条缓存里根本没有它（旧实现只遍历缓存）',
+    );
+  });
+
+  test('REF-10 正文里已经没有的旧关系被清掉', () async {
+    await service.saveNote(
+      Note(
+        id: 'stale-1',
+        content: '这条正文没有任何引用',
+        createdAt: DateTime(2025, 2),
+        updatedAt: DateTime(2025, 2),
+        relations: [
+          {'type': 'REFERENCE', 'memoId': 'stale-1', 'relatedMemoId': 'n-2'},
+          {
+            'type': 'REFERENCED_BY',
+            'memoId': 'n-3',
+            'relatedMemoId': 'stale-1',
+          },
+        ],
+      ),
+    );
+
+    await UnifiedReferenceManager().rebuildAllFromDatabase();
+
+    final stale = await service.getNoteById('stale-1');
+    expect(stale!.relations, isEmpty);
+    // n-2 上那条指向 stale-1 的反向关系也不该留下。
+    final target = await service.getNoteById('n-2');
+    expect(
+      target!.relations.where((rel) => rel['relatedMemoId'] == 'stale-1'),
+      isEmpty,
+    );
+  });
+
+  test('REF-11 重建后双向一致，没有孤儿关系', () async {
+    await service.saveNote(_note('cyc-a', '甲 [[cyc-b]]', DateTime(2025, 3)));
+    await service.saveNote(_note('cyc-b', '乙 [[cyc-c]]', DateTime(2025, 3, 2)));
+    await service.saveNote(_note('cyc-c', '丙 [[cyc-a]]', DateTime(2025, 3, 3)));
+
+    await UnifiedReferenceManager().rebuildAllFromDatabase();
+
+    final all = await service.getNotes();
+    final references = <String>{};
+    final backlinks = <String>{};
+    for (final note in all) {
+      for (final rel in note.relations) {
+        final key = '${rel['memoId']}->${rel['relatedMemoId']}';
+        if (rel['type'] == 'REFERENCE') {
+          references.add(key);
+        } else if (rel['type'] == 'REFERENCED_BY') {
+          backlinks.add(key);
+        }
+      }
+    }
+    expect(references, containsAll(['cyc-a->cyc-b', 'cyc-b->cyc-c']));
+    expect(backlinks, references, reason: '每条引用都要有对应的反向关系');
+
+    final a = await service.getNoteById('cyc-a');
+    expect(
+      a!.relations.where((rel) => rel['type'] == 'REFERENCE').length,
+      1,
+    );
+    expect(
+      a.relations.where((rel) => rel['type'] == 'REFERENCED_BY').length,
+      1,
+    );
+  });
+
+  test('REF-12 重建是幂等的：第二次不再写库', () async {
+    await UnifiedReferenceManager().rebuildAllFromDatabase();
+    final firstPass = (await service.getNotes())
+        .map((note) => '${note.id}:${note.relations.length}')
+        .toList();
+    final revision = DatabaseService.notesRevision;
+
+    await UnifiedReferenceManager().rebuildAllFromDatabase();
+
+    expect(
+      (await service.getNotes())
+          .map((note) => '${note.id}:${note.relations.length}')
+          .toList(),
+      firstPass,
+    );
+    expect(
+      DatabaseService.notesRevision,
+      revision,
+      reason: '结果没变就不该再批量写一遍（写库会自增 notesRevision）',
+    );
+  });
 }

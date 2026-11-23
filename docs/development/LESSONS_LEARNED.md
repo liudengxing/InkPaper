@@ -225,6 +225,15 @@ relations、`DateTime.parse` 四次）。**一条纯文字笔记也要过一遍�
 
 新增引用相关逻辑时别再调用 `getNotes()` 做 ID 匹配，也别把 `onNotesChanged` 当全量用。
 
+**维护入口（OPT-10B）**：`AppProvider.rebuildAllReferences` 以前遍历 `_notesStore.notes`
+—— 首页分页缓存，只有已经加载的那几十条会被重建；而且中间两次 `loadNotesFromLocal()`
+把 `pagingState` 换回初始值（`currentPage = 0`、`hasMoreData = true`）却塞了整库进
+`notes`，滑到底会按第 1 页再追加一次，列表出现重复条目。现在重建整段在
+`UnifiedReferenceManager.rebuildAllFromDatabase()` 里按库跑（全量读 → 清关系 →
+内存里双向配对 → 批量写回），AppProvider 只负责重建后 `loadInitialNotes()` 重查首屏，
+分页状态由 `applyInitialPageResult` 按「已加载 / 总数」算。**批量维护操作不要用
+`loadNotesFromLocal()` 收尾**，它是「整库塞进内存 + 分页归零」的组合，和分页列表不兼容。
+
 保存路径上的其他原则：
 
 - 桌面小组件快照别用 `Duration.zero`。快照要遍历全部笔记跑待办正则 + 过平台通道，

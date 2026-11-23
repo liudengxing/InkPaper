@@ -78,28 +78,76 @@ abstract final class RandomReviewSelectorService {
     return shuffled.take(reviewCount).toList();
   }
 
+  /// 小组件回顾候选：优先挑有可见文字的笔记，挑不到再退回任意笔记。
+  ///
+  /// 口径与 [select] 的 `requireVisibleText` 一致：先按可见文字过滤、再按
+  /// 时间范围取，范围内一条都没有时退回全库。区别只在判定顺序——这里先
+  /// 洗牌、再边取边判，取满 [reviewCount] 就停。
+  ///
+  /// 以前是先对全库每条跑一次 `previewVisibleText`（完整 Markdown 解析）再
+  /// 洗牌，1500 条的库上一次快照构建就是 600ms 级的开销。而「洗牌后取前 N 个
+  /// 满足条件的」和「先筛出满足条件的再洗牌取前 N 个」分布相同，所以只要
+  /// 抽到的前几条带文字，解析量就从整库降到十几条。
   static List<Note> selectWidgetCandidates({
     required List<Note> notes,
     int reviewDays = allDays,
     int reviewCount = 8,
     Random? random,
   }) {
-    final textNotes = select(
-      notes: notes,
-      reviewDays: reviewDays,
-      reviewCount: reviewCount,
-      random: random,
-      requireVisibleText: true,
-    );
-    if (textNotes.isNotEmpty) {
-      return textNotes;
+    if (notes.isEmpty || reviewCount <= 0) {
+      return <Note>[];
     }
 
-    return select(
-      notes: notes,
-      reviewDays: reviewDays,
-      reviewCount: reviewCount,
-      random: random,
-    );
+    final rng = random ?? Random();
+    final inRange = _withinDays(notes, reviewDays);
+    final primary = inRange.isEmpty ? notes : inRange;
+
+    final picked = _takeWithVisibleText(primary, reviewCount, rng);
+    if (picked.isNotEmpty) {
+      return picked;
+    }
+
+    // 范围内的笔记全是没有可见文字的（图片型日记）：回到全库找带文字的，
+    // 和旧口径「范围内筛不到就退回全库文本笔记」一致。
+    if (primary.length < notes.length) {
+      final wider = _takeWithVisibleText(notes, reviewCount, rng);
+      if (wider.isNotEmpty) {
+        return wider;
+      }
+    }
+
+    // 全库都没有可见文字：退回任意笔记，别让回顾卡片空着。
+    return (List<Note>.from(primary)..shuffle(rng)).take(reviewCount).toList();
+  }
+
+  static List<Note> _withinDays(List<Note> notes, int reviewDays) {
+    final normalizedDays = reviewDays <= 0 ? allDays : reviewDays;
+    final cutoffDate = DateTime.now().subtract(Duration(days: normalizedDays));
+    return notes.where((note) => note.displayTime.isAfter(cutoffDate)).toList();
+  }
+
+  static List<Note> _takeWithVisibleText(
+    List<Note> notes,
+    int reviewCount,
+    Random random,
+  ) {
+    final order = List<Note>.from(notes)..shuffle(random);
+    final picked = <Note>[];
+    for (final note in order) {
+      if (!_hasVisibleText(note)) {
+        continue;
+      }
+      picked.add(note);
+      if (picked.length >= reviewCount) {
+        break;
+      }
+    }
+    return picked;
+  }
+
+  static bool _hasVisibleText(Note note) {
+    return MemosContentHelper.previewVisibleText(note.content)
+        .trim()
+        .isNotEmpty;
   }
 }

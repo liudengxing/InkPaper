@@ -86,6 +86,8 @@ abstract final class WidgetSnapshotService {
     }
   }
 
+  /// [random] 只给测试用：回顾候选是随机抽的，要逐字段对比两份快照
+  /// 就得让两边用同一个种子。
   @visibleForTesting
   static Map<String, Object?> debugBuildSnapshot({
     required List<Note> notes,
@@ -95,6 +97,7 @@ abstract final class WidgetSnapshotService {
     int reviewRefreshIntervalMinutes = 60,
     int reviewRangeDays = 0,
     String? syncMessage,
+    Random? random,
   }) =>
       _buildSnapshot(
         notes: notes,
@@ -104,6 +107,7 @@ abstract final class WidgetSnapshotService {
         reviewRefreshIntervalMinutes: reviewRefreshIntervalMinutes,
         reviewRangeDays: reviewRangeDays,
         syncMessage: syncMessage,
+        random: random,
       );
 
   static Map<String, Object?> _buildSnapshot({
@@ -114,6 +118,7 @@ abstract final class WidgetSnapshotService {
     required int reviewRefreshIntervalMinutes,
     required int reviewRangeDays,
     String? syncMessage,
+    Random? random,
   }) {
     final visibleNotes = notes.where(_isWidgetVisibleNote).toList()
       ..sort((a, b) => b.displayTime.compareTo(a.displayTime));
@@ -147,6 +152,7 @@ abstract final class WidgetSnapshotService {
     final reviewNotes = _pickReviewNotes(
       visibleNotes,
       reviewRangeDays: reviewRangeDays,
+      random: random,
     );
     final unsyncedCount = visibleNotes.where((note) => !note.isSynced).length;
 
@@ -223,13 +229,14 @@ abstract final class WidgetSnapshotService {
   static List<Note> _pickReviewNotes(
     List<Note> notes, {
     required int reviewRangeDays,
+    Random? random,
   }) {
     return RandomReviewSelectorService.selectWidgetCandidates(
       notes: notes,
       reviewDays: reviewRangeDays == 0
           ? RandomReviewSelectorService.allDays
           : reviewRangeDays,
-      random: Random(),
+      random: random ?? Random(),
     );
   }
 

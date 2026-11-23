@@ -232,13 +232,16 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         _appConfig.widgetReviewRefreshIntervalMinutes;
     final reviewRangeDays = _appConfig.widgetReviewRangeDays;
 
-    Future<void> scheduleWithNotes(List<Note> snapshotNotes) async {
+    Future<void> scheduleWithNotes(
+      List<Note> statNotes,
+      List<Note> feedNotes,
+    ) async {
       if (!mounted || updateId != _widgetStore.snapshotUpdateId) {
         return;
       }
-      _maybePersistFeedSnapshot(snapshotNotes);
+      _maybePersistFeedSnapshot(feedNotes);
       WidgetSnapshotService.scheduleUpdate(
-        notes: snapshotNotes,
+        notes: statNotes,
         isLocalMode: isLocalModeSnapshot,
         isLoggedIn: isLoggedInSnapshot,
         isSyncing: isSyncingSnapshot,
@@ -263,19 +266,28 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         }
 
         if (_screenshotMode) {
-          await scheduleWithNotes(notes);
+          await scheduleWithNotes(notes, notes);
           return;
         }
 
         try {
-          final allNotes =
-              _excludePendingDeletedNotes(await _databaseService.getNotes());
-          await scheduleWithNotes(allNotes);
+          // 统计与回顾只需要窄列（不读关系那段 JSON），首屏快照要落盘完整
+          // 笔记，所以单独按最近 N 条取——两批各自只读自己用得上的字段。
+          final statNotes = _excludePendingDeletedNotes(
+            await _databaseService.getWidgetStatNotes(),
+          );
+          final feedNotes = _excludePendingDeletedNotes(
+            await _databaseService.getRecentActiveNotes(
+              FeedSnapshotService.maxNotes +
+                  _notesStore.pendingDeleteIds.length,
+            ),
+          );
+          await scheduleWithNotes(statNotes, feedNotes);
         } on Object catch (e) {
           if (kDebugMode) {
-            debugPrint('AppProvider: 读取小组件全量笔记失败，使用内存笔记: $e');
+            debugPrint('AppProvider: 读取小组件笔记失败，使用内存笔记: $e');
           }
-          await scheduleWithNotes(notes);
+          await scheduleWithNotes(notes, notes);
         }
       }),
     );

@@ -1,5 +1,6 @@
 // ignore_for_file: avoid_classes_with_only_static_members
 
+import 'package:flutter/foundation.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/utils/media_paths.dart';
@@ -49,7 +50,16 @@ abstract final class MemosContentHelper {
     return result;
   }
 
+  /// 仅测试用：完整 Markdown 解析被调用的次数。
+  ///
+  /// 小组件挑回顾候选时只需要判断「有没有可见文字」，若实现对全库每条都
+  /// 跑一次解析，千条级的库一次构建就是几百毫秒。这里把「只解析抽到的那
+  /// 几条」变成可断言的指标，而不是靠耗时。
+  @visibleForTesting
+  static int debugPreviewParseCount = 0;
+
   static String previewVisibleText(String content) {
+    debugPreviewParseCount++;
     final withoutImages = removeMarkdownImages(content);
     if (withoutImages.trim().isEmpty) {
       return '';

@@ -767,6 +767,44 @@ class DatabaseService {
     return List.generate(maps.length, (i) => Note.fromMap(maps[i]));
   }
 
+  /// 桌面小组件统计用的窄列读取（整库）。
+  ///
+  /// 快照只用到正文、三个时间字段、标签和几个状态位。关系列表是同步写进来的
+  /// 一段 JSON，`Note.fromMap` 会对每行 `jsonDecode` 一次，但它不参与任何
+  /// 统计；千条级的库上一次快照构建就白解几万条关系。附件列表要留着，
+  /// 回顾/置顶卡片的「这是一条含图片的笔记」靠它判断。
+  ///
+  /// 首屏快照需要完整笔记（落盘要 `toMap`），走 [getRecentActiveNotes]。
+  Future<List<Note>> getWidgetStatNotes() async {
+    debugFullTableReadCount++;
+    final db = await database;
+    final rows = await db.rawQuery(
+      'SELECT id, content, createdAt, updatedAt, displayTime, tags, '
+      'is_synced, isPinned, resourceList, rowStatus '
+      'FROM $viewActiveNotes ORDER BY createdAt DESC',
+    );
+    return List.generate(rows.length, (i) => Note.fromMap(rows[i]));
+  }
+
+  /// 最近 [limit] 条笔记的完整行（含关系与附件列表）。
+  ///
+  /// 首屏快照只缓存最新的一屏，没必要为了它把整库构造成完整笔记。
+  Future<List<Note>> getRecentActiveNotes(
+    int limit, {
+    DatabaseExecutor? executor,
+  }) async {
+    if (limit <= 0) {
+      return const <Note>[];
+    }
+    final db = executor ?? await database;
+    final maps = await db.query(
+      viewActiveNotes,
+      orderBy: 'createdAt DESC',
+      limit: limit,
+    );
+    return List.generate(maps.length, (i) => Note.fromMap(maps[i]));
+  }
+
   /// 分页获取笔记（性能优化）
   ///
   /// 排序完全由 [sortOrder] 决定（置顶优先 → 时间字段 → id 兜底），与首页

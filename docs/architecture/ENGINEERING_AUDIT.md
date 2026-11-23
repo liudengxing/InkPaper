@@ -8,13 +8,13 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-23 · 代码提交 `0f29b49`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-10（P2 · §10 笔记引用） |
+| 最后更新 | 2026-11-23 · 代码提交 `6cb4a2d`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-10B（P2 · §10 重建引用） |
 | 任务状态 | 待验收 |
-| 可复查改动 | `updateReferencesFromContent` 先按 id 批量解析 `[[id]]`，只有解析不到的旧式 `[[正文/前缀]]` 才读全库；`createReference` / `removeReference` 改 `getNoteById`（源 + 目标两行）；引用回调语义改为「本次受影响的笔记」（`onNotesChanged`），不再整表替换分页列表；新增 `DatabaseService.getNotesByIds`（900 个一批） |
-| 验证结果 | `analyze` 无 issue；`flutter test --concurrency=4` 全量 **1078 项全过**（原 1070 + 8）；反向验证（把批量解析改成空集）REF-01/02/04/06/08 失败。本机内存库校准：800 条笔记、5 轮保存三个 ID 引用，现状 30ms（0 次全表读）对改造前等价 2323ms（20 次 `getNotes`） |
-| 未验证 / 待测 | 无真机（保存耗时与帧时间交 OPT-M01）；旧式 `[[正文前缀]]` 仍是 O(n) 全库扫描；`rebuildAllReferences` 本身仍只遍历已加载页（已登记 OPT-10B）；`debugFullTableReadCount` 是测试专用计数，生产无读者 |
-| 下一项 | OPT-10B 或 OPT-04（§4 小组件），均为独立项；OPT-02B 等 OPT-02A 验收、OPT-09B 等 OPT-09A 验收 |
+| 可复查改动 | 新增 `UnifiedReferenceManager.rebuildAllFromDatabase()`：全库读一次 → 清空关系 → 按正文解析并双向配对 → 只批量写真正变化的行；`AppProvider.rebuildAllReferences` 改为「调重建 + `loadInitialNotes()` 重查首屏」，不再遍历 `_notesStore.notes`、不再两次 `loadNotesFromLocal()` |
+| 验证结果 | `analyze` 无 issue；`flutter test --concurrency=4` 全量 **1084 项全过**（原 1078 + 6）；反向验证两处各自失败：重建只取前 50 条 → REF-09 与「重建覆盖首屏之外」红；AppProvider 改回 `loadNotesFromLocal()` → 「重建后翻下一页不重复」红 |
+| 未验证 / 待测 | 无真机；重建全库的耗时只在小样本（120 条）上跑过，万条级未测（交 OPT-M01）；重建不触发服务端同步（与旧实现不同），是否需要续传关系同步未定；`rebuildAllReferences` 目前仍无 UI 调用点 |
+| 下一项 | OPT-04（§4 小组件，独立项）；OPT-02B 等 OPT-02A 验收、OPT-09B 等 OPT-09A 验收 |
 | 待用户决策 | ① OPT-01 顺带发现的「归档行被剪枝」是 bug 还是设计；② 完整空清单的同步产品规则；③ `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓，等明确启用 |
 | 工作区注意事项 | 另有会话在改启动图（`flutter_native_splash.yaml`、`android/app/src/main/res/values*/styles.xml`、`colors.xml`、`lib/main.dart`、`assets/images/splash_inkpaper.png`），另有一处未提交的 `docs/README.md` 增加审查文档索引链接，均非本轮产物，勿回退或顺手带上；发版、推送、装机需单独授权 |
 
@@ -31,7 +31,7 @@
 | OPT-09A | P2 | 待验收 | §9 短预览缓存 | 缓存键改为「解析上限 + 解析范围内正文的指纹」，按预览文本与样式区间估算预算淘汰。验证编辑、展开和搜索高亮。 |
 | OPT-09B | P2 | 待办 | §9 卡片媒体提取 | 依赖 OPT-09A 的取样口径。把卡片分别提取图片与视频合并成一次媒体扫描，保持图片/视频互斥与顺序。 |
 | OPT-10 | P2 | 待验收 | §10 笔记引用 | 明确的引用 ID 走批量查询。验证历史正文匹配、反向关系和移除最后一个引用。 |
-| OPT-10B | P2 | 待办 | §10 笔记引用 | `rebuildAllReferences` 只遍历已加载页（见 OPT-10 顺带发现）。改成按库全量重建，验证引用多的老库与分页状态。 |
+| OPT-10B | P2 | 待验收 | §10 笔记引用 | `rebuildAllReferences` 只遍历已加载页（见 OPT-10 顺带发现）。改成按库全量重建，验证引用多的老库与分页状态。 |
 | OPT-04 | P2 | 待办 | §4 小组件 | 先缩减一次快照构建中读取的完整笔记范围，核对待办计数、回顾和首屏结果。 |
 | OPT-06A | P2 | 待办 | §6 首屏 | 先调整配置和首屏快照的并行读取，验证主题与语言、离线和空缓存启动。 |
 | OPT-07A | P2 | 待办 | §7 图片 | 先约束缩略图像素和查看器预取保留范围，验证长图、方向、透明度和回看。可拆成两轮。 |
@@ -126,6 +126,19 @@
 - **未验证**：① 无真机，保存耗时、编辑器关闭帧时间未测，交 OPT-M01；② 旧式 `[[正文前缀]]` 仍是 O(n) 全库扫描，用户若大量依赖它，收益只剩「没引用时零成本」这一条；③ `debugFullTableReadCount` 在 release 里也自增，但没有任何读者，属纯测试钩子；④ `rebuildAllReferences` 未动（见顺带发现）。
 - **顺带发现（登记为 OPT-10B）**：`app_provider.dart:4192` 的 `rebuildAllReferences` 遍历的是 `_notesStore.notes`（当前分页缓存），不是全库，接回 UI 前必须改成按库遍历；该方法目前全仓无调用点（`grep` 只剩定义），属死代码。另：`notes_context_builder` 与随机漫步索引仍走 `getNotes()` 全量，那是它们的取样口径，本项不动。
 - **建议下一项**：OPT-10B 或 OPT-04（§4 小组件），均为独立项；OPT-02B 等 OPT-02A 验收、OPT-09B 等 OPT-09A 验收。
+
+### 2026-11-23 · OPT-10B · 待验收
+
+- **问题核对**：`AppProvider.rebuildAllReferences` 有两处独立缺陷，都是「分页化之后没人复查」留下的：① 清除与重建都遍历 `_notesStore.notes`——首页 50 条一页的缓存，第 51 条之后的笔记引用关系永远不会被重建；② 中间两次 `loadNotesFromLocal()`，该方法把 `pagingState` 换回 `initialNotesPaginationState()`（`currentPage = 0`、`hasMoreData = true`）却把整库塞进 `notes`，之后 `loadMoreNotes()` 会按第 1 页再 `addAll` 一次，列表出现重复条目。该方法全仓无调用点（`grep` 只剩定义），属维护用死代码，但仍按队列要求修好而不是删掉。
+- **改动**：
+  - `lib/services/unified_reference_manager.dart`：新增 `rebuildAllFromDatabase()`。整段落在库里：`getNotes()` 全库读一次（重建本就是全库操作）→ 在内存里按正文解析引用（先按 id 命中，再回落到 `_resolveLegacyReference` 的正文/前缀匹配，与保存路径同一套）→ 双向配对（源写 `REFERENCE`、目标写 `REFERENCED_BY`）→ 只把**关系集合真的变了**的行 `updateNotesBatch` 一次写回。`_sameRelationSet` 只比 `type / memoId / relatedMemoId`，所以第二次重建不写库、不自增 `notesRevision`。自引用（`[[自己的 id]]`）不计入，双向关系对同一条笔记没有意义。
+  - `lib/providers/app_provider.dart`：`rebuildAllReferences` 收缩成「调管理器 + `loadInitialNotes()`」。重建只改 `relations` 字段，重查首屏即可，分页状态由 `applyInitialPageResult` 按「已加载 / 总数」算，翻页接着第 1 页走。删掉原来的 `Future.delayed(50ms)` 逐条节流（批量写已经不需要）。
+  - `docs/development/LESSONS_LEARNED.md` §2.8 补「维护入口」一段：批量维护不要用 `loadNotesFromLocal()` 收尾。
+- **测试**：`test/unit/note_reference_manager_test.dart` 8 → 12 条，新增 REF-09 120 条库里最老那条（`bulk-5`，首页缓存里没有）的引用被建起来、REF-10 正文里已删掉的旧关系被清掉（含目标笔记上的反向关系）、REF-11 环形引用重建后双向一致无孤儿、REF-12 幂等（第二次重建 `notesRevision` 不变）。新增 `test/unit/reference_rebuild_paging_test.dart` 2 条（真 SQLite + `AppProvider()` + `debugOverrideDatabase`）：① `loadInitialNotes` 50 条 → `loadMoreNotes` 100 条 → 重建 → 回到 50 条且 `hasMoreData` 仍为真 → 再翻页到 100 条**无重复 id**；② 重建能覆盖首屏之外的最老笔记。
+- **验证**：`dart tool/inkpaper.dart format` → 316 个文件 0 changed；`analyze` → No issues found；`flutter test --concurrency=4`（`NO_PROXY` 已设）→ **1084 项全过**（原 1078 + 6）。反向验证两处分别做了：把重建的取样改成 `getNotes().take(50)` → REF-09 与「重建覆盖首屏之外」两条红；把 AppProvider 的收尾改回 `loadNotesFromLocal()` → 「重建后翻下一页不重复」红；恢复后全绿。
+- **行为变化**：重建范围从「已加载的首页缓存」变成全库；重建后列表回到首屏（深页被丢弃，与切换排序一致），但不再产生重复条目；重建**不再**触发服务端关系同步（旧实现走 `createReference` 会逐条 `_syncToServerInBackground`）——关系本来由同步合并按正文重建，这里不发请求是有意的，若将来需要远端对齐要单独加。
+- **未验证**：① 无真机，重建耗时只在小样本（120 条）上跑过，万条库的一次性重建时长与内存峰值未测，交 OPT-M01；② 重建后不做远端同步，多端场景下服务端关系可能滞后到下一次同步；③ `rebuildAllReferences` 仍无 UI 调用点（设置页若接回需先确认是否要顺带同步）；④ 自引用被忽略这一条没写用例（正文里出现 `[[自己的 id]]` 属病态数据）。
+- **建议下一项**：OPT-04（§4 桌面小组件，独立项）；OPT-02B 等 OPT-02A 验收、OPT-09B 等 OPT-09A 验收。
 
 ## 现有架构
 

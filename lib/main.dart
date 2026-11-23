@@ -13,25 +13,22 @@ import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/routes/app_router.dart';
 import 'package:inkpaper/services/app_info_service.dart';
 import 'package:inkpaper/services/feature_flag_service.dart';
-import 'package:inkpaper/services/feed_snapshot_service.dart';
 import 'package:inkpaper/services/notification_service.dart';
 import 'package:inkpaper/services/observability_service.dart';
 import 'package:inkpaper/services/performance_monitor_service.dart';
-import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/services/startup_update_service.dart';
 import 'package:inkpaper/services/weread_sync_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 // 🚀 大厂标准：新增工具
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/error_handler.dart';
-import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/logger.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:inkpaper/utils/responsive_utils.dart';
 import 'package:inkpaper/utils/shared_payload_utils.dart';
+import 'package:inkpaper/utils/startup_essentials.dart';
 import 'package:inkpaper/utils/tag_path_utils.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
-import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -194,7 +191,9 @@ Future<void> _initializeApp() async {
   PerformanceMonitorService().trackAppLaunch('init_start');
 
   // 🚀 大厂标准：启用功能开关
-  await FeatureFlagService().init();
+  // 首帧前只读本地缓存（毫秒级）；远程刷新挪到首帧之后，配置了
+  // FEATURE_FLAG_URL 的构建不会因为一次 HTTP 把开屏卡到超时（5 秒）。
+  await FeatureFlagService().loadLocal();
   Log.service.info('Feature flag service initialized');
 
   // 🚀 大厂标准：设置结构化日志上下文
@@ -217,13 +216,11 @@ Future<void> _initializeApp() async {
     },
   );
 
-  // 初始化中文日期格式支持
-  // ⚡ 首帧前的准备互不依赖，全部先并行跑起来；下面逐个 await 只是取结果，
-  // 总耗时 = 最慢的一个，不再是一串串行相加。
-  final dateFormattingFuture = initializeDateFormatting('zh_CN');
-  final imageCacheFuture = ImageCacheManager.initialize();
-  final attachmentCacheFuture = AttachmentCache.instance.prepare();
-  final thumbCacheFuture = ThumbCache.instance.prepare();
+  // ⚡ 首帧前的六项准备互不依赖：日期格式、图片/附件/缩略图缓存、
+  // 上次的首屏快照、主题语言配置。一次全部发起再统一等待（总耗时 = 最慢的
+  // 一项）。此前快照与配置是在前四项 await 完之后才起跑的，等于在最慢项之上
+  // 又加了一轮「快照/配置里较慢的那个」。
+  final essentialsFuture = loadStartupEssentials();
 
   // 初始化timeago库，添加中文支持
   timeago.setLocaleMessages('zh', timeago.ZhCnMessages());
@@ -236,11 +233,13 @@ Future<void> _initializeApp() async {
     ..maximumSize = 300
     ..maximumSizeBytes = 300 << 20;
 
-  // ⚡ 逐个取回并行准备的结果（这些都必须在首帧渲染前就绪）
-  await dateFormattingFuture;
-  await imageCacheFuture;
-  await attachmentCacheFuture;
-  await thumbCacheFuture;
+  // 冷启动首帧先用上次的首屏快照渲染，避免先闪一条「欢迎笔记」再被真实数据
+  // 顶掉；主题 / 语言也必须在 runApp 之前定下来：MaterialApp 首帧若用默认
+  // 配置（themeSelection = system）渲染，系统是深色模式时用户会先看到一帧
+  // 深色，等配置读完再闪回自己选的浅色主题。
+  final essentials = await essentialsFuture;
+  final cachedFeed = essentials.feedSnapshot;
+  final initialConfig = essentials.appConfig;
 
   // 🚀 大厂标准：记录初始化完成
   PerformanceMonitorService().trackAppLaunch('init_completed');
@@ -262,19 +261,6 @@ Future<void> _initializeApp() async {
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
-
-  // 冷启动首帧先用上次的首屏快照渲染，避免先闪一条「欢迎笔记」再被真实数据顶掉
-  // ⚡ 与上面四项准备并行
-  final cachedFeedFuture = FeedSnapshotService.instance.load();
-
-  // 主题 / 语言在 runApp 之前就要定下来：MaterialApp 首帧若用默认配置
-  // （themeSelection = system）渲染，系统是深色模式时用户会先看到一帧深色，
-  // 等 initializeApp 读完配置再闪回自己选的浅色主题。
-  final initialConfigFuture = PreferencesService().loadAppConfig();
-
-  // ⚡ 首屏快照与主题/语言配置在提供器构造前取回
-  final cachedFeed = await cachedFeedFuture;
-  final initialConfig = await initialConfigFuture;
 
   // 首屏缩略图提前起解码（不 await）：卡片要到自己 build 时才发起请求，而
   // 「runApp → 首帧」之间这几百毫秒布局时间是白流的。提前 resolve 一次，
@@ -489,6 +475,10 @@ Future<void> _initializeApp() async {
 
   // ⚡ 首帧之后才探测冷启动载荷
   unawaited(checkColdStartPayloads());
+
+  // 功能开关的远程刷新同样挪到首帧之后：本地缓存已经在 init 时读过，
+  // 这里只是尽量升级到最新配置，失败静默。
+  unawaited(FeatureFlagService().refreshRemote());
 
   // 存量图片的缩略图后台补齐。延迟 3 秒再开跑：首屏这会儿正在解码图片，
   // 补缩略图不但帮不上忙，还会跟它抢 CPU 和内存带宽。

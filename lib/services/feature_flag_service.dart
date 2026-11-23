@@ -26,10 +26,23 @@ class FeatureFlagService {
   // 🚀 从配置中心读取默认值
   static Map<String, dynamic> get _defaults => AppConfig.defaultFeatureFlags;
 
-  /// 初始化（从远程配置服务器获取）
+  /// 只读本地缓存：首帧前调用，保证 `isEnabled` 立刻可用。
+  ///
+  /// 只碰 SharedPreferences，不碰网络，耗时在毫秒级。
+  Future<void> loadLocal() => _loadFromLocal();
+
+  /// 从远程配置服务器刷新。
+  ///
+  /// ⚠️ 不要把这一步放回首帧前的 await 里：配置了 `FEATURE_FLAG_URL` 的构建
+  /// 会在这里等一次 HTTP（超时 5 秒），开屏直接卡住。首帧之后异步跑即可，
+  /// 失败静默并回落到本地缓存/默认值。
+  Future<void> refreshRemote() => _fetchFromRemote();
+
+  /// 本地 + 远程都跑（会等网络）。启动路径不要用这个，改用 [loadLocal]
+  /// 加首帧后的 [refreshRemote]。
   Future<void> init() async {
-    await _loadFromLocal();
-    await _fetchFromRemote();
+    await loadLocal();
+    await refreshRemote();
   }
 
   /// 从本地存储加载

@@ -950,7 +950,6 @@ class AppLocalizationsSimple {
   // deleteNote已在前面定义(line 176)
   // copyContent已在前面定义(line 472)
   String get setReminder => _t('setReminder', fallback: '设置提醒');
-  String get aiReview => _t('aiReview', fallback: 'AI点评');
 
   // ===== 账户信息页面 =====
   // unknown已在前面定义(line 280)
@@ -1061,9 +1060,6 @@ class AppLocalizationsSimple {
   String get generatingShareLink =>
       _t('generatingShareLink', fallback: '正在生成分享链接...');
   String get reviewCopiedShort => _t('reviewCopiedShort', fallback: '✨ 点评已复制');
-  String get aiReviewCompleted =>
-      _t('aiReviewCompleted', fallback: '✨ AI点评完成！');
-  String get aiReviewTitle => _t('aiReviewTitle', fallback: '给你的点评');
   String get aiReadingNote => _t('aiReadingNote', fallback: 'AI正在阅读笔记...');
   String startInsightWithCount(int count) =>
       _t('startInsightWithCount', fallback: '开始洞察 ({count} 条笔记)')
@@ -1705,13 +1701,8 @@ class AppLocalizationsSimple {
       locale.languageCode == 'zh' ? '自定义提示词' : 'Custom Prompts';
   String get enableCustomPrompts =>
       locale.languageCode == 'zh' ? '启用自定义提示词' : 'Enable Custom Prompts';
-  String get reviewPrompt =>
-      locale.languageCode == 'zh' ? '点评提示词' : 'Review Prompt';
   String get continuationPrompt =>
       locale.languageCode == 'zh' ? '续写提示词' : 'Continuation Prompt';
-  String get reviewPromptHint => locale.languageCode == 'zh'
-      ? '自定义AI点评的提示词，留空使用默认提示词'
-      : 'Customize AI review prompt, leave empty to use default';
   String get continuationPromptHint => locale.languageCode == 'zh'
       ? '自定义AI续写的提示词，留空使用默认提示词'
       : 'Customize AI continuation prompt, leave empty to use default';

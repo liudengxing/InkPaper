@@ -140,7 +140,6 @@ InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`�
 - `lib/services/sync_merge_helper.dart`：同步合并策略，涉及创建时间、更新时间和冲突处理。
 - `lib/services/webdav_service.dart`：WebDAV 基础访问。
 - `lib/services/webdav_sync_engine.dart`：WebDAV 备份和恢复流程。
-- `lib/services/ai_review_service.dart`：AI 点评。
 - `lib/services/ai_insight_engine.dart`：AI 洞察。
 - `lib/services/ai_enhanced_service.dart`：摘要、续写、标签推荐等增强能力。
 - `lib/services/random_walk_index.dart`：相关笔记与随机漫步共用的本地索引。
@@ -234,7 +233,6 @@ InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`�
 - `ai_enhanced_service.dart`：AI 摘要、续写、标签推荐等增强能力。
 - `ai_insight_engine.dart`：洞察生成逻辑。
 - `ai_related_notes_service.dart`：AI 相关笔记能力。
-- `ai_review_service.dart`：AI 点评能力。
 - `alert_service.dart`：告警规则和关键指标告警。
 - `announcement_service.dart`：公告拉取、缓存和展示判断。
 - `api_service.dart`：应用服务端 API 抽象。

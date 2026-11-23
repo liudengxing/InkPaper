@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/services/ai_insight_engine.dart';
-import 'package:inkpaper/services/ai_review_service.dart';
 import 'package:inkpaper/services/periodic_review_service.dart';
 import 'package:inkpaper/widgets/default_prompt_panel.dart';
 
@@ -65,16 +64,6 @@ void main() {
   });
 
   group('默认提示词常量 — 与实现同源', () {
-    test('DP-04 点评默认提示词有角色、有硬性要求、有输出结构', () {
-      const p = AiReviewService.defaultSystemPrompt;
-      expect(p, contains('笔记点评顾问'));
-      expect(p, contains('硬性要求'));
-      expect(p, contains('输出结构'));
-      // 自定义提示词后固定追加的格式要求，也必须能在设置页展示出来
-      expect(AiReviewService.customPromptHardRequirements, isNotEmpty);
-      expect(p.trim(), isNotEmpty);
-    });
-
     test('DP-05 续写默认提示词包含实际发送时的分段标题与任务正文', () {
       const p = AIInsightEngine.defaultContinuationPrompt;
       expect(p, contains('角色：学习伙伴（不是分析工具）'));

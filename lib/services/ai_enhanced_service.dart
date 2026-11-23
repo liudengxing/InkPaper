@@ -177,52 +177,6 @@ Flutter
     }
   }
 
-  /// 🎯 AI 智能点评（革命性引擎）
-  ///
-  /// 深度分析笔记，给出洞察和建议
-  /// 返回格式：(点评内容, 错误信息)
-  Future<(String?, String?)> generateInsight({
-    required String content,
-    required String apiKey,
-    required String apiUrl,
-    required String model,
-    List<Note>? allNotes, // 🔥 新增：上下文笔记
-    String? customPrompt, // 🔥 新增：自定义提示词
-  }) async {
-    try {
-      if (content.trim().isEmpty) {
-        return (null, '笔记内容为空');
-      }
-
-      // 🚀 使用革命性引擎
-      final note = Note(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        content: content,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      final result = await _engine.analyze(
-        note: note,
-        allNotes: allNotes ?? [],
-        apiKey: apiKey,
-        apiUrl: apiUrl,
-        model: model,
-        type: AnalysisType.insight,
-        customPrompt: customPrompt, // 🔥 传递自定义提示词
-      );
-
-      if (result.content.startsWith('分析失败')) {
-        return (null, result.content);
-      }
-
-      return (result.content, null);
-    } on Object catch (e) {
-      debugPrint('❌ AI点评失败: $e');
-      return (null, 'AI点评失败: $e');
-    }
-  }
-
   /// 3. ✨ AI 内容续写（革命性引擎）
   ///
   /// 基于已有内容智能续写

@@ -31,7 +31,7 @@
 | Android applicationId / namespace | `com.didichou.inkpaper` | `android/app/build.gradle:33,52` |
 | 版本 | `1.1.13+10113`（单一真源） | `pubspec.yaml:6` |
 | Dart SDK 约束 | `>=3.0.0 <4.0.0` | `pubspec.yaml:9` |
-| Flutter SDK（审查基线） | **3.47.7 / Dart 3.13.5**，stable | `flutter --version` |
+| 本机 Flutter SDK | `Z:\flutter` = **3.47.7 / Dart 3.13.5**，stable | `.dart_tool/package_config.json` |
 | 上游关系 | 本项目是 [InkPaper](https://github.com/liudengxing/InkPaper) 的延续与重命名版本 | `README.md:5` |
 | 当前仓库 | `github.com/liudengxing/InkPaper` | `README.md:5` |
 | 开源许可 | MIT | `LICENSE` |
@@ -311,7 +311,6 @@ flowchart TB
         DS["DeepSeekApiService<br/>被 4 个文件引用"]
         ENH["AIEnhancedService"]
         INS["AIInsightEngine"]
-        REV["AiReviewService"]
         LOC["LocalNoteAnalysisService"]
     end
 
@@ -374,8 +373,6 @@ flowchart TB
     LRS --> URM
     REM --> DB
     NOTI1 --> REM
-    REV --> DS
-    REV --> LOC
     ENH --> INS
     INS --> UBH["UserBehaviorService"]
     IRN["IntelligentRelatedNotesService"] --> UBH
@@ -395,7 +392,7 @@ flowchart TB
 | 同步引擎 | `incremental_sync_service` `sync_merge_helper` `sync_status_helper` |
 | WebDAV 备份 | `webdav_service` `webdav_sync_engine` |
 | Notion 同步 | `notion_api_service` `notion_sync_service` |
-| AI 对话/生成 | `deepseek_api_service` `ai_enhanced_service` `ai_insight_engine` `ai_review_service` |
+| AI 对话/生成 | `deepseek_api_service` `ai_enhanced_service` `ai_insight_engine` |
 | AI 分析/本地算法 | `ai_related_notes_service`* `tag_ai_service`* `intelligent_related_notes_service` `local_note_analysis_service` `user_behavior_service` |
 | 语音识别 | `speech_service` `baidu_speech_service` `baidu_realtime_speech_service` `iflytek_speech_service` |
 | 通知/提醒 | `notification_service` `alert_service`* |
@@ -852,6 +849,6 @@ flowchart TB
 | 构建配置 | 直读 `app/build.gradle`、`settings.gradle`、`gradle.properties`、`gradle-wrapper.properties` |
 | CI/CD | 逐 job 读取 `.github/workflows/{ci,release}.yml` |
 | 死代码判定 | 对类名做全库引用检索（`lib/` 全域），零引用方判定为死代码 |
-| 环境兼容性 | 查阅 Flutter SDK 3.47.7 的版本检查器与 `FlutterExtension` 实现 |
+| 环境兼容性 | 读取本机 Flutter SDK（`Z:\flutter` 3.47.7）的版本检查器与 `FlutterExtension` 实现 |
 
 > 本报告的图片由 `docs/architecture/images/` 下的 PNG 提供；Mermaid 代码块可在 GitHub、VS Code、Typora 等支持 Mermaid 的渲染器中直接显示。

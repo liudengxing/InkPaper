@@ -34,7 +34,6 @@ class AppConfig {
     this.iflytekApiKey,
     this.iflytekApiSecret,
     this.useCustomPrompt = false, // 默认不使用自定义Prompt
-    this.customReviewPrompt, // 自定义点评Prompt
     this.customContinuationPrompt, // 自定义续写Prompt
     this.customPeriodicReviewPrompt, // 自定义周/月回顾Prompt
     SidebarConfig? sidebarConfig,
@@ -86,7 +85,6 @@ class AppConfig {
       iflytekApiKey: json['iflytekApiKey'],
       iflytekApiSecret: json['iflytekApiSecret'],
       useCustomPrompt: json['useCustomPrompt'] ?? false,
-      customReviewPrompt: json['customReviewPrompt'],
       customContinuationPrompt: json['customContinuationPrompt'],
       customPeriodicReviewPrompt: json['customPeriodicReviewPrompt'],
       sidebarConfig: json['sidebarConfig'] != null
@@ -182,7 +180,6 @@ class AppConfig {
 
   // AI自定义Prompt配置
   final bool useCustomPrompt; // 是否使用自定义Prompt
-  final String? customReviewPrompt; // 自定义点评Prompt（用于：笔记详情页AI智能点评）
   final String? customContinuationPrompt; // 自定义续写Prompt（用于：笔记编辑器AI续写）
   final String? customPeriodicReviewPrompt; // 自定义回顾Prompt（用于：周回顾/月回顾）
 
@@ -448,10 +445,8 @@ class AppConfig {
     bool updateIflytekApiKey = false,
     bool updateIflytekApiSecret = false,
     bool? useCustomPrompt,
-    String? customReviewPrompt,
     String? customContinuationPrompt,
     String? customPeriodicReviewPrompt,
-    bool updateCustomReviewPrompt = false,
     bool updateCustomContinuationPrompt = false,
     bool updateCustomPeriodicReviewPrompt = false,
     SidebarConfig? sidebarConfig,
@@ -504,9 +499,6 @@ class AppConfig {
             ? iflytekApiSecret
             : (iflytekApiSecret ?? this.iflytekApiSecret),
         useCustomPrompt: useCustomPrompt ?? this.useCustomPrompt,
-        customReviewPrompt: updateCustomReviewPrompt
-            ? customReviewPrompt
-            : (customReviewPrompt ?? this.customReviewPrompt),
         customContinuationPrompt: updateCustomContinuationPrompt
             ? customContinuationPrompt
             : (customContinuationPrompt ?? this.customContinuationPrompt),
@@ -549,7 +541,6 @@ class AppConfig {
         'iflytekApiKey': iflytekApiKey,
         'iflytekApiSecret': iflytekApiSecret,
         'useCustomPrompt': useCustomPrompt,
-        'customReviewPrompt': customReviewPrompt,
         'customContinuationPrompt': customContinuationPrompt,
         'customPeriodicReviewPrompt': customPeriodicReviewPrompt,
         'sidebarConfig': sidebarConfig.toJson(),

@@ -819,7 +819,6 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       aiEnabled: true,
       aiApiUrl: AppConfig.DEEPSEEK_API_URL,
       useCustomPrompt: true,
-      customReviewPrompt: '指出这条笔记最有价值的一点，并给出一个具体下一步。',
     );
     _webDavStore.config = WebDavConfig(
       serverUrl: WebDavPresets.jianguoyun,

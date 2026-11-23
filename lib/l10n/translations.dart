@@ -1029,7 +1029,6 @@ class Translations {
     'noteUpdated': {'zh': '笔记已更新', 'en': 'Note updated'},
     'edit': {'zh': '编辑', 'en': 'Edit'},
     'copyContent': {'zh': '复制内容', 'en': 'Copy Content'},
-    'aiReview': {'zh': 'AI点评', 'en': 'AI Review'},
     'notLoggedInOrAPINotInitialized': {
       'zh': '未登录或API服务未初始化',
       'en': 'Not logged in or API service not initialized',
@@ -1143,8 +1142,6 @@ class Translations {
       'en': 'Generating share link...',
     },
     'reviewCopiedShort': {'zh': '✨ 点评已复制', 'en': '✨ Review copied'},
-    'aiReviewCompleted': {'zh': '✨ AI点评完成！', 'en': '✨ AI review ready!'},
-    'aiReviewTitle': {'zh': '给你的点评', 'en': 'Your Review'},
     'aiReadingNote': {'zh': 'AI正在阅读笔记...', 'en': 'AI is reading...'},
     'startInsightWithCount': {
       'zh': '开始洞察 ({count} 条笔记)',

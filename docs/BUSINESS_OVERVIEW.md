@@ -168,12 +168,12 @@ VIEW active_notes AS SELECT * FROM notes WHERE IFNULL(rowStatus,'NORMAL') <> 'DE
 
 - 通用请求使用 AI 设置所选的模型，调用 OpenAI 兼容的 `POST {aiBaseUrl}/chat/completions`，使用用户配置的 API 密钥。
 - **问笔记**（`notes_qa_service.dart`）：先把问题做关键词检索（IDF 权重 + 标签提权），再用最近笔记填剩余预算 → 拼上下文 → `temperature 0.5 / max_tokens 1600`
-- **周/月回顾**（`periodic_review_service` + `ai_review_service`）：按 `displayTime` 窗口取近 7/30 天 → 生成提示词（可在 AI 设置里改）→ `temperature 0.45 / max_tokens 520`；提示词改动会让旧总结失效
+- **周/月回顾**（`periodic_review_service`）：按 `displayTime` 窗口取近 7/30 天 → 生成提示词（可在 AI 设置里改）→ `temperature 0.45 / max_tokens 520`；提示词改动会让旧总结失效
 - **AI 洞察**从首页下拉或侧边栏进入。内置六种分析视角，按笔记 `createdAt` 取材，可在 AI 设置中关闭分析摘要。报告需有正文，启用摘要时会分别解析摘要和正文。 [洞察服务](../lib/services/ai_insight_service.dart) · [取材逻辑](../lib/utils/notes_context_builder.dart)
 - **上下文预算**（`notes_context_builder.dart:56-63`）：总字符 **28000**、最多 **200** 条笔记、其中相关命中最多 **80** 条、单条截断 **400** 字符
 - 全局兜底：`AppConfig.aiRequestTimeoutSeconds = 30`，`aiMaxTokens = 2000`
 
-- **自定义提示词**（1.1.61 / 1.1.62 整理后共三块）：点评 `customReviewPrompt`（`ai_review_service:79`）、续写 `customContinuationPrompt`、回顾 `customPeriodicReviewPrompt`（`periodic_review_service:406`）。三者由同一个开关 `useCustomPrompt` 统一放行
+- **自定义提示词**（1.1.61 / 1.1.62 整理后共三块，笔记单条 AI 点评撤除后剩两块）：续写 `customContinuationPrompt`、回顾 `customPeriodicReviewPrompt`（`periodic_review_service:406`）。两者由同一个开关 `useCustomPrompt` 统一放行
 - 开关语义（1.1.62 起）：**开着但某块留空 = 该功能用默认提示词**，不是「没启用」。两个消费者本来就是按字段判空再回退，保存时不再把开关改回 `false`（旧逻辑会让开关静默弹回，用户以为没保存成功）
 - 1.1.63 已移除旧的标签推荐提示词 `customTagRecommendationPrompt`。 [历史记录 TAG-REC-001](../BLOCKERS.md)
 

@@ -59,11 +59,42 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   /// 是否已经初始化完成。初始化前 controller 存在但宽高为 0，不能直接铺开。
   bool _ready = false;
 
+  /// 控制栏是否显示。看视频时它默认 3 秒后自己退场，别一直压着画面。
+  bool _controlsVisible = true;
+  Timer? _hideControlsTimer;
+
+  /// 双击快进/快退时中间那个短暂的提示（-10 秒 / +10 秒）。
+  String? _seekHint;
+  Timer? _seekHintTimer;
+
+  /// 最近一次双击的位置，用来判断点的是左半屏还是右半屏。
+  Offset? _doubleTapPosition;
+
+  /// 播放倍速，跟控制器保持同步。
+  double _playbackSpeed = 1;
+
+  /// 倍速循环档位：微信/B 站都是这几档，够用又不至于难选。
+  static const List<double> _speedSteps = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+  /// 一次双击快进/快退的秒数。
+  static const Duration _seekStep = Duration(seconds: 10);
+
+  /// 控制栏自动隐藏前的停留时间。
+  static const Duration _controlsLinger = Duration(seconds: 3);
+
   @override
   void initState() {
     super.initState();
     // 首帧之后再建 controller：要读 Provider 拿服务端地址和 token
     WidgetsBinding.instance.addPostFrameCallback((_) => _initController());
+  }
+
+  @override
+  void dispose() {
+    _hideControlsTimer?.cancel();
+    _seekHintTimer?.cancel();
+    unawaited(_controller?.dispose());
+    super.dispose();
   }
 
   Future<void> _initController() async {
@@ -92,6 +123,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         _ready = true;
       });
       await controller.play();
+      _scheduleHideControls();
     } on Object catch (e) {
       if (mounted) {
         setState(() => _error = e);
@@ -137,19 +169,130 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
     if (controller.value.isPlaying) {
       unawaited(controller.pause());
+      _showControls(); // 暂停了就把控制栏留住，别点完就消失
     } else {
       // 播完再点就从头开始，否则会卡在最后一帧没有反应
-      if (controller.value.position >= controller.value.duration) {
+      if (_isCompleted(controller.value)) {
         unawaited(controller.seekTo(Duration.zero));
       }
       unawaited(controller.play());
+      _scheduleHideControls();
     }
   }
 
-  @override
-  void dispose() {
-    unawaited(_controller?.dispose());
-    super.dispose();
+  bool _isCompleted(VideoPlayerValue value) {
+    final duration = value.duration;
+    return duration > Duration.zero && value.position >= duration;
+  }
+
+  /// 点画面本身：只切换控制栏，不暂停 —— 微信、B 站都是这个手感，
+  /// 想暂停点左下角那颗按钮，误触不至于打断观看。
+  void _toggleControls() {
+    if (_controlsVisible) {
+      _hideControlsTimer?.cancel();
+      setState(() => _controlsVisible = false);
+      return;
+    }
+    _showControls();
+  }
+
+  void _showControls() {
+    if (!_controlsVisible) {
+      setState(() => _controlsVisible = true);
+    }
+    _scheduleHideControls();
+  }
+
+  /// 播放中 3 秒后收起控制栏；暂停或播放结束时一直留着，
+  /// 否则用户想继续播还得先把控制栏点出来。
+  void _scheduleHideControls() {
+    _hideControlsTimer?.cancel();
+    final controller = _controller;
+    if (controller == null || !controller.value.isPlaying) {
+      return;
+    }
+    _hideControlsTimer = Timer(_controlsLinger, () {
+      if (mounted && (_controller?.value.isPlaying ?? false)) {
+        setState(() => _controlsVisible = false);
+      }
+    });
+  }
+
+  /// 双击：左半屏退 10 秒、右半屏进 10 秒，中间一小条当播放/暂停。
+  void _handleDoubleTap() {
+    final controller = _controller;
+    final position = _doubleTapPosition;
+    if (controller == null || position == null) {
+      _togglePlay();
+      return;
+    }
+    final width = MediaQuery.sizeOf(context).width;
+    if (position.dx < width * 0.35) {
+      unawaited(_seekBy(-_seekStep, controller));
+    } else if (position.dx > width * 0.65) {
+      unawaited(_seekBy(_seekStep, controller));
+    } else {
+      _togglePlay();
+    }
+  }
+
+  Future<void> _seekBy(Duration delta, VideoPlayerController controller) async {
+    final duration = controller.value.duration;
+    final target = controller.value.position + delta;
+    final clamped = target < Duration.zero
+        ? Duration.zero
+        : (target > duration ? duration : target);
+    await controller.seekTo(clamped);
+    _showSeekHint(
+      delta.isNegative
+          ? '-${delta.inSeconds.abs()} 秒'
+          : '+${delta.inSeconds} 秒',
+    );
+  }
+
+  /// 双击后的短暂反馈：中间飘一个数字，700ms 自己消失。
+  void _showSeekHint(String text) {
+    _seekHintTimer?.cancel();
+    if (mounted) {
+      setState(() => _seekHint = text);
+    }
+    _seekHintTimer = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) {
+        setState(() => _seekHint = null);
+      }
+    });
+  }
+
+  /// 倍速按档位往下走，到头回到 0.5×。视频笔记大多是听内容，
+  /// 1.5×、2× 用得比慢放多，所以默认从 1× 往上进。
+  Future<void> _cycleSpeed() async {
+    final controller = _controller;
+    if (controller == null) {
+      return;
+    }
+    final index = _speedSteps.indexOf(_playbackSpeed);
+    final next = _speedSteps[(index < 0 ? 2 : index + 1) % _speedSteps.length];
+    await controller.setPlaybackSpeed(next);
+    if (!mounted) {
+      return;
+    }
+    setState(() => _playbackSpeed = next);
+    _showSeekHint('${_formatSpeed(next)} 倍速');
+  }
+
+  Future<void> _replay() async {
+    final controller = _controller;
+    if (controller == null) {
+      return;
+    }
+    await controller.seekTo(Duration.zero);
+    await controller.play();
+    _scheduleHideControls();
+  }
+
+  static String _formatSpeed(double speed) {
+    // 1.00 → 1、1.25 → 1.25、0.50 → 0.5，标签上别出现多余的零
+    return speed.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
   }
 
   @override
@@ -167,7 +310,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
               child: controller == null || !_ready
                   ? _buildStatus()
                   : GestureDetector(
-                      onTap: _togglePlay,
+                      // 单击只切控制栏、双击左右各快进快退 10 秒，
+                      // 所以这里不能把「点一下」绑成暂停。
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _toggleControls,
+                      onDoubleTapDown: (details) =>
+                          _doubleTapPosition = details.localPosition,
+                      onDoubleTap: _handleDoubleTap,
                       child: Center(
                         child: AspectRatio(
                           aspectRatio: controller.value.aspectRatio <= 0
@@ -178,6 +327,17 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                       ),
                     ),
             ),
+            if (controller != null && _ready)
+              Positioned.fill(
+                child: _buildCenterOverlay(controller),
+              ),
+            if (_seekHint != null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(child: _buildSeekHint(_seekHint!)),
+                ),
+              ),
+            // 关闭键常驻：控制栏自己退场时也不能把退出口藏起来。
             Positioned(
               top: padding.top + 6,
               left: 8,
@@ -191,9 +351,70 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: _buildControls(controller),
+                child: IgnorePointer(
+                  ignoring: !_controlsVisible,
+                  child: AnimatedOpacity(
+                    opacity: _controlsVisible ? 1 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    child: _buildControls(controller),
+                  ),
+                ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// 画面中央的常驻状态：缓冲转圈，播完给一颗重播键。
+  Widget _buildCenterOverlay(VideoPlayerController controller) {
+    return ValueListenableBuilder<VideoPlayerValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        if (_isCompleted(value) && !value.isPlaying) {
+          return Center(
+            child: _buildCircleButton(
+              icon: Icons.replay_rounded,
+              size: 64,
+              iconSize: 30,
+              onTap: _replay,
+            ),
+          );
+        }
+        if (value.isBuffering) {
+          return const Center(
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.4,
+                color: Colors.white70,
+              ),
+            ),
+          );
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
+
+  /// 双击后的数字反馈：不抢位置，飘在正中就行。
+  Widget _buildSeekHint(String text) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
@@ -266,11 +487,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             ),
           ),
           child: Padding(
-            padding: EdgeInsets.fromLTRB(4, 16, 12, bottomInset + 6),
+            padding: EdgeInsets.fromLTRB(4, 16, 8, bottomInset + 6),
             child: Row(
               children: [
                 IconButton(
                   onPressed: _togglePlay,
+                  tooltip: value.isPlaying ? '暂停' : '播放',
                   icon: Icon(
                     value.isPlaying
                         ? Icons.pause_rounded
@@ -282,12 +504,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                 Expanded(
                   child: SliderTheme(
                     data: SliderTheme.of(context).copyWith(
-                      trackHeight: 2,
+                      // 2px 的轨道太细，手指按住基本看不出位置，加到 4px
+                      trackHeight: 4,
                       thumbShape: const RoundSliderThumbShape(
-                        enabledThumbRadius: 6,
+                        enabledThumbRadius: 7,
                       ),
                       overlayShape: const RoundSliderOverlayShape(
-                        overlayRadius: 12,
+                        overlayRadius: 14,
                       ),
                       activeTrackColor: Colors.white,
                       inactiveTrackColor: Colors.white24,
@@ -296,11 +519,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     child: Slider(
                       value: maxMs <= 0 ? 0 : currentMs,
                       max: maxMs <= 0 ? 1 : maxMs,
+                      // 拖动时先别让控制栏自己消失
+                      onChangeStart: (_) => _hideControlsTimer?.cancel(),
                       onChanged: maxMs <= 0
                           ? null
                           : (next) => controller.seekTo(
                                 Duration(milliseconds: next.round()),
                               ),
+                      onChangeEnd: (_) => _scheduleHideControls(),
                     ),
                   ),
                 ),
@@ -313,6 +539,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
+                const SizedBox(width: 4),
+                // 倍速：点一下换下一档，标签上直接写当前档位
+                _buildSpeedButton(),
               ],
             ),
           ),
@@ -321,9 +550,35 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     );
   }
 
+  /// 倍速按钮：压成一颗小胶囊，跟时间文本同一行，不额外占地方。
+  Widget _buildSpeedButton() {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(11),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: _cycleSpeed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Text(
+            '${_formatSpeed(_playbackSpeed)}×',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCircleButton({
     required IconData icon,
     required VoidCallback onTap,
+    double size = 44,
+    double iconSize = 22,
   }) {
     return Material(
       color: Colors.black.withValues(alpha: 0.42),
@@ -332,9 +587,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(icon, color: Colors.white, size: 22),
+          width: size,
+          height: size,
+          child: Icon(icon, color: Colors.white, size: iconSize),
         ),
       ),
     );

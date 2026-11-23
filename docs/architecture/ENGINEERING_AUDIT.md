@@ -8,15 +8,15 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-23 · 本地提交 `0bd6442` · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-02A（P1 · §2 首页排序） |
+| 最后更新 | 2026-11-23 · 代码提交 `b79b468`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-03（P2 · §3 探索索引失效范围） |
 | 任务状态 | 待验收 |
-| 可复查改动 | `noteOrderBySql` 三级排序（置顶 → 时间字段 → id）与 `noteComparator` 逐级对齐；`getNotesPaged` / `getNotesByMedia` 收 `SortOrder` 并支持注入 executor；`setSortOrder` 从第 0 页重查、`_notesQueryEpoch` 丢弃迟到结果。代码提交 `3dabf69`，记录提交 `15ed7ed`、`0bd6442` |
-| 验证结果 | `dart tool/inkpaper.dart analyze` 无 issue；`dart tool/inkpaper.dart verify` 全量 **1048 项全过**；反向验证（`orderBy` 改回 `createdAt DESC`）新用例 9 条失败 8 条。功能回归通过；性能收益未测 |
-| 未验证 / 待测 | 无真机观感（滚动、切排序列表重置）；三级 `ORDER BY` 无组合索引，万条级耗时交 OPT-M01；`loadNotesFromLocal()` 重复追加风险留给 OPT-02B |
-| 下一项 | OPT-03（§3 探索索引，独立项）。OPT-02B 依赖 OPT-02A，需本项验收后再领 |
+| 可复查改动 | 新增 `RevisionedFutureCache`；`DatabaseService.notesRevision` 在全部 note 行写入处自增；`notifyListeners()` 与 `updateNoteInMemory()` 不再清索引；`noteDiscoveryRevision` 作为可覆盖的版本来源 |
+| 验证结果 | `format` 0 changed；`analyze` 无 issue；`flutter test` 全量 **1061 项全过**（原 1048 + 13）；`related_notes_index_test` 新增「通知不重建 / 版本变化才重建」断言。一次全量下 `note_editor_draft_image_test` 单例偶发失败，单跑与重跑均过 |
+| 未验证 / 待测 | 无真机；命中缓存后的进入时延与内存未测（交 OPT-M01）；软删落库前的极短窗口；索引结构与后台常驻查询未动 |
+| 下一项 | OPT-02B 依赖 OPT-02A，等其验收后再领；独立项下一个是 OPT-09（§9 短预览缓存） |
 | 待用户决策 | ① OPT-01 顺带发现的「归档行被剪枝」是 bug 还是设计；② 完整空清单的同步产品规则；③ `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓，等明确启用 |
-| 工作区注意事项 | 另有会话在改启动图（`flutter_native_splash.yaml`、`android/app/src/main/res/values*/styles.xml`、`colors.xml`、`lib/main.dart`、`assets/images/splash_inkpaper.png`），均未提交，勿回退或顺手带上；发版、推送、装机需单独授权 |
+| 工作区注意事项 | 另有会话在改启动图（`flutter_native_splash.yaml`、`android/app/src/main/res/values*/styles.xml`、`colors.xml`、`lib/main.dart`、`assets/images/splash_inkpaper.png`），另有一处未提交的 `docs/README.md` 增加审查文档索引链接，均非本轮产物，勿回退或顺手带上；发版、推送、装机需单独授权 |
 
 ## 执行队列
 
@@ -27,7 +27,7 @@
 | OPT-01 | P1 | 待验收 | §1 Memos 分页 | 有续页令牌的空页继续拉取，重复令牌、失败或达到上限时禁止按缺失 ID 剪枝。覆盖完整清单与部分清单。完整空清单的产品规则另行确认。 |
 | OPT-02A | P1 | 待验收 | §2 首页排序 | 统一首批和续页的置顶、四种排序和 ID 并列顺序，切换时丢弃旧查询结果。用跨三页样本验收。 |
 | OPT-02B | P1 | 待办 | §2 首页刷新 | 依赖 OPT-02A。同步和导入后刷新已浏览窗口，保留原有的全库读取入口，并覆盖过滤口径、浏览位置和翻页。 |
-| OPT-03 | P2 | 待办 | §3 探索索引 | 先缩小缓存失效范围。验证排序、续页不触发重建，正文、关系或可见性变化能刷新。索引结构及后台查询调整另行评估。 |
+| OPT-03 | P2 | 待验收 | §3 探索索引 | 先缩小缓存失效范围。验证排序、续页不触发重建，正文、关系或可见性变化能刷新。索引结构及后台查询调整另行评估。 |
 | OPT-09 | P2 | 待办 | §9 短预览缓存 | 收缩缓存键的原文保留，验证编辑、展开和搜索高亮。卡片媒体提取可做独立改动。 |
 | OPT-10 | P2 | 待办 | §10 笔记引用 | 明确的引用 ID 走批量查询。验证历史正文匹配、反向关系和移除最后一个引用。 |
 | OPT-04 | P2 | 待办 | §4 小组件 | 先缩减一次快照构建中读取的完整笔记范围，核对待办计数、回顾和首屏结果。 |
@@ -76,6 +76,19 @@
 - **行为变化**：切换排序会把列表重置为第一页（已加载的深页被丢弃，滚动位置可能被钳制），保留浏览位置与翻页属 OPT-02B；四种排序下**置顶恒在最前**，此前「按编辑时间」排序时置顶笔记虽然仍在前面，但与「最近编辑」混排的样本未被 SQL 覆盖。
 - **未验证**：① 无真机验收，滚动观感、切换排序时的重建帧与「列表被重置」的体感未测；② 排序子句现在是三级，`idx_notes_created_at` 只能帮上「创建时间」两种排序的第一段，`ORDER BY` 会走临时排序，大库（万条级）的 SQL 耗时未测 —— 属性能收益待测，交给 OPT-M01 校准；若要加 `(isPinned, updatedAt, id)` 组合索引需升 schema，本轮不动；③ 推理出的一个既有问题本轮未修：`loadNotesFromLocal()` 全量回载后把分页状态重置为初始（`currentPage=0`、`hasMoreData=true`），之后滑到底会按第 1 页再 `addAll` 一次已加载的笔记，理论上产生重复条目，待 OPT-02B 统一刷新入口时一并处理；④ 排序选择仍未持久化（重启回 `newest`），冷启动首屏快照可能来自上次的另一种排序，首帧与真实加载之间有一次顺序差。
 - **建议下一项**：OPT-03（§3 探索索引，独立项）。OPT-02B 依赖本项，待本项验收后再领，接手时把上面 ③ 的 `loadNotesFromLocal` 重复追加一并处理。
+
+### 2026-11-23 · OPT-03 · 待验收
+
+- **改动**：
+  - 新增 `lib/utils/revisioned_future_cache.dart`：`RevisionedFutureCache<T>` 把「缓存还有没有效」收敛成一次版本号比较。版本未变复用同一个 Future（并发调用共享一次构建）；变了就重建；构建期间又变则丢弃这份结果再建，最多 `maxAttempts` 次（默认 3），避免持续写入时死循环；构建失败不缓存。
+  - `lib/services/database_service.dart`：新增 `static int notesRevision` 与 `_bumpNotesRevision()`，在全部 note 行写入处自增 —— `upsertNote`（覆盖 `saveNote`、三条导入链路）、`updateNote`、`deleteNote`、`softDeleteNote`、`restoreDeletedNote`、`purgeDeletedNote`、`purgeAllDeletedNotes`（仅有行被删时）、`clearAllNotes`、`replaceAllNotes`、`mergeNotes`、`deleteSyncedNotesNotIn`（仅有行被删时）、`updateNotesBatch`、`insertNotesBatch`、`setRemoteId`、`markNoteSynced`、`fixInvalidNoteTimestamps`（仅有行被改时）。读路径一律不动，空的服务端清单仍在方法入口提前返回。
+  - `lib/providers/app_provider.dart`：`_noteDiscoveryIndex` 由裸 `Future?` 换成带版本号的缓存，版本源抽成可覆盖的 `@protected noteDiscoveryRevision`（生产读数据库写入版本）；`notifyListeners()` 不再置空索引；`updateNoteInMemory()` 同样不再置空（该路径只改内存，引用重建本身会写库）。
+  - `docs/BUSINESS_OVERVIEW.md` 4.14 补一句缓存口径。
+- **测试**：新增 `test/unit/revisioned_future_cache_test.dart` 7 条（RFC-01 复用不重建、02 版本变化重建、03 构建期间变化丢弃重建、04 达 `maxAttempts` 停止、05 失败不缓存、06 并发共享一次构建、07 `clear` 后重建）；新增 `test/unit/notes_revision_test.dart` 6 条真 SQLite 用例（REV-01 插入/更新各 +1、02 分页与媒体筛选与往年今日与删除列表都不动版本号、03 软删/恢复各 +1、04 彻底删除与批量清空只在有行被删时 +1、05 `mergeNotes` 算语料变化、06 空清单提前返回不动版本号）。改造 `test/unit/related_notes_index_test.dart` 的共用索引用例：原来靠 `notifyListeners()` 触发重建，现在断言「通知不重建」+「版本号变化才重建且结果更新」。
+- **验证**：`dart tool/inkpaper.dart format` → 313 个文件 0 changed；`dart tool/inkpaper.dart analyze` → No issues found；`flutter test`（`NO_PROXY` 已设）→ **1061 项全过**（原 1048 + 13）。说明：`verify` 整轮会先跑 `deps`，本轮第三次整轮在该阶段卡住 21 分钟（期间没有 `flutter_tester` 子进程，`flutter test` 单独启动 30 秒内就跑到 194 项），已中止并改成分步执行同一套命令取证；`verify` 前两次已完成 analyze 与测试部分。另有一次 `test/widget_tests/note_editor_draft_image_test.dart` 的「自动恢复后继续写」在全量并发下失败、单跑 9 项全过、重跑全量也过，判环境偶发，与本轮改动无引用关系。功能回归通过；性能收益未测（命中缓存后的进入时延、索引常驻内存交 OPT-M01）。提交 `b79b468`。
+- **行为变化**：切排序、首页翻页、切媒体筛选、同步进度通知之后再进随机漫步/相关笔记，直接命中已建的索引；写库（编辑、增删、标签、引用、恢复备份、同步落库）后第一次探索重建一次。索引首次冷建的耗时与结构未变。
+- **未验证**：① 无真机验收，命中缓存的体感与内存占用未测；② `deleteNote` 是先标记 `pendingDeleteIds` 再异步软删，落库前有极短窗口索引里仍含该笔记（撤销与恢复都会写库触发重建，实际不可达）；③ 索引结构、轻量语料、后台常驻 isolate 查询未动（本项范围外，见 §3「索引体积与查询开销」）；④ 版本号是进程内计数器，冷启动归零不影响正确性（缓存本来也不跨进程）。
+- **建议下一项**：OPT-02B 依赖 OPT-02A，等其验收后再领；独立项下一个是 OPT-09（§9 短预览缓存）。
 
 ## 现有架构
 

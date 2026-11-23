@@ -9,7 +9,7 @@
 | 任务 | 优先级 | 状态 | 详情 | 本轮交付与验收 |
 | --- | --- | --- | --- | --- |
 | OPT-01 | P1 | 待验收 | §1 Memos 分页 | 有续页令牌的空页继续拉取，重复令牌、失败或达到上限时禁止按缺失 ID 剪枝。覆盖完整清单与部分清单。完整空清单的产品规则另行确认。 |
-| OPT-02A | P1 | 待办 | §2 首页排序 | 统一首批和续页的置顶、四种排序和 ID 并列顺序，切换时丢弃旧查询结果。用跨三页样本验收。 |
+| OPT-02A | P1 | 待验收 | §2 首页排序 | 统一首批和续页的置顶、四种排序和 ID 并列顺序，切换时丢弃旧查询结果。用跨三页样本验收。 |
 | OPT-02B | P1 | 待办 | §2 首页刷新 | 依赖 OPT-02A。同步和导入后刷新已浏览窗口，保留原有的全库读取入口，并覆盖过滤口径、浏览位置和翻页。 |
 | OPT-03 | P2 | 待办 | §3 探索索引 | 先缩小缓存失效范围。验证排序、续页不触发重建，正文、关系或可见性变化能刷新。索引结构及后台查询调整另行评估。 |
 | OPT-09 | P2 | 待办 | §9 短预览缓存 | 收缩缓存键的原文保留，验证编辑、展开和搜索高亮。卡片媒体提取可做独立改动。 |
@@ -45,6 +45,20 @@
 - **本轮明确不做**：① 同正文副本归并/删除（`app_provider_sync.part.dart:133`、`:350`）不受 `isComplete` 约束——两处只处理未同步行，且先 `saveNotes` 再删副本，丢的是 id 归属不是正文；若在部分清单下也跳过，会留下两条一模一样的笔记，属独立设计。② 三处调用点的 `?? true` 默认值不改 `?? false`：`getMemos` 两条分支都显式返回该键，默认值是死分支，单改一处会造成判定不一致，要收紧应三处一起改并补契约测试。③ 完整空清单的产品规则不动，仍靠 `deleteSyncedNotesNotIn` 的空集合早退兜底。④ 不引入枚举返回结构、不给分页请求加超时、不动剪枝 SQL 规模与 `_primeServerContentIndex`。
 - **顺带发现（留独立项，未改动）**：剪枝集合是「可见清单」（`app_provider.dart:1578` 的 `_isVisibleNote` 过滤 ARCHIVED 与待删除），而 `deleteSyncedNotesNotIn` 只排除 `rowStatus='DELETED'`，因此完整清单下服务端已归档的本地已同步行会被物理删除。与分页无关，需先确认是 bug 还是设计。另：修复后病态服务端上单次同步可能跑两轮全量分页（上传前 `_primeServerContentIndex` 预取 + 正式拉取），属预期行为，可作后续优化点。
 - **建议下一项**：OPT-02A（首页排序统一）。
+
+### 2026-11-23 · OPT-02A · 待验收
+
+- **改动**：
+  - `lib/utils/note_sorting_helper.dart`：新增 `noteOrderBySql(SortOrder)`，固定三级排序 —— `IFNULL(isPinned,0) DESC` → 所选时间字段 → `id`（倒序排序用 `id DESC`，正序用 `id ASC`，让「从旧到新」正好是从新到旧的镜像）。`noteComparator` 补同样的 `id` 兜底，两边逐级对应。删除已无生产调用点的 `inferCurrentSortOrder`：DB 开始按选中字段排序后，从列表内容反推排序不再成立，留着只会误导。
+  - `lib/services/database_service.dart`：`getNotesPaged` 的 `String? orderBy` 换成 `SortOrder sortOrder`（默认 `newest`），并补 `DatabaseExecutor? executor` 便于直连测试库；`getNotesByMedia` 的 `orderBy` 同步换成 `SortOrder`。
+  - `lib/providers/app_provider.dart`：① `setSortOrder` 改为 async —— 改完排序从第 0 页重查，不再只对已加载的 50 条重排（这是「两年前创建、今天刚编辑」的笔记翻不到底的根因）；② 新增 `_notesQueryEpoch` 代数号，`loadInitialNotes` 与 `loadMoreNotes` 都核对它，切换排序后迟到的首屏/续页结果整份丢弃，也不把新查询的分页状态改成 failed；③ `_getCurrentSortOrder()` 直接返回 `_notesStore.sortOrder`，不再靠内容反推；④ 媒体筛选查询带上 `sortOrder`，await 期间排序又变了就丢弃这次结果。
+  - `lib/screens/home_screen.dart`：`_applySorting` 改为 await 新的异步 `setSortOrder`。
+  - 未改动：分页仍是 `OFFSET` 取页（游标续页按该项建议留待大库测量后再决定）、`loadNotesFromLocal` 的全量回载路径、`app_provider_sync.part.dart` 同步后的列表更新（均属 OPT-02B 范围）。
+- **测试**：新增 `test/unit/notes_paging_sort_test.dart`（9 条，真 SQLite + `sqflite_common_ffi` 内存库 + `executor` 注入）。7 条样本覆盖「老笔记最近编辑」「最老的置顶笔记」「同一 createdAt 并列」。断言：`PGSORT-newest/oldest/updated/updatedOldest` 跨三页（pageSize 3）拼起来必须**逐位等于** `sortedNotesCopy` 的结果且无重复；`PGSORT-deep` 最近编辑第一页就含 2023 年创建的老笔记；`PGSORT-pinned` 四种排序下置顶都在首位；`PGSORT-tie` pageSize=1 让并列项跨页，仍不重不漏；`PGSORT-null` 老行 `isPinned` 为 NULL 时按未置顶排在置顶之后；`PGSORT-media` 「有图片」筛选同样按最近编辑排序。`test/unit/note_sorting_helper_test.dart` 8 → 9 条（删掉 3 条推断函数用例，新增 id 兜底三条 + SQL 子句契约一条）。
+- **验证**：`dart tool/inkpaper.dart analyze` 无 issue；`dart tool/inkpaper.dart verify`（格式门禁 + analyze + 全量测试）**1048 项全过**（原 1038，净 +10）。反向验证：把 `getNotesPaged` 的 `orderBy` 临时改回写死的 `createdAt DESC`，新文件 9 条里 8 条立刻失败（`PGSORT-media` 因样本没有其它带图笔记而未被触发），恢复后 9 条全过 —— 说明这批用例真的钉住了本项修复。
+- **行为变化**：切换排序会把列表重置为第一页（已加载的深页被丢弃，滚动位置可能被钳制），保留浏览位置与翻页属 OPT-02B；四种排序下**置顶恒在最前**，此前「按编辑时间」排序时置顶笔记虽然仍在前面，但与「最近编辑」混排的样本未被 SQL 覆盖。
+- **未验证**：① 无真机验收，滚动观感、切换排序时的重建帧与「列表被重置」的体感未测；② 排序子句现在是三级，`idx_notes_created_at` 只能帮上「创建时间」两种排序的第一段，`ORDER BY` 会走临时排序，大库（万条级）的 SQL 耗时未测 —— 属性能收益待测，交给 OPT-M01 校准；若要加 `(isPinned, updatedAt, id)` 组合索引需升 schema，本轮不动；③ 推理出的一个既有问题本轮未修：`loadNotesFromLocal()` 全量回载后把分页状态重置为初始（`currentPage=0`、`hasMoreData=true`），之后滑到底会按第 1 页再 `addAll` 一次已加载的笔记，理论上产生重复条目，待 OPT-02B 统一刷新入口时一并处理；④ 排序选择仍未持久化（重启回 `newest`），冷启动首屏快照可能来自上次的另一种排序，首帧与真实加载之间有一次顺序差。
+- **建议下一项**：OPT-02B（首页刷新：同步与导入后刷新已浏览窗口，保留全库读取入口，覆盖过滤口径、浏览位置和翻页；上面 ③ 一并处理）。
 
 ## 现有架构
 

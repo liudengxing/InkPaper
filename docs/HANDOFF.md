@@ -80,7 +80,7 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 | 全局状态、分页加载、笔记增删改（统一收尾 `_commitNoteChange`） | `lib/providers/app_provider.dart`（4460 行） |
 | 账号信息、登录信息存取、API 服务初始化、Token 过期、头像预加载 | `lib/providers/app_provider_account.part.dart`（`AppProvider` 的 part，extension） |
 | 服务端拉取与合并 | `lib/providers/app_provider_sync.part.dart`（同上） |
-| SQLite（`notes.db`）、分页排序 | `lib/services/database_service.dart`（`getNotesPaged` 按 `createdAt DESC`） |
+| SQLite（`notes.db`）、分页排序 | `lib/services/database_service.dart`（`getNotesPaged` 按传入的 `SortOrder` 排序：置顶 → 时间字段 → `id` 兜底，与 `noteComparator` 同一套规则） |
 | 笔记模型（`createdAt` / `updatedAt` / `displayTime`） | `lib/models/note_model.dart` |
 | 首页卡片（图片栅格、展开判定、时间） | `lib/widgets/note_card.dart` |
 | 详情页九宫格（延后解码的**样板实现**） | `lib/widgets/note_image_grid.dart` |

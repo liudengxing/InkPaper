@@ -8,13 +8,13 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-23 · 代码提交 `aa1772a`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-09A（P2 · §9 短预览缓存） |
+| 最后更新 | 2026-11-23 · 代码提交 `0f29b49`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-10（P2 · §10 笔记引用） |
 | 任务状态 | 待验收 |
-| 可复查改动 | `NotePreviewCache` 键由整篇正文改为「解析上限 + 前缀指纹」；淘汰改为「条数 + 估算字符预算」，卡片 400 条 / 60 万字符、全文 4 条 / 120 万字符两桶独立；`_safePrefixLength` 抽出共用 |
-| 验证结果 | `analyze` 无 issue；`flutter test --concurrency=4` 全量 **1070 项全过**（原 1061 + 9）；反向验证（键改回整篇正文）PKEY-01/03 失败。默认并发下 `note_editor_draft_image_test` 的清理竞态会偶发失败，单跑与降并发均通过 |
-| 未验证 / 待测 | 无真机；`hitRate` 与实际滚动帧时间未测（交 OPT-M01）；每次取预览对前 2400 字符做单趟哈希的开销未单独计时；哈希理论碰撞未留原文二次校验 |
-| 下一项 | OPT-09B（§9 卡片媒体提取）；OPT-02B 仍等 OPT-02A 验收 |
+| 可复查改动 | `updateReferencesFromContent` 先按 id 批量解析 `[[id]]`，只有解析不到的旧式 `[[正文/前缀]]` 才读全库；`createReference` / `removeReference` 改 `getNoteById`（源 + 目标两行）；引用回调语义改为「本次受影响的笔记」（`onNotesChanged`），不再整表替换分页列表；新增 `DatabaseService.getNotesByIds`（900 个一批） |
+| 验证结果 | `analyze` 无 issue；`flutter test --concurrency=4` 全量 **1078 项全过**（原 1070 + 8）；反向验证（把批量解析改成空集）REF-01/02/04/06/08 失败。本机内存库校准：800 条笔记、5 轮保存三个 ID 引用，现状 30ms（0 次全表读）对改造前等价 2323ms（20 次 `getNotes`） |
+| 未验证 / 待测 | 无真机（保存耗时与帧时间交 OPT-M01）；旧式 `[[正文前缀]]` 仍是 O(n) 全库扫描；`rebuildAllReferences` 本身仍只遍历已加载页（已登记 OPT-10B）；`debugFullTableReadCount` 是测试专用计数，生产无读者 |
+| 下一项 | OPT-10B 或 OPT-04（§4 小组件），均为独立项；OPT-02B 等 OPT-02A 验收、OPT-09B 等 OPT-09A 验收 |
 | 待用户决策 | ① OPT-01 顺带发现的「归档行被剪枝」是 bug 还是设计；② 完整空清单的同步产品规则；③ `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓，等明确启用 |
 | 工作区注意事项 | 另有会话在改启动图（`flutter_native_splash.yaml`、`android/app/src/main/res/values*/styles.xml`、`colors.xml`、`lib/main.dart`、`assets/images/splash_inkpaper.png`），另有一处未提交的 `docs/README.md` 增加审查文档索引链接，均非本轮产物，勿回退或顺手带上；发版、推送、装机需单独授权 |
 
@@ -30,7 +30,8 @@
 | OPT-03 | P2 | 待验收 | §3 探索索引 | 先缩小缓存失效范围。验证排序、续页不触发重建，正文、关系或可见性变化能刷新。索引结构及后台查询调整另行评估。 |
 | OPT-09A | P2 | 待验收 | §9 短预览缓存 | 缓存键改为「解析上限 + 解析范围内正文的指纹」，按预览文本与样式区间估算预算淘汰。验证编辑、展开和搜索高亮。 |
 | OPT-09B | P2 | 待办 | §9 卡片媒体提取 | 依赖 OPT-09A 的取样口径。把卡片分别提取图片与视频合并成一次媒体扫描，保持图片/视频互斥与顺序。 |
-| OPT-10 | P2 | 待办 | §10 笔记引用 | 明确的引用 ID 走批量查询。验证历史正文匹配、反向关系和移除最后一个引用。 |
+| OPT-10 | P2 | 待验收 | §10 笔记引用 | 明确的引用 ID 走批量查询。验证历史正文匹配、反向关系和移除最后一个引用。 |
+| OPT-10B | P2 | 待办 | §10 笔记引用 | `rebuildAllReferences` 只遍历已加载页（见 OPT-10 顺带发现）。改成按库全量重建，验证引用多的老库与分页状态。 |
 | OPT-04 | P2 | 待办 | §4 小组件 | 先缩减一次快照构建中读取的完整笔记范围，核对待办计数、回顾和首屏结果。 |
 | OPT-06A | P2 | 待办 | §6 首屏 | 先调整配置和首屏快照的并行读取，验证主题与语言、离线和空缓存启动。 |
 | OPT-07A | P2 | 待办 | §7 图片 | 先约束缩略图像素和查看器预取保留范围，验证长图、方向、透明度和回看。可拆成两轮。 |
@@ -107,6 +108,24 @@
 - **行为变化**：缓存命中从「正文完全相同」放宽到「解析范围内的前缀相同」；超过 2400 字之后的改动不再让卡片预览重建（本来也不参与预览）。长卡片在当前库规模下最多驻留 200 条上下（按 60 万字符预算），短笔记仍是 400 条封顶。全文预览仍是 4 条，另加 120 万字符上限。
 - **未验证**：① 无真机，`NotePreviewCache.hitRate` 的实际命中率与滚动帧时间未测，交 OPT-M01；② 两路 32 位哈希理论上可碰撞（400 条规模约 4×10⁻¹⁵），没有额外留原文做二次校验；③ 每次取预览都要对前 ≤2400 字符做一次单趟哈希，卡片重建时的这点开销未单独计时（属于性能收益待测的一部分）。
 - **建议下一项**：OPT-09B（§9 卡片媒体提取）。OPT-02B 仍等 OPT-02A 验收。
+
+### 2026-11-23 · OPT-10 · 待验收
+
+- **改动**：
+  - `lib/services/database_service.dart`：新增 `getNotesByIds(Iterable<String>, {executor})`——查 `viewActiveNotes`，按 900 个 id 一批（SQLite 变量上限 999），口径与 `getNoteById` 一致（软删行不算存在）。另加两个 `@visibleForTesting` 钩子：`debugOverrideDatabase(Database?)`（引用管理器这类自己持 `DatabaseService()` 的服务没法逐方法注入 `executor`）与 `debugFullTableReadCount`（在 `getNotes()` 里自增，用来证明保存路径还读不读全库）。
+  - `lib/services/unified_reference_manager.dart`：
+    - `updateReferencesFromContent` 的引用解析改成三段：① 先 `getNotesByIds(newReferences)` 一次批量查（编辑器插入的就是 `[[<id>]]`，见 `note_editor.dart` 的 `[[${referencedNote.id}]]`）；② 只有按 id 查不到的引用才回落到历史兼容路径（`[[正文]]` / `[[正文前缀]]`），那条路才 `getNotes()`；③ 同一引用重复出现只处理一次。原来的三档匹配（id → `content.trim()` 精确 → 去 Markdown 标记后的前缀/前 50 字符包含）抽成 `_resolveLegacyReference` / `_legacyReferenceMatches`，命中多条仍取 `getNotes()`（createdAt DESC）里的第一条，顺序语义不变。
+    - `createReference` / `removeReference` / 两个 cleanup 方法不再 `getNotes()`：前者改 `getNoteById` 取源和目标两行。
+    - 回调更名并改语义：`onNotesUpdated`（全量笔记）→ `onNotesChanged`（本次受影响的笔记）。以前调用方据此整表替换 `_notesStore.notes`，分页之后那等于把深页状态和排序位置冲掉。
+  - `lib/providers/app_provider.dart`：回调改成按 id 就地更新、找不到才追加；删掉「`currentPage == 0` 且条数 ≤ 50 就整表替换」的分支（该分支依赖的 `_pageSize` 仍被同步回载用到，保留）。
+  - `docs/development/LESSONS_LEARNED.md` §2.8 补第 2.8 节的第二层：短路只挡住「没有引用」，真有引用时还有 4 次全表读取，以及现在的解析顺序与回调语义。
+- **测试**：新增 `test/unit/note_reference_manager_test.dart` 8 条（真 SQLite 内存库 + `debugOverrideDatabase`，样本 4 条现代笔记 + 2 条同前缀老笔记）：REF-01 明确 ID 建双向关系且全表读取 0 次；REF-02 三个 ID 引用仍 0 次（改造前是 4 次：解析 1 + 每个引用 1）；REF-03 `getNotesByIds` 传 1202 个 id 分两批不炸变量上限；REF-04 移除最后一个引用时双向关系一起清掉；REF-05 `[[今天读书笔记]]` 落到 `getNotes()` 顺序的第一条且只读一次全库；REF-06 ID 与历史引用混合，两条都建立关系；REF-07 目标被软删后不建立关系；REF-08 回调只带 `{n-1, n-2, n-3}`，不是整库。
+- **验证**：`dart tool/inkpaper.dart analyze` → No issues found；`flutter test --concurrency=4`（`NO_PROXY` 已设）→ **1078 项全过**（原 1070 + 8）。反向验证：把批量解析临时改成空集（强制走全库兼容路径），REF-01 / 02 / 04 / 06 / 08 立刻失败，恢复后 8 条全过。
+- **查询行数与耗时校准**：800 条笔记（正文约 190 字）+ 5 轮「保存一条引用三篇笔记的正文」，本机内存库实测现状 **30ms / 0 次全表读取**，改造前等价路径（20 次 `getNotes()`）**2323ms**。这是内存库、无磁盘 IO 的下界，只说明量级关系，不代表真机数字。
+- **行为变化**：引用回调只带受影响的笔记；同一条正文里重复出现的 `[[x]]` 只处理一次（以前会重复调用 `createReference`，第二次靠幂等判断早退）；旧式前缀匹配在「精确匹配 vs 前缀匹配」上有极小的判定归并（`cleanContent == cleanRef` 现在两处都算命中），命中结果与顺序不变。
+- **未验证**：① 无真机，保存耗时、编辑器关闭帧时间未测，交 OPT-M01；② 旧式 `[[正文前缀]]` 仍是 O(n) 全库扫描，用户若大量依赖它，收益只剩「没引用时零成本」这一条；③ `debugFullTableReadCount` 在 release 里也自增，但没有任何读者，属纯测试钩子；④ `rebuildAllReferences` 未动（见顺带发现）。
+- **顺带发现（登记为 OPT-10B）**：`app_provider.dart:4192` 的 `rebuildAllReferences` 遍历的是 `_notesStore.notes`（当前分页缓存），不是全库，接回 UI 前必须改成按库遍历；该方法目前全仓无调用点（`grep` 只剩定义），属死代码。另：`notes_context_builder` 与随机漫步索引仍走 `getNotes()` 全量，那是它们的取样口径，本项不动。
+- **建议下一项**：OPT-10B 或 OPT-04（§4 小组件），均为独立项；OPT-02B 等 OPT-02A 验收、OPT-09B 等 OPT-09A 验收。
 
 ## 现有架构
 

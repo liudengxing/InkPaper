@@ -19,21 +19,36 @@ class UnifiedReferenceManager {
       UnifiedReferenceManager._internal();
 
   DatabaseService? _databaseService;
-  Function(List<Note>)? _onNotesUpdated;
+
+  /// 本次受影响的笔记（只有源/目标，不是全库）。
+  ///
+  /// 以前这里传的是 `getNotes()` 的整表结果，调用方也就顺势整表替换列表；
+  /// 分页之后那样既浪费又容易把深页状态冲掉。现在统一成「改到哪条给哪条」。
+  Function(List<Note>)? _onNotesChanged;
   Function(String)? _onError;
   Future<void> Function(String, String, String)? _syncReferenceToServerUnified;
 
   /// 初始化管理器
   void initialize({
     required DatabaseService databaseService,
-    Function(List<Note>)? onNotesUpdated,
+    Function(List<Note>)? onNotesChanged,
     Function(String)? onError,
     Future<void> Function(String, String, String)? syncReferenceToServerUnified,
   }) {
     _databaseService = databaseService;
-    _onNotesUpdated = onNotesUpdated;
+    _onNotesChanged = onNotesChanged;
     _onError = onError;
     _syncReferenceToServerUnified = syncReferenceToServerUnified;
+  }
+
+  /// 通知 UI 关系变化：先立即发一次，10ms 后再发一次让异步帧也能收到。
+  Future<void> _notifyNotesChanged(List<Note> notes) async {
+    if (notes.isEmpty || _onNotesChanged == null) {
+      return;
+    }
+    _onNotesChanged!(notes);
+    await Future.delayed(const Duration(milliseconds: 10));
+    _onNotesChanged?.call(notes);
   }
 
   /// 🎯 核心方法：创建引用关系
@@ -51,24 +66,19 @@ class UnifiedReferenceManager {
     }
 
     try {
-      // 开始数据库事务
-      final notes = await _databaseService!.getNotes();
-
-      final sourceNoteIndex = notes.indexWhere((n) => n.id == sourceNoteId);
-      final targetNoteIndex = notes.indexWhere((n) => n.id == targetNoteId);
-
-      if (sourceNoteIndex == -1) {
+      // 只取源和目标两行：这里以前是 `getNotes()` 全表加载，建一条引用
+      // 就把整库（含 resourceList / relations 反序列化）过一遍。
+      final sourceNote = await _databaseService!.getNoteById(sourceNoteId);
+      if (sourceNote == null) {
         _handleError('源笔记不存在: $sourceNoteId');
         return false;
       }
 
-      if (targetNoteIndex == -1) {
+      final targetNote = await _databaseService!.getNoteById(targetNoteId);
+      if (targetNote == null) {
         _handleError('目标笔记不存在: $targetNoteId');
         return false;
       }
-
-      final sourceNote = notes[sourceNoteIndex];
-      final targetNote = notes[targetNoteIndex];
 
       // 检查是否已存在完整的双向关系
       final existingSourceRelation = sourceNote.relations.any(
@@ -138,26 +148,18 @@ class UnifiedReferenceManager {
       }
 
       // 3. 原子性数据库更新（只更新有变化的笔记）
+      final changedNotes = <Note>[];
       if (!existingSourceRelation) {
         await _databaseService!.updateNote(updatedSourceNote);
+        changedNotes.add(updatedSourceNote);
       }
       if (!existingTargetRelation) {
         await _databaseService!.updateNote(updatedTargetNote);
+        changedNotes.add(updatedTargetNote);
       }
 
-      // 6. 更新内存中的笔记列表
-      notes[sourceNoteIndex] = updatedSourceNote;
-      notes[targetNoteIndex] = updatedTargetNote;
-
-      // 7. 立即刷新UI
-      _onNotesUpdated?.call(notes);
-
-      // 🔧 强制UI更新：确保界面立即反映变化
-      if (_onNotesUpdated != null) {
-        // 添加微延迟确保UI更新完成
-        await Future.delayed(const Duration(milliseconds: 10));
-        _onNotesUpdated!.call(notes);
-      }
+      // 6. 立即刷新UI
+      await _notifyNotesChanged(changedNotes);
 
       // 引用关系创建成功
 
@@ -188,19 +190,15 @@ class UnifiedReferenceManager {
     }
 
     try {
-      final notes = await _databaseService!.getNotes();
-
-      final sourceNoteIndex = notes.indexWhere((n) => n.id == sourceNoteId);
-      final targetNoteIndex = notes.indexWhere((n) => n.id == targetNoteId);
-
-      if (sourceNoteIndex == -1) {
+      final sourceNote = await _databaseService!.getNoteById(sourceNoteId);
+      if (sourceNote == null) {
         return true;
       }
 
-      final sourceNote = notes[sourceNoteIndex];
+      final targetNote = await _databaseService!.getNoteById(targetNoteId);
 
       // 🔧 修复：如果目标笔记不存在，仍需要清理源笔记中的无效引用
-      if (targetNoteIndex == -1) {
+      if (targetNote == null) {
         // 清理源笔记中指向不存在笔记的引用关系
         final updatedSourceRelations = sourceNote.relations
             .where(
@@ -214,16 +212,11 @@ class UnifiedReferenceManager {
           final updatedSourceNote =
               sourceNote.copyWith(relations: updatedSourceRelations);
           await _databaseService!.updateNote(updatedSourceNote);
-
-          // 更新内存
-          notes[sourceNoteIndex] = updatedSourceNote;
-          _onNotesUpdated?.call(notes);
+          await _notifyNotesChanged(<Note>[updatedSourceNote]);
         }
 
         return true;
       }
-
-      final targetNote = notes[targetNoteIndex];
 
       // 1. 从源笔记删除REFERENCE关系
       final updatedSourceRelations = sourceNote.relations
@@ -253,19 +246,8 @@ class UnifiedReferenceManager {
       await _databaseService!.updateNote(updatedSourceNote);
       await _databaseService!.updateNote(updatedTargetNote);
 
-      // 5. 更新内存
-      notes[sourceNoteIndex] = updatedSourceNote;
-      notes[targetNoteIndex] = updatedTargetNote;
-
       // 6. 立即刷新UI
-      _onNotesUpdated?.call(notes);
-
-      // 🔧 强制UI更新：确保界面立即反映变化
-      if (_onNotesUpdated != null) {
-        // 添加微延迟确保UI更新完成
-        await Future.delayed(const Duration(milliseconds: 10));
-        _onNotesUpdated!.call(notes);
-      }
+      await _notifyNotesChanged(<Note>[updatedSourceNote, updatedTargetNote]);
 
       // 7. 后台同步到服务器
       unawaited(
@@ -301,12 +283,11 @@ class UnifiedReferenceManager {
       // 1. 解析文本中的引用
       final newReferences = _parseReferencesFromText(content);
 
-      // 2. 获取现有引用关系
-      final notes = await _databaseService!.getNotes();
-      final currentNote = notes.firstWhere(
-        (n) => n.id == noteId,
-        orElse: () => throw Exception('笔记不存在'),
-      );
+      // 2. 取当前笔记的现有引用关系（只读一行）
+      final currentNote = await _databaseService!.getNoteById(noteId);
+      if (currentNote == null) {
+        return false;
+      }
 
       final existingReferences = currentNote.relations
           .where(
@@ -318,61 +299,37 @@ class UnifiedReferenceManager {
           .where((id) => id.isNotEmpty)
           .toSet();
 
-      // 3. 过滤有效的引用（只处理存在的笔记）
+      // 3. 解析引用目标。
+      //
+      // 编辑器插入的就是 `[[<id>]]`（见 `note_editor.dart` 的
+      // `[[${referencedNote.id}]]`），所以先按 id 一次批量查完；只有查不到
+      // 的引用才回落到历史兼容路径（正文 / 正文前缀匹配），那条路才需要
+      // 读全库。改造前是无条件 `getNotes()`，之后每个引用再各自 `getNotes()`
+      // 一遍（createReference / removeReference 内部），一条正文引用三个
+      // 笔记就是四次全表读取。
       final validNewReferences = <String>[];
+      final resolved = <String>{};
 
-      // 验证引用的有效性
-
+      final byId = await _databaseService!.getNotesByIds(newReferences);
+      final existingIds = byId.map((note) => note.id).toSet();
+      final unresolved = <String>[];
       for (final refId in newReferences) {
-        // 🔧 智能匹配：支持ID、完整内容、内容前缀（前50字符）
-        final targetByIdExists = notes.any((n) => n.id == refId);
-        final targetByContentExact =
-            notes.any((n) => n.content.trim() == refId);
-
-        // 新增：支持内容前缀匹配（大厂级智能匹配）
-        final targetByContentPrefix = notes.any((n) {
-          final content = n.content.trim();
-          // 移除Markdown标记和特殊字符，只比较纯文本
-          final cleanContent =
-              content.replaceAll(RegExp(r'[*_#`\[\]\(\)]'), '').trim();
-          final cleanRef =
-              refId.replaceAll(RegExp(r'[*_#`\[\]\(\)]'), '').trim();
-
-          // 支持前50字符匹配 或 完整匹配
-          return cleanContent.startsWith(cleanRef) ||
-              cleanContent == cleanRef ||
-              (cleanContent.length > 50 &&
-                  cleanContent.substring(0, 50).contains(cleanRef));
-        });
-
-        final targetExists =
-            targetByIdExists || targetByContentExact || targetByContentPrefix;
-
-        if (targetExists) {
-          // 找到对应的笔记ID
-          var actualTargetId = refId;
-          if (!targetByIdExists) {
-            // 优先精确匹配，然后前缀匹配
-            final targetNote = notes.firstWhere((n) {
-              final content = n.content.trim();
-              if (content == refId) {
-                return true;
-              }
-
-              final cleanContent =
-                  content.replaceAll(RegExp(r'[*_#`\[\]\(\)]'), '').trim();
-              final cleanRef =
-                  refId.replaceAll(RegExp(r'[*_#`\[\]\(\)]'), '').trim();
-
-              return cleanContent.startsWith(cleanRef) ||
-                  (cleanContent.length > 50 &&
-                      cleanContent.substring(0, 50).contains(cleanRef));
-            });
-            actualTargetId = targetNote.id;
+        if (existingIds.contains(refId)) {
+          if (resolved.add(refId)) {
+            validNewReferences.add(refId);
           }
-          validNewReferences.add(actualTargetId);
         } else {
-          // 🚀 跳过无效引用（静默处理）
+          unresolved.add(refId);
+        }
+      }
+
+      if (unresolved.isNotEmpty) {
+        final notes = await _databaseService!.getNotes();
+        for (final refId in unresolved) {
+          final actualTargetId = _resolveLegacyReference(refId, notes);
+          if (actualTargetId != null && resolved.add(actualTargetId)) {
+            validNewReferences.add(actualTargetId);
+          }
         }
       }
 
@@ -424,6 +381,32 @@ class UnifiedReferenceManager {
       _handleError('智能更新引用失败: $e');
       return false;
     }
+  }
+
+  /// 历史兼容：`[[正文]]` / `[[正文前缀]]` 形式的引用解析到笔记 id。
+  ///
+  /// 只在「按 id 查不到」时调用，语义与原实现一致：先精确比较 `content.trim()`，
+  /// 再比去掉 Markdown 标记后的前缀（或前 50 字符包含）。命中多条时取
+  /// [notes]（`getNotes()` 的 createdAt DESC 顺序）里的第一条。
+  String? _resolveLegacyReference(String refId, List<Note> notes) {
+    final matches =
+        notes.where((note) => _legacyReferenceMatches(note, refId)).toList();
+    return matches.isEmpty ? null : matches.first.id;
+  }
+
+  bool _legacyReferenceMatches(Note note, String refId) {
+    final content = note.content.trim();
+    if (content == refId) {
+      return true;
+    }
+    // 移除Markdown标记和特殊字符，只比较纯文本
+    final cleanContent =
+        content.replaceAll(RegExp(r'[*_#`\[\]\(\)]'), '').trim();
+    final cleanRef = refId.replaceAll(RegExp(r'[*_#`\[\]\(\)]'), '').trim();
+    return cleanContent.startsWith(cleanRef) ||
+        cleanContent == cleanRef ||
+        (cleanContent.length > 50 &&
+            cleanContent.substring(0, 50).contains(cleanRef));
   }
 
   /// 解析文本中的引用
@@ -483,6 +466,7 @@ class UnifiedReferenceManager {
       final notes = await _databaseService!.getNotes();
       var cleanedCount = 0;
       var hasChanges = false;
+      final changedNotes = <Note>[];
 
       for (var i = 0; i < notes.length; i++) {
         final note = notes[i];
@@ -530,6 +514,7 @@ class UnifiedReferenceManager {
           final updatedNote = note.copyWith(relations: cleanedRelations);
           await _databaseService!.updateNote(updatedNote);
           notes[i] = updatedNote;
+          changedNotes.add(updatedNote);
 
           cleanedCount += originalRelationCount - cleanedRelations.length;
           hasChanges = true;
@@ -537,7 +522,7 @@ class UnifiedReferenceManager {
       }
 
       if (hasChanges) {
-        _onNotesUpdated?.call(notes);
+        await _notifyNotesChanged(changedNotes);
       }
 
       return cleanedCount;
@@ -560,6 +545,7 @@ class UnifiedReferenceManager {
       final notes = await _databaseService!.getNotes();
       final noteIds = notes.map((n) => n.id).toSet();
       var hasChanges = false;
+      final changedNotes = <Note>[];
 
       for (var i = 0; i < notes.length; i++) {
         final note = notes[i];
@@ -580,13 +566,14 @@ class UnifiedReferenceManager {
           final updatedNote = note.copyWith(relations: validRelations);
           await _databaseService!.updateNote(updatedNote);
           notes[i] = updatedNote;
+          changedNotes.add(updatedNote);
           hasChanges = true;
         }
       }
 
       if (hasChanges) {
-        _onNotesUpdated?.call(notes);
-      } else {}
+        await _notifyNotesChanged(changedNotes);
+      }
 
       return true;
     } on Object catch (e) {

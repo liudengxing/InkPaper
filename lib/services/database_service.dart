@@ -65,6 +65,21 @@ class DatabaseService {
     return _database!;
   }
 
+  /// 仅测试用：把单例指向内存库（传 `null` 复位）。
+  ///
+  /// 引用管理器这类「自己持有 `DatabaseService()`」的服务没法逐方法注入
+  /// `executor`，只能整库替换。
+  @visibleForTesting
+  static void debugOverrideDatabase(Database? db) {
+    _database = db;
+  }
+
+  /// 仅测试用：统计 [getNotes] 这种整表读取被调用的次数。
+  ///
+  /// 用来证明「保存一条带引用的笔记不再读全库」，生产路径只做一次自增。
+  @visibleForTesting
+  static int debugFullTableReadCount = 0;
+
   // 初始化数据库
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
@@ -744,6 +759,7 @@ class DatabaseService {
   // 获取所有笔记
   /// 获取所有笔记（兼容旧代码）
   Future<List<Note>> getNotes() async {
+    debugFullTableReadCount++;
     final db = await database;
     final List<Map<String, dynamic>> maps =
         await db.query(viewActiveNotes, orderBy: 'createdAt DESC');
@@ -856,6 +872,39 @@ class DatabaseService {
     }
 
     return Note.fromMap(maps[0]);
+  }
+
+  /// 批量取笔记（只含未软删的，口径与 [getNoteById] 一致）。
+  ///
+  /// 引用保存以前对每个 `[[id]]` 都调一次 `getNotes()` 全表加载，一条正文
+  /// 引用三个笔记就要把整库读四遍。这里按 id 一次查完，SQLite 的变量上限是
+  /// 999，超过就分批。
+  Future<List<Note>> getNotesByIds(
+    Iterable<String> ids, {
+    DatabaseExecutor? executor,
+  }) async {
+    final unique = ids.toSet().toList();
+    if (unique.isEmpty) {
+      return const <Note>[];
+    }
+    final db = executor ?? await database;
+    final notes = <Note>[];
+    const batchSize = 900;
+    for (var start = 0; start < unique.length; start += batchSize) {
+      final slice = unique.sublist(
+        start,
+        (start + batchSize).clamp(0, unique.length),
+      );
+      final placeholders = List.filled(slice.length, '?').join(',');
+      final rows = await db.rawQuery(
+        'SELECT * FROM $viewActiveNotes WHERE id IN ($placeholders)',
+        slice,
+      );
+      for (final row in rows) {
+        notes.add(Note.fromMap(row));
+      }
+    }
+    return notes;
   }
 
   /// 批量查这些 id 里哪些已经存在。

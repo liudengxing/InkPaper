@@ -88,7 +88,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
   // 笔记域字段已迁入 NotesStore（STATE-CORE-005），此处仅保留转发
   final NotesStore _notesStore = NotesStore();
 
-  // 🚀 大厂标准：分页加载相关
+  // 🚀 大厂标准：分页加载相关（同步后回载用它换算页码）
   static const int _pageSize = 50;
 
   /// 首页分页查询的代数号。
@@ -722,24 +722,16 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 初始化统一引用管理器
       UnifiedReferenceManager().initialize(
         databaseService: _databaseService,
-        onNotesUpdated: (updatedNotes) {
-          // 🔧 修复：确保引用关系更新时能实时反映到UI
-          // 分页加载时不直接替换整个列表
-          if (_notesStore.pagingState.currentPage == 0 &&
-              updatedNotes.length <= _pageSize) {
-            _notesStore.notes = updatedNotes;
-          } else {
-            // 更新已加载的笔记
-            for (final note in updatedNotes) {
-              final index =
-                  _notesStore.notes.indexWhere((n) => n.id == note.id);
-              if (index != -1) {
-                _notesStore.notes[index] = note;
-              } else {
-                // 🔧 修复：如果笔记不在当前列表中，添加它
-                // 这种情况可能发生在创建新引用时
-                _notesStore.notes.add(note);
-              }
+        onNotesChanged: (changedNotes) {
+          // 引用管理器只回传「本次改到的那一两条」，按 id 就地更新即可；
+          // 以前回传整表，分页之后整表替换会把深页状态和排序位置冲掉。
+          for (final note in changedNotes) {
+            final index = _notesStore.notes.indexWhere((n) => n.id == note.id);
+            if (index != -1) {
+              _notesStore.notes[index] = note;
+            } else {
+              // 被引用的目标可能还没出现在当前这一页里。
+              _notesStore.notes.add(note);
             }
           }
           // 🔧 修复：使用双重通知确保UI更新

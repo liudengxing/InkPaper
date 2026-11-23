@@ -296,6 +296,11 @@ class AppLocalizationsSimple {
   String get aiInsightNewLens => _t('aiInsightNewLens', fallback: '新建视角');
   String get aiInsightGenerating =>
       _t('aiInsightGenerating', fallback: '正在通读你的笔记…');
+  String get aiInsightThinking => _t('aiInsightThinking');
+  String get aiInsightWriting => _t('aiInsightWriting');
+  String get aiInsightReasoningHeading => _t('aiInsightReasoningHeading');
+  String get aiInsightReportHeading => _t('aiInsightReportHeading');
+  String get aiInsightLatest => _t('aiInsightLatest');
   String get aiInsightRegenerate => _t('aiInsightRegenerate', fallback: '重新生成');
   String get aiInsightSwitchLens => _t('aiInsightSwitchLens', fallback: '换个视角');
   String get aiInsightCopy => _t('aiInsightCopy', fallback: '复制全文');

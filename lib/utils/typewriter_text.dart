@@ -1,31 +1,51 @@
-/// 把已显示文本往目标文本推进一步。
-///
-/// 流式生成时模型是一小段一小段往回吐的，收到就整段贴上去，屏幕上会一块
-/// 一块地跳；这里每次只放一点点，慢的时候逐字浮现，积压多了按比例加速，
-/// 观感就是「一个字一个字打出来，模型快了打字也跟着快」。
-///
-/// [shown] 必须是 [target] 的前缀，否则视为换了一批内容，直接对齐。
-String typewriteStep(String target, String shown) {
-  if (shown == target) {
-    return shown;
+import 'package:flutter/widgets.dart' show StringCharacters;
+
+/// 只重排正在输入的一小段，已经完成的段落供列表按需渲染。
+class TypewriterText {
+  static const _blockLimit = 224;
+
+  final _blocks = <String>[];
+  String _tail = '';
+  String _pending = '';
+
+  bool get hasPending => _pending.isNotEmpty;
+  bool get hasText => _blocks.isNotEmpty || _tail.isNotEmpty;
+  int get blockCount => _blocks.length + 1;
+  String blockAt(int index) => index < _blocks.length ? _blocks[index] : _tail;
+
+  void append(String delta) => _pending += delta;
+
+  bool advance({bool allowTail = false}) {
+    if (_pending.isEmpty) {
+      return false;
+    }
+    // 小批逐字出现。突发长块以有上限的速度追赶，避免一次跳出一段。
+    final budget = (1 + _pending.length ~/ 32).clamp(1, 12);
+    var consumed = 0;
+    var count = 0;
+    for (final glyph in _pending.characters) {
+      if (count == budget) {
+        break;
+      }
+      // 同一个可见字符可能被分到两个流块。保留队尾，等下一块补齐。
+      if (consumed + glyph.length == _pending.length &&
+          (!allowTail || _endsInHighSurrogate(glyph))) {
+        break;
+      }
+      consumed += glyph.length;
+      count++;
+      _tail += glyph;
+      if (glyph.endsWith('\n') || _tail.length >= _blockLimit) {
+        _blocks.add(_tail);
+        _tail = '';
+      }
+    }
+    _pending = _pending.substring(consumed);
+    return consumed != 0;
   }
-  if (!target.startsWith(shown)) {
-    return target;
+
+  static bool _endsInHighSurrogate(String glyph) {
+    final unit = glyph.codeUnitAt(glyph.length - 1);
+    return unit >= 0xd800 && unit <= 0xdbff;
   }
-  final backlog = target.length - shown.length;
-  // 积压 4 个字以内一帧一个字；再往上每多 4 个字多吐一个，这样模型全速
-  // 输出时文字不会越落越远。
-  final step = 1 + (backlog - 1) ~/ 4;
-  var end = shown.length + step;
-  if (end >= target.length) {
-    return target;
-  }
-  // 落点正好卡在 emoji 的代理对中间（下一个单元是低代理）：连同它前面的
-  // 高代理一起吐出去。这里不能往回退一格——退到高代理之前就等于这一帧
-  // 原地不动，之后每一帧都会卡在同一个位置。
-  final codeUnit = target.codeUnitAt(end);
-  if (codeUnit >= 0xDC00 && codeUnit <= 0xDFFF) {
-    end += 1;
-  }
-  return target.substring(0, end);
 }

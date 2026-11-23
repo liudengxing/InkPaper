@@ -6,7 +6,7 @@
 
 ## 当前版本
 
-`1.1.140`
+`1.1.141`
 
 当前源码已通过 Android 真机安装验收。公开安装包以发行页为准。
 
@@ -80,7 +80,7 @@ sdkmanager --licenses
 版本号统一维护在 `pubspec.yaml`，`x.y.z` 是语义版本，`+N` 是构建号：
 
 ```yaml
-version: 1.1.140+10240
+version: 1.1.141+10241
 ```
 
 构建新版本时同步增加 `x.y.z` 的 patch 和 `+N`，并更新中英文 README 的当前版本。`dart tool/inkpaper.dart store-check` 会核对版本一致性。
@@ -103,6 +103,8 @@ Gitee 镜像仓的代码、tag 和发行说明由 CI 同步；安装包因为 Ac
 ## 文档
 
 - [项目结构与构建指南](docs/PROJECT_STRUCTURE_AND_BUILD.md)
+- [业务说明与随机漫步规则](docs/BUSINESS_OVERVIEW.md)
+- [构建与真机测试](docs/BUILD_AND_DEVICE_TESTING.md)
 - [维护指南](docs/MAINTENANCE.md)
 - [商店合规清单](docs/STORE_COMPLIANCE.md)
 - [更新日志](CHANGELOG.md)

@@ -12,7 +12,7 @@ import 'package:inkpaper/services/insight_history_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
 import 'package:inkpaper/utils/insight_text_spans.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
-import 'package:inkpaper/utils/typewriter_text.dart';
+import 'package:inkpaper/widgets/insight_live_output.dart';
 import 'package:inkpaper/widgets/insight_reasoning_panel.dart';
 import 'package:inkpaper/widgets/insight_source_sheet.dart';
 import 'package:inkpaper/widgets/insight_summary_card.dart';
@@ -76,114 +76,20 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
   InsightLens? _activeLens;
   String? _error;
 
-  // ── 流式生成时的实时内容 ─────────────────────────────────────────
-  //
-  // 回调是按 token 来的，token 级 setState 会把整页重建上千次；这里先攒进
-  // buffer，再由下面的定时器按「打字机」节奏一个字一个字放进界面。
-  final StringBuffer _liveReasoning = StringBuffer();
-  final StringBuffer _liveContent = StringBuffer();
-  String _liveReasoningText = '';
-  String _liveContentText = '';
-  Timer? _liveFlush;
-
-  /// 打字机的推进间隔：32ms ≈ 每秒 31 个字，落在正常阅读速度上。
-  static const Duration _liveTypingInterval = Duration(milliseconds: 32);
-
-  /// 已推进的帧数，用来把滚动降频到每 4 帧一次。
-  int _liveTypingTicks = 0;
-
-  /// 结果页里角标的 recognizer。按编号缓存，重建不会漏对象。
+  InsightLiveOutputController? _liveOutput;
   final InsightRefRecognizers _refRecognizers = InsightRefRecognizers();
-
-  /// 生成态的滚动控制器。
-  ///
-  /// 思考过程/正文是不断往下长的长文本，不跟着滚的话用户永远停在最上面，
-  /// 只看得见最开始那几句，得自己一次次往下拽。
-  final ScrollController _liveScrollController = ScrollController();
-
-  /// 是否跟着输出自动滚到底。
-  ///
-  /// 用户主动往上翻看前文时置 false，等他滑回底部再自动恢复——否则每 140ms
-  /// 一次的对齐会把他正在读的那段顶走。
-  bool _liveFollow = true;
-
-  /// 自动滚动动画正在跑：这期间 controller 的位移是我们自己造成的，
-  /// 不能拿它去判断「用户是不是往上滑了」，否则第一次 animateTo 刚起步
-  /// 就会被判成「用户在看旧内容」，跟随直接断掉。
-  DateTime? _autoScrollUntil;
-
-  /// 补救重试期间的一句话（非流式阶段收不到 delta，界面得有个交代）。
-  String _liveStatus = '';
 
   @override
   void initState() {
     super.initState();
-    _liveScrollController.addListener(_handleLiveScroll);
     _loadLenses();
   }
 
   @override
   void dispose() {
-    _liveFlush?.cancel();
+    _liveOutput?.dispose();
     _refRecognizers.dispose();
-    _liveScrollController.removeListener(_handleLiveScroll);
-    _liveScrollController.dispose();
     super.dispose();
-  }
-
-  void _handleLiveScroll() {
-    if (!_liveScrollController.hasClients) {
-      return;
-    }
-    final until = _autoScrollUntil;
-    if (until != null && DateTime.now().isBefore(until)) {
-      return;
-    }
-    final position = _liveScrollController.position;
-    // 距底 12px 以内算「正在看最新」；再往上就说明用户在读旧内容。
-    _liveFollow = position.pixels >= position.maxScrollExtent - 12;
-  }
-
-  /// 内容增长后把视图对齐到最新一行。
-  ///
-  /// 必须等这一帧画完再滚：setState 里刚改的是文本，新的 maxScrollExtent
-  /// 要在布局之后才拿得到。滚动本身用短动画而不是 jumpTo——jump 是「瞬移」，
-  /// 每 70ms 跳一次看起来就是一顿一顿；用 110-240ms 的线性动画，连续调用
-  /// 时首尾相接，视觉上就是文字在匀速往上走。落后太多（比如刚开篇一次涌进
-  /// 来一大段）才直接跳，避免动画追不上。
-  void _scrollLiveToBottom() {
-    if (!_liveFollow) {
-      return;
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_liveFollow) {
-        return;
-      }
-      final controller = _liveScrollController;
-      if (!controller.hasClients) {
-        return;
-      }
-      final position = controller.position;
-      final target = position.maxScrollExtent;
-      final distance = target - position.pixels;
-      if (distance.abs() < 1) {
-        return;
-      }
-      if (distance > 600) {
-        controller.jumpTo(target);
-        return;
-      }
-      _autoScrollUntil = DateTime.now().add(const Duration(milliseconds: 400));
-      unawaited(
-        controller.animateTo(
-          target,
-          duration: Duration(
-            milliseconds: (110 + distance * 0.6).clamp(110, 240).round(),
-          ),
-          curve: Curves.linear,
-        ),
-      );
-    });
   }
 
   Future<void> _loadLenses() async {
@@ -215,15 +121,17 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
     final appProvider = context.read<AppProvider>();
     // 取在 await 之前：后面要跨 async gap 用 l10n，不能再用 context。
     final l10n = AppLocalizationsSimple.of(context);
+    final liveOutput = InsightLiveOutputController();
+    _liveOutput?.dispose();
     setState(() {
       _generating = true;
+      _liveOutput = liveOutput;
       _activeLens = lens;
       _result = null;
       _error = null;
     });
     // 新一批笔记，旧编号的含义已经变了，角标的 recognizer 必须重建。
     _refRecognizers.clear();
-    _startLiveFlush();
 
     try {
       // 首页的 notes 是分页的，洞察要看全量，所以直接查库。
@@ -235,23 +143,21 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
         notes: scoped,
         scopeLabel: _range.label(l10n),
         onProgress: (delta, {required reasoning}) {
-          if (reasoning) {
-            _liveReasoning.write(delta);
-          } else {
-            _liveContent.write(delta);
+          if (mounted) {
+            liveOutput.append(delta, reasoning: reasoning);
           }
         },
         onStatus: (message) {
           if (!mounted) {
             return;
           }
-          setState(() => _liveStatus = message);
+          liveOutput.updateStatus(message);
         },
       );
       if (!mounted) {
         return;
       }
-      _stopLiveFlush();
+      liveOutput.stop();
       setState(() {
         _generating = false;
         if (result.isError) {
@@ -282,7 +188,7 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
         );
       }
     } on Object catch (e) {
-      _stopLiveFlush();
+      liveOutput.stop();
       if (!mounted) {
         return;
       }
@@ -291,53 +197,6 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
         _error = '生成失败：$e';
       });
     }
-  }
-
-  /// 开始把流式 buffer 定时刷进界面。
-  ///
-  /// 不是「攒一段刷一段」：那样子在屏幕上是一块一块跳出来的，慢的时候
-  /// 特别明显。这里每 32ms 往目标文本推进一小步，看起来就是逐字打出来；
-  /// 模型一口气吐很多时按积压量放大步长自动追上，不用另判快慢。
-  void _startLiveFlush() {
-    _liveReasoning.clear();
-    _liveContent.clear();
-    _liveReasoningText = '';
-    _liveContentText = '';
-    _liveStatus = '';
-    _liveTypingTicks = 0;
-    // 每次重新生成都从头跟随，并从顶部开始，别继承上一次的滚动位置。
-    _liveFollow = true;
-    if (_liveScrollController.hasClients) {
-      _liveScrollController.jumpTo(0);
-    }
-    _liveFlush?.cancel();
-    _liveFlush = Timer.periodic(_liveTypingInterval, (_) {
-      if (!mounted) {
-        return;
-      }
-      final reasoning = typewriteStep(
-        _liveReasoning.toString(),
-        _liveReasoningText,
-      );
-      final content = typewriteStep(_liveContent.toString(), _liveContentText);
-      if (reasoning == _liveReasoningText && content == _liveContentText) {
-        return;
-      }
-      setState(() {
-        _liveReasoningText = reasoning;
-        _liveContentText = content;
-      });
-      // 滚动比打字慢一拍：每帧都 animateTo 会让动画不断被打断，反而抖
-      _liveTypingTicks++;
-      if (_liveTypingTicks % 4 == 0) {
-        _scrollLiveToBottom();
-      }
-    });
-  }
-
-  void _stopLiveFlush() {
-    _liveFlush?.cancel();
-    _liveFlush = null;
   }
 
   void _backToPicker() {
@@ -828,183 +687,13 @@ class _AiInsightScreenState extends State<AiInsightScreen> {
 
   Widget _buildResultArea(AppLocalizationsSimple? l10n) {
     if (_generating) {
-      return _buildGeneratingView(l10n);
+      return InsightLiveOutput(controller: _liveOutput!);
     }
     if (_error != null) {
       return _buildErrorView(l10n);
     }
     return _buildResultView(l10n);
   }
-
-  Widget _buildGeneratingView(AppLocalizationsSimple? l10n) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final muted = colorScheme.onSurfaceVariant;
-    final skeleton = colorScheme.onSurface.withValues(alpha: 0.06);
-
-    final reasoning = _liveReasoningText.trim();
-    final content = _liveContentText.trim();
-    final hasReasoning = reasoning.isNotEmpty;
-    final hasContent = content.isNotEmpty;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  _liveStatus.isNotEmpty
-                      ? _liveStatus
-                      : hasReasoning
-                          ? '正在推理…'
-                          : (l10n?.aiInsightGenerating ?? '正在通读你的笔记…'),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        // 内容区钉成固定高度：正文在框内滚动刷新，不再把底部视角提示
-        // 一行行往下顶——之前整页跟着滚，最底下那句提示一直在跳。
-        Expanded(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: colorScheme.onSurface.withValues(alpha: 0.035),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: colorScheme.outline.withValues(alpha: 0.16),
-              ),
-            ),
-            child: ListView(
-              controller: _liveScrollController,
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-              children: [
-                // 还没收到任何内容时用骨架条占位；一旦开始推理，就把思考过程
-                // 原样铺出来——等 40 秒却什么都看不到，是这个页面最伤人的地方。
-                if (!hasReasoning && !hasContent)
-                  for (final factor in const [1.0, 0.86, 0.62]) ...[
-                    FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: factor,
-                      child: _skeletonBar(skeleton),
-                    ),
-                    const SizedBox(height: 10),
-                  ]
-                else ...[
-                  if (hasReasoning) ...[
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.psychology_alt_outlined,
-                          size: 15,
-                          color: muted.withValues(alpha: 0.8),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '思考过程',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.3,
-                            color: muted.withValues(alpha: 0.85),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${reasoning.length} 字',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontSize: 11,
-                            color: muted.withValues(alpha: 0.55),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.only(left: 12),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          left: BorderSide(
-                            color: colorScheme.primary.withValues(alpha: 0.22),
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                      child: Text(
-                        reasoning,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontSize: 12.5,
-                          height: 1.75,
-                          color: muted.withValues(alpha: 0.95),
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (hasContent) ...[
-                    const SizedBox(height: 18),
-                    Text(
-                      '正在落笔',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
-                        color: colorScheme.primary.withValues(alpha: 0.8),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      content,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontSize: 15,
-                        height: 1.8,
-                        color: colorScheme.onSurface.withValues(alpha: 0.9),
-                      ),
-                    ),
-                  ],
-                ],
-              ],
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
-          child: Text(
-            '用「${_activeLens?.name ?? ''}」这个视角 · 思考过程会边想边显示，生成后也能在结果页展开回看',
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontSize: 12,
-              height: 1.5,
-              color: muted.withValues(alpha: 0.8),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _skeletonBar(Color color) => Container(
-        height: 12,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(6),
-        ),
-      );
 
   Widget _buildErrorView(AppLocalizationsSimple? l10n) {
     final theme = Theme.of(context);

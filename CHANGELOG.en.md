@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.141] - 2026-11-23
+
+### Improved
+
+- **AI Insight**: reasoning appears progressively, and auto-scroll pauses while you read earlier lines.
+
 ## [1.1.140] - 2026-11-23
 
 ### Improved

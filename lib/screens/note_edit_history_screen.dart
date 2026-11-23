@@ -3,7 +3,11 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/note_edit_history_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
+import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
+import 'package:inkpaper/widgets/note_image_grid.dart';
+import 'package:inkpaper/widgets/note_preview_text.dart';
+import 'package:inkpaper/widgets/note_video_card.dart';
 import 'package:provider/provider.dart';
 
 /// 笔记历史版本列表（参考 flomo 编辑历史）。
@@ -135,6 +139,8 @@ class _NoteEditHistoryScreenState extends State<NoteEditHistoryScreen> {
         ? AppTheme.darkTextSecondaryColor
         : AppTheme.textSecondaryColor;
     final l10n = AppLocalizationsSimple.of(context);
+    final serverUrl =
+        Provider.of<AppProvider>(context, listen: false).appConfig.memosApiUrl;
 
     showModalBottomSheet<void>(
       context: context,
@@ -170,13 +176,13 @@ class _NoteEditHistoryScreenState extends State<NoteEditHistoryScreen> {
               Flexible(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                  child: SelectableText(
-                    entry.content,
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 1.55,
-                      color: textColor,
-                    ),
+                  child: NoteHistorySnapshotView(
+                    content: entry.content,
+                    textColor: textColor,
+                    accentColor: isDarkMode
+                        ? AppTheme.primaryLightColor
+                        : AppTheme.primaryColor,
+                    serverUrl: serverUrl,
                   ),
                 ),
               ),
@@ -349,5 +355,58 @@ class _HistoryCard extends StatelessWidget {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${time.year}-${two(time.month)}-${two(time.day)} '
         '${two(time.hour)}:${two(time.minute)}';
+  }
+}
+
+/// 历史快照正文视图。
+///
+/// 快照里只存 markdown：图片、视频都是 `![](path)` 路径引用。之前这里直接
+/// 用了 SelectableText，用户只能看到一串 `![](...)` 语法，图片永远出不来。
+/// 现在与详情页走同一套口径：正文交给 NotePreviewText（图片语法被剥掉），
+/// 图片/视频单独渲染；两者互斥，和详情页一致。
+class NoteHistorySnapshotView extends StatelessWidget {
+  const NoteHistorySnapshotView({
+    required this.content,
+    required this.textColor,
+    required this.accentColor,
+    required this.serverUrl,
+    this.selectable = true,
+    super.key,
+  });
+
+  final String content;
+  final Color textColor;
+  final Color accentColor;
+  final String? serverUrl;
+
+  /// 快照正文保留长按选择/复制（这里没有「点进编辑态」的冲突）。
+  final bool selectable;
+
+  @override
+  Widget build(BuildContext context) {
+    final imagePaths = MemosContentHelper.extractMarkdownImagePaths(content);
+    final videoPaths = MemosContentHelper.extractMarkdownVideoPaths(content);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        NotePreviewText(
+          content: content,
+          style: TextStyle(fontSize: 14, height: 1.55, color: textColor),
+          // 与详情页一致：空行按完整行高走，长快照不截断
+          compactBlankLines: false,
+          parseLimit: content.length,
+          selectable: selectable,
+          accentColor: accentColor,
+        ),
+        if (videoPaths.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          NoteVideoCard(videoPath: videoPaths.first),
+        ] else if (imagePaths.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          NoteImageGrid(imagePaths: imagePaths, serverUrl: serverUrl),
+        ],
+      ],
+    );
   }
 }

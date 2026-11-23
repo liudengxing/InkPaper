@@ -23,6 +23,7 @@ import 'package:inkpaper/models/sort_order.dart';
 import 'package:inkpaper/models/user_model.dart';
 import 'package:inkpaper/models/webdav_config.dart';
 import 'package:inkpaper/models/webdav_transfer_result.dart';
+import 'package:inkpaper/models/widget_stat_note.dart';
 import 'package:inkpaper/providers/sync_store.dart';
 import 'package:inkpaper/services/api_service_factory.dart';
 import 'package:inkpaper/services/database_service.dart';
@@ -233,7 +234,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     final reviewRangeDays = _appConfig.widgetReviewRangeDays;
 
     Future<void> scheduleWithNotes(
-      List<Note> statNotes,
+      List<WidgetStatNote> statNotes,
       List<Note> feedNotes,
     ) async {
       if (!mounted || updateId != _widgetStore.snapshotUpdateId) {
@@ -266,7 +267,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
         }
 
         if (_screenshotMode) {
-          await scheduleWithNotes(notes, notes);
+          await scheduleWithNotes(_asStatNotes(notes), notes);
           return;
         }
 
@@ -275,6 +276,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
           // 笔记，所以单独按最近 N 条取——两批各自只读自己用得上的字段。
           final statNotes = _excludePendingDeletedNotes(
             await _databaseService.getWidgetStatNotes(),
+            idOf: (note) => note.id,
           );
           final feedNotes = _excludePendingDeletedNotes(
             await _databaseService.getRecentActiveNotes(
@@ -287,7 +289,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
           if (kDebugMode) {
             debugPrint('AppProvider: 读取小组件笔记失败，使用内存笔记: $e');
           }
-          await scheduleWithNotes(notes, notes);
+          await scheduleWithNotes(_asStatNotes(notes), notes);
         }
       }),
     );
@@ -1635,14 +1637,26 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     return note != null && _isSearchVisibleNote(note) ? note : null;
   }
 
-  List<Note> _excludePendingDeletedNotes(List<Note> notes) {
+  /// 过滤掉「点了删除、还在撤销窗口里」的行。
+  ///
+  /// 小组件统计走的是 `WidgetStatNote`（不构造 `Note`），所以按 id 取值，
+  /// 不绑死具体类型。
+  List<T> _excludePendingDeletedNotes<T>(
+    List<T> notes, {
+    String Function(T note)? idOf,
+  }) {
     if (_notesStore.pendingDeleteIds.isEmpty) {
       return notes;
     }
+    final id = idOf ?? (T note) => (note as Note).id;
     return notes
-        .where((note) => !_notesStore.pendingDeleteIds.contains(note.id))
+        .where((note) => !_notesStore.pendingDeleteIds.contains(id(note)))
         .toList();
   }
+
+  /// 内存里已加载的那一页笔记 → 统计行（读库失败时的兜底，截图模式也走这条）。
+  List<WidgetStatNote> _asStatNotes(List<Note> notes) =>
+      notes.map(WidgetStatNote.fromNote).toList();
 
   bool _isVisibleNote(Note note) =>
       note.isNormal && !_notesStore.pendingDeleteIds.contains(note.id);

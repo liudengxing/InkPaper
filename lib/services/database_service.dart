@@ -4,6 +4,7 @@ import 'package:inkpaper/config/app_config.dart';
 import 'package:inkpaper/models/note_media_filter.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/models/sort_order.dart';
+import 'package:inkpaper/models/widget_stat_note.dart';
 import 'package:inkpaper/utils/note_sorting_helper.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
@@ -774,8 +775,13 @@ class DatabaseService {
   /// 统计；千条级的库上一次快照构建就白解几万条关系。附件列表要留着，
   /// 回顾/置顶卡片的「这是一条含图片的笔记」靠它判断。
   ///
+  /// 另外这里不再构造 `Note`：每构造一个 `Note` 要解析 3 个**本地** `DateTime`，
+  /// 而 `DateTime(y, m, d, …)` 每次都要向系统查时区偏移（本机约 45µs），
+  /// 1500 行就是 200ms 级、且全是白花——统计只需要「哪一天」和「谁更新得晚」。
+  /// 返回的 [WidgetStatNote] 只存 ISO 字符串，真要格式化时才解析。
+  ///
   /// 首屏快照需要完整笔记（落盘要 `toMap`），走 [getRecentActiveNotes]。
-  Future<List<Note>> getWidgetStatNotes() async {
+  Future<List<WidgetStatNote>> getWidgetStatNotes() async {
     debugFullTableReadCount++;
     final db = await database;
     final rows = await db.rawQuery(
@@ -783,7 +789,7 @@ class DatabaseService {
       'is_synced, isPinned, resourceList, rowStatus '
       'FROM $viewActiveNotes ORDER BY createdAt DESC',
     );
-    return List.generate(rows.length, (i) => Note.fromMap(rows[i]));
+    return List.generate(rows.length, (i) => WidgetStatNote.fromRow(rows[i]));
   }
 
   /// 最近 [limit] 条笔记的完整行（含关系与附件列表）。

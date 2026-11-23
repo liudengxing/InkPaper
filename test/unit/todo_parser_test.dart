@@ -131,5 +131,41 @@ void main() {
       expect(counts['completed'], 0);
       expect(counts['pending'], 0);
     });
+
+    test('TD-16 与 parseTodos 逐例口径一致', () {
+      // countTodos 为了快，走的是「不建 TodoItem」的单趟扫描 + 无 `[` 早退，
+      // 所以拿一批容易分歧的正文跟 parseTodos 对齐。
+      const samples = <String>[
+        '- [ ] 普通',
+        '  - [x] 缩进两格',
+        '- [X] 大写 X',
+        '- [ ]',
+        '- [] 缺空格',
+        '* [ ] 星号不算',
+        '正文里的 [链接](https://example.com) 不是待办',
+        '行内 - [ ] 不在行首',
+        '多行混排\n- [ ] A\n- [x] B\n普通一行\n   - [ ] C',
+        '',
+      ];
+      for (final sample in samples) {
+        final parsed = TodoParser.parseTodos(sample);
+        final counts = TodoParser.countTodos(sample);
+        expect(
+          counts['total'],
+          parsed.length,
+          reason: '条数对齐：$sample',
+        );
+        expect(
+          counts['completed'],
+          parsed.where((item) => item.checked).length,
+          reason: '完成数对齐：$sample',
+        );
+        expect(
+          counts['pending'],
+          parsed.where((item) => !item.checked).length,
+          reason: '未完成数对齐：$sample',
+        );
+      }
+    });
   });
 }

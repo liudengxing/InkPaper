@@ -93,16 +93,45 @@ abstract final class RandomReviewSelectorService {
     int reviewDays = allDays,
     int reviewCount = 8,
     Random? random,
+  }) =>
+      selectWidgetCandidatesFrom<Note>(
+        notes: notes,
+        reviewDays: reviewDays,
+        reviewCount: reviewCount,
+        random: random,
+        displayDayKey: (note) => _dayKey(note.displayTime),
+        contentOf: (note) => note.content,
+      );
+
+  /// [selectWidgetCandidates] 的通用版本：不关心调用方拿的是完整 [Note] 还是
+  /// 只带 ISO 字符串的统计行（`WidgetStatNote`），日期比较与可见文字判定都
+  /// 由回调提供。
+  ///
+  /// 时间范围按「自然日」比较：`reviewDays = 7` 就是今天往前数 7 个日历日，
+  /// 而不是精确到时分秒的 168 小时。窗口最多宽出不到一天，换来的是统计行不必
+  /// 为了过滤而解析 1500 个本地 `DateTime`（每次都要查时区，约 45µs）。
+  static List<T> selectWidgetCandidatesFrom<T>({
+    required List<T> notes,
+    required String Function(T note) displayDayKey,
+    required String Function(T note) contentOf,
+    int reviewDays = allDays,
+    int reviewCount = 8,
+    Random? random,
   }) {
     if (notes.isEmpty || reviewCount <= 0) {
-      return <Note>[];
+      return <T>[];
     }
 
     final rng = random ?? Random();
-    final inRange = _withinDays(notes, reviewDays);
+    final inRange = _withinDays<T>(notes, reviewDays, displayDayKey);
     final primary = inRange.isEmpty ? notes : inRange;
 
-    final picked = _takeWithVisibleText(primary, reviewCount, rng);
+    final picked = _takeWithVisibleText<T>(
+      primary,
+      reviewCount,
+      rng,
+      contentOf,
+    );
     if (picked.isNotEmpty) {
       return picked;
     }
@@ -110,31 +139,46 @@ abstract final class RandomReviewSelectorService {
     // 范围内的笔记全是没有可见文字的（图片型日记）：回到全库找带文字的，
     // 和旧口径「范围内筛不到就退回全库文本笔记」一致。
     if (primary.length < notes.length) {
-      final wider = _takeWithVisibleText(notes, reviewCount, rng);
+      final wider = _takeWithVisibleText<T>(notes, reviewCount, rng, contentOf);
       if (wider.isNotEmpty) {
         return wider;
       }
     }
 
     // 全库都没有可见文字：退回任意笔记，别让回顾卡片空着。
-    return (List<Note>.from(primary)..shuffle(rng)).take(reviewCount).toList();
+    return (List<T>.from(primary)..shuffle(rng)).take(reviewCount).toList();
   }
 
-  static List<Note> _withinDays(List<Note> notes, int reviewDays) {
+  static List<T> _withinDays<T>(
+    List<T> notes,
+    int reviewDays,
+    String Function(T note) displayDayKey,
+  ) {
     final normalizedDays = reviewDays <= 0 ? allDays : reviewDays;
-    final cutoffDate = DateTime.now().subtract(Duration(days: normalizedDays));
-    return notes.where((note) => note.displayTime.isAfter(cutoffDate)).toList();
+    // 999999 天 ≈ 2738 年，等于「不限」；顺带避开把 cutoff 算到公元前之后
+    // 日期字符串比较失效的问题。
+    if (normalizedDays >= allDays) {
+      return notes;
+    }
+    final cutoff = DateTime.now().subtract(Duration(days: normalizedDays));
+    final cutoffKey = _dayKey(cutoff);
+    return notes
+        .where((note) => displayDayKey(note).compareTo(cutoffKey) >= 0)
+        .toList();
   }
 
-  static List<Note> _takeWithVisibleText(
-    List<Note> notes,
+  static List<T> _takeWithVisibleText<T>(
+    List<T> notes,
     int reviewCount,
     Random random,
+    String Function(T note) contentOf,
   ) {
-    final order = List<Note>.from(notes)..shuffle(random);
-    final picked = <Note>[];
+    final order = List<T>.from(notes)..shuffle(random);
+    final picked = <T>[];
     for (final note in order) {
-      if (!_hasVisibleText(note)) {
+      if (MemosContentHelper.previewVisibleText(contentOf(note))
+          .trim()
+          .isEmpty) {
         continue;
       }
       picked.add(note);
@@ -145,9 +189,9 @@ abstract final class RandomReviewSelectorService {
     return picked;
   }
 
-  static bool _hasVisibleText(Note note) {
-    return MemosContentHelper.previewVisibleText(note.content)
-        .trim()
-        .isNotEmpty;
+  /// 日历日键（yyyy-MM-dd），按字段值取，不做时区换算。
+  static String _dayKey(DateTime time) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${time.year}-${two(time.month)}-${two(time.day)}';
   }
 }

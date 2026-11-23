@@ -18,6 +18,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/models/widget_stat_note.dart';
 import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/random_review_selector_service.dart';
 import 'package:inkpaper/services/widget_snapshot_service.dart';
@@ -72,6 +73,20 @@ Map<String, Object?> _snapshot(
   int reviewRangeDays = 0,
 }) =>
     WidgetSnapshotService.debugBuildSnapshot(
+      notes: notes,
+      isLocalMode: true,
+      isLoggedIn: false,
+      isSyncing: false,
+      reviewRangeDays: reviewRangeDays,
+      random: Random(seed),
+    );
+
+Map<String, Object?> _snapshotFromRows(
+  List<WidgetStatNote> notes, {
+  required int seed,
+  int reviewRangeDays = 0,
+}) =>
+    WidgetSnapshotService.debugBuildSnapshotFromRows(
       notes: notes,
       isLocalMode: true,
       isLoggedIn: false,
@@ -147,11 +162,10 @@ void main() {
     expect(first.tags, <String>['标签A', '随笔']);
     expect(first.isPinned, isTrue);
     expect(first.isSynced, isFalse);
-    // 关系不参与统计：窄列读取不解那段 JSON，省掉每行一次 jsonDecode。
-    expect(first.relations, isEmpty);
-    // 附件要留着：「这是一条含图片的笔记」靠它判断。
+    // 关系不参与统计：统计行根本不带关系字段，窄列读取不解那段 JSON。
     expect(first.resourceList, hasLength(1));
     expect(first.displayTime, now);
+    expect(first.displayDayKey, now.toIso8601String().substring(0, 10));
   });
 
   test('WSR-02 窄列读出来的快照与整库完整笔记逐字段一致', () async {
@@ -200,7 +214,7 @@ void main() {
         Map<String, Object?>.from(snapshot)..remove('generatedAt');
 
     final fromFull = withoutTimestamp(_snapshot(full, seed: 11));
-    final fromStat = withoutTimestamp(_snapshot(stat, seed: 11));
+    final fromStat = withoutTimestamp(_snapshotFromRows(stat, seed: 11));
 
     expect(fromStat, equals(fromFull));
     // 顺带确认这份快照不是空的，否则「一致」没意义
@@ -266,9 +280,12 @@ void main() {
 
     final stat = await service.getWidgetStatNotes();
     MemosContentHelper.debugPreviewParseCount = 0;
-    final picked = RandomReviewSelectorService.selectWidgetCandidates(
+    final picked =
+        RandomReviewSelectorService.selectWidgetCandidatesFrom<WidgetStatNote>(
       notes: stat,
       random: Random(3),
+      displayDayKey: (note) => note.displayDayKey,
+      contentOf: (note) => note.content,
     );
 
     expect(picked, hasLength(8));
@@ -280,6 +297,67 @@ void main() {
     );
   });
 
+  test('WSR-06 整库构建只为渲染到的那几条解析时间', () async {
+    final now = DateTime.now();
+    final rows = <Map<String, Object?>>[];
+    for (var i = 0; i < 300; i++) {
+      rows.add(
+        _row(
+          'n-$i',
+          '第 $i 条带可见文字的笔记',
+          now.subtract(Duration(minutes: i)),
+          tag: i.isEven ? '读书' : '随笔',
+        ),
+      );
+    }
+    await seed(rows);
+
+    WidgetStatNote.debugLazyParseCount = 0;
+    Note.debugDateTimeParseCount = 0;
+    final stat = await service.getWidgetStatNotes();
+    final snapshot = _snapshotFromRows(stat, seed: 7);
+
+    expect(snapshot['reviewNotes'], hasLength(8));
+    // 老实现走 `Note.fromMap`，300 行 × 3 个时间字段 = 900 次本地 DateTime
+    // 构造（每次都要向系统查一次时区偏移）。现在整库这一趟一次都不解析。
+    expect(
+      Note.debugDateTimeParseCount,
+      lessThan(40),
+      reason: '统计口径不该把整库构造成完整笔记',
+    );
+    // 真正渲染的那几条（回顾 8 条 + 置顶 + 去重后的标签）才会惰性解析。
+    expect(
+      WidgetStatNote.debugLazyParseCount,
+      lessThan(40),
+      reason: '惰性解析只该发生在渲染到的笔记上',
+    );
+  });
+
+  test('WSR-07 回顾范围按自然日算，不受时分秒影响', () async {
+    final now = DateTime.now();
+    // 8 天前的深夜与 7 天前的凌晨：按「7 天」的精确时长，前者出局；
+    // 按自然日，两者都在窗口外/边缘，这里用 7 天内的一天做正样本。
+    final inside = now.subtract(const Duration(days: 6, hours: 23));
+    final outside = now.subtract(const Duration(days: 8));
+    await seed(<Map<String, Object?>>[
+      _row('inside', '六天多以前的一条', inside),
+      _row('outside', '八天以前的一条', outside),
+    ]);
+
+    final stat = await service.getWidgetStatNotes();
+    final picked =
+        RandomReviewSelectorService.selectWidgetCandidatesFrom<WidgetStatNote>(
+      notes: stat,
+      reviewDays: 7,
+      random: Random(1),
+      displayDayKey: (note) => note.displayDayKey,
+      contentOf: (note) => note.content,
+    );
+
+    expect(picked.map((note) => note.id), contains('inside'));
+    expect(picked.map((note) => note.id), isNot(contains('outside')));
+  });
+
   test('WSR-05 范围内全是没有可见文字的笔记时仍会抽出回顾卡片', () async {
     final now = DateTime.now();
     await seed(<Map<String, Object?>>[
@@ -288,7 +366,7 @@ void main() {
     ]);
 
     final stat = await service.getWidgetStatNotes();
-    final snapshot = _snapshot(stat, seed: 5);
+    final snapshot = _snapshotFromRows(stat, seed: 5);
     final reviewNotes = snapshot['reviewNotes']! as List<Object?>;
 
     expect(reviewNotes, isNotEmpty);

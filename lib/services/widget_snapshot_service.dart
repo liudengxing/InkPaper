@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:inkpaper/config/app_config.dart' as Config;
 import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/models/widget_stat_note.dart';
 import 'package:inkpaper/services/random_review_selector_service.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
 import 'package:inkpaper/utils/tag_input_helper.dart';
@@ -19,7 +20,7 @@ abstract final class WidgetSnapshotService {
   static String? _lastSnapshotJson;
 
   static void scheduleUpdate({
-    required List<Note> notes,
+    required List<WidgetStatNote> notes,
     required bool isLocalMode,
     required bool isLoggedIn,
     required bool isSyncing,
@@ -29,7 +30,7 @@ abstract final class WidgetSnapshotService {
     Duration delay = const Duration(milliseconds: 350),
   }) {
     _debounceTimer?.cancel();
-    final snapshotNotes = List<Note>.from(notes);
+    final snapshotNotes = List<WidgetStatNote>.from(notes);
     _debounceTimer = Timer(delay, () {
       unawaited(
         update(
@@ -46,7 +47,7 @@ abstract final class WidgetSnapshotService {
   }
 
   static Future<void> update({
-    required List<Note> notes,
+    required List<WidgetStatNote> notes,
     required bool isLocalMode,
     required bool isLoggedIn,
     required bool isSyncing,
@@ -88,9 +89,34 @@ abstract final class WidgetSnapshotService {
 
   /// [random] 只给测试用：回顾候选是随机抽的，要逐字段对比两份快照
   /// 就得让两边用同一个种子。
+  ///
+  /// 生产路径传进来的是 [WidgetStatNote]（`getWidgetStatNotes()`），这里留一个
+  /// 收 `List<Note>` 的入口，方便用「完整笔记」当对照基准。
   @visibleForTesting
   static Map<String, Object?> debugBuildSnapshot({
     required List<Note> notes,
+    required bool isLocalMode,
+    required bool isLoggedIn,
+    required bool isSyncing,
+    int reviewRefreshIntervalMinutes = 60,
+    int reviewRangeDays = 0,
+    String? syncMessage,
+    Random? random,
+  }) =>
+      _buildSnapshot(
+        notes: notes.map(WidgetStatNote.fromNote).toList(),
+        isLocalMode: isLocalMode,
+        isLoggedIn: isLoggedIn,
+        isSyncing: isSyncing,
+        reviewRefreshIntervalMinutes: reviewRefreshIntervalMinutes,
+        reviewRangeDays: reviewRangeDays,
+        syncMessage: syncMessage,
+        random: random,
+      );
+
+  @visibleForTesting
+  static Map<String, Object?> debugBuildSnapshotFromRows({
+    required List<WidgetStatNote> notes,
     required bool isLocalMode,
     required bool isLoggedIn,
     required bool isSyncing,
@@ -111,7 +137,7 @@ abstract final class WidgetSnapshotService {
       );
 
   static Map<String, Object?> _buildSnapshot({
-    required List<Note> notes,
+    required List<WidgetStatNote> notes,
     required bool isLocalMode,
     required bool isLoggedIn,
     required bool isSyncing,
@@ -121,12 +147,13 @@ abstract final class WidgetSnapshotService {
     Random? random,
   }) {
     final visibleNotes = notes.where(_isWidgetVisibleNote).toList()
-      ..sort((a, b) => b.displayTime.compareTo(a.displayTime));
+      ..sort((a, b) => b.displaySortKey.compareTo(a.displaySortKey));
 
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
+    final todayKey = _dayKey(todayStart);
     final todayNotes = visibleNotes
-        .where((note) => note.displayTime.isAfter(todayStart))
+        .where((note) => note.displayDayKey.compareTo(todayKey) >= 0)
         .toList();
     var pendingTodos = 0;
     var todayWords = 0;
@@ -143,11 +170,9 @@ abstract final class WidgetSnapshotService {
     // 快速记录小部件的标签排序与编辑器「#标签」补全同源：
     // rankTagsByUsage（频次 × 新鲜度加权），用户常用标签浮到前面。
     // 早先这里只按出现次数降序，和新打笔记的建议栏顺序对不上。
-    final quickTags = rankTagsByUsage(
-      notes: notes.map(
-        (note) => (tags: note.tags, updatedAt: note.updatedAt),
-      ),
-    );
+    // 注意这里喂的是全部笔记（含归档）：与改造前一致，编辑器「#标签」补全
+    // 也是按全库统计的，别顺手收窄成 visibleNotes。
+    final quickTags = _rankQuickTags(notes);
 
     final reviewNotes = _pickReviewNotes(
       visibleNotes,
@@ -160,8 +185,7 @@ abstract final class WidgetSnapshotService {
     // 取日期，和首页热力图、时间标签同一口径——不 toLocal。
     final dayCounts = <String, int>{};
     for (final note in visibleNotes) {
-      final time = note.displayTime;
-      final key = _dayKey(DateTime(time.year, time.month, time.day));
+      final key = note.displayDayKey;
       dayCounts[key] = (dayCounts[key] ?? 0) + 1;
     }
 
@@ -226,21 +250,49 @@ abstract final class WidgetSnapshotService {
     };
   }
 
-  static List<Note> _pickReviewNotes(
-    List<Note> notes, {
+  static List<WidgetStatNote> _pickReviewNotes(
+    List<WidgetStatNote> notes, {
     required int reviewRangeDays,
     Random? random,
   }) {
-    return RandomReviewSelectorService.selectWidgetCandidates(
+    return RandomReviewSelectorService.selectWidgetCandidatesFrom<
+        WidgetStatNote>(
       notes: notes,
       reviewDays: reviewRangeDays == 0
           ? RandomReviewSelectorService.allDays
           : reviewRangeDays,
       random: random ?? Random(),
+      displayDayKey: (note) => note.displayDayKey,
+      contentOf: (note) => note.content,
     );
   }
 
-  static Note? _firstPinnedNote(List<Note> notes) {
+  /// 快速记录小部件的标签排序。
+  ///
+  /// 与编辑器「#标签」补全同源（`rankTagsByUsage`：频次 × 新鲜度加权），但这里
+  /// 先按标签记下最晚更新时间的 ISO 串，只对真正进入排序的标签解析 DateTime——
+  /// 1500 条笔记要解析的是「去重后的标签数」，不是「笔记数」。
+  static List<String> _rankQuickTags(List<WidgetStatNote> notes) {
+    final lastUsedIso = <String, String>{};
+    for (final note in notes) {
+      for (final tag in note.tags) {
+        final previous = lastUsedIso[tag];
+        if (previous == null || note.updatedAtIso.compareTo(previous) > 0) {
+          lastUsedIso[tag] = note.updatedAtIso;
+        }
+      }
+    }
+    return rankTagsByUsage(
+      notes: lastUsedIso.entries.map(
+        (entry) => (
+          tags: <String>[entry.key],
+          updatedAt: DateTime.parse(entry.value),
+        ),
+      ),
+    );
+  }
+
+  static WidgetStatNote? _firstPinnedNote(List<WidgetStatNote> notes) {
     for (final note in notes) {
       if (note.isPinned) {
         return note;
@@ -255,7 +307,7 @@ abstract final class WidgetSnapshotService {
     return '${day.year}-${two(day.month)}-${two(day.day)}';
   }
 
-  static bool _isWidgetVisibleNote(Note note) {
+  static bool _isWidgetVisibleNote(WidgetStatNote note) {
     final status = note.rowStatus.trim().toUpperCase();
     return status.isEmpty ||
         status == 'NORMAL' ||
@@ -263,7 +315,7 @@ abstract final class WidgetSnapshotService {
         status == 'STATE_UNSPECIFIED';
   }
 
-  static Map<String, Object?> _noteSnapshot(Note note) {
+  static Map<String, Object?> _noteSnapshot(WidgetStatNote note) {
     final visibleText =
         MemosContentHelper.previewVisibleText(note.content).trim();
     final preview = visibleText.isNotEmpty
@@ -276,7 +328,10 @@ abstract final class WidgetSnapshotService {
       'previewLong':
           visibleText.isNotEmpty ? _trimPreview(visibleText, 400) : preview,
       'tags': note.tags.take(3).toList(),
-      'createdAt': note.createdAt.toIso8601String(),
+      // 这三个字段是原样透传数据库里的 ISO 串：`Note` 那条路是
+      // `DateTime.parse(串).toIso8601String()`，格式化再解析回来是恒等变换，
+      // 所以直接给串既省一次时区查询，也不改快照内容。
+      'createdAt': note.createdAtIso,
       // 桌面小部件直接展示这个本地时间文案。格式化放在 Dart 侧做：
       // 原生只裁剪 ISO 字符串，一旦序列化成 UTC 就会显示错时区。
       'createdAtLabel': formatWidgetTime(note.createdAt),
@@ -284,13 +339,18 @@ abstract final class WidgetSnapshotService {
       // 说清「多久以前」比裸时间戳更能唤起回忆，对应 flomo 桌面组件的
       // 「去年今日」那一层标注。
       'ageLabel': formatReviewAgeLabel(note.createdAt),
-      'updatedAt': note.updatedAt.toIso8601String(),
-      'displayTime': note.displayTime.toIso8601String(),
+      'updatedAt': note.updatedAtIso,
+      'displayTime': note.displayTimeIso,
     };
   }
 
-  static String _attachmentPreview(Note note) {
-    if (MemosContentHelper.extractNoteImagePaths(note).isNotEmpty) {
+  static String _attachmentPreview(WidgetStatNote note) {
+    final hasImage =
+        MemosContentHelper.extractResourceImagePaths(note.resourceList)
+                .isNotEmpty ||
+            MemosContentHelper.extractMarkdownImagePaths(note.content)
+                .isNotEmpty;
+    if (hasImage) {
       return '这是一条含图片的笔记';
     }
     if (note.resourceList.isNotEmpty) {

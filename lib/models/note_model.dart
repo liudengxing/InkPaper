@@ -67,11 +67,10 @@ class Note {
     final note = Note(
       id: map['id'],
       content: map['content'],
-      createdAt: DateTime.parse(map['createdAt']),
-      updatedAt: DateTime.parse(map['updatedAt']),
-      displayTime: map['displayTime'] != null
-          ? DateTime.parse(map['displayTime'])
-          : null,
+      createdAt: _parseCounted(map['createdAt']),
+      updatedAt: _parseCounted(map['updatedAt']),
+      displayTime:
+          map['displayTime'] != null ? _parseCounted(map['displayTime']) : null,
       tags: (map['tags'] as String?)?.isNotEmpty ?? false
           ? (map['tags'] as String).split(',')
           : null,
@@ -211,6 +210,20 @@ class Note {
   /// 这里统一钳到创建时间，读到坏数据也不会再显示成负数时差。
   static DateTime _clampUpdatedAt(DateTime createdAt, DateTime updatedAt) =>
       updatedAt.isBefore(createdAt) ? createdAt : updatedAt;
+
+  /// 仅测试用：`fromMap` 里真正发生的时间解析次数。
+  ///
+  /// 解析出来的都是**本地** `DateTime`，构造时每次都要向系统查一次时区偏移
+  /// （本机约 45µs）。千条级的库上「整库构造 `Note`」主要就贵在这里，桌面
+  /// 小组件的统计路径因此改走 `WidgetStatNote`（只留 ISO 字符串）。这个计数
+  /// 用来锁住那条路径没有被改回整库 `fromMap`。
+  @visibleForTesting
+  static int debugDateTimeParseCount = 0;
+
+  static DateTime _parseCounted(String value) {
+    debugDateTimeParseCount++;
+    return DateTime.parse(value);
+  }
 
   static DateTime _parseCreatedAt(Map<String, dynamic> json) {
     final parsed = _parseTimestamp(

@@ -73,6 +73,14 @@ class NoteMoreOptionsMenu {
     final localizations = AppLocalizationsSimple.of(context);
     var currentNote = note;
 
+    // 「链接」复制的是 Memos 服务端的分享页地址（{服务器}/m/{id}），
+    // 本地模式或没登录时根本拼不出可用 URL，点了只会提示「未登录或服务器配置错误」，
+    // 所以干脆不显示这个入口。
+    final appProvider = Provider.of<AppProvider>(context, listen: false);
+    final canShareLink = appProvider.isLoggedIn &&
+        !appProvider.isLocalMode &&
+        appProvider.memosApiService != null;
+
     // 用于在异步操作后刷新笔记数据
     Future<void> reloadNote() async {
       final appProvider = Provider.of<AppProvider>(context, listen: false);
@@ -103,6 +111,7 @@ class NoteMoreOptionsMenu {
           currentNote,
           localizations,
           showAiSummary: onAiSummary != null,
+          showShareLink: canShareLink,
         ),
       ),
       transitionBuilder: (dialogContext, animation, _, child) {
@@ -206,16 +215,6 @@ class NoteMoreOptionsMenu {
             }
           }
           break;
-        case 'visibility':
-          await NoteActionsUi.showVisibilitySelector(
-            context: context,
-            note: currentNote,
-            onUpdated: () {
-              reloadNote();
-              onNoteUpdated?.call();
-            },
-          );
-          break;
         case 'change_time':
           await _showChangeTimeDialog(
             context: context,
@@ -265,6 +264,7 @@ class NoteMoreOptionsMenu {
     Note note,
     AppLocalizationsSimple? localizations, {
     bool showAiSummary = false,
+    bool showShareLink = false,
   }) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final secondaryText = isDarkMode ? Colors.grey[500] : Colors.grey[600];
@@ -331,12 +331,13 @@ class NoteMoreOptionsMenu {
                     isDarkMode: isDarkMode,
                     onTap: () => select('ai'),
                   ),
-                  _buildSheetAction(
-                    icon: Icons.link_rounded,
-                    label: localizations?.linkNote ?? '链接',
-                    isDarkMode: isDarkMode,
-                    onTap: () => select('link'),
-                  ),
+                  if (showShareLink)
+                    _buildSheetAction(
+                      icon: Icons.link_rounded,
+                      label: localizations?.linkNote ?? '链接',
+                      isDarkMode: isDarkMode,
+                      onTap: () => select('link'),
+                    ),
                   _buildSheetAction(
                     icon: Icons.account_tree_outlined,
                     label: localizations?.referenceDetails ?? '引用详情',
@@ -359,18 +360,6 @@ class NoteMoreOptionsMenu {
                             )
                           : null,
                     ),
-                  _buildSheetAction(
-                    icon: note.isPublic ? Icons.public : Icons.lock_outline,
-                    label: localizations?.noteVisibility ?? '可见性',
-                    isDarkMode: isDarkMode,
-                    onTap: () => select('visibility'),
-                    trailing: Text(
-                      note.isPublic
-                          ? (localizations?.public ?? '公开')
-                          : (localizations?.private ?? '私有'),
-                      style: TextStyle(fontSize: 13, color: secondaryText),
-                    ),
-                  ),
                   _buildSheetAction(
                     icon: Icons.access_time_rounded,
                     label: localizations?.changeTime ?? '修改时间',

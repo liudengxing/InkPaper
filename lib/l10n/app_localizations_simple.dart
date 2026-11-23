@@ -162,9 +162,6 @@ class AppLocalizationsSimple {
   String get syncInterval =>
       locale.languageCode == 'zh' ? '同步间隔' : 'Sync Interval';
 
-  String get defaultNoteVisibility =>
-      locale.languageCode == 'zh' ? '默认笔记状态' : 'Default Note Visibility';
-
   String get rememberPassword =>
       locale.languageCode == 'zh' ? '记住密码' : 'Remember Password';
   String get rememberPasswordDesc => locale.languageCode == 'zh'

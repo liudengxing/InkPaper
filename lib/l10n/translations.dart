@@ -300,7 +300,7 @@ class Translations {
 
     // ===== 其他设置 =====
     'fontSelection': {'zh': '字体选择', 'en': 'Font Selection'},
-    'noteVisibility': {'zh': '默认笔记状态', 'en': 'Default Note Visibility'},
+    'noteVisibility': {'zh': '笔记状态', 'en': 'Note Visibility'},
     'private': {'zh': '私密', 'en': 'Private'},
     'public': {'zh': '公开', 'en': 'Public'},
     'privateDesc': {'zh': '仅自己可见', 'en': 'Visible only to you'},

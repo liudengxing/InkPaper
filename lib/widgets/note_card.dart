@@ -16,7 +16,6 @@ import 'package:inkpaper/screens/image_viewer_screen.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/services/user_behavior_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
-import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart'; // 🔥 添加长期缓存管理器
 import 'package:inkpaper/utils/image_decode_width.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
@@ -25,13 +24,13 @@ import 'package:inkpaper/utils/note_timestamp_format.dart';
 import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 import 'package:inkpaper/utils/text_style_helper.dart';
-import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:inkpaper/utils/todo_parser.dart';
 import 'package:inkpaper/widgets/live_photo_badge.dart';
 import 'package:inkpaper/widgets/note_actions_ui.dart';
 import 'package:inkpaper/widgets/note_image_grid.dart';
 import 'package:inkpaper/widgets/note_more_options_menu.dart';
 import 'package:inkpaper/widgets/note_preview_text.dart';
+import 'package:inkpaper/widgets/note_thumbnail.dart';
 import 'package:inkpaper/widgets/note_video_card.dart';
 import 'package:inkpaper/widgets/saveable_image.dart';
 import 'package:provider/provider.dart';
@@ -392,7 +391,8 @@ class _NoteCardState extends State<NoteCard>
     int? decodeWidth,
   }) {
     try {
-      final thumb = _lookupThumb(imagePath, decodeWidth: decodeWidth);
+      final source = NoteThumbnail.localSource(imagePath);
+      final thumb = NoteThumbnail.peek(source, _memDecodeWidth(decodeWidth));
       final cachedInMemory = thumb != null &&
           PaintingBinding.instance.imageCache.containsKey(FileImage(thumb));
       return GestureDetector(
@@ -421,6 +421,7 @@ class _NoteCardState extends State<NoteCard>
                     imagePath,
                     context,
                     decodeWidth: decodeWidth,
+                    localSource: source,
                     knownThumb: thumb,
                   ),
                 ),
@@ -561,34 +562,11 @@ class _NoteCardState extends State<NoteCard>
       ? 720
       : gridTileDecodeWidth(decodeWidth.toDouble(), 1);
 
-  /// 图片在磁盘上有没有现成的缩略图。
-  ///
-  /// 与 [_buildImageWidget] 里的查找口径保持一致（服务端附件先映射到本地
-  /// 副本再查），否则这里判定「有」而那边又查不到，照样会退回原图。
-  File? _lookupThumb(String imagePath, {int? decodeWidth}) {
-    final memWidth = _memDecodeWidth(decodeWidth);
-    final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);
-    if (cachedAttachment != null) {
-      return ThumbCache.instance.lookup(
-        cachedAttachment.path,
-        width: memWidth,
-        generateOnMiss: false,
-      );
-    }
-    if (imagePath.startsWith('file://')) {
-      return ThumbCache.instance.lookup(
-        imagePath.replaceFirst('file://', ''),
-        width: memWidth,
-        generateOnMiss: false,
-      );
-    }
-    return null;
-  }
-
   Widget _buildImageWidget(
     String imagePath,
     BuildContext context, {
     int? decodeWidth,
+    File? localSource,
     File? knownThumb,
   }) {
     // 缩略图按卡片格子的实际像素宽度解码；全屏查看由 ImageViewerScreen 自己加载原图。
@@ -596,20 +574,12 @@ class _NoteCardState extends State<NoteCard>
     // 进出详情时不必把同一批图重新解码一遍。
     final memWidth = _memDecodeWidth(decodeWidth);
     try {
-      // 数据维护里缓存过的服务端附件：直接读本地副本
-      final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);
-      if (cachedAttachment != null) {
-        final thumb = knownThumb ??
-            ThumbCache.instance.lookup(cachedAttachment.path, width: memWidth);
-        return Image.file(
-          thumb ?? cachedAttachment,
-          key: ValueKey((thumb ?? cachedAttachment).path),
-          fit: BoxFit.cover,
-          // 缩略图已经是目标尺寸，不必再让引擎缩一次
-          cacheWidth: thumb == null ? memWidth : null,
-          gaplessPlayback: true,
-          // 缩略图不需要高质量重采样，low 档解码上屏更快
-          filterQuality: FilterQuality.low,
+      if (localSource != null) {
+        return NoteThumbnail(
+          source: localSource,
+          width: memWidth,
+          cachedThumbnail: knownThumb,
+          placeholder: _buildThumbPlaceholder(),
           errorBuilder: (context, error, stackTrace) => Center(
             child: Icon(Icons.broken_image, color: Colors.grey[600]),
           ),
@@ -746,71 +716,6 @@ class _NoteCardState extends State<NoteCard>
               );
             },
           ),
-        );
-      } else if (imagePath.startsWith('file://')) {
-        // 本地文件
-        final filePath = imagePath.replaceFirst('file://', '');
-        // 有持久化缩略图就读小文件：480 宽 JPEG 解码 5~10ms，原图是 12MP、
-        // 单张 150~250ms。缩略图存在磁盘上，冷启动与进程被杀后同样命中，
-        // 这正是内存 ImageCache 给不了的。
-        final thumb =
-            knownThumb ?? ThumbCache.instance.lookup(filePath, width: memWidth);
-        if (thumb != null) {
-          return Image.file(
-            thumb,
-            key: ValueKey(thumb.path),
-            fit: BoxFit.cover,
-            gaplessPlayback: true,
-            filterQuality: FilterQuality.low,
-            errorBuilder: (context, error, stackTrace) => Center(
-              child: Icon(Icons.broken_image, color: Colors.grey[600]),
-            ),
-          );
-        }
-        // 缩略图还没好：正在生成就先占位，别当场解原图。
-        //
-        // 刚保存的带图笔记正好落在这一帧：原图 12MP 解码 150~250ms，和
-        // 编辑器关闭动画叠在一起，观感就是「点保存卡一下」。占位后由
-        // readyVersion 触发重建，缩略图一好立刻换上（通常几十毫秒）。
-        // 生成失败（HEIC 之类）会退回原图，不会一直空着。
-        return ValueListenableBuilder<int>(
-          valueListenable: ThumbCache.instance.readyVersion,
-          builder: (context, _, __) {
-            final ready = ThumbCache.instance.lookup(filePath, width: memWidth);
-            if (ready != null) {
-              return Image.file(
-                ready,
-                key: ValueKey(ready.path),
-                fit: BoxFit.cover,
-                gaplessPlayback: true,
-                filterQuality: FilterQuality.low,
-              );
-            }
-            if (ThumbCache.instance.isPending(filePath, width: memWidth)) {
-              return Container(
-                color: Colors.grey[300],
-                child: const SizedBox(),
-              );
-            }
-            return Image.file(
-              File(filePath),
-              key: ValueKey(filePath), // 添加key强制刷新
-              fit: BoxFit.cover,
-              // 与网络图一致：按格子像素宽度解码，避免 4K 原图整张进内存
-              cacheWidth: memWidth,
-              gaplessPlayback: true,
-              filterQuality: FilterQuality.low,
-              errorBuilder: (context, error, stackTrace) {
-                if (kDebugMode) {
-                  debugPrint('Local file image error: $error for $filePath');
-                }
-                // 如果图片文件不存在，尝试触发刷新来获取修复后的路径
-                return Center(
-                  child: Icon(Icons.broken_image, color: Colors.grey[600]),
-                );
-              },
-            );
-          },
         );
       }
 

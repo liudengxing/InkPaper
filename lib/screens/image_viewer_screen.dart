@@ -12,12 +12,53 @@ import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
+import 'package:inkpaper/utils/image_decode_width.dart';
 import 'package:inkpaper/utils/image_utils.dart';
 import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
+import 'package:inkpaper/widgets/note_thumbnail.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
+
+/// 图片已通过 Image widget 绘制。这里只借第一帧读取尺寸，随后释放引用。
+class _FirstImageSize {
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+
+  void listen(
+    ImageStream stream, {
+    required ValueChanged<Size> onSize,
+    ImageErrorListener? onError,
+  }) {
+    cancel();
+    final listener = ImageStreamListener(
+      (info, _) {
+        final size =
+            Size(info.image.width.toDouble(), info.image.height.toDouble());
+        info.dispose();
+        cancel();
+        onSize(size);
+      },
+      onError: (error, stackTrace) {
+        cancel();
+        onError?.call(error, stackTrace);
+      },
+    );
+    _stream = stream;
+    _listener = listener;
+    stream.addListener(listener);
+  }
+
+  void cancel() {
+    final listener = _listener;
+    if (listener != null) {
+      _stream?.removeListener(listener);
+    }
+    _stream = null;
+    _listener = null;
+  }
+}
 
 class ImageViewerScreen extends StatefulWidget {
   const ImageViewerScreen({
@@ -1079,12 +1120,11 @@ class _PhotoPage extends StatefulWidget {
 
 class _PhotoPageState extends State<_PhotoPage> {
   ImageProvider? _imageProvider;
-  ImageStream? _imageStream;
-  ImageStreamListener? _imageStreamListener;
+  final _imageProbe = _FirstImageSize();
   // 缩略图：原图解码期间先顶上，避免打开查看器时黑屏等半天
   ImageProvider? _previewProvider;
-  ImageStream? _previewStream;
-  ImageStreamListener? _previewListener;
+  final _previewProbe = _FirstImageSize();
+  int _resolveAttempt = 0;
   // 原图解码的延迟启动定时器（等入场转场结束），路径变化/销毁时取消
   Timer? _originalTimer;
   Size? _previewSize;
@@ -1402,9 +1442,7 @@ class _PhotoPageState extends State<_PhotoPage> {
   void dispose() {
     _originalTimer?.cancel();
     _liveAutoPlayTimer?.cancel();
-    if (_imageStream != null && _imageStreamListener != null) {
-      _imageStream!.removeListener(_imageStreamListener!);
-    }
+    _imageProbe.cancel();
     // 查看器的高清图解码尺寸与列表/详情不同，对其它页面没有复用价值；
     // 退出时主动 evict，别让几十 MB 的纹理把详情页缩略图挤出缓存。
     final provider = _imageProvider;
@@ -1417,6 +1455,8 @@ class _PhotoPageState extends State<_PhotoPage> {
   }
 
   void _resolveImage() {
+    final attempt = ++_resolveAttempt;
+    _imageProbe.cancel();
     _detachPreview();
     _resolvedPath = widget.imagePath;
 
@@ -1426,7 +1466,7 @@ class _PhotoPageState extends State<_PhotoPage> {
 
     // 缩略图先上：磁盘缓存命中时几十毫秒就能出图，
     // 原图解码完会由 _imageSize 到达时的 setState 自动替换。
-    _resolvePreview();
+    unawaited(_resolvePreview(attempt));
 
     // 原图解码等入场转场结束后再启动：12MP 原图的 JPEG 全量扫描要
     // 150-300ms，挤在转场里会把动画卡掉帧（打开查看器顿一下的根源）。
@@ -1455,112 +1495,80 @@ class _PhotoPageState extends State<_PhotoPage> {
       context,
       maxWidth: _ImageViewerScreenState.viewerDecodeWidth(context),
     );
-    final stream = provider.resolve(createLocalImageConfiguration(context));
-
-    if (_imageStream != null && _imageStreamListener != null) {
-      _imageStream?.removeListener(_imageStreamListener!);
-    }
-
     _imageProvider = provider;
-
-    _imageStreamListener = ImageStreamListener(
-      (imageInfo, _) {
+    _imageProbe.listen(
+      provider.resolve(createLocalImageConfiguration(context)),
+      onSize: (size) {
         if (!mounted) {
           return;
         }
         setState(() {
-          _imageSize = Size(
-            imageInfo.image.width.toDouble(),
-            imageInfo.image.height.toDouble(),
-          );
+          _imageSize = size;
           _imageError = null;
+          _detachPreview();
         });
       },
       onError: (error, stackTrace) {
-        if (kDebugMode) {
-          debugPrint('Full screen image error: $error');
+        if (mounted) {
+          setState(() => _imageError = error);
         }
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _imageError = error;
-        });
       },
     );
-
-    _imageStream = stream;
-    stream.addListener(_imageStreamListener!);
   }
 
-  /// 解析 480px 缩略图，只用于原图就绪前的临时展示。
-  ///
-  /// 优先复用 ThumbCache 的持久化缩略图文件：跟首页/详情页网格读的是同一个
-  /// 小文件（FileImage key 也一致），能直接命中 ImageCache，零解码秒出；
-  /// 没命中才退回 ResizeImage 方案 —— 那条路也要把原图文件全量扫一遍。
-  void _resolvePreview() {
+  /// 预览只复用磁盘小图、正在生成的小图或已进内存的网络小图。
+  /// 冷启动由高清图负责出图，避免为了短暂占位先把原图解一遍。
+  Future<void> _resolvePreview(int attempt) async {
     try {
-      ImageProvider provider;
-      final previewFile = _previewLocalPath();
-      final thumb =
-          previewFile != null ? ThumbCache.instance.lookup(previewFile) : null;
-      if (thumb != null) {
-        provider = FileImage(thumb);
+      final imagePath = widget.imagePath;
+      final source = NoteThumbnail.localSource(imagePath);
+      final configuration = createLocalImageConfiguration(context);
+      ImageProvider? provider;
+      if (source != null) {
+        final thumb = NoteThumbnail.peek(source, ThumbCache.defaultWidth) ??
+            NoteThumbnail.peek(source, ThumbCache.largeWidth) ??
+            await (ThumbCache.instance.pending(source.path) ??
+                ThumbCache.instance
+                    .pending(source.path, width: ThumbCache.largeWidth));
+        if (thumb != null) {
+          provider = FileImage(thumb);
+        }
       } else {
-        provider = _ImageViewerScreenState.getImageProvider(
-          widget.imagePath,
-          context,
-          maxWidth: 480,
-        );
+        final original =
+            _ImageViewerScreenState.getImageProvider(imagePath, context);
+        if (original is CachedNetworkImageProvider) {
+          for (final width in const [kGridTileDecodeWidth, 720]) {
+            final candidate = ResizeImage.resizeIfNeeded(width, null, original);
+            final key = await candidate.obtainKey(configuration);
+            if (PaintingBinding.instance.imageCache.containsKey(key)) {
+              provider = candidate;
+              break;
+            }
+          }
+        }
+      }
+      if (!mounted ||
+          attempt != _resolveAttempt ||
+          _imageSize != null ||
+          provider == null) {
+        return;
       }
       _previewProvider = provider;
-      final stream = provider.resolve(createLocalImageConfiguration(context));
-      final listener = ImageStreamListener(
-        (imageInfo, _) {
-          if (!mounted || _imageSize != null) {
-            return;
+      _previewProbe.listen(
+        provider.resolve(configuration),
+        onSize: (size) {
+          if (mounted && attempt == _resolveAttempt && _imageSize == null) {
+            setState(() => _previewSize = size);
           }
-          setState(() {
-            _previewSize = Size(
-              imageInfo.image.width.toDouble(),
-              imageInfo.image.height.toDouble(),
-            );
-          });
-        },
-        onError: (error, stackTrace) {
-          // 缩略图失败就安静地等原图，不额外弹错误
         },
       );
-      stream.addListener(listener);
-      _previewStream = stream;
-      _previewListener = listener;
-    } on Object catch (e) {
-      if (kDebugMode) {
-        debugPrint('ImageViewer: preview resolve failed: $e');
-      }
+    } on Object {
+      // 预览失败时继续等高清图。
     }
-  }
-
-  /// 预览缩略图能直接读本地文件时的路径；服务端未缓存图返回 null。
-  String? _previewLocalPath() {
-    final path = widget.imagePath;
-    if (path.startsWith('file://')) {
-      return path.replaceFirst('file://', '');
-    }
-    // 服务端附件已缓存到本地副本时，缩略图同样可用
-    final cached = AttachmentCache.instance.fileFor(path);
-    if (cached != null) {
-      return cached.path;
-    }
-    return null;
   }
 
   void _detachPreview() {
-    if (_previewStream != null && _previewListener != null) {
-      _previewStream!.removeListener(_previewListener!);
-    }
-    _previewStream = null;
-    _previewListener = null;
+    _previewProbe.cancel();
     _previewProvider = null;
   }
 

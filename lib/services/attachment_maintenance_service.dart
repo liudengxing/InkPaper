@@ -229,6 +229,7 @@ class AttachmentMaintenanceService {
         if (await file.exists()) {
           await file.delete();
           deleted++;
+          await ThumbCache.instance.removeForSource(file.path);
         }
       } on Object catch (e) {
         debugPrint('删除附件失败: $name - $e');

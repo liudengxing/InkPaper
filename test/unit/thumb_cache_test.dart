@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -62,6 +63,86 @@ void main() {
     if (root.existsSync()) {
       root.deleteSync(recursive: true);
     }
+  });
+
+  test('并发请求共用同一档缩略图，等待者都得到结果', () async {
+    final cache = ThumbCache.instance;
+    final input = File(p.join(imagesDir, 'shared.jpg'))..writeAsBytesSync([1]);
+    final started = Completer<void>();
+    final release = Completer<void>();
+    var decodes = 0;
+    cache.debugSetEncoder((bytes, width, lossless) async {
+      decodes++;
+      started.complete();
+      await release.future;
+      return Uint8List.fromList([1, 2, 3]);
+    });
+
+    final first = cache.ensure(input.path, width: 720);
+    await started.future;
+    final second = cache.ensure(input.path, width: 1080);
+    final observer = cache.pending(input.path, width: 1080);
+    expect(observer, isNotNull);
+    expect(cache.pending(input.path), isNull);
+    release.complete();
+
+    final files = await Future.wait([first, second, observer!]);
+    expect(files.map((file) => file?.path).toSet(), hasLength(1));
+    expect(await files.first!.exists(), isTrue);
+    expect(decodes, 1);
+  });
+
+  test('后台整理清过期孤儿和超额旧小图，保留对应原图', () async {
+    final cache = ThumbCache.instance;
+    final old = File(p.join(imagesDir, 'old.jpg'))..writeAsBytesSync([1]);
+    final recent = File(p.join(imagesDir, 'recent.jpg'))..writeAsBytesSync([2]);
+    final cutoff = DateTime.now().subtract(const Duration(days: 8));
+    final oldName = cache.fileNameFor(old.path)!;
+    final recentName = cache.fileNameFor(recent.path)!;
+    const orphanName = 'orphan_480.jpg';
+    for (final name in [oldName, recentName, orphanName]) {
+      final file = File(p.join(thumbsDir, name));
+      await file.writeAsBytes(List.filled(6, 1));
+      if (name != recentName) {
+        await file.setLastModified(cutoff);
+      }
+    }
+    cache.debugSeed(
+      dirPath: thumbsDir,
+      imagesDirPath: imagesDir,
+      known: [oldName, recentName, orphanName],
+      diskLimit: 6,
+    );
+
+    await cache.startBackfill();
+
+    expect(cache.lookup(recent.path), isNotNull);
+    expect(cache.lookup(old.path), isNull);
+    expect(await File(p.join(thumbsDir, orphanName)).exists(), isFalse);
+    expect(await old.exists(), isTrue);
+    expect(await recent.exists(), isTrue);
+  });
+
+  test('清理等正在生成的任务退出，小图不会在清理后重新落盘', () async {
+    final cache = ThumbCache.instance;
+    final input = File(p.join(imagesDir, 'clearing.jpg'))
+      ..writeAsBytesSync([1]);
+    final started = Completer<void>();
+    final release = Completer<void>();
+    cache.debugSetEncoder((bytes, width, lossless) async {
+      started.complete();
+      await release.future;
+      return Uint8List.fromList([1, 2, 3]);
+    });
+
+    final encoding = cache.ensure(input.path);
+    await started.future;
+    final clearing = cache.clear();
+    release.complete();
+    expect(await encoding, isNull);
+    await clearing;
+    expect(await Directory(thumbsDir).list().isEmpty, isTrue);
+    expect(await input.exists(), isTrue);
   });
 
   group('ThumbCache 命名', () {

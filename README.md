@@ -6,7 +6,7 @@
 
 ## 当前版本
 
-`1.1.141`
+`1.1.142`
 
 当前源码已通过 Android 真机安装验收。公开安装包以发行页为准。
 
@@ -80,7 +80,7 @@ sdkmanager --licenses
 版本号统一维护在 `pubspec.yaml`，`x.y.z` 是语义版本，`+N` 是构建号：
 
 ```yaml
-version: 1.1.141+10241
+version: 1.1.142+10242
 ```
 
 构建新版本时同步增加 `x.y.z` 的 patch 和 `+N`，并更新中英文 README 的当前版本。`dart tool/inkpaper.dart store-check` 会核对版本一致性。

@@ -41,6 +41,13 @@ class ThumbCache {
       width <= defaultWidth ? defaultWidth : largeWidth;
 
   static const String _dirName = 'thumbs';
+  static const int _defaultDiskLimit = 128 << 20;
+  int _diskLimit = _defaultDiskLimit;
+  int _diskBytes = 0;
+  final _diskEntries = <String, _DiskThumbnail>{};
+  bool _diskIndexed = false;
+  Future<void>? _maintenance;
+  Future<void>? _clearing;
 
   /// 82 是肉眼几乎无损的档位，再高只是让文件变大。
   static const int _jpegQuality = 82;
@@ -80,7 +87,7 @@ class ThumbCache {
   final Set<String> _known = <String>{};
 
   /// 正在生成的，避免同一张图被列表里多个格子同时触发编码。
-  final Set<String> _inflight = <String>{};
+  final _inflight = <String, Future<File?>>{};
 
   /// 已经尝试生成失败的（HEIC 之类）。留着它，免得列表每次 build 都为一个
   /// 永远生成不出来的图重新起一次异步任务。
@@ -211,7 +218,7 @@ class ThumbCache {
       _known.clear();
       _giveUp.clear();
       await for (final entity in dir.list()) {
-        if (entity is File) {
+        if (entity is File && !entity.path.endsWith('.writing')) {
           _known.add(p.basename(entity.path));
         }
       }
@@ -265,14 +272,15 @@ class ThumbCache {
       // stat 在页缓存里是微秒级，比让 Image.file 渲染成破图划算得多。
       if (file.existsSync()) {
         _lookupHits++;
+        _diskEntries[name]?.usedAt = DateTime.now();
         return file;
       }
-      _known.remove(name);
+      _forget(name);
     }
     _lookupMisses++;
     if (generateOnMiss &&
         _autoGenerateOnMiss &&
-        !_inflight.contains(name) &&
+        !_inflight.containsKey(name) &&
         !_giveUp.contains(name)) {
       unawaited(ensure(sourcePath, width: width));
     }
@@ -291,7 +299,7 @@ class ThumbCache {
       await prepare();
     }
     final dirPath = _dirPath;
-    if (dirPath == null) {
+    if (dirPath == null || _clearing != null) {
       return null;
     }
     final abs = _resolve(sourcePath);
@@ -305,21 +313,41 @@ class ThumbCache {
     final ext = p.extension(abs).toLowerCase();
     final target = File(p.join(dirPath, name));
     if (_known.contains(name)) {
-      return target;
+      if (await target.exists()) {
+        return target;
+      }
+      _forget(name);
+    }
+    if (_clearing != null) {
+      return null;
     }
     // 本进程内已经失败过的（HEIC 之类）不再重试：补齐循环会反复扫到同一批
     // 文件，没有这道闸门就会一直啃它们，永远追不平。
     if (_giveUp.contains(name)) {
       return null;
     }
-    if (_inflight.contains(name)) {
-      return null;
-    }
+    return _inflight.putIfAbsent(name, () async {
+      try {
+        return await _encode(abs, ext, target, name, width, lowPriority);
+      } finally {
+        final _ = _inflight.remove(name);
+        if (!lowPriority && _diskBytes > _diskLimit) {
+          unawaited(_maintainDisk());
+        }
+      }
+    });
+  }
+
+  Future<File?> _encode(
+    String abs,
+    String ext,
+    File target,
+    String name,
+    int width,
+    bool lowPriority,
+  ) async {
     final bucket = bucketWidth(width);
-    // 先占住名额再 await：`await source.exists()` 会让出事件循环，期间同一个
-    // 格子可能在别的帧再 lookup 一次。名额晚一步登记，那边就看不到「正在
-    // 生成」，会退回去解原图 —— 正是要避免的那一帧。
-    _inflight.add(name);
+    final staging = File('${target.path}.writing');
     var slot = false;
     try {
       final source = File(abs);
@@ -346,48 +374,37 @@ class ThumbCache {
         _giveUp.add(name);
         return null;
       }
-      await target.writeAsBytes(encoded, flush: true);
+      if (_clearing != null || encoded.length > _diskLimit) {
+        return null;
+      }
+      await staging.writeAsBytes(encoded, flush: true);
+      await staging.rename(target.path);
       _known.add(name);
+      _record(name, encoded.length, DateTime.now());
       _giveUp.remove(name);
       return target;
     } on Object catch (e) {
       debugPrint('ThumbCache 生成失败 $abs: $e');
       _giveUp.add(name);
+      try {
+        if (await staging.exists()) {
+          await staging.delete();
+        }
+      } on FileSystemException {
+        // 缓存也可能已被系统回收。
+      }
       return null;
     } finally {
       if (slot) {
         _releaseEncodeSlot();
       }
-      _inflight.remove(name);
-      // 成功或失败都要通知：等在图上的格子靠它决定是换成缩略图还是退回原图。
-      readyVersion.value++;
     }
   }
 
-  /// 缩略图生成完成的信号。
-  ///
-  /// 卡片在缩略图还没就绪时先占位，靠监听它决定何时换成真图。用一个自增
-  /// 计数而不是逐路径回调：一张 9 图笔记会同时起好几个任务，全局计数最省事，
-  /// 代价只是每次完成会让在屏卡片重建一次（卡片本身有预览缓存，很轻）。
-  final ValueNotifier<int> readyVersion = ValueNotifier<int>(0);
-
-  /// 这个路径的缩略图是不是正在生成（含排队等编码名额的）。
-  ///
-  /// 只用来决定「要不要先占位」：为 true 说明很快就会好，没必要当场解原图。
-  bool isPending(String sourcePath, {int width = defaultWidth}) {
-    final dirPath = _dirPath;
-    if (dirPath == null) {
-      return false;
-    }
+  /// 供查看器等只想复用现有工作、无需为预览另启一次解码的入口调用。
+  Future<File?>? pending(String sourcePath, {int width = defaultWidth}) {
     final abs = _resolve(sourcePath);
-    if (abs == null) {
-      return false;
-    }
-    final name = fileNameFor(abs, width: width);
-    if (name == null) {
-      return false;
-    }
-    return _inflight.contains(name);
+    return abs == null ? null : _inflight[fileNameFor(abs, width: width)];
   }
 
   /// 后台补齐存量图（一次性扫完）。
@@ -495,8 +512,11 @@ class ThumbCache {
     if (_dirPath == null || _imagesDirPath == null) {
       return;
     }
+    await _maintainDisk(removeOrphans: true);
     var total = 0;
-    while (!_backfillStopped) {
+    // 给前台请求预留空间，避免每次开屏补齐又淘汰同一批老图。
+    final backfillLimit = _diskLimit * 9 ~/ 10;
+    while (!_backfillStopped && _diskBytes < backfillLimit) {
       await _waitWhilePaused();
       if (_backfillStopped) {
         break;
@@ -507,7 +527,9 @@ class ThumbCache {
       }
       var progressed = 0;
       for (var i = 0; i < pending.length; i++) {
-        if (_backfillStopped || _backfillPaused) {
+        if (_backfillStopped ||
+            _backfillPaused ||
+            _diskBytes >= backfillLimit) {
           break;
         }
         final result = await ensure(
@@ -543,6 +565,9 @@ class ThumbCache {
     if (total > 0) {
       debugPrint('ThumbCache: 补齐 $total 张缩略图（已追平）');
     }
+    if (!_backfillStopped && _diskBytes > _diskLimit) {
+      await _maintainDisk();
+    }
   }
 
   Future<void> _waitWhilePaused() async {
@@ -563,7 +588,7 @@ class ThumbCache {
     if (!await imagesDir.exists()) {
       return const <File>[];
     }
-    final candidates = <File>[];
+    final candidates = <({File file, DateTime modified})>[];
     await for (final entity in imagesDir.list()) {
       if (entity is! File) {
         continue;
@@ -574,18 +599,134 @@ class ThumbCache {
       if (name == null || _known.contains(name) || _giveUp.contains(name)) {
         continue;
       }
-      candidates.add(entity);
+      final stat = await entity.stat();
+      if (stat.type == FileSystemEntityType.file) {
+        candidates.add((file: entity, modified: stat.modified));
+      }
     }
-    candidates.sort((a, b) {
-      final aTime = a.statSync().modified;
-      final bTime = b.statSync().modified;
-      return bTime.compareTo(aTime);
-    });
-    return candidates;
+    candidates.sort((a, b) => b.modified.compareTo(a.modified));
+    return candidates.map((entry) => entry.file).toList(growable: false);
+  }
+
+  void _record(String name, int bytes, DateTime usedAt) {
+    _diskBytes += bytes - (_diskEntries[name]?.bytes ?? 0);
+    _diskEntries[name] = _DiskThumbnail(bytes, usedAt);
+  }
+
+  void _forget(String name) {
+    _known.remove(name);
+    _diskBytes -= _diskEntries.remove(name)?.bytes ?? 0;
+  }
+
+  Future<void> _maintainDisk({bool removeOrphans = false}) =>
+      _maintenance ??= _runDiskMaintenance(removeOrphans).whenComplete(() {
+        _maintenance = null;
+      });
+
+  Future<void> _runDiskMaintenance(bool removeOrphans) async {
+    final directory = _dirPath;
+    if (directory == null || _clearing != null) {
+      return;
+    }
+    try {
+      if (!_diskIndexed) {
+        for (final name in _known.toList()) {
+          if (_diskEntries.containsKey(name)) {
+            continue;
+          }
+          final stat = await File(p.join(directory, name)).stat();
+          if (_known.contains(name) && !_diskEntries.containsKey(name)) {
+            if (stat.type == FileSystemEntityType.file) {
+              _record(name, stat.size, stat.modified);
+            } else {
+              _forget(name);
+            }
+          }
+        }
+        _diskIndexed = true;
+      }
+
+      final imagesPath = _imagesDirPath;
+      if (removeOrphans && imagesPath != null) {
+        final images = Directory(imagesPath);
+        if (await images.exists()) {
+          final sourceNames = <String>{};
+          await for (final entry in images.list()) {
+            if (entry is File) {
+              for (final width in [defaultWidth, largeWidth]) {
+                final name = fileNameFor(entry.path, width: width);
+                if (name != null) {
+                  sourceNames.add(name);
+                }
+              }
+            }
+          }
+          // 临时或外部路径的图也会生成小图，近期仍在使用的先保留。
+          final cutoff = DateTime.now().subtract(const Duration(days: 7));
+          for (final entry in _diskEntries.entries.toList()) {
+            if (!sourceNames.contains(entry.key) &&
+                entry.value.usedAt.isBefore(cutoff)) {
+              await _evictDiskEntry(directory, entry.key);
+            }
+          }
+        }
+      }
+
+      if (_diskBytes <= _diskLimit) {
+        return;
+      }
+      final candidates = _diskEntries.entries.toList()
+        ..sort((a, b) => a.value.usedAt.compareTo(b.value.usedAt));
+      for (final candidate in candidates) {
+        if (_diskBytes <= _diskLimit) {
+          break;
+        }
+        await _evictDiskEntry(directory, candidate.key);
+      }
+    } on FileSystemException catch (error) {
+      debugPrint('ThumbCache 整理失败: $error');
+    }
+  }
+
+  Future<void> _evictDiskEntry(String directory, String name) async {
+    if (_clearing != null ||
+        _inflight.containsKey(name) ||
+        !_known.contains(name)) {
+      return;
+    }
+    final file = File(p.join(directory, name));
+    try {
+      await file.delete();
+      _forget(name);
+    } on FileSystemException {
+      if (!await file.exists()) {
+        _forget(name);
+      }
+    }
+  }
+
+  /// 附件清理已确认源文件删除后，顺手删掉两档缩略图。
+  Future<void> removeForSource(String sourcePath) async {
+    final abs = _resolve(sourcePath);
+    final directory = _dirPath;
+    if (abs == null || directory == null) {
+      return;
+    }
+    for (final width in [defaultWidth, largeWidth]) {
+      final name = fileNameFor(abs, width: width);
+      if (name != null) {
+        await _inflight[name];
+        await _evictDiskEntry(directory, name);
+      }
+    }
   }
 
   /// 清空全部缩略图（设置里「清理缓存」用，删完会按需重建）。
-  Future<void> clear() async {
+  Future<void> clear() => _clearing ??= _clear().whenComplete(() {
+        _clearing = null;
+      });
+
+  Future<void> _clear() async {
     // 正在补齐的话先停下来：否则删完立刻又被补回来，用户点了「清理缓存」
     // 却看不到空间释放。下次启动会重新开始补齐。
     stopBackfill();
@@ -593,6 +734,8 @@ class ThumbCache {
     if (dirPath == null) {
       return;
     }
+    await Future.wait(_inflight.values.toList());
+    await _maintenance;
     try {
       final dir = Directory(dirPath);
       if (await dir.exists()) {
@@ -604,6 +747,9 @@ class ThumbCache {
     } finally {
       _known.clear();
       _giveUp.clear();
+      _diskEntries.clear();
+      _diskBytes = 0;
+      _diskIndexed = false;
     }
   }
 
@@ -664,6 +810,7 @@ class ThumbCache {
     required String dirPath,
     String? imagesDirPath,
     Iterable<String> known = const <String>[],
+    int diskLimit = _defaultDiskLimit,
   }) {
     _dirPath = dirPath;
     _imagesDirPath = imagesDirPath;
@@ -671,6 +818,10 @@ class ThumbCache {
       ..clear()
       ..addAll(known);
     _giveUp.clear();
+    _diskLimit = diskLimit;
+    _diskEntries.clear();
+    _diskBytes = 0;
+    _diskIndexed = false;
     _prepareFuture = null;
   }
 
@@ -706,6 +857,13 @@ class ThumbCache {
 }
 
 /// 编码名额的排队凭证。
+class _DiskThumbnail {
+  _DiskThumbnail(this.bytes, this.usedAt);
+
+  final int bytes;
+  DateTime usedAt;
+}
+
 class _EncodeSlot {
   _EncodeSlot({required this.lowPriority});
 

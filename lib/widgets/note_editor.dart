@@ -18,7 +18,6 @@ import 'package:inkpaper/services/memos_resource_service.dart';
 import 'package:inkpaper/services/note_edit_history_service.dart';
 import 'package:inkpaper/services/speech_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
-import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_decode_width.dart';
 import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:inkpaper/utils/media_paths.dart';
@@ -30,6 +29,7 @@ import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:inkpaper/widgets/capsule_text_selection_toolbar.dart';
 import 'package:inkpaper/widgets/memo_editing_controller.dart';
 import 'package:inkpaper/widgets/note_reference_dialog.dart';
+import 'package:inkpaper/widgets/note_thumbnail.dart';
 import 'package:inkpaper/widgets/note_video_card.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -3310,15 +3310,13 @@ class _NoteEditorState extends State<NoteEditor>
   static const int _imageDecodeWidth = kGridTileDecodeWidth;
 
   Widget _buildImageWidget(String uriString) {
-    // 数据维护里缓存过的服务端附件：直接读本地副本
-    final cachedAttachment = AttachmentCache.instance.fileFor(uriString);
-    if (cachedAttachment != null) {
-      // 默认档位就是网格档（480），与 _imageDecodeWidth 是同一个值
-      final thumb = ThumbCache.instance.lookup(cachedAttachment.path);
-      return Image.file(
-        thumb ?? cachedAttachment,
-        fit: BoxFit.cover,
-        cacheWidth: thumb == null ? _imageDecodeWidth : null,
+    final localSource = NoteThumbnail.localSource(uriString) ??
+        (path.isAbsolute(uriString) ? File(uriString) : null);
+    if (localSource != null) {
+      return NoteThumbnail(
+        source: localSource,
+        width: _imageDecodeWidth,
+        placeholder: ColoredBox(color: Colors.grey[200]!),
         errorBuilder: (context, error, stackTrace) => Container(
           color: Colors.grey[200],
           child: const Icon(Icons.broken_image, color: Colors.grey),
@@ -3389,11 +3387,6 @@ class _NoteEditorState extends State<NoteEditor>
   // 根据URI获取适当的ImageProvider
   ImageProvider _getImageProvider(String uriString) {
     try {
-      final cachedAttachment = AttachmentCache.instance.fileFor(uriString);
-      if (cachedAttachment != null) {
-        return FileImage(cachedAttachment);
-      }
-
       if (uriString.startsWith('http://') || uriString.startsWith('https://')) {
         // 网络图片
         return NetworkImage(uriString);
@@ -3430,11 +3423,6 @@ class _NoteEditorState extends State<NoteEditor>
           }
         }
         return const AssetImage('assets/images/logo.png');
-      } else if (uriString.startsWith('file://')) {
-        // 本地文件：优先读持久化缩略图，绕开 12MP 原图的解码开销
-        final filePath = uriString.replaceFirst('file://', '');
-        final thumb = ThumbCache.instance.lookup(filePath);
-        return FileImage(thumb ?? File(filePath));
       } else if (uriString.startsWith('resource:')) {
         // 资源图片
         final assetPath = uriString.replaceFirst('resource:', '');
@@ -3442,8 +3430,7 @@ class _NoteEditorState extends State<NoteEditor>
       } else {
         // 尝试作为本地文件处理
         try {
-          final thumb = ThumbCache.instance.lookup(uriString);
-          return FileImage(thumb ?? File(uriString));
+          return FileImage(File(uriString));
         } on Object catch (e) {
           debugPrint('Error loading image: $e for $uriString');
           // 默认使用资源图片

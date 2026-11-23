@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.142] - 2026-11-23
+
+### Improved
+
+- **Note images**: reuse thumbnails across screens to reduce duplicate decoding and cache usage.
+
 ## [1.1.141] - 2026-11-23
 
 ### Improved

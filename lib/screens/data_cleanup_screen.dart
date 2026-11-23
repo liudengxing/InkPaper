@@ -299,8 +299,13 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
         return;
       }
 
+      final thumbs = ThumbCache.instance;
+      await thumbs.clear();
       if (await cacheDir.exists()) {
         await for (final entity in cacheDir.list()) {
+          if (entity.path == thumbs.directoryPath) {
+            continue;
+          }
           try {
             await entity.delete(recursive: true);
           } on Object catch (e) {
@@ -308,10 +313,6 @@ class _DataCleanupScreenState extends State<DataCleanupScreen> {
           }
         }
       }
-
-      // 缩略图目录也在 cacheDir 里，文件删了内存索引不能还留着，否则下次
-      // 渲染会拿到不存在的路径
-      await ThumbCache.instance.clear();
 
       // 重新加载数据信息
       await _loadDataInfo();

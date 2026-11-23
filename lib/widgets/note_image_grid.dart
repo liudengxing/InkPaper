@@ -1,16 +1,14 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/screens/image_viewer_screen.dart';
 import 'package:inkpaper/services/memos_resource_service.dart';
-import 'package:inkpaper/utils/attachment_cache.dart';
 import 'package:inkpaper/utils/image_cache_manager.dart';
 import 'package:inkpaper/utils/image_decode_width.dart';
-import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:inkpaper/widgets/live_photo_badge.dart';
+import 'package:inkpaper/widgets/note_thumbnail.dart';
 import 'package:provider/provider.dart';
 
 /// 笔记图片九宫格。
@@ -335,36 +333,13 @@ class _NoteImageGridState extends State<NoteImageGrid> {
       return _placeholder(context, height: placeholderHeight);
     }
 
-    // 数据维护缓存过的服务端附件：直接读本地副本
-    final cachedAttachment = AttachmentCache.instance.fileFor(path);
-    if (cachedAttachment != null) {
-      final thumb = ThumbCache.instance.lookup(
-        cachedAttachment.path,
+    final localSource = NoteThumbnail.localSource(path);
+    if (localSource != null) {
+      return NoteThumbnail(
+        source: localSource,
         width: decodeWidth,
-      );
-      return Image.file(
-        thumb ?? cachedAttachment,
         fit: fit,
-        // 缩略图已经是目标尺寸，不必再让引擎缩一次
-        cacheWidth: thumb == null ? decodeWidth : null,
-        gaplessPlayback: true,
-        // 缩略图不需要高质量重采样，low 档解码上屏更快
-        filterQuality: FilterQuality.low,
-        errorBuilder: (context, error, stackTrace) => _broken(context),
-      );
-    }
-
-    if (path.startsWith('file://')) {
-      final filePath = path.replaceFirst('file://', '');
-      // 命中持久化缩略图时直接读小文件，绕开 12MP 原图的解码开销
-      final thumb = ThumbCache.instance.lookup(filePath, width: decodeWidth);
-      return Image.file(
-        thumb ?? File(filePath),
-        key: ValueKey(thumb?.path ?? filePath),
-        fit: fit,
-        cacheWidth: thumb == null ? decodeWidth : null,
-        gaplessPlayback: true,
-        filterQuality: FilterQuality.low,
+        placeholder: _placeholder(context, height: placeholderHeight),
         errorBuilder: (context, error, stackTrace) => _broken(context),
       );
     }
@@ -496,45 +471,17 @@ class _NoteImageGridState extends State<NoteImageGrid> {
     }
   }
 
-  /// 构造与网格渲染完全一致的 [ImageProvider]，保证 ImageCache key 命中。
-  ///
-  /// 分支与 [_buildImage] 一一对应：缩略图命中时返回 `FileImage(缩略图)`
-  /// （渲染侧 `Image.file(thumb)` 不传 cacheWidth，内部就是 FileImage），
-  /// 未命中才退回按宽度缩放的原图 —— 两边 key 对不上，预取就会白解一遍
-  /// 12MP 原图还帮不上渲染（1.1.90 前的实测卡顿根因）。
+  /// 本机预取只用已经生成的小图。未命中由可见格子请求，避免预取解一次原图。
   static ImageProvider? _providerFor(
     BuildContext context,
     String path,
     int decodeWidth, {
     String? serverUrl,
   }) {
-    final cachedAttachment = AttachmentCache.instance.fileFor(path);
-    if (cachedAttachment != null) {
-      final thumb = ThumbCache.instance.lookup(
-        cachedAttachment.path,
-        width: decodeWidth,
-      );
-      if (thumb != null) {
-        return FileImage(thumb);
-      }
-      return ResizeImage.resizeIfNeeded(
-        decodeWidth,
-        null,
-        FileImage(cachedAttachment),
-      );
-    }
-
-    if (path.startsWith('file://')) {
-      final filePath = path.replaceFirst('file://', '');
-      final thumb = ThumbCache.instance.lookup(filePath, width: decodeWidth);
-      if (thumb != null) {
-        return FileImage(thumb);
-      }
-      return ResizeImage.resizeIfNeeded(
-        decodeWidth,
-        null,
-        FileImage(File(filePath)),
-      );
+    final localSource = NoteThumbnail.localSource(path);
+    if (localSource != null) {
+      final thumb = NoteThumbnail.peek(localSource, decodeWidth);
+      return thumb == null ? null : FileImage(thumb);
     }
 
     final appProvider = Provider.of<AppProvider>(context, listen: false);

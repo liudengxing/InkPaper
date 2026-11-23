@@ -67,11 +67,15 @@ void _prewarmFeedThumbnails(List<Note> notes) {
 File? _thumbnailFileFor(String imagePath) {
   final cachedAttachment = AttachmentCache.instance.fileFor(imagePath);
   if (cachedAttachment != null) {
-    return ThumbCache.instance.lookup(cachedAttachment.path);
+    return ThumbCache.instance.lookup(
+      cachedAttachment.path,
+      generateOnMiss: false,
+    );
   }
   if (imagePath.startsWith('file://')) {
     return ThumbCache.instance.lookup(
       imagePath.replaceFirst('file://', ''),
+      generateOnMiss: false,
     );
   }
   return null;
@@ -84,6 +88,7 @@ Future<void> _resolveImageOnce(ImageProvider provider) {
   late final ImageStreamListener listener;
   listener = ImageStreamListener(
     (ImageInfo info, bool synchronousCall) {
+      info.dispose();
       stream.removeListener(listener);
       if (!completer.isCompleted) {
         completer.complete();

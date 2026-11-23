@@ -316,7 +316,50 @@ prompt，所以只能对齐意图，不能照抄。
 **注意**：`Note.fromMap` 的 `relations` 是同步写进来的 JSON，**只有统计口径**可以
 不读它；任何要判断双链、要 `toMap` 落盘的路径都必须读完整行。
 
-### 2.12 启动首帧：准备一次发起，别在开屏路上等网络
+### 2.12 本地 `DateTime` 很贵：统计口径别构造它
+
+**症状**：桌面小组件统计路径把整库（1500 条）读一遍仍要 240ms 级，而且 SQL 只占
+5~6ms——剩下的全在 Dart 侧。
+
+**根因**（OPT-04B，2026-11-23 实测）：`Note.fromMap` 每行解析 3 个时间字段，
+`DateTime.parse` 出来的是**本地** `DateTime`，构造时每次都要向系统查一次时区偏移。
+本机实测（flutter test 的 JIT）：
+
+| 操作 | 20,000 次耗时 |
+| --- | --- |
+| `DateTime.parse('2026-11-23T19:50:34.123')` | 约 560ms（28µs/次） |
+| `DateTime(y, m, d, …)` | 约 890ms（45µs/次） |
+| `DateTime.utc(y, m, d, …)` | 约 2ms（0.1µs/次） |
+| `DateTime.utc(...).toLocal()` | 约 230ms |
+
+也就是说：**贵的是本地时间 vs UTC 的换算，不是字符串解析**。手写一个 ISO 解析器
+替掉 `DateTime.parse` 几乎没用（实测只快 5%）。1500 行 × 3 = 4500 次，正好是那
+240ms。
+
+**处理**（`lib/models/widget_stat_note.dart`）：
+
+- 统计/回顾只需要「哪一天」「谁更新得更晚」。ISO 8601 前 10 位就是挂钟日期，同格式
+  的 ISO 串按字典序排就是按时间排——**全程留在字符串形态**，一行都不用解析。
+- 真要渲染的只有回顾 8 条 + 置顶 1 条（`_noteSnapshot` 的 `createdAtLabel` /
+  `ageLabel`），这几个时间字段做成惰性 getter + 缓存，解析次数从 4500 降到个位数。
+- 标签排序（`rankTagsByUsage` 要 `DateTime` 算新鲜度）改成「先按标签记下最晚更新的
+  ISO 串，只对去重后的标签解析」。
+- 判定指标：`Note.debugDateTimeParseCount`（`fromMap` 里的解析次数）与
+  `WidgetStatNote.debugLazyParseCount`（惰性解析次数）。改回整库 `fromMap` 会从
+  0 跳到 900。
+
+**注意**：
+
+- 别顺手把 `Note.fromMap` 改成解析成 `DateTime.utc`。字段值是对的，但
+  `toIso8601String()` 会多出 `Z`、`DateTime.now()` 比较整体差 8 小时——这就是那条
+  伪 UTC 老坑的另一种写法。
+- 换字符串比较后，「今天」「N 天范围」变成按自然日而不是按精确时刻：窗口最多宽出
+  不到一天。对周/月格子和回顾范围这种粒度反而更自洽（格子本来就按日期分组）。
+- 待办计数（`TodoParser.countTodos`）顺带加了两条：正则提到类级常量（原先**每行**
+  new 一次）、没有 `[` 直接返回。1500 条 × 60 行：29~48ms → 6~8ms，但口径必须与
+  `parseTodos` 保持一致，`TD-16` 逐例对照锁住。
+
+### 2.13 启动首帧：准备一次发起，别在开屏路上等网络
 
 **症状**：开屏「有时」慢，冷启动更明显；一旦构建时带了 `--dart-define=FEATURE_FLAG_URL=...`，
 启动会整整卡到 5 秒超时。

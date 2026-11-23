@@ -8,15 +8,15 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-23 · 代码提交 `54e0242`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-06A（P2 · §6 首屏并行读取） |
+| 最后更新 | 2026-11-23 · 代码提交 `34c7360`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-04B（P3 · §4 小组件统计行） |
 | 任务状态 | 待验收 |
-| 可复查改动 | ① 新增 `lib/utils/startup_essentials.dart` 的 `loadStartupEssentials()`：六项首帧准备（日期格式、图片/附件/缩略图缓存、首屏快照、外壳配置）连续发起后一次 `Future.wait`，首屏快照与主题配置不再排在前四项之后；② `FeatureFlagService` 拆成 `loadLocal()`（首帧前只读 SharedPreferences）与 `refreshRemote()`（首帧后异步），开屏不再可能等远程 HTTP 的 5 秒超时；③ `lib/main.dart` 相应收薄 |
-| 验证结果 | `analyze` 无 issue；`dart tool/inkpaper.dart format` → 319 文件 0 changed；`flutter test --concurrency=4` **1096 项全过**（原 1089 + 7）。首跑有一次 `note_editor_draft_image_test` 的清理竞态失败（单跑 9 项全过，复跑全量全绿），与启动改动无关。反向验证（改回逐项 await 再发起）SE-01/02/03 分别失败：发起数 6 → 1、耗时 52ms → 258ms、「快照先好」变 false |
-| 未验证 / 待测 | 无真机（首帧与可交互时间、Keystore 冷启动读取耗时交 OPT-M01）；收益只在本机合成夹具上量过（六个 50ms 任务并行 52ms / 串行 258ms；单项实测 DateFormatting 11ms、空配置读取 7ms、20 条快照回读 5~13ms）；缩略图索引扫描仍卡在首帧前，冷缓存下的真实耗时未测 |
-| 下一项 | OPT-06C（缩略图索引移出首帧）或 OPT-07A（§7 图片）；OPT-02B / OPT-09B / OPT-04B 仍等各自前置验收 |
+| 可复查改动 | ① 新增 `lib/models/widget_stat_note.dart`：统计行走它，时间只留 ISO 字符串（日期键取前 10 位、排序直接比串、`createdAt` 惰性解析并缓存）；② `getWidgetStatNotes()` 返回统计行，整库这一趟不再构造任何本地 `DateTime`；③ `RandomReviewSelectorService.selectWidgetCandidatesFrom` 抽出通用核心（自然日 + 回调控件），`Note` 与统计行共用一套兜底；④ `TodoParser.countTodos` 不再构造 `TodoItem`（正则提到类级、无 `[` 早退） |
+| 验证结果 | `dart analyze lib test` 无 issue；`dart tool/inkpaper.dart format` 318 文件 0 changed；`flutter test --concurrency=4` 全量 **1099 项全过**（原 1096 + 3）。本机内存库校准（1500 条 / 每条约 20 行）：整库读取 242ms → **14~16ms**，整库构建 284~294ms → **约 53ms**；惰性解析 16 次/构建（原 4500 次）。反向验证两项：改回 `Note.fromMap` → WSR-06 实测 900 次解析变红；日期键改回先解析 `DateTime` → 300 条库解析 308 次变红 |
+| 未验证 / 待测 | 无真机（保存/删除后帧时间、冷启动首帧交 OPT-M01）；收益全在本机 JIT 量过，AOT 下 `DateTime` 的时区查询仍要过系统调用但绝对值更小；待办计数维持「每次重算」（1500 条 × 20 行 6~8ms，增量维护要处理编辑/删除/同步全部失效路径，判定不划算） |
+| 下一项 | OPT-06C（缩略图索引移出首帧）或 OPT-07A（§7 图片）；OPT-02B / OPT-09B 等各自前置验收，OPT-04C 待评估 |
 | 待用户决策 | ① OPT-01 顺带发现的「归档行被剪枝」是 bug 还是设计；② 完整空清单的同步产品规则；③ `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓，等明确启用 |
-| 工作区注意事项 | 另有会话在改启动图（`flutter_native_splash.yaml`、`android/app/src/main/res/values*/styles.xml`、`colors.xml`、`lib/main.dart`、`assets/images/splash_inkpaper.png`、`drawable/inkpaper_launch_background.xml`），另有一处未提交的 `docs/README.md` 增加审查文档索引链接，均非本轮产物，勿回退或顺手带上。**`lib/main.dart` 同时被两边改**：本轮只提交了自己那 5 个 hunk（`git hash-object` + `update-index` 精确入索引），启动图那笔仍留在工作区；发版、推送、装机需单独授权 |
+| 工作区注意事项 | 另有会话在改启动图（`flutter_native_splash.yaml`、`android/app/src/main/res/values*/styles.xml`、`colors.xml`、`lib/main.dart`、`assets/images/splash_inkpaper.png`、`drawable/inkpaper_launch_background.xml`），另有一处未提交的 `docs/README.md` 增加审查文档索引链接，均非本轮产物，勿回退或顺手带上。**`lib/main.dart` 同时被两边改**：OPT-06A 那轮用 `git hash-object` + `update-index` 只提交了自己的 hunk，启动图那笔仍在工作区；发版、推送、装机需单独授权 |
 
 ## 执行队列
 
@@ -33,7 +33,8 @@
 | OPT-10 | P2 | 待验收 | §10 笔记引用 | 明确的引用 ID 走批量查询。验证历史正文匹配、反向关系和移除最后一个引用。 |
 | OPT-10B | P2 | 待验收 | §10 笔记引用 | `rebuildAllReferences` 只遍历已加载页（见 OPT-10 顺带发现）。改成按库全量重建，验证引用多的老库与分页状态。 |
 | OPT-04 | P2 | 待验收 | §4 小组件 | 先缩减一次快照构建中读取的完整笔记范围，核对待办计数、回顾和首屏结果。 |
-| OPT-04B | P3 | 待办 | §4 小组件 | 统计行仍逐条构造 `Note`、待办计数每次重算。评估按行聚合与待办计数增量维护（见 OPT-04 未验证项）。 |
+| OPT-04B | P3 | 待验收 | §4 小组件 | 统计行仍逐条构造 `Note`、待办计数每次重算。评估按行聚合与待办计数增量维护（见 OPT-04 未验证项）。 |
+| OPT-04C | P3 | 待评估 | §4 小组件 | `Note.fromMap` 每行解析 3 个本地 `DateTime`（本机约 45µs/次），是分页、搜索、统计共同的读取成本。评估把时间字段改成惰性解析的收益与风险。 |
 | OPT-06A | P2 | 待验收 | §6 首屏 | 先调整配置和首屏快照的并行读取，验证主题与语言、离线和空缓存启动。 |
 | OPT-06C | P3 | 待办 | §6 首屏 | 缩略图索引仍卡在首帧前（5000 个文件约 37ms，冷缓存更慢）。评估 `lookup` 按需 stat 兜底后把扫描移到首帧后，验证首帧出图与内存。 |
 | OPT-07A | P2 | 待办 | §7 图片 | 先约束缩略图像素和查看器预取保留范围，验证长图、方向、透明度和回看。可拆成两轮。 |
@@ -180,6 +181,24 @@
 - **顺带登记**：OPT-06C——用「`lookup` 未命中索引时按需 stat」把缩略图扫描移到首帧后，代价是每张卡多一次同步 stat。
 - **提交**：`54e0242`（代码 + 测试）。`lib/main.dart` 与另一会话的启动图改动同文件，本轮用 `git hash-object -w --path` + `update-index --cacheinfo` 只把自己那 5 个 hunk 写进索引，未把启动图那笔带进提交。
 - **建议下一项**：OPT-06C（本轮量出来的剩余项）或 OPT-07A（§7 图片）；OPT-02B / OPT-09B / OPT-04B 仍等各自前置验收。
+
+### 2026-11-23 · OPT-04B · 待验收
+
+- **问题核对**：OPT-04 把小组件读取收窄到窄列后，统计路径仍要 240ms 级。这轮先拆开量：SQL 只有 5~6ms，`Note.fromMap` 1500 行 242~255ms。再往下拆 `fromMap`：3 个 `DateTime.parse` 占 213ms，`jsonDecode` 附件 0~3ms、`split` 标签 0ms。追到根因——**贵的是本地 `DateTime` 的构造**：`DateTime(y,m,d,…)` 每次都要向系统查一次时区偏移，本机 JIT 下 20000 次 890ms（45µs/次），而 `DateTime.utc(...)` 20000 次只要 2ms。手写 ISO 解析器替掉 `DateTime.parse` 只快 5%，方向不对。
+- **改动**：
+  - `lib/models/widget_stat_note.dart`（新增）：统计行只留 `createdAtIso` / `updatedAtIso` / `displayTimeIso` 三个字符串（按 `Note` 的口径做同一套钳制），`displayDayKey` 取前 10 位、`displaySortKey` 直接比串，`createdAt` / `displayTime` 惰性解析并缓存。`fromRow` 不算时间，`fromNote` 只做 `toIso8601String`（不查时区）。
+  - `DatabaseService.getWidgetStatNotes()` 改返回统计行；`lib/providers/app_provider.dart` 的统计/首屏两批输入与兜底路径跟着换，`_excludePendingDeletedNotes` 改成按 id 取值（不绑死 `Note`）。
+  - `WidgetSnapshotService._buildSnapshot` 收统计行：排序、今日筛选、周/月格子、`_noteSnapshot` 全部走字符串；`debugBuildSnapshot(List<Note>)` 保留为对照基准，新增 `debugBuildSnapshotFromRows`。
+  - `RandomReviewSelectorService`：抽出 `selectWidgetCandidatesFrom<T>`（`displayDayKey` + `contentOf` 两个回调），`Note` 与统计行共用同一套「范围内取 → 取不到回全库 → 全没有文字退任意」的兜底。
+  - `TodoParser`：`countTodos` 不再构造 `TodoItem`（单趟扫描），正则提到类级常量（原先**每行** new 一次），正文没有 `[` 直接返回。
+- **口径变化（有意）**：「今天」与「N 天范围」从精确时刻改成按自然日比较，窗口最多宽出不到一天。周/月格子本来就按日期分组，这样两者更自洽；`dayCounts` 与 `todayNotes` 以前对「正好 00:00 的笔记」判定不一致，现在一致。
+- **测试**：新增 WSR-06（300 条库构建，`Note.debugDateTimeParseCount` < 40 且 `WidgetStatNote.debugLazyParseCount` < 40）、WSR-07（7 天范围按自然日）、TD-16（`countTodos` 与 `parseTodos` 逐例对照 10 组边界正文）。WSR-02 改为「完整笔记 vs 统计行」两条路径逐字段相等，继续锁「内容没变」。
+- **验证**：`dart analyze lib test` → No issues found；`dart tool/inkpaper.dart format` → 318 文件 0 changed；`flutter test --concurrency=4` → **1099 项全过**（原 1096 + 3）。
+- **校准**（本机内存库、1500 条、每条约 20 行，**非真机**）：整库读取 242ms → 14~16ms；整库构建（含读+建快照）284~294ms → 约 53ms；每次构建的本地时间解析 4500 → 16 次；待办计数 29~48ms → 6~8ms（60 行样本）。
+- **反向验证**：① `getWidgetStatNotes` 改回 `Note.fromMap` → WSR-06 实测 900 次解析，红；② `displayDayKey` 改回「先 `DateTime.parse` 再取字段」→ 300 条库 308 次惰性解析，红；③ 待办快路径的正确性由 TD-16 锁住（该用例只锁口径、不锁性能）。
+- **未验证**：① 无真机，保存/删除后的帧时间与冷启动首帧未测，交 OPT-M01；② AOT 下时区查询的绝对耗时更小，收益比例会低于本机 JIT 数字；③ 标签排序为了复用 `rankTagsByUsage`，仍对**去重后的标签**解析 `DateTime`（几十次量级），没有改那个共享函数。
+- **顺带登记**：OPT-04C——`Note.fromMap` 的 3 次本地时间解析是分页、搜索、统计共同的读取成本，改成惰性解析收益更大但影响面也更大，单独立项评估。
+- **提交**：`34c7360`（代码 + 测试）。
 
 ## 现有架构
 

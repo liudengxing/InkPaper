@@ -64,6 +64,15 @@ MockClient _buildMockClient({
       return http.Response('{"error":"not found"}', 404);
     });
 
+// ─── 帮助函数：分页响应用的原始 memo JSON ───────────────────────────────────
+
+Map<String, dynamic> _memoJson(String name, String content) => {
+      'name': name,
+      'content': content,
+      'createTime': '2024-05-01T10:00:00Z',
+      'updateTime': '2024-05-01T10:00:00Z',
+    };
+
 void main() {
   const baseUrl = 'https://test.memos.example.com';
 
@@ -315,6 +324,227 @@ void main() {
       expect(requestedTokens, [null, 'next']);
       expect(result['isComplete'], isTrue);
       expect(result['memos'], hasLength(2));
+    });
+
+    // ── OPT-01：完整性必须由「读到没有续页令牌的终止页」正向证明 ──────────
+
+    test('API-10c 空页仍带续页令牌时继续拉取，直到真正的终止页', () async {
+      await MemosApiServiceFixed.invalidateVersionCache(baseUrl);
+      final requestedTokens = <String?>[];
+      final mock = MockClient((req) async {
+        if (req.url.path.endsWith('/api/v1/workspace/profile')) {
+          return http.Response(jsonEncode({'version': 'v0.28.0'}), 200);
+        }
+        if (!req.url.path.endsWith('/api/v1/memos')) {
+          fail('unexpected path: ${req.url.path}');
+        }
+        final token = req.url.queryParameters['pageToken'];
+        requestedTokens.add(token);
+        switch (token) {
+          case null:
+            // 第一页是空页，但服务端仍给了续页令牌
+            return http.Response(
+              jsonEncode({'memos': <dynamic>[], 'nextPageToken': 'p2'}),
+              200,
+            );
+          case 'p2':
+            return http.Response(
+              jsonEncode({
+                'memos': [_memoJson('memos/1', 'first')],
+                'nextPageToken': 'p3',
+              }),
+              200,
+            );
+          case 'p3':
+            return http.Response(
+              jsonEncode({
+                'memos': [_memoJson('memos/2', 'second')],
+                'nextPageToken': '',
+              }),
+              200,
+            );
+          default:
+            fail('不应再请求 pageToken=$token');
+        }
+      });
+
+      final svc = MemosApiServiceFixed(baseUrl: baseUrl, token: 'tok');
+      final result = await http.runWithClient(
+        () => svc.getMemos(pageSize: 1),
+        () => mock,
+      );
+
+      expect(requestedTokens, [null, 'p2', 'p3']);
+      expect(result['isComplete'], isTrue);
+      expect(result['memos'], hasLength(2));
+    });
+
+    test('API-10d 续页令牌重复时立即终止，并标记为不完整', () async {
+      await MemosApiServiceFixed.invalidateVersionCache(baseUrl);
+      final requestedTokens = <String?>[];
+      final mock = MockClient((req) async {
+        if (req.url.path.endsWith('/api/v1/workspace/profile')) {
+          return http.Response(jsonEncode({'version': 'v0.28.0'}), 200);
+        }
+        final token = req.url.queryParameters['pageToken'];
+        requestedTokens.add(token);
+        if (token == null || token == 'p2') {
+          // 每一页都退回同一个令牌：分页不会前进
+          return http.Response(
+            jsonEncode({'memos': <dynamic>[], 'nextPageToken': 'p2'}),
+            200,
+          );
+        }
+        fail('不应再请求 pageToken=$token');
+      });
+
+      final svc = MemosApiServiceFixed(baseUrl: baseUrl, token: 'tok');
+      final result = await http.runWithClient(
+        () => svc.getMemos(pageSize: 1),
+        () => mock,
+      );
+
+      expect(requestedTokens, [null, 'p2']);
+      expect(result['isComplete'], isFalse);
+      expect(result['memos'], isEmpty);
+    });
+
+    test('API-10e 达到页数上限仍有续页时标记为不完整', () async {
+      await MemosApiServiceFixed.invalidateVersionCache(baseUrl);
+      final requestedTokens = <String?>[];
+      final mock = MockClient((req) async {
+        if (req.url.path.endsWith('/api/v1/workspace/profile')) {
+          return http.Response(jsonEncode({'version': 'v0.28.0'}), 200);
+        }
+        final token = req.url.queryParameters['pageToken'];
+        requestedTokens.add(token);
+        switch (token) {
+          case null:
+            return http.Response(
+              jsonEncode({
+                'memos': [_memoJson('memos/1', 'first')],
+                'nextPageToken': 'p2',
+              }),
+              200,
+            );
+          case 'p2':
+            return http.Response(
+              jsonEncode({
+                'memos': [_memoJson('memos/2', 'second')],
+                'nextPageToken': 'p3',
+              }),
+              200,
+            );
+          case 'p3':
+            // 空页 + 仍有令牌：既踩到上限，也踩到本轮的「空页续拉」
+            return http.Response(
+              jsonEncode({'memos': <dynamic>[], 'nextPageToken': 'p4'}),
+              200,
+            );
+          default:
+            fail('不应再请求 pageToken=$token');
+        }
+      });
+
+      final svc = MemosApiServiceFixed(baseUrl: baseUrl, token: 'tok');
+      final result = await http.runWithClient(
+        () => svc.getMemos(pageSize: 1, maxPages: 3),
+        () => mock,
+      );
+
+      expect(requestedTokens, [null, 'p2', 'p3']);
+      expect(result['isComplete'], isFalse);
+      expect(result['memos'], hasLength(2));
+    });
+
+    test('API-10f 中途某一页返回非 200 时抛错（调用方因此不会剪枝）', () async {
+      await MemosApiServiceFixed.invalidateVersionCache(baseUrl);
+      final requestedTokens = <String?>[];
+      final mock = MockClient((req) async {
+        if (req.url.path.endsWith('/api/v1/workspace/profile')) {
+          return http.Response(jsonEncode({'version': 'v0.28.0'}), 200);
+        }
+        final token = req.url.queryParameters['pageToken'];
+        requestedTokens.add(token);
+        if (token == null) {
+          return http.Response(
+            jsonEncode({
+              'memos': [_memoJson('memos/1', 'first')],
+              'nextPageToken': 'p2',
+            }),
+            200,
+          );
+        }
+        return http.Response('{"message":"boom"}', 500);
+      });
+
+      final svc = MemosApiServiceFixed(baseUrl: baseUrl, token: 'tok');
+      await expectLater(
+        http.runWithClient(() => svc.getMemos(pageSize: 1), () => mock),
+        throwsA(
+          isA<Exception>()
+              .having(
+                (e) => e,
+                'not token expired',
+                isNot(isA<TokenExpiredException>()),
+              )
+              .having((e) => e.toString(), 'message', contains('500')),
+        ),
+      );
+      expect(requestedTokens, [null, 'p2']);
+    });
+
+    test('API-10g 完整空清单：只有一页且无续页令牌，视为完整', () async {
+      await MemosApiServiceFixed.invalidateVersionCache(baseUrl);
+      var memoCalls = 0;
+      final mock = MockClient((req) async {
+        if (req.url.path.endsWith('/api/v1/workspace/profile')) {
+          return http.Response(jsonEncode({'version': 'v0.28.0'}), 200);
+        }
+        memoCalls++;
+        return http.Response(
+          jsonEncode({'memos': <dynamic>[], 'nextPageToken': ''}),
+          200,
+        );
+      });
+
+      final svc = MemosApiServiceFixed(baseUrl: baseUrl, token: 'tok');
+      final result = await http.runWithClient(
+        () => svc.getMemos(pageSize: 1),
+        () => mock,
+      );
+
+      // API 层只负责如实报告「这份清单是完整的」；完整空清单要不要清空本地
+      // 由 database_service.deleteSyncedNotesNotIn 的空集合早退决定，产品规则另议。
+      expect(memoCalls, 1);
+      expect(result['isComplete'], isTrue);
+      expect(result['memos'], isEmpty);
+    });
+
+    test('API-10h 空页续拉途中遇到 401 仍抛 TokenExpiredException', () async {
+      await MemosApiServiceFixed.invalidateVersionCache(baseUrl);
+      final requestedTokens = <String?>[];
+      final mock = MockClient((req) async {
+        if (req.url.path.endsWith('/api/v1/workspace/profile')) {
+          return http.Response(jsonEncode({'version': 'v0.28.0'}), 200);
+        }
+        final token = req.url.queryParameters['pageToken'];
+        requestedTokens.add(token);
+        if (token == null) {
+          return http.Response(
+            jsonEncode({'memos': <dynamic>[], 'nextPageToken': 'p2'}),
+            200,
+          );
+        }
+        return http.Response('{"error":"unauthorized"}', 401);
+      });
+
+      final svc = MemosApiServiceFixed(baseUrl: baseUrl, token: 'expired-tok');
+      await expectLater(
+        http.runWithClient(() => svc.getMemos(pageSize: 1), () => mock),
+        throwsA(isA<TokenExpiredException>()),
+      );
+      expect(requestedTokens, [null, 'p2']);
     });
   });
 

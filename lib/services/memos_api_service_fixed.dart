@@ -493,19 +493,42 @@ class MemosApiServiceFixed {
 
   // ── Memo list ──────────────────────────────────────────────────────────────
 
-  /// Returns `{'memos': List<dynamic>}` regardless of server version.
-  /// Fetches every page for v0.22+ so local deletion reconciliation is safe.
-  Future<Map<String, dynamic>> getMemos({int pageSize = 1000}) async {
+  /// Returns `{'memos': List<dynamic>, 'isComplete': bool}` regardless of
+  /// server version.
+  ///
+  /// `isComplete` 只有「读到一个没有续页令牌的终止页」才算 true。调用方用它
+  /// 决定能否按「缺失的远端 ID」剪枝本地笔记，所以必须是**正向证明**：任何
+  /// 提前结束（重复令牌、页数上限、空页取不到后续数据）都只能算不完整，
+  /// 否则没读到的笔记会被当成服务端已删除而误删。HTTP 失败直接抛错，
+  /// 调用方 catch 后同样不会剪枝。
+  ///
+  /// [maxPages] 是安全上限，不是业务参数：超过它仍拿得到续页令牌，说明服务端
+  /// 分页异常，按不完整处理。
+  Future<Map<String, dynamic>> getMemos({
+    int pageSize = 1000,
+    int maxPages = 1000,
+  }) async {
     final v = await _version;
     final base = await _memoBase();
 
     if (v >= 22) {
       final allMemos = <dynamic>[];
+      final seenTokens = <String>{};
       String? pageToken;
       var pageCount = 0;
-      var isComplete = true;
+      var isComplete = false;
 
       while (true) {
+        if (pageToken != null && pageCount >= maxPages) {
+          // 达到上限仍有续页：部分清单
+          break;
+        }
+        if (pageToken != null && !seenTokens.add(pageToken)) {
+          // 服务端返回同一个续页令牌：分页不会前进，部分清单
+          debugPrint('Memos 分页令牌重复（$pageToken），按不完整处理');
+          break;
+        }
+
         final query = <String, String>{'pageSize': pageSize.toString()};
         if (pageToken != null && pageToken.isNotEmpty) {
           query['pageToken'] = pageToken;
@@ -513,30 +536,27 @@ class MemosApiServiceFixed {
 
         final uri = Uri.parse(base).replace(queryParameters: query);
         final resp = await http.get(uri, headers: _getHeaders());
-        if (resp.statusCode == 200) {
-          final data = json.decode(resp.body) as Map<String, dynamic>;
-          final pageMemos = data['memos'] as List<dynamic>? ?? <dynamic>[];
-          allMemos.addAll(pageMemos);
-          pageToken = data['nextPageToken']?.toString();
-          if (pageToken != null && pageToken.isEmpty) {
-            pageToken = null;
+        if (resp.statusCode != 200) {
+          if (resp.statusCode == 401) {
+            throw TokenExpiredException('Token无效或已过期，请重新登录');
           }
-          pageCount++;
-
-          if (pageCount > 1000 && pageToken != null) {
-            isComplete = false;
-            break;
-          }
-
-          if (pageToken == null || pageMemos.isEmpty) {
-            break;
-          }
-          continue;
+          throw Exception('获取备忘录列表失败: ${resp.statusCode}');
         }
-        if (resp.statusCode == 401) {
-          throw TokenExpiredException('Token无效或已过期，请重新登录');
+
+        final data = json.decode(resp.body) as Map<String, dynamic>;
+        final pageMemos = data['memos'] as List<dynamic>? ?? <dynamic>[];
+        allMemos.addAll(pageMemos);
+        pageCount++;
+
+        final next = data['nextPageToken']?.toString();
+        pageToken = (next == null || next.isEmpty) ? null : next;
+
+        if (pageToken == null) {
+          // 唯一的完整出口：服务端明确表示没有下一页
+          isComplete = true;
+          break;
         }
-        throw Exception('获取备忘录列表失败: ${resp.statusCode}');
+        // 空页仍带续页令牌：继续拉下一页，不能当成「已读完」
       }
 
       return {'memos': allMemos, 'isComplete': isComplete};

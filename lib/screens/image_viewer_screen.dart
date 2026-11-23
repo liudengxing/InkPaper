@@ -21,6 +21,26 @@ import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
+/// 查看器悬浮件的统一玻璃层：照片背景不可控，一律走深色口径。
+///
+/// 参数与撤销玻璃提示同一套（tint 0.35、折射 14/40）。每个独立摆放的玻璃
+/// 都要自带 Layer —— 一个 Layer 只服务它包住的那一组；关闭键、LIVE 角标
+/// 分别在 `_ImageViewerScreenState` 和 `_PhotoPageState`，所以做成顶层函数。
+Widget _viewerGlassLayer({required Widget child}) {
+  return LiquidGlassLayer(
+    // 与关闭键、LIVE 角标共用外层 BackdropGroup 的那次取景
+    useBackdropGroup: true,
+    settings: LiquidGlassSettings.ios27Regular(
+      brightness: Brightness.dark,
+      tintAmount: 0.35,
+    ).copyWith(refractionHeight: 14, refractionAmount: 40),
+    defaultAppearance: LiquidGlassAppearance.ios27Regular(
+      brightness: Brightness.dark,
+    ),
+    child: child,
+  );
+}
+
 /// 图片已通过 Image widget 绘制。这里只借第一帧读取尺寸，随后释放引用。
 class _FirstImageSize {
   ImageStream? _stream;
@@ -330,157 +350,133 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              // 键盘 / 鼠标滚轮缩放：只有 PointerSignal，不参与手势竞技场
-              child: Listener(
-                onPointerSignal: _handlePointerSignal,
-                // 查看器里所有触摸手势都归这一个识别器管：翻页、缩放、平移。
-                // PageView 的 physics 恒为 NeverScrollable，它不再注册拖动识别器，
-                // 也就不会和缩放手势抢 —— 这是这次改造的核心。
-                child: RawGestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  gestures: <Type, GestureRecognizerFactory>{
-                    TapGestureRecognizer: GestureRecognizerFactoryWithHandlers<
-                        TapGestureRecognizer>(
-                      TapGestureRecognizer.new,
-                      (recognizer) => recognizer.onTap = _handleCloseTap,
-                    ),
-                    DoubleTapGestureRecognizer:
-                        GestureRecognizerFactoryWithHandlers<
-                            DoubleTapGestureRecognizer>(
-                      DoubleTapGestureRecognizer.new,
-                      (recognizer) => recognizer
-                        ..onDoubleTapDown = _handleDoubleTapDown
-                        ..onDoubleTap = _handleDoubleTap,
-                    ),
-                    _ViewerGestureRecognizer:
-                        GestureRecognizerFactoryWithHandlers<
-                            _ViewerGestureRecognizer>(
-                      _ViewerGestureRecognizer.new,
-                      (recognizer) => recognizer
-                        ..onStart = _handleScaleStart
-                        ..onUpdate = _handleScaleUpdate
-                        ..onEnd = _handleScaleEnd,
-                    ),
-                  },
-                  child: PageView.builder(
-                    controller: _pageController,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: widget.imagePaths.length,
-                    onPageChanged: _handlePageChanged,
-                    itemBuilder: (context, index) => _PhotoPage(
-                      key: ValueKey(widget.imagePaths[index]),
-                      imagePath: widget.imagePaths[index],
-                      isActive: index == _currentIndex,
-                      matrix: index == _currentIndex
-                          ? _transformationController
-                          : null,
-                      onLayout:
-                          index == _currentIndex ? _handleCurrentLayout : null,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            // 顶部只留一个关闭按钮和居中页码，不再压一整条工具栏，
-            // 图片区域尽量让给画面（微信看图同款）。
-            Positioned(
-              top: mediaPadding.top + 6,
-              left: 8,
-              child: _buildViewerAction(
-                icon: Icons.close_rounded,
-                tooltip: l10n?.close ?? '关闭',
-                onTap: _handleCloseTap,
-              ),
-            ),
-            if (total > 1)
-              Positioned(
-                top: mediaPadding.top + 18,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(
-                  child: Center(
-                    child: Text(
-                      '${_currentIndex + 1}/$total',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        shadows: [
-                          Shadow(color: Colors.black54, blurRadius: 6),
-                        ],
+        // 关闭键、LIVE 角标、右下角操作都在照片同一层上：放进一个 BackdropGroup，
+        // 三块玻璃共用一次全屏取景，缩放/翻页时不会每块各读一次屏。
+        body: BackdropGroup(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                // 键盘 / 鼠标滚轮缩放：只有 PointerSignal，不参与手势竞技场
+                child: Listener(
+                  onPointerSignal: _handlePointerSignal,
+                  // 查看器里所有触摸手势都归这一个识别器管：翻页、缩放、平移。
+                  // PageView 的 physics 恒为 NeverScrollable，它不再注册拖动识别器，
+                  // 也就不会和缩放手势抢 —— 这是这次改造的核心。
+                  child: RawGestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    gestures: <Type, GestureRecognizerFactory>{
+                      TapGestureRecognizer:
+                          GestureRecognizerFactoryWithHandlers<
+                              TapGestureRecognizer>(
+                        TapGestureRecognizer.new,
+                        (recognizer) => recognizer.onTap = _handleCloseTap,
+                      ),
+                      DoubleTapGestureRecognizer:
+                          GestureRecognizerFactoryWithHandlers<
+                              DoubleTapGestureRecognizer>(
+                        DoubleTapGestureRecognizer.new,
+                        (recognizer) => recognizer
+                          ..onDoubleTapDown = _handleDoubleTapDown
+                          ..onDoubleTap = _handleDoubleTap,
+                      ),
+                      _ViewerGestureRecognizer:
+                          GestureRecognizerFactoryWithHandlers<
+                              _ViewerGestureRecognizer>(
+                        _ViewerGestureRecognizer.new,
+                        (recognizer) => recognizer
+                          ..onStart = _handleScaleStart
+                          ..onUpdate = _handleScaleUpdate
+                          ..onEnd = _handleScaleEnd,
+                      ),
+                    },
+                    child: PageView.builder(
+                      controller: _pageController,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: widget.imagePaths.length,
+                      onPageChanged: _handlePageChanged,
+                      itemBuilder: (context, index) => _PhotoPage(
+                        key: ValueKey(widget.imagePaths[index]),
+                        imagePath: widget.imagePaths[index],
+                        isActive: index == _currentIndex,
+                        matrix: index == _currentIndex
+                            ? _transformationController
+                            : null,
+                        onLayout: index == _currentIndex
+                            ? _handleCurrentLayout
+                            : null,
                       ),
                     ),
                   ),
                 ),
               ),
-            // 右下角两个操作：分享、保存 —— 玻璃圆钮，微信看图同款布局
-            Positioned(
-              right: 16,
-              bottom: mediaPadding.bottom + 20,
-              child: LiquidGlassLayer(
-                // 照片上背景不可控，用深色玻璃口径：白 tint 提可读性，
-                // 参数与撤销玻璃提示同一套（refraction 14/40）
-                settings: LiquidGlassSettings.ios27Regular(
-                  brightness: Brightness.dark,
-                  tintAmount: 0.35,
-                ).copyWith(refractionHeight: 14, refractionAmount: 40),
-                defaultAppearance: LiquidGlassAppearance.ios27Regular(
-                  brightness: Brightness.dark,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildGlassAction(
-                      // 微信同款转发箭头：reply 是向左的实心弧箭头，镜像成向右。
-                      icon: Icons.reply_rounded,
-                      flipX: true,
-                      tooltip: l10n?.share ?? '分享',
-                      onTap: _handleShare,
-                    ),
-                    const SizedBox(width: 12),
-                    _buildGlassAction(
-                      icon: Icons.download_rounded,
-                      tooltip: l10n?.saveImage ?? '保存图片',
-                      onTap: _handleSave,
-                    ),
-                  ],
+              // 顶部只留一个关闭按钮和居中页码，不再压一整条工具栏，
+              // 图片区域尽量让给画面（微信看图同款）。
+              // 关闭键与右下角操作、LIVE 角标共用一套深色玻璃，压在照片上不突兀。
+              Positioned(
+                top: mediaPadding.top + 12,
+                left: 12,
+                child: _viewerGlassLayer(
+                  child: _buildGlassAction(
+                    icon: Icons.close_rounded,
+                    tooltip: l10n?.close ?? '关闭',
+                    onTap: _handleCloseTap,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 查看器上的圆形浮动按钮：半透明黑底 + 白色图标，压在照片上也不抢画面。
-  Widget _buildViewerAction({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onTap,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.black.withValues(alpha: 0.42),
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: SizedBox(
-            width: 44,
-            height: 44,
-            child: Icon(icon, color: Colors.white, size: 22),
+              if (total > 1)
+                Positioned(
+                  top: mediaPadding.top + 24,
+                  left: 0,
+                  right: 0,
+                  child: IgnorePointer(
+                    child: Center(
+                      child: Text(
+                        '${_currentIndex + 1}/$total',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          shadows: [
+                            Shadow(color: Colors.black54, blurRadius: 6),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              // 右下角两个操作：分享、保存 —— 玻璃圆钮，微信看图同款布局
+              Positioned(
+                right: 16,
+                bottom: mediaPadding.bottom + 20,
+                child: _viewerGlassLayer(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildGlassAction(
+                        // 微信同款转发箭头：reply 是向左的实心弧箭头，镜像成向右。
+                        icon: Icons.reply_rounded,
+                        flipX: true,
+                        tooltip: l10n?.share ?? '分享',
+                        onTap: _handleShare,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildGlassAction(
+                        icon: Icons.download_rounded,
+                        tooltip: l10n?.saveImage ?? '保存图片',
+                        onTap: _handleSave,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  /// 右下角的玻璃圆钮：与撤销玻璃提示同一套材质，图标压在照片上保持白色。
+  /// 玻璃圆钮：与撤销玻璃提示同一套材质，图标压在照片上保持白色。
   Widget _buildGlassAction({
     required IconData icon,
     required String tooltip,
@@ -1343,50 +1339,64 @@ class _PhotoPageState extends State<_PhotoPage> {
     final topInset = MediaQuery.paddingOf(context).top + 12;
     return Positioned(
       // 左上角现在是关闭按钮，LIVE 角标挪到右上角，两边不打架。
+      // 角标与关闭键、右下角操作同一套玻璃，压在照片上不抢画面。
       right: 12,
       top: topInset,
-      child: GestureDetector(
-        onTap: _toggleLive,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_liveLoading)
-                const SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.6,
-                    color: Colors.white,
-                  ),
-                )
-              else
-                Icon(
-                  Icons.motion_photos_on_rounded,
-                  size: 14,
-                  color: _liveFailed ? Colors.grey : Colors.white,
+      child: _viewerGlassLayer(
+        child: LiquidGlass(
+          shape: const LiquidRoundedSuperellipse(borderRadius: 14),
+          shadows: const [
+            BoxShadow(
+              color: Color(0x80000000),
+              blurRadius: 20,
+              offset: Offset(0, 6),
+            ),
+          ],
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _toggleLive,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
                 ),
-              const SizedBox(width: 4),
-              Text(
-                // 播不了的动图要明说是「无法播放」，只把图标置灰
-                // 没人看得出来是什么问题
-                _liveFailed
-                    ? 'LIVE · ${AppLocalizationsSimple.of(context)?.liveUnavailable ?? '无法播放'}'
-                    : 'LIVE',
-                style: TextStyle(
-                  color: _liveFailed ? Colors.grey : Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.6,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_liveLoading)
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.6,
+                          color: Colors.white,
+                        ),
+                      )
+                    else
+                      Icon(
+                        Icons.motion_photos_on_rounded,
+                        size: 14,
+                        color: _liveFailed ? Colors.grey : Colors.white,
+                      ),
+                    const SizedBox(width: 4),
+                    Text(
+                      // 播不了的动图要明说是「无法播放」，只把图标置灰
+                      // 没人看得出来是什么问题
+                      _liveFailed
+                          ? 'LIVE · ${AppLocalizationsSimple.of(context)?.liveUnavailable ?? '无法播放'}'
+                          : 'LIVE',
+                      style: TextStyle(
+                        color: _liveFailed ? Colors.grey : Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

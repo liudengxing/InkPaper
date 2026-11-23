@@ -8,15 +8,15 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-23 · 代码提交 `34c7360`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-04B（P3 · §4 小组件统计行） |
+| 最后更新 | 2026-11-23 · 代码提交 `0d2b531`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-06C（P3 · §6 缩略图扫描移出首帧前） |
 | 任务状态 | 待验收 |
-| 可复查改动 | ① 新增 `lib/models/widget_stat_note.dart`：统计行走它，时间只留 ISO 字符串（日期键取前 10 位、排序直接比串、`createdAt` 惰性解析并缓存）；② `getWidgetStatNotes()` 返回统计行，整库这一趟不再构造任何本地 `DateTime`；③ `RandomReviewSelectorService.selectWidgetCandidatesFrom` 抽出通用核心（自然日 + 回调控件），`Note` 与统计行共用一套兜底；④ `TodoParser.countTodos` 不再构造 `TodoItem`（正则提到类级、无 `[` 早退） |
-| 验证结果 | `dart analyze lib test` 无 issue；`dart tool/inkpaper.dart format` 320 文件 0 changed；`flutter test --concurrency=4` 全量 **1099 项全过**（原 1096 + 3）。本机内存库校准（1500 条 / 每条约 20 行）：整库读取 242ms → **14~16ms**，整库构建 284~294ms → **约 53ms**；惰性解析 16 次/构建（原 4500 次）。反向验证两项：改回 `Note.fromMap` → WSR-06 实测 900 次解析变红；日期键改回先解析 `DateTime` → 300 条库解析 308 次变红 |
-| 未验证 / 待测 | 无真机（保存/删除后帧时间、冷启动首帧交 OPT-M01）；收益全在本机 JIT 量过，AOT 下 `DateTime` 的时区查询仍要过系统调用但绝对值更小；待办计数维持「每次重算」（1500 条 × 20 行 6~8ms，增量维护要处理编辑/删除/同步全部失效路径，判定不划算） |
-| 下一项 | OPT-06C（缩略图索引移出首帧）或 OPT-07A（§7 图片）；OPT-02B / OPT-09B 等各自前置验收，OPT-04C 待评估 |
+| 可复查改动 | ① `ThumbCache.prepare()` 只等到目录可用就返回，`_scanDisk()` 改 fire-and-forget，新增 `indexReady` 给后台任务等；② `lookup()` 在扫描完成前对未收录名字补一次 `existsSync()`，命中即补进 `_known`，扫描完成后关闭兜底（`_indexComplete`）；③ `ensure()` 同样先 stat 再决定编码，避免把盘上已有的缩略图重解一遍；④ `_pendingSources` / `_runDiskMaintenance` / `clear()` 都先 `await indexReady`，补齐不重排、磁盘记账不漏、清理不被扫描回填；⑤ `_prepare` 在注入了图片目录时不再白问 path_provider |
+| 验证结果 | `dart tool/inkpaper.dart analyze` 无 issue；`format` 320 文件 0 changed；`flutter test --concurrency=4` 全量 **1104 项全过**（原 1099 + 5）。本机 5000 个缩略图校准（热页缓存）：`prepare` **6.5ms / 4.0ms**，扫描 **58ms / 55ms** → 首帧前少等约 55ms；扫描窗口内命中 **55.7~71.1µs**，索引命中 **36.6~42.2µs**，首批十几张图合计多 0.2~0.5ms。反向验证两项：关掉 `lookup` 的窗口兜底 → TC-22/TC-23 变红；`prepare` 改回等扫描 → TC-22 变红 |
+| 未验证 / 待测 | 无真机（首帧/可交互时间、冷缓存下扫描耗时、滚动帧时间交 OPT-M01）；真机 cacheDir 在 `/data/user/0/.../cache`，stat 走系统调用、比本机热页缓存慢，窗口内成本需实机确认；索引内存占用与改前一致（同一个 `Set<String>`，只是晚几十毫秒填满） |
+| 下一项 | OPT-07A（§7 图片）或 OPT-07B（§7 本地备份）；OPT-02B / OPT-09B / OPT-04B 等各自前置验收，OPT-04C / OPT-05 / OPT-06B / OPT-08 待评估 |
 | 待用户决策 | ① OPT-01 顺带发现的「归档行被剪枝」是 bug 还是设计；② 完整空清单的同步产品规则；③ `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓，等明确启用 |
-| 工作区注意事项 | 另有会话在改启动图（`flutter_native_splash.yaml`、`android/app/src/main/res/values*/styles.xml`、`colors.xml`、`lib/main.dart`、`assets/images/splash_inkpaper.png`、`drawable/inkpaper_launch_background.xml`），另有一处未提交的 `docs/README.md` 增加审查文档索引链接，均非本轮产物，勿回退或顺手带上。**`lib/main.dart` 同时被两边改**：OPT-06A 那轮用 `git hash-object` + `update-index` 只提交了自己的 hunk，启动图那笔仍在工作区；发版、推送、装机需单独授权 |
+| 工作区注意事项 | 另有会话在改启动图（`flutter_native_splash.yaml`、`android/app/src/main/res/values*/styles.xml`、`colors.xml`、`lib/main.dart`、`assets/images/splash_inkpaper.png`、`drawable/inkpaper_launch_background.xml`），另有一处未提交的 `docs/README.md` 增加审查文档索引链接，均非本轮产物，勿回退或顺手带上。本轮**没有改 `lib/main.dart`**；发版、推送、装机需单独授权 |
 
 ## 执行队列
 
@@ -36,7 +36,7 @@
 | OPT-04B | P3 | 待验收 | §4 小组件 | 统计行仍逐条构造 `Note`、待办计数每次重算。评估按行聚合与待办计数增量维护（见 OPT-04 未验证项）。 |
 | OPT-04C | P3 | 待评估 | §4 小组件 | `Note.fromMap` 每行解析 3 个本地 `DateTime`（本机约 45µs/次），是分页、搜索、统计共同的读取成本。评估把时间字段改成惰性解析的收益与风险。 |
 | OPT-06A | P2 | 待验收 | §6 首屏 | 先调整配置和首屏快照的并行读取，验证主题与语言、离线和空缓存启动。 |
-| OPT-06C | P3 | 待办 | §6 首屏 | 缩略图索引仍卡在首帧前（5000 个文件约 37ms，冷缓存更慢）。评估 `lookup` 按需 stat 兜底后把扫描移到首帧后，验证首帧出图与内存。 |
+| OPT-06C | P3 | 待验收 | §6 首屏 | 缩略图扫描移出首帧前：`prepare()` 只等目录可用，扫描在首帧后完成；扫描窗口内 `lookup` 用一次 stat 兜底并补索引，补齐与磁盘记账等扫描收尾。 |
 | OPT-07A | P2 | 待办 | §7 图片 | 先约束缩略图像素和查看器预取保留范围，验证长图、方向、透明度和回看。可拆成两轮。 |
 | OPT-07B | P2 | 待办 | §7 本地备份 | 优先验证现有 Dart 的流式归档方案。导入暂存与失败清理单独交付。均需覆盖历史备份、附件和失败重试。 |
 | OPT-05 | P2 | 待评估 | §5 搜索 | 先用可复现样本判定 SQL 扫描或结果装载的主要成本，再决定分批或全文索引。 |
@@ -199,6 +199,30 @@
 - **未验证**：① 无真机，保存/删除后的帧时间与冷启动首帧未测，交 OPT-M01；② AOT 下时区查询的绝对耗时更小，收益比例会低于本机 JIT 数字；③ 标签排序为了复用 `rankTagsByUsage`，仍对**去重后的标签**解析 `DateTime`（几十次量级），没有改那个共享函数。
 - **顺带登记**：OPT-04C——`Note.fromMap` 的 3 次本地时间解析是分页、搜索、统计共同的读取成本，改成惰性解析收益更大但影响面也更大，单独立项评估。
 - **提交**：`34c7360`（代码 + 测试）。
+
+### 2026-11-23 · OPT-06C · 待验收
+
+- **问题核对**：OPT-06A 量出来的「缩略图索引仍在首帧前（5000 个文件 37ms，冷缓存更慢）」是本轮剩下的最后一项首帧等待。翻 `lib/utils/thumb_cache.dart`：`prepare()` 里真正必要的只有「拿到 cacheDir 并把目录建好」——写缩略图要用；扫目录只是把已有缩略图的名字读进 `_known`，作用是让 `lookup` 对未命中的名字不必 stat。也就是说这一项的代价不是「首帧出图正确性」，而是「省掉每次 lookup 的一次系统调用」：只要扫描窗口内 `lookup` 自己补一次 stat，正确性就能保住，扫描本身可以挪到首帧后。
+- **改动**：
+  - `lib/utils/thumb_cache.dart`：
+    - `prepare()` / `_prepare()`：只等目录可用（`getTemporaryDirectory` + `create`，毫秒级），置好 `_dirPath` 后 `_startDiskIndex()` 发起扫描并立即返回；扫描体抽成 `_scanDisk()`，失败也只打日志（退化成「每张卡片 stat 一次」而不是没有缩略图）。
+    - 新增 `_indexComplete` / `_indexFuture` / `indexReady`：`indexReady` 给「必须看到完整清单」的后台任务等，`lookup` 不依赖它。
+    - `lookup()`：把「`_known` 里有 → stat 确认文件还在」扩成「`_known` 里没有但扫描未完成 → 也 stat 一次」，命中就补进 `_known`，之后走原来的快速路径；扫描完成后 `_indexComplete == true`，行为与改前完全一致（未知名字不 stat）。
+    - `ensure()`：新增「扫描未完成且盘上已有同名缩略图 → 直接复用」分支，否则这一窗口里每个 `ensure` 都会把已有缩略图重新解码一遍。
+    - `_pendingSources()`：补队列前 `await indexReady`。否则索引不完整时会把已经生成过的图全部排进队列（`ensure` 的 stat 兜底能防重编码，但白扫一遍目录）。
+    - `_runDiskMaintenance()`：记账前 `await indexReady`。`_diskBytes` 按 `_known` 逐条 stat，索引没扫完就算漏，淘汰会算错。
+    - `_clear()`：删目录前 `await indexReady`，否则正在跑的扫描会把刚删掉的名字又加回 `_known`；清完把 `_indexComplete` 置 true（空目录就是完整索引）。
+    - `_prepare()`：`imagesDir` 被注入时跳过 `getApplicationDocumentsDirectory()`（测试不必再 mock path_provider，生产路径不变）。
+    - 测试钩子：`debugSeed` 增加 `indexScanned`（模拟「扫描还没跑完」的首帧窗口），新增 `debugIndexComplete`。
+  - `lib/utils/startup_essentials.dart`：只改注释——这一项现在等的是「目录可用」，索引扫描已经在首帧后，并说明靠 stat 兜底保住首帧出图。
+  - 未改动：`_known` 的数据结构（内存占用与改前一致，同一个 `Set<String>`，只是晚几十毫秒填满）、两档宽度与编码路径、原生解码、`_giveUp`、补齐节奏（3 秒延迟 + 张间让路 + 低优先级槽）、`prepare()` 的对外签名与「已就绪时直接返回」的幂等语义。
+- **测试**：`test/unit/thumb_cache_test.dart` 24 → 29 条。TC-22 `prepare` 后 `debugIndexComplete` 必须还是 false、此时 `lookup` 仍能命中已有缩略图、`await indexReady` 后索引补齐（`knownCount == 1`）；TC-23 窗口内兜底命中会补进索引、没有文件的名字不入索引（用 `lookupHits`/`lookupMisses` 增量断言）；TC-24 窗口内 `ensure` 复用盘上文件，编码次数 0；TC-25 索引完成后对未知名字**不再** stat 兜底（漏掉这个闸门就会每次 miss 白付一次系统调用）；TC-26 `prepare` 后立刻 `startBackfill`，只补缺的那张、不重编码已有缩略图。
+- **验证**：`dart tool/inkpaper.dart analyze` → No issues found；`dart tool/inkpaper.dart format` → 320 文件 0 changed；`flutter test --concurrency=4` → **1104 项全过**（原 1099 + 5）。
+- **反向验证**：① 把 `lookup` 的兜底闸门改回 `if (indexed)` → TC-22、TC-23 变红（TC-24 仍过，说明 `ensure` 那条兜底是独立生效的第二道门）；② 把 `prepare` 改回 `await _scanDisk(...)` → TC-22 的「扫描还在后台」断言变红，其余 4 条照过。恢复后全绿。
+- **量级校准**（本机、临时目录、**非真机**、热页缓存，两轮取值）：5000 个缩略图时 `prepare` **6.5ms / 4.0ms**（改前等于这两项之和再等完扫描），扫描本身 **58ms / 55ms** → 首帧前少等约 55ms；扫描窗口内命中一次 `lookup` **55.7~71.1µs**（多一次 stat + 一次 Set 插入），索引完成后 **36.6~42.2µs**。按首屏可见十几张图估算，窗口期额外成本 0.2~0.5ms。冷缓存下扫描更慢（OPT-06A 记录的 37ms 是同一套合成脚本的另一组取值），收益更大。
+- **行为变化**：首帧前不再等目录扫描；`knownCount` 在扫描完成前偏小（仅诊断用，当前无生产读取点）；扫描完成后一切与改前一致。扫描窗口内若某张缩略图在盘上但不在索引里，会多一次 stat 并收进索引——这是有意的。
+- **未验证**：① 无真机，首帧/可交互时间、冷缓存扫描耗时、滚动帧时间均未测，交 OPT-M01；② 真机 cacheDir 在 `/data/user/0/com.didichou.inkpaper/cache`，stat 走系统调用、比本机热页缓存慢，窗口内成本需实机确认；③ 索引内存与改前一致，但「扫描推迟到首帧后」意味着它与首屏解码有几十毫秒的重叠，是否会争 I/O 未测（扫描是顺序 list，量级远小于图片解码）。
+- **建议下一项**：OPT-07A（§7 图片，约束缩略图像素与查看器预取范围）。OPT-02B / OPT-09B / OPT-04B 等各自前置验收；OPT-04C / OPT-05 / OPT-06B / OPT-08 待评估。
 
 ## 现有架构
 

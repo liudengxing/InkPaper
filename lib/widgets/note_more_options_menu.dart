@@ -172,12 +172,6 @@ class NoteMoreOptionsMenu {
             },
           );
           break;
-        case 'ai':
-          await NoteActionsUi.showAiReview(
-            context: context,
-            note: currentNote,
-          );
-          break;
         case 'ai_summary':
           onAiSummary?.call();
           break;
@@ -223,12 +217,6 @@ class NoteMoreOptionsMenu {
               reloadNote();
               onNoteUpdated?.call();
             },
-          );
-          break;
-        case 'info':
-          await NoteActionsUi.showNoteDetails(
-            context: context,
-            note: currentNote,
           );
           break;
         case 'history':
@@ -325,12 +313,6 @@ class NoteMoreOptionsMenu {
                       isDarkMode: isDarkMode,
                       onTap: () => select('ai_summary'),
                     ),
-                  _buildSheetAction(
-                    icon: Icons.rate_review_rounded,
-                    label: localizations?.aiReview ?? 'AI点评',
-                    isDarkMode: isDarkMode,
-                    onTap: () => select('ai'),
-                  ),
                   if (showShareLink)
                     _buildSheetAction(
                       icon: Icons.link_rounded,
@@ -365,12 +347,6 @@ class NoteMoreOptionsMenu {
                     label: localizations?.changeTime ?? '修改时间',
                     isDarkMode: isDarkMode,
                     onTap: () => select('change_time'),
-                  ),
-                  _buildSheetAction(
-                    icon: Icons.info_outline,
-                    label: localizations?.detailedInfo ?? '详细信息',
-                    isDarkMode: isDarkMode,
-                    onTap: () => select('info'),
                   ),
                   _buildSheetAction(
                     icon: Icons.history_rounded,

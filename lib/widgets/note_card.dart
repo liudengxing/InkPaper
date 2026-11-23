@@ -878,10 +878,10 @@ class _NoteCardState extends State<NoteCard>
         child: Slidable(
           key: ValueKey(widget.id),
           dragStartBehavior: DragStartBehavior.start,
-          // flomo 式滑出：两个小圆图标 + 文字，底色透明，不糊一大块颜色
+          // flomo 式滑出：小圆图标 + 文字，底色透明，不糊一大块颜色
           endActionPane: ActionPane(
             motion: const DrawerMotion(),
-            extentRatio: 0.46,
+            extentRatio: 0.23,
             children: [
               _buildSlideAction(
                 icon: Icons.hub_outlined,
@@ -889,15 +889,6 @@ class _NoteCardState extends State<NoteCard>
                     AppLocalizationsSimple.of(context)?.relatedNotes ?? '相关笔记',
                 color: AppTheme.primaryColor,
                 onPressed: () => NoteActionsUi.showRelatedNotes(
-                  context: context,
-                  note: widget.note,
-                ),
-              ),
-              _buildSlideAction(
-                icon: Icons.auto_awesome_outlined,
-                label: AppLocalizationsSimple.of(context)?.aiInsight ?? 'AI 洞察',
-                color: const Color(0xFF7C4DFF),
-                onPressed: () => NoteActionsUi.showAiReview(
                   context: context,
                   note: widget.note,
                 ),

@@ -8,13 +8,13 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-23 · 代码提交 `6cb4a2d`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-10B（P2 · §10 重建引用） |
+| 最后更新 | 2026-11-23 · 代码提交 `6a75cca`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-04（P2 · §4 桌面小组件） |
 | 任务状态 | 待验收 |
-| 可复查改动 | 新增 `UnifiedReferenceManager.rebuildAllFromDatabase()`：全库读一次 → 清空关系 → 按正文解析并双向配对 → 只批量写真正变化的行；`AppProvider.rebuildAllReferences` 改为「调重建 + `loadInitialNotes()` 重查首屏」，不再遍历 `_notesStore.notes`、不再两次 `loadNotesFromLocal()` |
-| 验证结果 | `analyze` 无 issue；`flutter test --concurrency=4` 全量 **1084 项全过**（原 1078 + 6）；反向验证两处各自失败：重建只取前 50 条 → REF-09 与「重建覆盖首屏之外」红；AppProvider 改回 `loadNotesFromLocal()` → 「重建后翻下一页不重复」红 |
-| 未验证 / 待测 | 无真机；重建全库的耗时只在小样本（120 条）上跑过，万条级未测（交 OPT-M01）；重建不触发服务端同步（与旧实现不同），是否需要续传关系同步未定；`rebuildAllReferences` 目前仍无 UI 调用点 |
-| 下一项 | OPT-04（§4 小组件，独立项）；OPT-02B 等 OPT-02A 验收、OPT-09B 等 OPT-09A 验收 |
+| 可复查改动 | ① 回顾候选改为「洗牌后边取边判可见文字，取满即停」，不再对全库跑 `previewVisibleText`；② 新增 `DatabaseService.getWidgetStatNotes()`（窄列，不读 relations JSON）供统计与回顾，`getRecentActiveNotes(20)` 取完整行供首屏快照落盘；③ `AppProvider` 快照调度拆成「统计笔记 + 首屏笔记」两批传入 |
+| 验证结果 | `analyze` 无 issue；`flutter test --concurrency=4` 全量 **1089 项全过**（原 1084 + 5）；本机内存库校准（1500 条）：改造前 `getNotes()` 302ms + 全库解析 544ms，改造后窄列 242ms + 首屏 5ms + 构建 98~131ms，解析次数 1500 → 8；反向验证三项各自失败：窄列改回 `SELECT *` → WSR-01 红、首屏改窄列 → WSR-03 红、选择器改回全筛 → WSR-04 红（解析 300 次） |
+| 未验证 / 待测 | 无真机（保存/删除后帧时间、冷启动首帧交 OPT-M01）；统计行仍是逐条构造 `Note`（约占 242ms 读的一半），待办计数仍每次全库重算；只测了 1500 条的合成库，未覆盖万条或超长正文 |
+| 下一项 | OPT-04B（统计行按行聚合 + 待办计数增量，见本轮未验证项）或 OPT-06A（§6 首屏）；OPT-02B 等 OPT-02A 验收、OPT-09B 等 OPT-09A 验收 |
 | 待用户决策 | ① OPT-01 顺带发现的「归档行被剪枝」是 bug 还是设计；② 完整空清单的同步产品规则；③ `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓，等明确启用 |
 | 工作区注意事项 | 另有会话在改启动图（`flutter_native_splash.yaml`、`android/app/src/main/res/values*/styles.xml`、`colors.xml`、`lib/main.dart`、`assets/images/splash_inkpaper.png`），另有一处未提交的 `docs/README.md` 增加审查文档索引链接，均非本轮产物，勿回退或顺手带上；发版、推送、装机需单独授权 |
 
@@ -32,7 +32,8 @@
 | OPT-09B | P2 | 待办 | §9 卡片媒体提取 | 依赖 OPT-09A 的取样口径。把卡片分别提取图片与视频合并成一次媒体扫描，保持图片/视频互斥与顺序。 |
 | OPT-10 | P2 | 待验收 | §10 笔记引用 | 明确的引用 ID 走批量查询。验证历史正文匹配、反向关系和移除最后一个引用。 |
 | OPT-10B | P2 | 待验收 | §10 笔记引用 | `rebuildAllReferences` 只遍历已加载页（见 OPT-10 顺带发现）。改成按库全量重建，验证引用多的老库与分页状态。 |
-| OPT-04 | P2 | 待办 | §4 小组件 | 先缩减一次快照构建中读取的完整笔记范围，核对待办计数、回顾和首屏结果。 |
+| OPT-04 | P2 | 待验收 | §4 小组件 | 先缩减一次快照构建中读取的完整笔记范围，核对待办计数、回顾和首屏结果。 |
+| OPT-04B | P3 | 待办 | §4 小组件 | 统计行仍逐条构造 `Note`、待办计数每次重算。评估按行聚合与待办计数增量维护（见 OPT-04 未验证项）。 |
 | OPT-06A | P2 | 待办 | §6 首屏 | 先调整配置和首屏快照的并行读取，验证主题与语言、离线和空缓存启动。 |
 | OPT-07A | P2 | 待办 | §7 图片 | 先约束缩略图像素和查看器预取保留范围，验证长图、方向、透明度和回看。可拆成两轮。 |
 | OPT-07B | P2 | 待办 | §7 本地备份 | 优先验证现有 Dart 的流式归档方案。导入暂存与失败清理单独交付。均需覆盖历史备份、附件和失败重试。 |
@@ -139,6 +140,28 @@
 - **行为变化**：重建范围从「已加载的首页缓存」变成全库；重建后列表回到首屏（深页被丢弃，与切换排序一致），但不再产生重复条目；重建**不再**触发服务端关系同步（旧实现走 `createReference` 会逐条 `_syncToServerInBackground`）——关系本来由同步合并按正文重建，这里不发请求是有意的，若将来需要远端对齐要单独加。
 - **未验证**：① 无真机，重建耗时只在小样本（120 条）上跑过，万条库的一次性重建时长与内存峰值未测，交 OPT-M01；② 重建后不做远端同步，多端场景下服务端关系可能滞后到下一次同步；③ `rebuildAllReferences` 仍无 UI 调用点（设置页若接回需先确认是否要顺带同步）；④ 自引用被忽略这一条没写用例（正文里出现 `[[自己的 id]]` 属病态数据）。
 - **建议下一项**：OPT-04（§4 桌面小组件，独立项）；OPT-02B 等 OPT-02A 验收、OPT-09B 等 OPT-09A 验收。
+
+### 2026-11-23 · OPT-04 · 待验收
+
+- **问题核对**：队列里 OPT-02B / OPT-09B 的前置项（02A / 09A）仍待验收，本轮领独立项。先在本机内存库造了 1500 条样本（正文约 300 字、每 5 条带待办、每 3 条带 2 个关系、每 10 条带 1 个附件）量了一次快照构建，两处大头都不是 SQL：
+  ① `getNotes()` 整库构造完整 `Note` 302ms，其中每行还要 `jsonDecode` 一次 `relations` 和一次 `resourceList`；
+  ② 挑 8 条回顾候选时，`selectWidgetCandidates` 为了「有可见文字」这条规则**先对全库每条**跑 `previewVisibleText`（完整 Markdown 解析 + AST 遍历），单独一圈 544ms，1500 条里最后只留 8 条。
+  另外 `_maybePersistFeedSnapshot` 只落最近 20 条，却先把整库构造成完整笔记再 `take(20)`。
+- **改动**：
+  - `lib/services/random_review_selector_service.dart`：`selectWidgetCandidates` 改成「先按时间范围取候选池 → 洗牌 → 边取边判可见文字，取满 `reviewCount` 就停」。范围池为空时退回全库、池里一条带文字的都没有时退回任意笔记，两条兜底与旧口径一一对应。「洗牌后取前 N 个满足条件的」与「先筛出满足条件的再洗牌取前 N 个」分布相同，所以抽样语义不变。
+  - `lib/services/database_service.dart`：新增 `getWidgetStatNotes()`（`id, content, createdAt, updatedAt, displayTime, tags, is_synced, isPinned, resourceList, rowStatus`，不读 relations）与 `getRecentActiveNotes(limit)`（完整行，`createdAt DESC LIMIT n`）。附件列表留在窄列里——回顾/置顶卡片的「这是一条含图片的笔记」靠它判断。
+  - `lib/providers/app_provider.dart`：`_scheduleWidgetSnapshotUpdate` 内部改成两批输入——`statNotes` 给统计与回顾，`feedNotes`（≤20，且多取 `pendingDeleteIds.length` 条以免撤销队列把首屏挤到 20 条以下）给首屏快照落盘；读库失败时两批都退回内存里已加载的那一页。
+  - `lib/services/widget_snapshot_service.dart`：`debugBuildSnapshot` / `_buildSnapshot` / `_pickReviewNotes` 增加可选 `Random`，让「同一份库、不同读取路径」的快照能逐字段对比。
+  - `lib/utils/memos_content_helper.dart`：新增 `@visibleForTesting debugPreviewParseCount`，把「解析了几次」变成可断言的指标。
+  - `docs/development/LESSONS_LEARNED.md` §2.11：记「全量口径的统计与抽样：读窄列，抽样别先全筛」。
+- **测试**：新增 `test/unit/widget_snapshot_read_scope_test.dart` 5 条（真 SQLite + `debugOverrideDatabase`）：WSR-01 窄列保留统计字段且 relations 为空、已删除行不进来；WSR-02 同一份库用整库完整笔记与窄列笔记各建一次快照（同种子）**逐字段相等**（只剔除 `generatedAt`）；WSR-03 `getRecentActiveNotes(20)` 取最近 20 条且关系/附件都在；WSR-04 300 条库挑 8 条候选，真实解析次数 < 50；WSR-05 全库都是图片型笔记时仍能抽到回顾卡片且预览是「这是一条含图片的笔记」。
+- **验证**：`dart tool/inkpaper.dart format` → 206 个文件 0 changed（本轮改动的文件另跑过 `dart format`）；`dart analyze lib test` → No issues found；`flutter test --concurrency=4`（`NO_PROXY` 已设）→ **1089 项全过**（原 1084 + 5）。
+- **校准**（本机内存库、非真机）：改造前 `getNotes()` 302ms + 全库可见文字解析 544ms + 其余构建，合计约 850ms 量级；改造后 `getWidgetStatNotes()` 242ms + `getRecentActiveNotes(20)` 5ms + 构建 98~131ms，约 350~380ms。可见文字解析次数 1500 → 8。
+- **反向验证**：三项分别单独打回，确认用例真的守得住——① `getWidgetStatNotes` 改回 `SELECT *` → WSR-01 红（relations 非空）；② `getRecentActiveNotes` 改成窄列 → WSR-03 红（关系丢失）；③ `selectWidgetCandidates` 改回「先全筛再洗牌」→ WSR-04 红（解析 300 次）。恢复后全绿。
+- **行为变化**：快照内容不变（WSR-02 逐字段对过）。差异只在两点：一是回顾候选在「带文字笔记不足 8 条」时返回顺序不同（集合相同，本来就是随机的）；二是统计用的笔记对象里 `relations` 为空——任何要判双链或要 `toMap` 落盘的路径都必须走 `getRecentActiveNotes`，别再拿统计笔记去 `save`。
+- **未验证**：① 无真机，保存/删除后的实际帧时间与冷启动首帧表现未测，交 OPT-M01；② 统计这批仍是逐条构造 `Note`（约 240ms 里大半是 `DateTime.parse` ×3 + 构造），要再降得改成「按行聚合 + 只在选中项上取完整笔记」，已登记 OPT-04B；③ 待办计数仍每次全库重算（1500 条约 5ms，暂不是瓶颈）；④ 只测了 1500 条的合成库，万条或超长正文未覆盖。
+- **提交**：`6a75cca`（代码 + 测试）。
+- **建议下一项**：OPT-04B（OPT-04 的剩余部分）或 OPT-06A（§6 首屏）；OPT-02B 等 OPT-02A 验收、OPT-09B 等 OPT-09A 验收。
 
 ## 现有架构
 

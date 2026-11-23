@@ -207,16 +207,20 @@ class _UnderlineSyntax extends md.InlineSyntax {
 }
 
 /// 按 UTF-16 长度截断，但不切断代理对（emoji 等）。
-String _safePrefix(String value, int limit) {
+String _safePrefix(String value, int limit) =>
+    value.substring(0, _safePrefixLength(value, limit));
+
+/// 截断长度，避免把代理对（emoji 等）切成半个字符。
+int _safePrefixLength(String value, int limit) {
   if (value.length <= limit) {
-    return value;
+    return value.length;
   }
   var end = limit;
   final code = value.codeUnitAt(end - 1);
   if (code >= 0xD800 && code <= 0xDBFF) {
     end -= 1;
   }
-  return value.substring(0, end);
+  return end;
 }
 
 /// 解析前的字符级预处理：抽掉图片、把待办标记换成勾选字符。
@@ -621,19 +625,50 @@ class _PreviewWalker {
           : <PreviewInlineStyle>{...base, style};
 }
 
+/// 缓存里的一条预览，连同它的估算占用与所属预算桶。
+class _PreviewEntry {
+  const _PreviewEntry({
+    required this.preview,
+    required this.cost,
+    required this.isLong,
+  });
+
+  final NotePreview preview;
+
+  /// 估算占用：预览文本按字符计，样式区间、链接、勾选框按固定权重折算。
+  final int cost;
+
+  /// 全文预览（详情页、历史版本）走单独的条数与预算，不和卡片预览抢位置。
+  final bool isLong;
+}
+
 /// 预览结果 LRU 缓存。
 ///
 /// 必须放在卡片之外：`NoteCard` 滚出屏幕就会销毁，缓存留在 State 里等于没缓存。
+///
+/// 键里不再放整篇正文：卡片销毁后缓存还会替几百条笔记长期持有原文，一条几万字
+/// 的长笔记就是几十万字符。预览只取决于前 `parseLimit` 个字符（`buildNotePreview`
+/// 第一步就是截前缀），所以用这段前缀的指纹定位——前缀一样必然得到一样的预览，
+/// 前缀一变键就变。没有笔记 ID 的调用方（详情页、历史版本）也就不必单独留一套键。
 class NotePreviewCache {
   NotePreviewCache._();
 
+  /// 条目数上限：普通短笔记按预算能塞下远不止 400 条，得有条数兜底。
   static const int _maxEntries = 400;
+
+  /// 预览文本与样式区间的估算字符预算。400 条 2400 字的长卡片约 96 万字符，
+  /// 会被这套预算裁到两百条上下。
+  static const int _maxChars = 600000;
 
   /// 全文预览（详情页）单独限条数：一条几万字，不能按 400 条算内存。
   static const int _maxLongEntries = 4;
+  static const int _maxLongChars = 1200000;
 
-  static final LinkedHashMap<String, NotePreview> _entries =
-      LinkedHashMap<String, NotePreview>();
+  static final LinkedHashMap<String, _PreviewEntry> _entries =
+      LinkedHashMap<String, _PreviewEntry>();
+
+  static int _chars = 0;
+  static int _longChars = 0;
 
   static int _hits = 0;
   static int _misses = 0;
@@ -645,13 +680,29 @@ class NotePreviewCache {
     return total == 0 ? 0 : hits / total;
   }
 
+  /// 当前驻留条目数。
+  @visibleForTesting
+  static int get entryCount => _entries.length;
+
+  /// 当前驻留条目的估算字符占用，便于核对预算是否生效。
+  @visibleForTesting
+  static int get residentChars => _chars + _longChars;
+
+  /// 当前驻留键。键里不应出现正文，用于核对缓存没有替笔记长期持有原文。
+  @visibleForTesting
+  static List<String> get debugKeys => _entries.keys.toList();
+
   static NotePreview resolve(
     String content, {
     int parseLimit = defaultPreviewParseLimit,
   }) {
     final key = _key(content, parseLimit);
     return _read(key) ??
-        _store(key, buildNotePreview(content, parseLimit: parseLimit));
+        _store(
+          key,
+          buildNotePreview(content, parseLimit: parseLimit),
+          isLong: parseLimit != defaultPreviewParseLimit,
+        );
   }
 
   /// 详情页的长文解析放到后台，复用同一份全文缓存。
@@ -665,49 +716,127 @@ class NotePreviewCache {
       return cached;
     }
     final preview = await compute(_parsePreview, (content, parseLimit));
-    return _store(key, preview);
+    return _store(
+      key,
+      preview,
+      isLong: parseLimit != defaultPreviewParseLimit,
+    );
   }
 
-  static String _key(String content, int parseLimit) =>
-      // 卡片预览与详情页全文各缓存一份：key 带上上限，避免详情页的长文本
-      // 覆盖掉卡片的短预览（也避免反过来把长文本当短预览用）。
-      parseLimit == defaultPreviewParseLimit
-          ? content
-          : '$parseLimit\u0000$content';
+  /// 缓存键：解析上限 + 解析范围内正文的指纹。
+  ///
+  /// 两路独立的 32 位滚动哈希并行推进（FNV-1a 与 djb2 变体），合起来 64 位，
+  /// 两路同时碰撞才会误命中；400 条规模下概率低到可以当作不存在。这样键只有
+  /// 几十字节，且随正文变化而变，不必为失效额外维护版本号——`Note.updatedAt`
+  /// 也不适合当版本号，Memos 的伪 UTC 会让 `createdAt` 落在未来，
+  /// `_clampUpdatedAt` 把编辑时间压回 `createdAt`，正文改了而 `updatedAt` 不变。
+  static String _key(String content, int parseLimit) {
+    final end = _safePrefixLength(content, parseLimit);
+    var fnv = 0x811c9dc5;
+    var djb = 0x050c5d1f;
+    for (var i = 0; i < end; i++) {
+      final unit = content.codeUnitAt(i);
+      fnv = ((fnv ^ unit) * 0x01000193) & 0xffffffff;
+      djb = ((djb * 31) + unit) & 0xffffffff;
+    }
+    return '$parseLimit\u0000$end\u0000'
+        '${fnv.toRadixString(16)}-${djb.toRadixString(16)}';
+  }
 
   static NotePreview? _read(String key) {
     final cached = _entries.remove(key);
     if (cached != null) {
       _hits++;
       _entries[key] = cached; // 重新插入队尾，维持 LRU 顺序
-      return cached;
+      return cached.preview;
     }
 
     _misses++;
     return null;
   }
 
-  static NotePreview _store(String key, NotePreview preview) {
-    _entries[key] = preview;
-    _trim(key);
+  static NotePreview _store(
+    String key,
+    NotePreview preview, {
+    required bool isLong,
+  }) {
+    _remove(key); // 同键覆盖时先把旧账减掉，避免预算被重复计
+    final entry = _PreviewEntry(
+      preview: preview,
+      cost: _costOf(preview),
+      isLong: isLong,
+    );
+    _entries[key] = entry;
+    if (isLong) {
+      _longChars += entry.cost;
+    } else {
+      _chars += entry.cost;
+    }
+    _trim(keep: key);
     return preview;
   }
 
-  static void _trim(String key) {
-    if (key.contains('\u0000')) {
-      final longKeys =
-          _entries.keys.where((entry) => entry.contains('\u0000')).toList();
-      while (longKeys.length > _maxLongEntries) {
-        _entries.remove(longKeys.removeAt(0));
-      }
+  static void _remove(String key) {
+    final old = _entries.remove(key);
+    if (old == null) {
+      return;
     }
-    while (_entries.length > _maxEntries) {
-      _entries.remove(_entries.keys.first);
+    if (old.isLong) {
+      _longChars -= old.cost;
+    } else {
+      _chars -= old.cost;
     }
   }
 
+  /// 从最久未使用的一端淘汰，直到条数和两套预算都满足。
+  ///
+  /// 只淘汰「超了的那一桶」：全文预览超标时不该顺手把卡片预览挤掉。刚写入的
+  /// [keep] 不参与淘汰——单条就超预算时宁可短暂超一点，也不能存了又删。
+  static void _trim({required String keep}) {
+    var longCount = _entries.values.where((entry) => entry.isLong).length;
+    while (true) {
+      final longExcess =
+          longCount > _maxLongEntries || _longChars > _maxLongChars;
+      final shortExcess =
+          _entries.length - longCount > _maxEntries || _chars > _maxChars;
+      if (!longExcess && !shortExcess) {
+        return;
+      }
+      final victim = _oldestKey(long: longExcess, keep: keep);
+      if (victim == null) {
+        return;
+      }
+      if (_entries[victim]!.isLong) {
+        longCount--;
+      }
+      _remove(victim);
+    }
+  }
+
+  static String? _oldestKey({required bool long, required String keep}) {
+    for (final key in _entries.keys) {
+      if (key == keep) {
+        continue;
+      }
+      if (_entries[key]!.isLong == long) {
+        return key;
+      }
+    }
+    return null;
+  }
+
+  /// 一条预览的估算占用。区间和链接各带一个 Set / 字符串引用，按权重折算成字符。
+  static int _costOf(NotePreview preview) =>
+      preview.text.length +
+      preview.ranges.length * 24 +
+      preview.links.length * 12 +
+      preview.checkboxes.length * 12 +
+      preview.spacerOffsets.length * 2;
+
   static void clear() {
     _entries.clear();
+    _chars = 0;
+    _longChars = 0;
     _hits = 0;
     _misses = 0;
   }

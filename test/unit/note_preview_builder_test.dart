@@ -180,5 +180,82 @@ void main() {
       // 再取短预览仍是短的那份，说明两个 key 没有互相覆盖
       expect(NotePreviewCache.resolve(long).text, card.text);
     });
+
+    test('PKEY-01 键只取解析范围内的前缀，超出部分的改动不重建', () {
+      NotePreviewCache.clear();
+      // 正好填满默认解析上限的前缀，后面再跟不同的尾巴
+      final head = '长文前缀' * 600;
+      final first = NotePreviewCache.resolve('$head 尾部甲');
+      final second = NotePreviewCache.resolve('$head 尾部乙');
+
+      expect(head.length, defaultPreviewParseLimit);
+      expect(identical(first, second), isTrue);
+    });
+
+    test('PKEY-02 前缀改了就重新解析，旧预览不会被继续返回', () {
+      NotePreviewCache.clear();
+      final before = NotePreviewCache.resolve('第一版正文');
+      final after = NotePreviewCache.resolve('第二版正文');
+
+      expect(before.text, '第一版正文');
+      expect(after.text, '第二版正文');
+      expect(identical(before, after), isFalse);
+    });
+
+    test('PKEY-03 缓存键里不保留正文', () {
+      NotePreviewCache.clear();
+      final note = List.generate(
+        400,
+        (index) => '第 $index 行：一段很长的正文，用来验证键里没有原文。',
+      ).join('\n');
+
+      NotePreviewCache.resolve(note);
+      NotePreviewCache.resolve(note, parseLimit: note.length);
+
+      expect(note.length, greaterThan(10000));
+      expect(NotePreviewCache.debugKeys, hasLength(2));
+      for (final key in NotePreviewCache.debugKeys) {
+        expect(key.length, lessThan(64), reason: '键里混进了正文: $key');
+      }
+    });
+
+    test('PKEY-04 短笔记按 400 条上限淘汰', () {
+      NotePreviewCache.clear();
+      for (var index = 0; index < 420; index++) {
+        NotePreviewCache.resolve('短笔记 $index');
+      }
+
+      expect(NotePreviewCache.entryCount, 400);
+      expect(NotePreviewCache.residentChars, lessThan(600000));
+      // 最久未使用的先走，最后写进去的还在
+      expect(NotePreviewCache.resolve('短笔记 419').text, '短笔记 419');
+    });
+
+    test('PKEY-05 长卡片按字符预算先于条数上限淘汰', () {
+      NotePreviewCache.clear();
+      final body = '长文' * 1200;
+
+      for (var index = 0; index < 300; index++) {
+        NotePreviewCache.resolve('$index$body');
+      }
+
+      expect(NotePreviewCache.entryCount, lessThan(300));
+      expect(NotePreviewCache.entryCount, greaterThan(100));
+      expect(NotePreviewCache.residentChars, lessThanOrEqualTo(600000));
+    });
+
+    test('PKEY-06 全文预览单独限条数，不挤占卡片预览', () {
+      NotePreviewCache.clear();
+      NotePreviewCache.resolve('卡片正文');
+
+      for (var index = 0; index < 6; index++) {
+        final text = '$index' * 5000;
+        NotePreviewCache.resolve(text, parseLimit: text.length);
+      }
+
+      // 4 条全文 + 1 条卡片预览
+      expect(NotePreviewCache.entryCount, 5);
+      expect(NotePreviewCache.resolve('卡片正文').text, '卡片正文');
+    });
   });
 }

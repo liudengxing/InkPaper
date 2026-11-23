@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.143] - 2026-11-23
+
+### Improved
+
+- **Video player**: double-tap either side to skip back or forward, and pick 0.5x to 2x speed at the bottom.
+- **Image viewer**: the close button and LIVE badge use the same glass material as the buttons below.
+
 ## [1.1.142] - 2026-11-23
 
 ### Improved

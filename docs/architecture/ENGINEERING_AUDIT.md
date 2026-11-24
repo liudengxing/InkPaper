@@ -8,13 +8,13 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-24 · 本项代码 `ca596f9`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-07B 第一轮（P2 · §7 本地备份导出流式归档），导入暂存拆成 OPT-07C，加密分支峰值登记为 OPT-07B-2 |
+| 最后更新 | 2026-11-24 · 本项代码 `de6a0ad`（测试加固 `abffcee`），记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-07C（P2 · §7 导入暂存与失败清理） |
 | 任务状态 | 待复验 |
-| 可复查改动 | ① 新增 `BackupArchiveService.buildArchiveToFile(target)`：用 `ZipFileEncoder` 直接写文件，视频条目走 `ArchiveFile.stream` + `InputFileStream`（STORE，不压缩）；② `buildArchive` 改为「落盘一次 + 读一次字节」，返回结构不变；③ 新增 `BackupArchiveFileResult`（只有计数 + 文件）；④ 临时目录改用可注入的 `getTemporaryDirectory()`（`tempDirectoryProvider`）；⑤ 打包失败删掉半成品 zip 再抛原异常；⑥ 视频体积上限保留，注释改为「最终交付仍需整包字节」 |
-| 验证结果 | `analyze`（lib+test）→ No issues found；`format` 325 文件 0 changed；`flutter test --concurrency=4` 全量 **1154 项全过**（原 1150 + 4）。峰值实测（本机 JIT，`ProcessInfo.maxRss`）：5×8MB 压不动的图片 2569ms/+131MB → **2585ms/+49MB**；单个 60MB 视频 3726ms/+92MB → **1157ms/+49MB**。反向验证两项：视频退回 `readAsBytes` → STORE 用例红（`compress` true）；去掉失败清理 → 半成品用例红（`target` 仍存在） |
-| 未验证 / 待测 | 无真机（AOT 与手机闪存下的吞吐未测）；交付阶段仍有**一份整包字节**（系统选择器 / 加密需要），200MB 包最终仍要 200MB 堆；加密分支还要再叠 base64 与 AES 的副本，单独登记 OPT-07B-2；图片仍整张读入（动图要切片段），单张超大 PNG 未见上限 |
-| 下一项 | OPT-07C（P2 · §7 导入暂存与失败清理）；OPT-07B-2 待评估；OPT-02B / OPT-10B 等各自前置复验 |
+| 可复查改动 | ① `DecodedBackupArchive.restoredLocalPaths` 记录本次真正新建的资源文件；② 新增 `_allocateRestoredFile`：落盘前查重（`now` 可注入），同一毫秒重复导入不再互相覆盖；③ `decodeArchive` 在「包里没有正文」报错前先回滚；④ 新增 `discardRestoredResources` / `finalizeRestore(importedCount:)`，只删清单内文件；⑤ 页面导入异常先回滚再抛原异常，导入 0 条时整批清理且不再弹「成功导入 0 条」；⑥ 顺带把查看器保留窗口用例改成等条件收敛（`abffcee`） |
+| 验证结果 | `analyze`（lib+test）→ No issues found；`format` 325 文件 0 changed；`flutter test --concurrency=4` 全量 **1160 项全过**（原 1154 + 6），连跑两次均全绿（3:27 与 3:30）。反向验证四项：去掉文件名查重 → 同毫秒用例红（两次路径相同）；去掉空正文回滚 → 孤儿文件仍在；`_discardPaths` 改成清整个目录 → 5 条新用例全红；`finalizeRestore` 恒保留 → 0 条清理用例红 |
+| 未验证 / 待测 | 页面编排（FilePicker → 解包 → 导入）无 widget 测试覆盖，本轮只测到服务边界；进程被杀的中断无法跨会话清理（只保证不覆盖、不越界删）；缩略图缓存里可能留下源文件已删的派生条目；同一包重复导入仍各写一份副本（未做内容寻址）；加密包与真机均未测 |
+| 下一项 | OPT-07B-2（先量加密分支峰值再定方案）；OPT-02B / OPT-10B 等各自前置复验 |
 | 待用户决策 | ① OPT-01B 的远端归档、本地同内容副本与完整空清单处理规则；② `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓 |
 | 工作区注意事项 | 另有未提交的 `docs/README.md` 索引链接、`dist/`、`.model-desk/`，均非本轮产物，勿回退或顺手带上。发版、推送、装机需单独授权 |
 
@@ -42,7 +42,7 @@
 | OPT-07A-2 | P2 | 待验收 | §7 图片 | 保留窗口已做（`b106ce5`）：当前页左右各留一张，窗口外与退出时 evict，预取按「窗口里谁没解」选边。待复验回看命中、窗口上限与退出释放。 |
 | OPT-07B | P2 | 待验收 | §7 本地备份 | 导出已改流式落盘（`ca596f9`）：视频按 1MB 块 STORE 写入，组装阶段不再攒媒体与整包缓冲；失败删半成品。待复验峰值、历史包与重试。 |
 | OPT-07B-2 | P2 | 待评估 | §7 本地备份 | 加密分支的峰值：`_encryptBytes` 要在整包字节之上再叠 AES 密文、base64 字符串、JSON 字符串与 UTF-8 字节（约 4~5 份包体）。评估入口限流、流式加密或换容器格式，保持既有加密包可解。 |
-| OPT-07C | P2 | 待办 | §7 本地备份 | 导入暂存与失败清理。解包先把资源写本地、再由页面导入笔记，导入失败会留下没被引用的新文件；明确暂存与提交顺序，清理只碰本次新增资源，覆盖成功/重试/中断。 |
+| OPT-07C | P2 | 待验收 | §7 本地备份 | 导入回滚已做（`de6a0ad`）：解包记录本次新建的资源，导入失败或 0 条时只删这批，同毫秒重复导入不再覆盖。待复验失败/重试/中断三条路径与既有文件保护。 |
 | OPT-05 | P2 | 待评估 | §5 搜索 | 先用可复现样本判定 SQL 扫描或结果装载的主要成本，再决定分批或全文索引。 |
 | OPT-06B | P3 | 待评估 | §6 外部事件 | 根据冷、热启动的通知、分享和深链复现结果决定是否调整事件交付。 |
 | OPT-08 | P3 | 待评估 | §8 结构 | 结合前述业务改动逐步提取查询、同步或导入边界。 |
@@ -461,6 +461,35 @@
 - **未验证**：① 无真机，AOT 与手机闪存下的吞吐未测（`OutputFileStream` 每次 `flush` 1MB，低端机 IO 可能更慢）；② 交付阶段仍要一份整包字节（系统选择器与加密接口只收 `Uint8List`），200MB 包最终仍需 200MB 堆 —— 要继续降只能走路径交付（分享 `XFile(path)`、应用目录 `copy`），本轮没动 UI 流程；③ 加密分支在整包之上再叠 AES 密文 + base64 + JSON 字符串 + UTF-8，约 4~5 份包体，单独登记 **OPT-07B-2**；④ 图片仍整张读入，单张超大 PNG 没有上限（动图必须切片段，暂时无法流式）；⑤ 只测了本地文件源，`content://` / 服务端资源本来就返回 null（不进包），未受影响。
 - **提交**：`ca596f9`（代码 + 测试）。
 - **建议下一项**：OPT-07C（导入暂存与失败清理，队列里本来就写着「单独交付」）；OPT-07B-2 待评估；OPT-02B / OPT-10B 仍等各自前置复验。
+
+### 2026-11-24 · OPT-07C · 待验收
+
+- **问题核对**（读完写盘与导入两条路）：`decodeArchive` 先 `_restoreResources` 把 `resources/*` 写进 `documents/images`，再由页面 `_importDecodedArchive` 导入笔记，两段之间没有事务。会漏的三条路径：
+  1. 导入抛异常（HTML 包、`importNotesFromJson` 包装后的写库失败）→ 新文件无人引用，也没有记录能认出它们；
+  2. 包里 `entries` 为空时的报错发生在写盘**之后**，同样漏；
+  3. 文件名是 `backup_image_<毫秒>_<本次已还原数>`：同一个包连导两次，时间戳容易落在同一毫秒、序号又都从 0 开始，第二次会**覆盖**第一次还原的图 —— 第一次的笔记就指向了别的内容（比留垃圾更严重）。
+- **改动**（`lib/services/backup_archive_service.dart`、`lib/screens/local_backup_restore_screen.dart`）：
+  - `DecodedBackupArchive` 增加 `restoredLocalPaths`：本次解包真正新建的文件绝对路径，是回滚的唯一依据。
+  - 新增 `_allocateRestoredFile(dir, kind, ext)`：写之前循环试 `backup_<kind>_<毫秒>`、`_1`、`_2`… 直到不存在。保证「清单里的一定是本次新建」，回滚才不会误删；同时修掉同毫秒覆盖。时间源做成可注入的 `now`，测试能固定到同一毫秒。
+  - `_restoreResources` 把静图/视频与 Live 侧车都记进清单（侧车写失败仍只吞掉那一条）。
+  - `decodeArchive` 在 `entries.isEmpty` 报错前先 `_discardPaths(createdPaths)`。
+  - 新增 `discardRestoredResources(decoded)`（无条件回滚，导入异常时用）与 `finalizeRestore(decoded, importedCount:)`（0 条时整批清、有笔记则保留），两者都只删清单内文件、单个删除失败只记日志，不覆盖调用方的原始异常。
+  - 页面：ZIP 分支用 try 包住 `_importDecodedArchive`，异常时先回滚再 `rethrow`；导入 0 条时改走 `finalizeRestore` 清理，并把「同时恢复了 N 张图片」换成「已清理本次还原的 N 个文件」；0 条不再弹「成功导入 0 条」。
+  - 未改动：manifest 与包结构、`_rewriteImagePaths`、资源目录本身、加密分支、WebDAV 备份链路。
+- **测试**：1154 → **1160**（+6），`test/unit/backup_archive_service_test.dart` 23 → 29 条。新增 `导入回滚` 组：
+  - `R01` 解包记下清单（1 个文件）、正文确实指向这份副本（JSON 转义后仍能还原成同一路径）、`discardRestoredResources` 只删它，导入前就在目录里的文件不动。
+  - `R02` 手工造「有资源、无正文」的包：抛错的同时孤儿文件被清掉，既有文件不动。
+  - `R03` 固定时间源后连解两次：第二次路径带 `_1` 后缀、第一次的图不被覆盖。
+  - `R04` 第一次 `finalizeRestore(importedCount: 1)` 保留、第二次 `importedCount: 0` 只清本次新增，第一次的图仍在。
+  - `R05` 模拟中断（解包但不收尾）后再解一次并回滚：中断留下的文件不在本次清单里，不被越界删除。
+  - `R06` Live 图包的清单含静图与 `<图>.live.mp4` 侧车，回滚两个一起删。
+- **验证**：`dart analyze lib test` → No issues found；`dart format --set-exit-if-changed lib test` → 325 文件 0 changed；`flutter test --concurrency=4`（`NO_PROXY` 已设）→ **1160 项全过**，连跑两次均全绿。
+- **反向验证**（四次，每次恢复后复跑全绿）：① `_allocateRestoredFile` 不查重 → `R03` 红（两次路径完全相同）；② 去掉 `entries.isEmpty` 前的回滚 → `R02` 红（`Expected: empty`，目录里多出 `backup_image_*`）；③ `_discardPaths` 改成删整个图片目录 → `R01/R02/R04/R05/R06` 全红（R01 的「既有文件不动」、R05 的「中断残留不动」直接咬住）；④ `finalizeRestore` 恒返回 0（等于永不清理）→ `R04` 红（`Expected: <1> / Actual: <0>`）。
+- **顺带修复（`abffcee`，本轮范围外）**：全量并发两次分别挂在 `IVR-02` 与 `IVR-03`（查看器保留窗口），单跑该文件三次全过。原因是用例用「12 轮 × 30ms 真实 + 60ms 假时钟」的固定预算等解码，并发负载下不够。改成 `_waitFor(tester, 条件)`：推进真实 IO 与假时钟直到期望的缓存状态成立，150 轮（约 4.5s）超预算才放弃、断言照旧失败；`_settle` 退化为「只推进动画与定时器」的薄封装。加固后全量两次全绿。
+- **行为变化**：导入失败不再在图片目录留下未被引用的文件；同毫秒重复导入不再互相覆盖；导入 0 条时不再提示「成功导入 0 条」，改为「没有笔记被导入」+「已清理本次还原的 N 个文件」。包结构与可导入性完全不变。
+- **未验证**：① 页面编排（FilePicker 选择 → 解包 → 导入 → 回滚）没有 widget 测试，只测到服务边界；`_importDecodedArchive` 的 HTML 分支与写库异常在页面上共用同一个 catch，逻辑上已覆盖，但没有端到端用例；② 进程被杀/闪退的中断无法跨会话清理 —— 只保证「不覆盖已有文件」与「不参与后续批次的回滚清单」；要真正清理得在解包前落一份待提交清单并在启动时核对，属另一项工作；③ 回滚后 `ThumbCache` 里可能留有源文件已删的派生缩略图（键含 size/mtime，源文件不在时 `lookup` 会 miss 并重编码，不会用错图，但会占一点磁盘）；④ 同一包重复导入、且每次都有笔记落库时仍会各写一份副本（旧副本无人引用）；内容寻址去重没做；⑤ 加密包（`.enc`）走的是解密后再解包，回滚逻辑同路径但未单独测；⑥ 无真机，手机闪存上的删除与写入耗时未测。
+- **提交**：`de6a0ad`（代码 + 测试）、`abffcee`（查看器用例加固）。
+- **建议下一项**：OPT-07B-2 —— 加密分支的峰值需要先量（`_encryptBytes` 在整包之上再叠 AES 密文、base64、JSON 字符串与 UTF-8 字节），量完再决定是入口限流、流式加密还是最终降级提示；OPT-02B / OPT-10B 仍等各自前置复验。
 
 ## 现有架构
 

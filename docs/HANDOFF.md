@@ -1,7 +1,7 @@
 # 交接文档（HANDOFF）
 
 > 面向「接着改代码的人 / 新开的 AI 窗口」。目标：读完这一篇就能开工，不用翻聊天记录。
-> 最后更新：2026-11-22 · 已通过真机验收的版本 `1.1.137+10237`
+> 最后更新：2026-11-24 · 代码基线 `1.1.143+10243`（**未升版本、未推送、未装机**）；最近一次真机验收仍是 `1.1.137+10237`
 >
 > 配套文档：
 > - **`docs/architecture/ENGINEERING_AUDIT.md`** — 工程优化执行队列与当轮交接卡片（新会话先读文首「交接卡片」）
@@ -21,6 +21,7 @@ InkPaper 是本地优先的 Android 笔记应用，使用 Flutter 和 SQLite，�
 - 支持的构建目标：只有 Android（APK / AAB）；iOS、macOS、Windows、Linux、Web 工程已于 2026-11-12 删除
 - 首页下拉可进入 AI 洞察、随机漫步、随机回顾。随机漫步在本机沿一条路径浏览，支持返回、卡片内展开和漫步小结。 [随机漫步规则](BUSINESS_OVERVIEW.md#414-离线随机漫步)
 - `1.1.137+10237` 已覆盖安装到 `23127PN0CC` 测试机，包含首页标签屏蔽、详情页正文排版对齐编辑页和 AI 洞察新版提示词。真机验证过屏蔽标签后首页条目消失、取消后恢复。 [验收记录](../PROGRESS.md) · [部署指南](BUILD_AND_DEVICE_TESTING.md)
+- **`1.1.143+10243` 还没上过真机。** 2026-11-23 ~ 24 连续做了二十来轮「工程优化审查」（21 条推进记录），动的是首屏加载、首页排序、分页/引用、缩略图解码、查看器、本机备份与加密；当前 **11 项待验收 / 5 项已验收 / 3 项待办**，一页台账见 [ENGINEERING_AUDIT 的「当前台账」](architecture/ENGINEERING_AUDIT.md#当前台账2026-11-24-汇总)。那批数字（耗时、峰值）都是桌面 JIT 实测，只能看前后对比，不能当承诺值。
 
 ---
 
@@ -78,7 +79,7 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 | 关注点 | 位置 |
 | --- | --- |
 | 入口、`ImageCache` 容量配置 | `lib/main.dart` |
-| 全局状态、分页加载、笔记增删改（统一收尾 `_commitNoteChange`） | `lib/providers/app_provider.dart`（4460 行） |
+| 全局状态、分页加载、笔记增删改（统一收尾 `_commitNoteChange`） | `lib/providers/app_provider.dart`（5,031 行） |
 | 账号信息、登录信息存取、API 服务初始化、Token 过期、头像预加载 | `lib/providers/app_provider_account.part.dart`（`AppProvider` 的 part，extension） |
 | 服务端拉取与合并 | `lib/providers/app_provider_sync.part.dart`（同上） |
 | SQLite（`notes.db`）、分页排序 | `lib/services/database_service.dart`（`getNotesPaged` 按传入的 `SortOrder` 排序：置顶 → 时间字段 → `id` 兜底，与 `noteComparator` 同一套规则） |
@@ -100,11 +101,31 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 | 图片解码像素档位 | `lib/utils/image_decode_width.dart` |
 | Markdown 解析与缓存 | `lib/utils/memos_content_helper.dart` |
 | DeepSeek 鲸鱼图标（矢量剪影） | `lib/widgets/deepseek_whale.dart` |
+| 本机备份打包 / 解包 | `lib/services/backup_archive_service.dart`（ZIP 结构、资源还原、路径重写、失败回滚） |
+| 备份加密信封 | `lib/services/backup_encryption_service.dart`（AES-256-CBC + HMAC-SHA256 + PBKDF2；v1/v2 两种包都要能解，靠 `ENC-01` 黄金样本咬住） |
+| 缩略图缓存 | `lib/utils/thumb_cache.dart`（两档宽度、磁盘索引、>8MP 采样解码；`indexReady` 之后才信索引） |
+| 冷启动首帧前的并行准备 | `lib/utils/startup_essentials.dart`（六件事一次 `Future.wait`，中间不许插 `await`；开屏路径不等网络） |
+| 卡片预览缓存 | `lib/utils/note_preview_builder.dart`（键 = 解析上限 + 前缀指纹，**别拿 `updatedAt` 当正文版本号**） |
+| 探索索引版本号 | `lib/services/database_service.dart` 的 `notesRevision` + `lib/utils/revisioned_future_cache.dart` |
 | 桌面小组件快照 / 原生渲染 | `lib/services/widget_snapshot_service.dart`、`android/app/src/main/kotlin/com/didichou/inkpaper/InkPaperWidgetProvider.kt` |
 
 ---
 
 ## 4. 改动索引
+
+### 2026-11-23 ~ 11-24（工程优化审查，未装机）
+
+| 提交 | 改动 | 关键实现 |
+| --- | --- | --- |
+| `a681d9a` | Memos 分页把「完整」变成正向证明 | `isComplete` 初值改 `false`，只有终止页才置真；空页续拉、重复令牌与 `maxPages` 上限都按不完整返回，不剪枝 |
+| `022b36c` | 首页排序的 SQL 与内存比较统一口径 | SQL 用 `noteTimeKeySql`、Dart 用 `compareNoteWallClock`：截毫秒、`Z` 不参与、空格归一；改一侧必须改另一侧 |
+| `b79b468` `aa1772a` | 探索索引与预览缓存的失效口径 | 索引按 `notesRevision` 失效（读路径不动）；预览键改「解析上限 + 前缀指纹」，淘汰按条数 + 字符预算两桶 |
+| `6a068bb` `3196ab4` | 引用深页与卡片媒体提取 | 引用回调只替换已加载 ID、续页按 id 去重、面板按 id 查库；`extractNoteMediaPaths` 一趟出图片与视频（4359 字正文 61.55µs → 31.88µs） |
+| `54e0242` `0d2b531` `9c7baa7` | 首屏与缩略图索引 | 首帧前六件事并行、扫描移到首帧后；`_indexSettled`（收尾）与 `_indexComplete`（可信）拆开，扫描失败仍保留 stat 兜底 |
+| `9c4091b` `b106ce5` | 大图解码与查看器保留 | >8MP 走 `ui.instantiateImageCodec` 采样（24MP 1467ms/+393MB → 31ms/+1MB）；查看器只留当前页 ±1，窗口外立即 evict，退出全量回收 |
+| `ca596f9` `de6a0ad` | 本机备份导出 / 导入 | 视频按 1MB 块 STORE 流式写，失败删半成品；解包记录本次新建文件，导入失败或 0 条只删这批，同毫秒重复导入不再覆盖 |
+| `72f6c2f` `42d6139` | 备份加密的峰值与卡顿 | 流式加密（40MB 明文 +656MB → +40MB，输出与旧实现逐字节相同）；KDF 进后台 isolate、AES/MAC 按 16ms 让出（加密停顿 2393ms → 80ms） |
+| `34c7360` `4b0699c` | 小组件统计与回顾时间窗 | 统计行走 `WidgetStatNote`，不再每行构造 `Note`（省 4500 次本地时间）；回顾用挂钟键比区间，坏时间串 `tryParse` 降级 |
 
 ### 2026-11-22
 
@@ -157,6 +178,8 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 
 ## 6. 后续计划
 
+> **工程审查队列在跑**：`docs/architecture/ENGINEERING_AUDIT.md` 的「执行队列」还有 11 项待验收、3 项待办，下一项建议 `OPT-07B-4`（加密信封的整段解码，0.4s / +187MB）。那批改动没装机，本节的功能计划与它并行、互不阻塞。
+
 > **用户新提的需求见 [`REQUIREMENTS.md`](REQUIREMENTS.md)**（2026-11-21 建档，R-01 ~ R-06）。
 > 那里是「要做什么」，本节是接手后按优先级排的技术计划，两边冲突以 REQUIREMENTS 为准。
 
@@ -202,7 +225,7 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 （Flutter 笔记应用，包名 com.didichou.inkpaper，深链 inkpaper://，当前版本见 pubspec.yaml）
 
 【这是个什么项目】
-本地优先的笔记应用：纯文本/Markdown + 本地图片，数据全在本机 notes.db（schema v12，查询一律走 active_notes 视图）；
+本地优先的笔记应用：纯文本/Markdown + 本地图片，数据全在本机 notes.db（schema v16，查询一律走 active_notes 视图）；
 可选登录用户自建的 Memos 服务器做双向同步。随机漫步在本机探索笔记关联。AI 入口包括问笔记、周/月回顾和 AI 洞察。
 应用还支持讯飞语音输入、Android 原生提醒、桌面小组件、Flomo 和微信读书导入，以及 JSON/ZIP 备份。
 
@@ -210,7 +233,8 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 1. docs/HANDOFF.md —— 现状、代码地图、未解决问题、硬性约定
 2. docs/BUSINESS_OVERVIEW.md —— 业务流程、随机漫步规则、参数速查和真机调试参数
 3. PROGRESS.md 顶部 3 条记录 —— 最近做了什么
-4. BLOCKERS.md 的 VOICE-001 / ORIENT-001 / PERF-IMG-001 / DOC-001
+4. BLOCKERS.md 的 VOICE-001 / ORIENT-001 / PERF-IMG-001 / SHARE-001
+5. docs/architecture/ENGINEERING_AUDIT.md 的「当前台账」—— 审查队列都改了什么、还差什么
 读完先用 3~5 行汇报：你理解的当前状态 + 你打算动哪几个文件 + 验收标准，等我确认后再写代码。
 
 【本次任务】

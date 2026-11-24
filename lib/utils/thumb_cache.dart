@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
@@ -40,6 +42,29 @@ class ThumbCache {
   static int bucketWidth(int width) =>
       width <= defaultWidth ? defaultWidth : largeWidth;
 
+  /// 缩略图输出尺寸：先按 [targetWidth] 收窄，再受 [_maxThumbHeight] 约束。
+  ///
+  /// 两条解码路径（`img.decodeImage` 与引擎采样）共用这一份计算，输出尺寸
+  /// 才不会因为走了不同分支而不同，磁盘上的文件名（按宽度档位命名）也不会
+  /// 指向两种尺寸的文件。
+  static ({int width, int height}) thumbSize(
+    int sourceWidth,
+    int sourceHeight,
+    int targetWidth,
+  ) {
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
+      return (width: targetWidth, height: targetWidth);
+    }
+    // 不放大：原图比目标窄就按原宽输出。
+    var width = math.min(sourceWidth, targetWidth);
+    var height = math.max(1, (sourceHeight * width / sourceWidth).round());
+    if (height > _maxThumbHeight) {
+      width = math.max(1, (width * _maxThumbHeight / height).round());
+      height = _maxThumbHeight;
+    }
+    return (width: width, height: height);
+  }
+
   static const String _dirName = 'thumbs';
   static const int _defaultDiskLimit = 128 << 20;
   int _diskLimit = _defaultDiskLimit;
@@ -51,6 +76,26 @@ class ThumbCache {
 
   /// 82 是肉眼几乎无损的档位，再高只是让文件变大。
   static const int _jpegQuality = 82;
+
+  /// 走 `img.decodeImage` 全量解码的像素上限。
+  ///
+  /// 超过这个规模改用引擎采样解码（[ui.instantiateImageCodec] 的
+  /// `targetWidth` / `targetHeight`，Skia 在解码时就按目标尺寸采样）。
+  /// `img.decodeImage` 必须先解出整张 RGBA 位图再缩放，本机实测 24MP 照片
+  /// **RSS +393MB / 1.5s**、32MP 长截图 **+463MB / 2.6s**；同两张图走引擎
+  /// 采样分别是 +1MB / 31ms、+24MB / 293ms。手机 50MP 模式拍的照片按这个
+  /// 比例要 800MB，两路并发必被杀进程。
+  static const int _maxComputeDecodePixels = 8000000;
+
+  /// 缩略图输出的高度上限。
+  ///
+  /// 长截图（1080×30000）按宽度收到 480 后仍有 13333 高，缩略图本身就 25MB，
+  /// 而卡片 cover 裁切后只显示中间一条。超过上限时改按高度缩放、宽度随之变窄。
+  static const int _maxThumbHeight = 4096;
+
+  /// 采样解码次数，仅测试用。
+  @visibleForTesting
+  static int debugSampledDecodeCount = 0;
 
   /// 视频首帧也做缩略图（[nativeVideoExtensions]），和 HEIC 一样交给原生。
   ///
@@ -470,7 +515,22 @@ class ThumbCache {
         encoded = await _nativeDecoder(abs, bucket);
       } else {
         final bytes = await source.readAsBytes();
-        encoded = await _encoder(bytes, bucket, _wantsLossless(abs));
+        final lossless = _wantsLossless(abs);
+        final sourceSize = _readImageSize(bytes);
+        if (sourceSize != null &&
+            sourceSize.width * sourceSize.height > _maxComputeDecodePixels) {
+          // 大图先问头部要尺寸，再让引擎按目标尺寸采样解码：`img.decodeImage`
+          // 会先解出整张 RGBA 位图，24MP 就要 +393MB。
+          encoded = await _encodeSampled(
+            bytes,
+            sourceSize.width,
+            sourceSize.height,
+            bucket,
+            lossless: lossless,
+          );
+        } else {
+          encoded = await _encoder(bytes, bucket, lossless);
+        }
       }
       if (encoded == null || encoded.isEmpty) {
         _giveUp.add(name);
@@ -500,6 +560,118 @@ class ThumbCache {
       if (slot) {
         _releaseEncodeSlot();
       }
+    }
+  }
+
+  /// 用引擎采样解码大图。
+  ///
+  /// [ui.instantiateImageCodec] 在解码阶段就按目标尺寸采样（JPEG 走 DCT 缩放、
+  /// PNG 走降采样），不会先解出整张位图，所以它只能在根 isolate 调用、不能走
+  /// [compute]。产物已经很小，编码本身只要几毫秒，占住主 isolate 的时间可以
+  /// 忽略；真正贵的那一步在引擎的 IO 线程上。
+  ///
+  /// **只给一个目标维度**：`targetWidth` 与 `targetHeight` 同时给等于指定输出
+  /// 尺寸，而 header 里的宽高是 EXIF 方向应用之前的——竖拍照片会让缩略图被拉伸。
+  /// 长度限制改为「先按宽度采样，出来发现还太高再按高度重解一次」，两次都是
+  /// 等比缩放。
+  Future<Uint8List?> _encodeSampled(
+    Uint8List bytes,
+    int sourceWidth,
+    int sourceHeight,
+    int targetWidth, {
+    required bool lossless,
+  }) async {
+    debugSampledDecodeCount++;
+    ui.Image? image;
+    try {
+      final predicted = thumbSize(sourceWidth, sourceHeight, targetWidth);
+      final tooTall = predicted.height > _maxThumbHeight;
+      image = await _decodeSampled(
+        bytes,
+        targetWidth: tooTall ? null : predicted.width,
+        targetHeight: tooTall ? _maxThumbHeight : null,
+      );
+      if (image == null) {
+        return null;
+      }
+      if (image.height > _maxThumbHeight) {
+        // 兜底：方向交换后真实高度才算数。极端长图会走到这里（第一次白解，
+        // 但采样解码本身只占几十毫秒）。
+        final retry = await _decodeSampled(
+          bytes,
+          targetHeight: _maxThumbHeight,
+        );
+        if (retry != null) {
+          image.dispose();
+          image = retry;
+        }
+      }
+      // 必须用 rawStraightRgba：`rawRgba` 的 alpha 是预乘的，image 包按非预乘
+      // 解读，透明图（截图、贴纸）的半透明边缘会发黑。单测 TC-32 就是钉这个。
+      final data = await image.toByteData(
+        format: ui.ImageByteFormat.rawStraightRgba,
+      );
+      if (data == null) {
+        return null;
+      }
+      final rgba = img.Image.fromBytes(
+        width: image.width,
+        height: image.height,
+        bytes: data.buffer,
+        bytesOffset: data.offsetInBytes,
+        order: img.ChannelOrder.rgba,
+      );
+      final encoded = lossless
+          ? img.encodePng(rgba)
+          : img.encodeJpg(rgba, quality: _jpegQuality);
+      return Uint8List.fromList(encoded);
+    } on Object catch (e) {
+      debugPrint('ThumbCache 采样解码失败: $e');
+      return null;
+    } finally {
+      image?.dispose();
+    }
+  }
+
+  /// 采样解码一帧，返回的 [ui.Image] 由调用方 dispose。
+  Future<ui.Image?> _decodeSampled(
+    Uint8List bytes, {
+    int? targetWidth,
+    int? targetHeight,
+  }) async {
+    final codec = await ui.instantiateImageCodec(
+      bytes,
+      targetWidth: targetWidth,
+      targetHeight: targetHeight,
+    );
+    try {
+      final frame = await codec.getNextFrame();
+      return frame.image;
+    } finally {
+      codec.dispose();
+    }
+  }
+
+  /// 只解析图片头部拿宽高，不解像素。
+  ///
+  /// `img.findDecoderForData` 会逐个试已知格式（注释里也提醒它比指定解码器慢），
+  /// 但只对每个文件调一次、只读头部，微秒级。返回 null 表示认不出格式，
+  /// 交给原路径按「解不出来」处理。
+  static ({int width, int height})? _readImageSize(Uint8List bytes) {
+    try {
+      // 注意 `findDecoderForData` 自己也会抛：几个 `isValidFile` 直接按下标读
+      // 魔数，一两个字节的坏文件能把 RangeError 抛到外面（TC-17 的 broken.jpg）。
+      final decoder = img.findDecoderForData(bytes);
+      if (decoder == null) {
+        return null;
+      }
+      final info = decoder.startDecode(bytes);
+      if (info == null || info.width <= 0 || info.height <= 0) {
+        return null;
+      }
+      return (width: info.width, height: info.height);
+    } on Object {
+      return null;
     }
   }
 
@@ -1091,12 +1263,15 @@ Uint8List? _encodeThumbTask(_ThumbTask task) {
     // 未知格式，交给原图路径处理。
     return null;
   }
-  // 已经比目标窄的图不用放大，放大只会变糊且更占空间。
-  final resized = decoded.width <= task.width
+  // 尺寸口径与引擎采样路径共用 [ThumbCache.thumbSize]：不比目标宽就不放大，
+  // 但长截图仍要按高度上限收一档。
+  final size = ThumbCache.thumbSize(decoded.width, decoded.height, task.width);
+  final resized = decoded.width <= size.width && decoded.height <= size.height
       ? decoded
       : img.copyResize(
           decoded,
-          width: task.width,
+          width: size.width,
+          height: size.height,
           interpolation: img.Interpolation.average,
         );
   if (task.lossless) {

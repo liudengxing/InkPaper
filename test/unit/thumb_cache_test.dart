@@ -22,6 +22,21 @@ Uint8List _makeJpeg(int width, int height) {
   return Uint8List.fromList(img.encodeJpg(image));
 }
 
+/// 带 EXIF 方向的 JPEG：6 = 顺时针转 90°（手机竖拍最常见的方向）。
+Uint8List _makeJpegOriented(int width, int height, int orientation) {
+  final image = img.Image(width: width, height: height);
+  img.fill(image, color: img.ColorRgb8(36, 71, 61));
+  image.exif.imageIfd['Orientation'] = orientation;
+  return Uint8List.fromList(img.encodeJpg(image));
+}
+
+/// 半透明红 PNG：预乘 alpha 会把它压成 (100,15,15,128)，非预乘才读得出 200。
+Uint8List _makeTransparentPng(int width, int height) {
+  final image = img.Image(width: width, height: height, numChannels: 4);
+  img.fill(image, color: img.ColorRgba8(200, 30, 30, 128));
+  return Uint8List.fromList(img.encodePng(image));
+}
+
 /// 造一个两帧 GIF：首帧红、次帧蓝，用来验证缩略图只取首帧。
 Uint8List _makeAnimatedGif() {
   final first = img.Image(width: 60, height: 40, numChannels: 4);
@@ -57,6 +72,7 @@ void main() {
     // 平台通道在测试环境不存在，默认给一个「解不出来」的实现，
     // 需要验证 HEIC 的用例再各自注入假解码器
     ThumbCache.instance.debugSetNativeDecoder((path, width) async => null);
+    ThumbCache.debugSampledDecodeCount = 0;
   });
 
   tearDown(() {
@@ -675,6 +691,82 @@ void main() {
         reason: '目录已清空重建，空索引就是完整索引，不该继续每张 stat',
       );
       expect(cache.lookup(source.path), isNull);
+    });
+  });
+
+  group('ThumbCache 大图采样解码', () {
+    test('TC-30 超过像素阈值走引擎采样，尺寸与全解路径一致（含 EXIF 方向）', () async {
+      final cache = ThumbCache.instance;
+      // 3600×2400 = 8.64MP，刚过 8MP 阈值；方向 6 让显示尺寸变成 2400×3600。
+      final bytes = _makeJpegOriented(3600, 2400, 6);
+      final source = File(p.join(imagesDir, 'image_790.jpg'))
+        ..writeAsBytesSync(bytes);
+
+      final file = await cache.ensure(source.path);
+      expect(ThumbCache.debugSampledDecodeCount, 1, reason: '大图要走采样解码');
+
+      final sampled = img.decodeImage(file!.readAsBytesSync())!;
+      // 全解路径（`_encodeThumbTask`）对同一张图的输出必须同尺寸：
+      // 两条路径共用 `thumbSize`，方向也由两边各自应用，不能一边正一边歪。
+      final full = img.decodeImage(ThumbCache.debugEncode(bytes, 480)!)!;
+      expect(sampled.width, 480);
+      expect(sampled.height, 720);
+      expect(full.width, sampled.width);
+      expect(full.height, sampled.height);
+    });
+
+    test('TC-31 阈值以下的图仍走 compute 全解，不触发采样', () async {
+      final source = File(p.join(imagesDir, 'image_791.jpg'))
+        ..writeAsBytesSync(_makeJpeg(400, 300));
+
+      final file = await ThumbCache.instance.ensure(source.path);
+
+      expect(ThumbCache.debugSampledDecodeCount, 0);
+      final out = img.decodeImage(file!.readAsBytesSync())!;
+      expect(out.width, 400, reason: '比目标窄的图不放大');
+      expect(out.height, 300);
+    });
+
+    test('TC-32 采样路径的透明图仍保留 alpha 且没有预乘', () async {
+      final source = File(p.join(imagesDir, 'image_792.png'))
+        ..writeAsBytesSync(_makeTransparentPng(2900, 2900));
+
+      final file = await ThumbCache.instance.ensure(source.path);
+
+      expect(ThumbCache.debugSampledDecodeCount, 1);
+      final out = img.decodeImage(file!.readAsBytesSync())!;
+      expect(out.width, 480);
+      final pixel = out.getPixel(240, 240);
+      expect(pixel.a, 128, reason: 'alpha 不能被丢掉');
+      expect(
+        pixel.r,
+        greaterThan(150),
+        reason: 'rawRgba 是预乘 alpha，会把 200 压成 100；必须用 rawStraightRgba',
+      );
+    });
+
+    test('TC-33 采样路径的长图受输出高度上限约束', () async {
+      final cache = ThumbCache.instance;
+      // 700×12500 = 8.75MP，超过阈值；按宽度缩会得到 8571 高。
+      final source = File(p.join(imagesDir, 'image_793.jpg'))
+        ..writeAsBytesSync(_makeJpeg(700, 12500));
+
+      final file = await cache.ensure(source.path);
+
+      expect(ThumbCache.debugSampledDecodeCount, 1);
+      final out = img.decodeImage(file!.readAsBytesSync())!;
+      expect(out.height, lessThanOrEqualTo(4096));
+      expect(out.width, lessThan(480), reason: '高度收下来，宽度随之变窄');
+    });
+
+    test('TC-34 全解路径的长图同样受高度上限约束', () async {
+      // 300×9000 = 2.7MP，走 compute；按宽度不缩，但高度必须收。
+      final out = img.decodeImage(
+        ThumbCache.debugEncode(_makeJpeg(300, 9000), 480)!,
+      )!;
+
+      expect(out.height, 4096);
+      expect(out.width, lessThan(300));
     });
   });
 }

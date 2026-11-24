@@ -114,23 +114,52 @@ void main() {
     }
   });
 
-  test('SORT-09 SQL 排序子句固定三级：置顶、时间字段、id 兜底', () {
-    // 与 noteComparator 逐级对应；改动其中一处必须同时改另一边
+  test('SORT-09 SQL 排序子句固定三级：置顶、时间键、id 兜底', () {
+    // 与 noteComparator 逐级对应；改动其中一处必须同时改另一边。
+    // 时间这一级不是裸列，而是墙钟键表达式（见 SORT-10）。
     expect(
       noteOrderBySql(SortOrder.newest),
-      'IFNULL(isPinned, 0) DESC, createdAt DESC, id DESC',
+      'IFNULL(isPinned, 0) DESC, ${noteTimeKeySql('createdAt')} DESC, id DESC',
     );
     expect(
       noteOrderBySql(SortOrder.oldest),
-      'IFNULL(isPinned, 0) DESC, createdAt ASC, id ASC',
+      'IFNULL(isPinned, 0) DESC, ${noteTimeKeySql('createdAt')} ASC, id ASC',
     );
     expect(
       noteOrderBySql(SortOrder.updated),
-      'IFNULL(isPinned, 0) DESC, updatedAt DESC, id DESC',
+      'IFNULL(isPinned, 0) DESC, ${noteTimeKeySql('updatedAt')} DESC, id DESC',
     );
     expect(
       noteOrderBySql(SortOrder.updatedOldest),
-      'IFNULL(isPinned, 0) DESC, updatedAt ASC, id ASC',
+      'IFNULL(isPinned, 0) DESC, ${noteTimeKeySql('updatedAt')} ASC, id ASC',
+    );
+  });
+
+  test('SORT-10 时间键取到毫秒、归一空格，与 compareNoteWallClock 同口径', () {
+    expect(
+      noteTimeKeySql('createdAt'),
+      "substr(replace(createdAt, ' ', 'T'), 1, 23)",
+    );
+    // 23 个字符正好是 YYYY-MM-DDTHH:MM:SS.mmm：后缀 Z 与微秒不参与比较
+    final key =
+        DateTime.utc(2026, 11, 23, 2).toIso8601String().substring(0, 23);
+    expect(key, '2026-11-23T02:00:00.000');
+    expect(key.length, 23);
+    // 墙钟相同、来源不同 → 相等（交给 id 兜底）
+    expect(
+      compareNoteWallClock(
+        DateTime(2026, 11, 23, 2),
+        DateTime.utc(2026, 11, 23, 2),
+      ),
+      0,
+    );
+    // 微秒不参与：同一毫秒内的两个时间戳相等
+    expect(
+      compareNoteWallClock(
+        DateTime(2026, 11, 23, 2, 0, 0, 123, 456),
+        DateTime(2026, 11, 23, 2, 0, 0, 123, 999),
+      ),
+      0,
     );
   });
 }

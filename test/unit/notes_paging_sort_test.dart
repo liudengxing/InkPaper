@@ -219,4 +219,165 @@ void main() {
       expect(matched.map((n) => n.id).toList(), ['img-old', 'img-new']);
     });
   });
+
+  // ==========================================================
+  // OPT-02A 返修 · 混合来源的时间戳
+  //
+  // 本地笔记存 `2026-11-23T09:00:00.000`（本地时间、无后缀），Memos 笔记存
+  // `2026-11-23T02:00:00.000Z`（把北京时间当 UTC 存）。两者直接比字符串是
+  // 「09 > 02」，直接比 `DateTime` 却是「01:00Z < 02:00Z」——SQL 与 Dart 会
+  // 得出相反的顺序，首页首批与切排序后的列表对不上。
+  //
+  // 项目既有的显示口径是「字段值就是墙上时钟、不做时区换算」，所以排序也
+  // 按墙上时钟走：本地 09:00 晚于远端 02:00。
+  // ==========================================================
+  group('OPT-02A 返修 · 混合时间戳', () {
+    late Database db;
+
+    /// 同一面墙上 09:00 的本地笔记与 02:00 的远端笔记，外加两组墙钟并列。
+    final mixed = <Note>[
+      _note(
+        id: 'mx-local-0900',
+        created: DateTime(2026, 11, 23, 9),
+        updated: DateTime(2026, 11, 23, 9),
+      ),
+      _note(
+        id: 'mx-remote-0200',
+        created: DateTime.utc(2026, 11, 23, 2),
+        updated: DateTime.utc(2026, 11, 23, 2),
+      ),
+      // 与 mx-remote-0200 同一面墙时间，只是来源不同：由 id 决定先后
+      _note(
+        id: 'mx-local-0200',
+        created: DateTime(2026, 11, 23, 2),
+        updated: DateTime(2026, 11, 23, 2),
+      ),
+      _note(
+        id: 'mx-remote-2330',
+        created: DateTime.utc(2026, 11, 22, 23, 30),
+        updated: DateTime.utc(2026, 11, 22, 23, 30),
+      ),
+      _note(
+        id: 'mx-local-0010',
+        created: DateTime(2026, 11, 24, 0, 10),
+        updated: DateTime(2026, 11, 24, 0, 10),
+      ),
+      // 与 mx-local-0900 同一面墙时间
+      _note(
+        id: 'mx-remote-0900',
+        created: DateTime.utc(2026, 11, 23, 9),
+        updated: DateTime.utc(2026, 11, 23, 9),
+      ),
+      // 墙钟并列、来源不同，且 id 顺序与「字符串里带不带 Z」正好相反：
+      // 裸列比较会把带 Z 的 mx-tie-a 排在前面，墙钟键比较应当按 id 倒序
+      // 让 mx-tie-b 在前。
+      _note(
+        id: 'mx-tie-a',
+        created: DateTime.utc(2026, 11, 23, 4),
+        updated: DateTime.utc(2026, 11, 23, 4),
+      ),
+      _note(
+        id: 'mx-tie-b',
+        created: DateTime(2026, 11, 23, 4),
+        updated: DateTime(2026, 11, 23, 4),
+      ),
+    ];
+
+    setUp(() async {
+      db = await _openTestDb();
+      for (final note in mixed) {
+        await DatabaseService.upsertNote(db, note);
+      }
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
+    test('SORT-MIX-01 墙钟比较：本地 09:00 晚于同日远端 02:00', () {
+      expect(
+        compareNoteWallClock(
+          DateTime(2026, 11, 23, 9),
+          DateTime.utc(2026, 11, 23, 2),
+        ),
+        greaterThan(0),
+        reason: '两个来源写在同一条坐标轴上：看的是墙钟，不是绝对时间点',
+      );
+      // 墙钟相同则相等，交给 id 兜底
+      expect(
+        compareNoteWallClock(
+          DateTime(2026, 11, 23, 9),
+          DateTime.utc(2026, 11, 23, 9),
+        ),
+        0,
+      );
+    });
+
+    for (final order in SortOrder.values) {
+      test('PGSORT-mixed-${order.name} 混合时间戳分页取全与内存排序一致', () async {
+        final pages = await _collectPages(db, order, pageSize: 2, pages: 4);
+        final expected = sortedNotesCopy(mixed, order);
+
+        expect(pages.length, mixed.length);
+        expect(
+          pages.map((n) => n.id).toList(),
+          expected.map((n) => n.id).toList(),
+          reason: '$order 下 SQL 与 Dart 必须给同一顺序（墙钟口径）',
+        );
+        expect(pages.map((n) => n.id).toSet().length, mixed.length);
+      });
+    }
+
+    test('PGSORT-mixed-order 本地 09:00 排在远端 02:00 之前', () async {
+      final pages =
+          await _collectPages(db, SortOrder.newest, pageSize: 2, pages: 4);
+      expect(
+        pages.map((n) => n.id).toList(),
+        [
+          'mx-local-0010',
+          'mx-remote-0900',
+          'mx-local-0900',
+          'mx-tie-b',
+          'mx-tie-a',
+          'mx-remote-0200',
+          'mx-local-0200',
+          'mx-remote-2330',
+        ],
+        reason: '墙钟 00:10 > 09:00 > 04:00 > 02:00 > 前一天 23:30；'
+            '并列一律交给 id 倒序，与「字符串里带不带 Z」无关',
+      );
+    });
+
+    test('PGSORT-mixed-updated 编辑时间混存时同样按墙钟排', () async {
+      await DatabaseService.upsertNote(
+        db,
+        Note(
+          id: 'mx-edit-remote',
+          content: '远端编辑过',
+          createdAt: DateTime.utc(2026, 11, 20, 3),
+          updatedAt: DateTime.utc(2026, 11, 25, 8),
+        ),
+      );
+      await DatabaseService.upsertNote(
+        db,
+        Note(
+          id: 'mx-edit-local',
+          content: '本地编辑过',
+          createdAt: DateTime(2026, 11, 20, 3),
+          updatedAt: DateTime(2026, 11, 25, 10),
+        ),
+      );
+
+      final page = await DatabaseService().getNotesPaged(
+        pageSize: 1,
+        sortOrder: SortOrder.updated,
+        executor: db,
+      );
+      expect(
+        page.single.id,
+        'mx-edit-local',
+        reason: '墙钟 10:00 晚于 08:00；按绝对时间点比会反过来（02:00Z vs 08:00Z）',
+      );
+    });
+  });
 }

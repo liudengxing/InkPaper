@@ -801,6 +801,112 @@ void main() {
       expect(File(restoredImage).existsSync(), isFalse);
       expect(File(sidecar).existsSync(), isFalse);
     });
+
+    /// 造一个「一条 JSON 笔记 + 两张图」的包：解包会写两份资源副本。
+    Future<Uint8List> twoImagePackage() async {
+      final first = await writeImage('rb_a.png');
+      final second = await writeImage('rb_b.png');
+      final built = await service.buildArchive(
+        notes: [
+          _note(
+            id: 'rb2',
+            content: '两张图 ![一](${first.path}) 和 ![二](${second.path}) 结束',
+          ),
+        ],
+        format: BackupContentFormat.json,
+        includeImages: true,
+      );
+      return built.bytes;
+    }
+
+    /// 固定时钟的 service：还原文件名可预测，才能用同名目录占位制造写失败。
+    BackupArchiveService fixedClockService({
+      Future<void> Function()? beforeDecodeEntries,
+    }) {
+      final clock = DateTime(2026, 11, 24, 12);
+      return BackupArchiveService(
+        imagesDirectoryProvider: () async => imagesDir,
+        tempDirectoryProvider: () async => Directory.systemTemp,
+        now: () => clock,
+        beforeDecodeEntries: beforeDecodeEntries,
+      );
+    }
+
+    test('第一个附件写成功、第二个写失败时，已落盘那个也一起回滚', () async {
+      final fixedClock = fixedClockService();
+      final bytes = await twoImagePackage();
+      // 导入前就在目录里的文件：回滚必须一个都不碰、内容也不能变
+      final existing = await writeImage('user_photo_before.png');
+
+      // 用同名目录占住第二个还原文件名：分配器查的是 File.exists()
+      // （目录算“不存在”），真正落盘时才抛 PathAccessException，
+      // 等价于磁盘写失败。
+      final stamp = DateTime(2026, 11, 24, 12).millisecondsSinceEpoch;
+      final blocker = Directory(
+        '${imagesDir.path}${Platform.pathSeparator}backup_image_${stamp}_1.png',
+      );
+      await blocker.create(recursive: true);
+
+      await expectLater(
+        fixedClock.decodeArchive(bytes),
+        throwsA(isA<FileSystemException>()),
+      );
+
+      expect(
+        backupCopies(),
+        isEmpty,
+        reason: '第一个附件已经写进磁盘，失败时必须跟着回滚，不能留成孤儿文件',
+      );
+      expect(existing.existsSync(), isTrue, reason: '导入前的文件不能删');
+      expect(existing.readAsBytesSync(), _tinyPng, reason: '导入前的文件内容不能改');
+      expect(blocker.existsSync(), isTrue, reason: '占位目录不是本批新建的文件');
+    });
+
+    test('附件写完后正文读取失败，本批文件同样回滚', () async {
+      final bytes = await imagePackage();
+      final existing = await writeImage('user_photo_keep.png');
+      final failing = fixedClockService(
+        beforeDecodeEntries: () async => throw StateError('正文读取失败'),
+      );
+
+      final decode = failing.decodeArchive(bytes);
+      await expectLater(decode, throwsA(isA<StateError>()));
+
+      expect(backupCopies(), isEmpty, reason: '附件已落盘，正文读取失败后不能留残留');
+      expect(existing.existsSync(), isTrue);
+      expect(existing.readAsBytesSync(), _tinyPng);
+    });
+
+    test('失败后重试能重新还原，磁盘上只多出重试那一批文件', () async {
+      final fixedClock = fixedClockService();
+      final bytes = await twoImagePackage();
+      final existing = await writeImage('user_photo_before.png');
+      final stamp = DateTime(2026, 11, 24, 12).millisecondsSinceEpoch;
+      final blocker = Directory(
+        '${imagesDir.path}${Platform.pathSeparator}backup_image_${stamp}_1.png',
+      );
+      await blocker.create(recursive: true);
+
+      await expectLater(
+        fixedClock.decodeArchive(bytes),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(backupCopies(), isEmpty);
+
+      // 磁盘问题修掉后重试：应该完整还原两份，且不复活失败那批的残留
+      await blocker.delete();
+      final retried = await fixedClock.decodeArchive(bytes);
+      expect(retried.restoredLocalPaths, hasLength(2));
+      for (final path in retried.restoredLocalPaths) {
+        expect(File(path).existsSync(), isTrue);
+      }
+      expect(
+        backupCopies(),
+        hasLength(2),
+        reason: '失败那批已经回滚，目录里只剩重试新建的两份',
+      );
+      expect(existing.existsSync(), isTrue);
+    });
   });
 }
 

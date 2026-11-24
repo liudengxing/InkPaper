@@ -151,6 +151,7 @@ class BackupArchiveService {
     DateTime Function()? now,
     int? maxSingleVideoBytes,
     int? maxVideosTotalBytes,
+    Future<void> Function()? beforeDecodeEntries,
   })  : _imagesDirectoryProvider =
             imagesDirectoryProvider ?? _defaultImagesDirectory,
         _tempDirectoryProvider = tempDirectoryProvider ?? getTemporaryDirectory,
@@ -158,13 +159,18 @@ class BackupArchiveService {
         _maxSingleVideoBytes =
             maxSingleVideoBytes ?? defaultMaxSingleVideoBytes,
         _maxVideosTotalBytes =
-            maxVideosTotalBytes ?? defaultMaxVideosTotalBytes;
+            maxVideosTotalBytes ?? defaultMaxVideosTotalBytes,
+        _beforeDecodeEntries = beforeDecodeEntries;
 
   /// 图片落地目录（导出时找图、导入时存图都用它）。
   final Future<Directory> Function() _imagesDirectoryProvider;
 
   /// 时间源。还原文件名用它拼时间戳，测试可以固定住验证同毫秒行为。
   final DateTime Function() _now;
+
+  /// 仅供测试：资源落盘之后、正文读取之前插一个可能抛错的钩子，用来验证
+  /// 「附件已写进磁盘、正文读取失败」时本批文件会被统一回滚。生产调用不传。
+  final Future<void> Function()? _beforeDecodeEntries;
 
   /// 打包时暂存 zip 的基准目录。
   ///
@@ -698,47 +704,64 @@ class BackupArchiveService {
       throw Exception('压缩包里没有找到可导入的笔记内容');
     }
 
-    final restoredResources = await _restoreResources(files);
-    final restoredPaths = restoredResources.paths;
+    // 本批新建的资源文件清单：资源落盘和正文读取两步都可能抛错，清单必须
+    // 在 catch 里仍然可见，否则失败路径会把已经写进图片目录的文件留成孤儿
+    // （用户看不见，也不会有任何笔记引用它们）。
+    final createdPaths = <String>[];
+    try {
+      final restoredResources = await _restoreResources(files, createdPaths);
+      final restoredPaths = restoredResources.paths;
 
-    final entries = <BackupArchiveEntry>[];
-    for (final name in files.keys) {
-      if (_reservedNames.contains(name)) {
-        continue;
+      // 仅供测试注入「资源已落盘、正文读取失败」这条路径：真实的 ZIP 里
+      // 条目内容一定是 List<int>，剩下的读取步骤在生产上不会自然抛错。
+      final beforeDecodeEntries = _beforeDecodeEntries;
+      if (beforeDecodeEntries != null) {
+        await beforeDecodeEntries();
       }
-      if (!_matchesFormat(name.toLowerCase(), format)) {
-        continue;
-      }
-      final raw = utf8.decode(
-        files[name]!.content as List<int>,
-        allowMalformed: true,
-      );
-      entries.add(
-        BackupArchiveEntry(
-          name: name,
-          content: _rewriteImagePaths(
-            raw,
-            restoredPaths,
-            jsonEncoded: format == BackupContentFormat.json,
+
+      final entries = <BackupArchiveEntry>[];
+      for (final name in files.keys) {
+        if (_reservedNames.contains(name)) {
+          continue;
+        }
+        if (!_matchesFormat(name.toLowerCase(), format)) {
+          continue;
+        }
+        final raw = utf8.decode(
+          files[name]!.content as List<int>,
+          allowMalformed: true,
+        );
+        entries.add(
+          BackupArchiveEntry(
+            name: name,
+            content: _rewriteImagePaths(
+              raw,
+              restoredPaths,
+              jsonEncoded: format == BackupContentFormat.json,
+            ),
           ),
-        ),
+        );
+      }
+
+      if (entries.isEmpty) {
+        // 资源已经落盘但没有任何笔记会引用它们：抛错交给下面的 catch 回滚，
+        // 否则这条失败路径会在图片目录里留下一批孤儿文件。
+        throw Exception('压缩包里没有找到 ${format.label} 格式的笔记内容');
+      }
+
+      return DecodedBackupArchive(
+        format: format,
+        entries: entries,
+        restoredImageCount: restoredPaths.length - restoredResources.videoCount,
+        restoredVideoCount: restoredResources.videoCount,
+        restoredLocalPaths: createdPaths,
       );
+    } on Object {
+      // 解码流程里任何一步失败，都把本批新建的文件删干净再抛原异常；
+      // 清单外的文件（导入前就有的素材、上一次中断留下的残留）一个都不碰。
+      await _discardPaths(createdPaths);
+      rethrow;
     }
-
-    if (entries.isEmpty) {
-      // 资源已经落盘但没有任何笔记会引用它们：先回滚再报错，
-      // 否则这条失败路径会在图片目录里留下一批孤儿文件。
-      await _discardPaths(restoredResources.createdPaths);
-      throw Exception('压缩包里没有找到 ${format.label} 格式的笔记内容');
-    }
-
-    return DecodedBackupArchive(
-      format: format,
-      entries: entries,
-      restoredImageCount: restoredPaths.length - restoredResources.videoCount,
-      restoredVideoCount: restoredResources.videoCount,
-      restoredLocalPaths: restoredResources.createdPaths,
-    );
   }
 
   BackupContentFormat? _detectFormat(Map<String, ArchiveFile> files) {
@@ -797,25 +820,17 @@ class BackupArchiveService {
 
   /// 把 `resources/*` 写进应用图片目录，返回「原始路径 → file:// 本地路径」。
   ///
-  /// 同时返回本次真正新建的文件清单（`createdPaths`），供导入失败时回滚。
-  Future<
-      ({
-        Map<String, String> paths,
-        int videoCount,
-        List<String> createdPaths,
-      })> _restoreResources(
+  /// 本次真正新建的文件路径会追加进调用方传进来的 [createdPaths]：清单
+  /// 由调用方持有，中途写失败时调用方才能把已经落盘的文件一起回滚。
+  Future<({Map<String, String> paths, int videoCount})> _restoreResources(
     Map<String, ArchiveFile> files,
+    List<String> createdPaths,
   ) async {
     final restored = <String, String>{};
-    final createdPaths = <String>[];
     var videoCount = 0;
     final manifest = files[resourceManifestName];
     if (manifest == null) {
-      return (
-        paths: restored,
-        videoCount: videoCount,
-        createdPaths: createdPaths
-      );
+      return (paths: restored, videoCount: videoCount);
     }
 
     final Map<String, dynamic> decoded;
@@ -824,19 +839,11 @@ class BackupArchiveService {
         utf8.decode(manifest.content as List<int>, allowMalformed: true),
       );
       if (raw is! Map<String, dynamic> || raw['resources'] is! List) {
-        return (
-          paths: restored,
-          videoCount: videoCount,
-          createdPaths: createdPaths,
-        );
+        return (paths: restored, videoCount: videoCount);
       }
       decoded = raw;
     } on Object {
-      return (
-        paths: restored,
-        videoCount: videoCount,
-        createdPaths: createdPaths
-      );
+      return (paths: restored, videoCount: videoCount);
     }
 
     final imagesDir = await _imagesDirectoryProvider();
@@ -882,7 +889,8 @@ class BackupArchiveService {
         isVideo ? 'video' : 'image',
         ext,
       );
-      // 写失败会直接抛出，文件不会进回滚清单（宁可漏删也不能删错）
+      // 写失败会直接抛出，由 decodeArchive 的统一 catch 回滚本批已完成的
+      // 文件；这条失败的路径本身不记入清单（宁可漏删也不能删错）。
       await localFile.writeAsBytes(
         archivedFile.content as List<int>,
         flush: true,
@@ -918,11 +926,7 @@ class BackupArchiveService {
       }
     }
 
-    return (
-      paths: restored,
-      videoCount: videoCount,
-      createdPaths: createdPaths,
-    );
+    return (paths: restored, videoCount: videoCount);
   }
 
   /// 给还原出来的资源分配一个**当前不存在**的文件名。

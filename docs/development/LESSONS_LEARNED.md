@@ -490,6 +490,36 @@ prompt，所以只能对齐意图，不能照抄。
 
 ---
 
+### 2.19 缩略图别先解整张图：`img.decodeImage` 全解 vs 引擎采样
+
+**背景**（OPT-07A，2026-11-24）：缩略图编码一直用 `img.decodeImage` 全量解码再
+`copyResize`。对手机照片来说这是先花几十上百 MB 换一张 480 宽的图。本机 JIT 实测：
+
+| 样本 | `img.decodeImage` | `ui.instantiateImageCodec(targetWidth:)` |
+| --- | --- | --- |
+| 24MP（6000×4000） | 1467ms、RSS +393MB | 31ms、+1MB |
+| 32MP 长截图（1080×30000） | 2582ms、RSS +463MB | 293ms、+24MB |
+| 50MP 手机照（外推） | 约 800MB | 几十 MB |
+
+- **分流而不是全量替换**：先读图片头部拿尺寸（`findDecoderForData` +
+  `startDecode`，只解析头部、不解像素），超过 8MP 才走引擎采样；普通截图仍在
+  `compute` 里全解，行为面最小。
+- **`findDecoderForData` 自己会抛**：几个 `isValidFile` 直接按下标读魔数，一两个
+  字节的坏文件能抛 `RangeError` 到外面（`TC-17` 的 `broken.jpg` 当场复现）。
+  包 `try` 里。
+- **只给一个目标维度**：`targetWidth` + `targetHeight` 同时给等于「输出就是这个
+  尺寸」，而头部宽高是 **EXIF 方向应用之前**的——竖拍照片会被拉伸成横的。
+  长度限制改成「先按宽度采样，出来还超上限再按高度重解一次」，两次都等比。
+  不会变形，方向也与 `img.decodeImage` 路径一致（实测两边都 480×720）。
+- **`toByteData()` 默认是预乘 alpha**：`rawRgba` 的解码结果 alpha 预乘过，image
+  包按非预乘解读，半透明图会发黑（实测 200 被压成 100）。要显式传
+  `ImageByteFormat.rawStraightRgba`。
+- **输出高度也要封顶**：1080×30000 按宽缩到 480 后还有 13333 高，缩略图自己就
+  25MB，而卡片 `BoxFit.cover` 只显示中间一条。上限取 4096，长图改为按高度缩、
+  宽度随之变窄。
+- 引擎解码只能在根 isolate（不能用 `compute`），但解码在引擎 IO 线程、主 isolate
+  只剩几毫秒的字节转换与编码，不卡帧。
+
 ## 3. 时间显示口径（最容易反复踩）
 
 ### 3.1 Memos 存的是「伪 UTC」

@@ -85,8 +85,19 @@ void main() {
     PaintingBinding.instance.imageCache
       ..clear()
       ..clearLiveImages();
-    if (dir.existsSync()) {
-      dir.deleteSync(recursive: true);
+    if (!dir.existsSync()) {
+      return;
+    }
+    // 并发跑时树上还挂着一次没读完的 FileImage.load，Windows 会锁住文件，
+    // 删目录时抛 PathAccessException（全量跑两次各挂一条，单跑必过）。临时目录
+    // 残留不影响任何断言，不该让用例红；真要断言「文件被释放」得另写用例。
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        dir.deleteSync(recursive: true);
+        return;
+      } on FileSystemException {
+        continue;
+      }
     }
   });
 

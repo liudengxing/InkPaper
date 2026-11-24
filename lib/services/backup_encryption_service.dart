@@ -180,9 +180,22 @@ class BackupEncryptionService {
     return _markerIsTrue(input);
   }
 
-  /// 跳过前导空白后是否以 `{` 开头（信封一定是 JSON 对象）。
+  /// 跳过开头的 UTF-8 BOM 与前导空白后是否以 `{` 开头（信封一定是 JSON 对象）。
+  ///
+  /// BOM 只可能在文件最开头出现一次（`EF BB BF`），有些编辑器另存、或经脚本搬运
+  /// 后会写进去。这里必须显式跳过：`utf8.decode` 会自己吞掉 BOM，所以
+  /// `{"InkPaperEncryptedBackup":true` 紧跟 BOM 时前缀快速路径照常命中；但 BOM
+  /// 之后还有空格或换行时，解码结果以空白开头、快速路径失配，只能落到本方法，
+  /// 而本方法看的是原始字节，首字节 `0xEF` 不是 `0x7B`，合法信封就被判成明文了。
   static bool _startsLikeJsonObject(Uint8List input) {
-    for (var i = 0; i < input.length; i++) {
+    var i = 0;
+    if (input.length >= 3 &&
+        input[0] == 0xEF &&
+        input[1] == 0xBB &&
+        input[2] == 0xBF) {
+      i = 3;
+    }
+    for (; i < input.length; i++) {
       final byte = input[i];
       if (byte == 0x20 || byte == 0x09 || byte == 0x0A || byte == 0x0D) {
         continue;

@@ -407,4 +407,114 @@ void main() {
       reason: '键名以标记开头但外层无标记',
     );
   });
+
+  test('ENC-15 BOM 加前导空白的信封仍识别为加密备份并解密', () async {
+    // 真实加密器产出可解密的包，再模拟「编辑器另存为 UTF-8 with BOM」：
+    // 开头塞 EF BB BF，后面再跟空格与换行。
+    //
+    // 这里必须带前导空白才复现问题：utf8.decode 会自己吞掉 BOM，所以 BOM 后
+    // 直接跟 `{"InkPaperEncryptedBackup":true` 时前缀快速路径照常命中；只有
+    // BOM 之后还有空白，解码结果才以空白开头、快速路径失配，落到按原始字节
+    // 判断的 _startsLikeJsonObject —— 那里首字节是 0xEF 而不是 0x7B。
+    final origin = _bytes(4000, seed: 17);
+    const password = 'p@ss-BOM';
+    final envelope = await service.encryptToBytes(
+      origin,
+      password,
+      originalFormat: 'ZIP',
+      iterations: 10000,
+      salt: salt,
+      iv: iv,
+    );
+
+    final withBom = Uint8List.fromList([
+      0xEF,
+      0xBB,
+      0xBF,
+      ...utf8.encode('  \r\n\t '),
+      ...envelope,
+    ]);
+
+    // 前置断言：这份样本真的让前缀快速路径失配，否则用例退化成假回归。
+    expect(
+      utf8
+          .decode(withBom)
+          .startsWith('{"${BackupEncryptionService.envelopeMarker}":true'),
+      isFalse,
+      reason: 'BOM 后带空白时前缀快速路径必然失配，才走到字节探测',
+    );
+
+    // 修复点：导入入口唯一的闸门（local_backup_restore_screen.dart:1621）。
+    expect(
+      service.looksEncrypted(withBom),
+      isTrue,
+      reason: 'BOM 加前导空白的合法加密备份不能被当成明文',
+    );
+
+    // 过了闸门之后的完整结果：正文与格式都要还原。
+    final decoded = await service.decrypt(withBom, password);
+    expect(decoded.bytes, origin);
+    expect(decoded.originalFormat, 'ZIP');
+  });
+
+  test('ENC-16 BOM 边界：仅 BOM、BOM 后无标记、BOM 在 ZIP 前', () async {
+    // BOM 紧跟标记：前缀快速路径本来就命中，不能被这次改动弄坏。
+    expect(
+      service.looksEncrypted(
+        Uint8List.fromList([
+          0xEF,
+          0xBB,
+          0xBF,
+          ...utf8.encode(
+            '{"${BackupEncryptionService.envelopeMarker}":true,"version":"2.0"}',
+          ),
+        ]),
+      ),
+      isTrue,
+      reason: 'BOM 不影响正常包的前缀快速路径',
+    );
+
+    // 只有 BOM：跳过 BOM 后没有内容，仍是否定。
+    expect(
+      service.looksEncrypted(Uint8List.fromList([0xEF, 0xBB, 0xBF])),
+      isFalse,
+      reason: '只有 BOM 不算 JSON 对象',
+    );
+
+    // BOM + 空白 + 普通 JSON：跳过 BOM 与空白后确实是 `{`，但整段没有标记键。
+    expect(
+      service.looksEncrypted(
+        Uint8List.fromList([
+          0xEF,
+          0xBB,
+          0xBF,
+          ...utf8.encode('\n  {"notes":[{"id":"1"}]}'),
+        ]),
+      ),
+      isFalse,
+      reason: '跳过 BOM 后仍要含外层标记才算信封',
+    );
+
+    // BOM + ZIP 头：跳过 BOM 后首字节是 `P`，一步否掉。
+    expect(
+      service.looksEncrypted(
+        Uint8List.fromList([0xEF, 0xBB, 0xBF, 0x50, 0x4b, 3, 4, 20, 0]),
+      ),
+      isFalse,
+      reason: 'BOM 在 ZIP 前也要走快速排除',
+    );
+
+    // 不完整 BOM（只有 EF BB）：不能当成 BOM 跳过，首字节不是 `{` 即否定。
+    expect(
+      service.looksEncrypted(
+        Uint8List.fromList([
+          0xEF,
+          0xBB,
+          ...utf8.encode('{"${BackupEncryptionService.envelopeMarker}":true}'),
+        ]),
+      ),
+      isFalse,
+      reason: '只有两个字节的 BOM 前缀不完整，不当成 BOM 跳过',
+    );
+  });
 }

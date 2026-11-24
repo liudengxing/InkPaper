@@ -311,4 +311,100 @@ void main() {
       reason: '标记存在但值不是 true',
     );
   });
+
+  test('ENC-13 字段重排把标记推到 600 字节之后，仍识别为加密备份并解密', () async {
+    // 用真实加密器产出一份可解密的包，再模拟外部工具（jq 之类）重排字段：
+    // 值一个不改，只把外层标记挪到 600 字节元数据之后。
+    final origin = _bytes(4000, seed: 11);
+    const password = 'p@ss-重排';
+    final envelope = await service.encryptToBytes(
+      origin,
+      password,
+      originalFormat: 'ZIP',
+      iterations: 10000,
+      salt: salt,
+      iv: iv,
+    );
+
+    final source = jsonDecode(utf8.decode(envelope)) as Map<String, dynamic>;
+    final reordered = <String, dynamic>{
+      'exportedBy': 'inkpaper-compat ${'x' * 600}',
+      'version': source['version'],
+      'algorithm': source['algorithm'],
+      'kdf': source['kdf'],
+      'iterations': source['iterations'],
+      'originalFormat': source['originalFormat'],
+      'salt': source['salt'],
+      'iv': source['iv'],
+      'ciphertext': source['ciphertext'],
+      'mac': source['mac'],
+      'timestamp': source['timestamp'],
+      BackupEncryptionService.envelopeMarker: true,
+    };
+    final reorderedBytes =
+        Uint8List.fromList(utf8.encode(jsonEncode(reordered)));
+
+    // 前置断言：这份样本真的把标记推出了 512 字节探测窗，否则用例退化成假回归。
+    expect(
+      utf8.decode(reorderedBytes).indexOf(
+            '"${BackupEncryptionService.envelopeMarker}"',
+          ),
+      greaterThanOrEqualTo(600),
+      reason: '标记必须落在 600 字节之后才复现前缀探测漏判',
+    );
+
+    // 修复点。导入入口唯一的闸门就是它（local_backup_restore_screen.dart:1621
+    // 的 `_decryptContentIfNeededBytes`）：false 就把信封当明文交给后续解包，
+    // 密码框与 decrypt 都不会被调用。
+    expect(
+      service.looksEncrypted(reorderedBytes),
+      isTrue,
+      reason: '字段重排过的合法加密备份不能被当成明文',
+    );
+
+    // 过了闸门之后的完整结果：正文与格式都要还原。
+    final decoded = await service.decrypt(reorderedBytes, password);
+    expect(decoded.bytes, origin);
+    expect(decoded.originalFormat, 'ZIP');
+  });
+
+  test('ENC-14 非信封输入仍然否定：ZIP、明文 JSON、嵌套同名标记', () {
+    expect(
+      service.looksEncrypted(
+        Uint8List.fromList([0x50, 0x4b, 3, 4, 20, 0, 0, 0]),
+      ),
+      isFalse,
+      reason: 'ZIP 头一步否掉，不扫整段',
+    );
+    expect(
+      service.looksEncrypted(
+        Uint8List.fromList(
+          utf8.encode('{"notes":[{"id":"1","content":"hi"}]}'),
+        ),
+      ),
+      isFalse,
+      reason: '未加密的 JSON 备份',
+    );
+    expect(
+      service.looksEncrypted(
+        Uint8List.fromList(
+          utf8.encode('{"meta":{"InkPaperEncryptedBackup":true},"notes":[]}'),
+        ),
+      ),
+      isFalse,
+      reason: '只认外层标记，嵌套的不算',
+    );
+    expect(
+      service.looksEncrypted(
+        Uint8List.fromList(
+          utf8.encode(
+            '{"data":{"InkPaperEncryptedBackup":true},'
+            '"InkPaperEncryptedBackupNotes":[]}',
+          ),
+        ),
+      ),
+      isFalse,
+      reason: '键名以标记开头但外层无标记',
+    );
+  });
 }

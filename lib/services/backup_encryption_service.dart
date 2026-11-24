@@ -52,6 +52,11 @@ class BackupEncryptionService {
   static const String currentVersion = '2.0';
   static const String macHeader = 'InkPaperEncryptedBackupV2';
 
+  /// 信封里标记键的字节形态（含两侧引号），供 [looksEncrypted] 做字节级搜索。
+  static final Uint8List _markerKeyBytes = Uint8List.fromList(
+    utf8.encode('"$envelopeMarker"'),
+  );
+
   /// 默认 PBKDF2 迭代次数（新导出的包都用它）。
   static const int defaultIterations = 100000;
 
@@ -149,8 +154,11 @@ class BackupEncryptionService {
   /// 随后的 [decrypt] 还要再解一次。
   ///
   /// 写入方（含 v1 老版本）一律以 `{"InkPaperEncryptedBackup":true` 开头，所以先看
-  /// 开头 512 字节；认不出又确实含这个键（外部工具重排过字段、或值被截断）时再
-  /// 退回整段解析，保证判定结果与整段解析一致。
+  /// 开头 512 字节；认不出再判断整段里有没有这个键（外部工具重排过字段时标记会
+  /// 被推到 512 字节之后），命中才退回整段解析，保证判定结果与整段解析一致。
+  ///
+  /// 后两步都刻意避开整段 `utf8.decode`：没有这个键的普通 ZIP / 明文 JSON 只要
+  /// 一次线性字节扫描就能否掉，40MB 的包不会为此多出 56MB 字符串。
   bool looksEncrypted(Uint8List input) {
     const probeBytes = 512;
     final end = input.length < probeBytes ? input.length : probeBytes;
@@ -161,10 +169,54 @@ class BackupEncryptionService {
     if (head.startsWith('{"$envelopeMarker":true')) {
       return true;
     }
-    if (!head.contains('"$envelopeMarker"')) {
+    // 信封是一层 JSON 对象，去掉前导空白后必须以 `{` 开头。ZIP（`PK`）、纯文本、
+    // 图片都在这里一步否掉，不必扫完整段。
+    if (!_startsLikeJsonObject(input)) {
+      return false;
+    }
+    if (!_containsMarkerKey(input)) {
       return false;
     }
     return _markerIsTrue(input);
+  }
+
+  /// 跳过前导空白后是否以 `{` 开头（信封一定是 JSON 对象）。
+  static bool _startsLikeJsonObject(Uint8List input) {
+    for (var i = 0; i < input.length; i++) {
+      final byte = input[i];
+      if (byte == 0x20 || byte == 0x09 || byte == 0x0A || byte == 0x0D) {
+        continue;
+      }
+      return byte == 0x7B;
+    }
+    return false;
+  }
+
+  /// 整段字节里是否出现 `"InkPaperEncryptedBackup"` 这个键（含两侧引号）。
+  ///
+  /// 用字节级子串搜索而不是 `head.contains`：后者只扫前 512 字节，字段重排过的
+  /// 合法备份会在这里被误判成明文，导入时直接跳过密码与解密流程。搜索不分配
+  /// 内存，且只对以 `{` 开头的输入才走到。
+  static bool _containsMarkerKey(Uint8List input) {
+    final needle = _markerKeyBytes;
+    final last = input.length - needle.length;
+    if (last < 0) {
+      return false;
+    }
+    final first = needle[0];
+    for (var i = 0; i <= last; i++) {
+      if (input[i] != first) {
+        continue;
+      }
+      var j = 1;
+      while (j < needle.length && input[i + j] == needle[j]) {
+        j++;
+      }
+      if (j == needle.length) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool _markerIsTrue(Uint8List input) {

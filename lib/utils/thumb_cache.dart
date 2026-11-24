@@ -884,6 +884,18 @@ class ThumbCache {
   ///
   /// [indexScanned] 传 false 模拟「目录扫描还没跑完」的首帧窗口。
   @visibleForTesting
+  /// 仅测试用：等目录扫描、后台编码与磁盘维护都停下来。
+  ///
+  /// 用例的临时目录若在这些任务跑完前被删掉，Windows 上就会撞
+  /// `PathAccessException`（编码线程正读着源文件）——那不是实现的问题，
+  /// 是清理顺序的问题，所以让 tearDown 先等这一步。
+  @visibleForTesting
+  Future<void> debugSettle() async {
+    await indexReady;
+    await Future.wait(_inflight.values.toList());
+    await _maintenance;
+  }
+
   void debugSeed({
     required String dirPath,
     String? imagesDirPath,

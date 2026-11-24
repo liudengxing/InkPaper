@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/draft_service.dart';
+import 'package:inkpaper/utils/thumb_cache.dart';
 import 'package:inkpaper/widgets/note_editor.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
@@ -220,7 +221,9 @@ void main() {
 
   testWidgets('新建笔记里真加一张图再关闭，草稿必须带上这张图', (tester) async {
     final sandbox = Directory.systemTemp.createTempSync('inkpaper-draft-img');
-    addTearDown(() {
+    addTearDown(() async {
+      // 缩略图编码在后台跑：先等它收尾，否则删目录会撞「文件被占用」
+      await ThumbCache.instance.debugSettle();
       if (sandbox.existsSync()) {
         sandbox.deleteSync(recursive: true);
       }
@@ -253,7 +256,9 @@ void main() {
 
   testWidgets('重新打开新建笔记，草稿里的图要能回来', (tester) async {
     final sandbox = Directory.systemTemp.createTempSync('inkpaper-draft-img2');
-    addTearDown(() {
+    addTearDown(() async {
+      // 缩略图编码在后台跑：先等它收尾，否则删目录会撞「文件被占用」
+      await ThumbCache.instance.debugSettle();
       if (sandbox.existsSync()) {
         sandbox.deleteSync(recursive: true);
       }
@@ -284,7 +289,9 @@ void main() {
 
   testWidgets('自动恢复后继续写，草稿里的图片不能被后续暂存盖掉', (tester) async {
     final sandbox = Directory.systemTemp.createTempSync('inkpaper-draft-img3');
-    addTearDown(() {
+    addTearDown(() async {
+      // 缩略图编码在后台跑：先等它收尾，否则删目录会撞「文件被占用」
+      await ThumbCache.instance.debugSettle();
       if (sandbox.existsSync()) {
         sandbox.deleteSync(recursive: true);
       }
@@ -329,7 +336,9 @@ void main() {
 
   testWidgets('编辑已有笔记加图后重开，图片自动回来', (tester) async {
     final sandbox = Directory.systemTemp.createTempSync('inkpaper-draft-img4');
-    addTearDown(() {
+    addTearDown(() async {
+      // 缩略图编码在后台跑：先等它收尾，否则删目录会撞「文件被占用」
+      await ThumbCache.instance.debugSettle();
       if (sandbox.existsSync()) {
         sandbox.deleteSync(recursive: true);
       }

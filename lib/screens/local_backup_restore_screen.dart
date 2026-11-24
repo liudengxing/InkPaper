@@ -1550,7 +1550,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       }
 
       if (_encryptBackup) {
-        fileBytes = _encryptionService.encryptToBytes(
+        fileBytes = await _encryptionService.encryptToBytes(
           fileBytes,
           _passwordController.text,
           originalFormat: 'ZIP',
@@ -1631,7 +1631,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       throw Exception('已取消导入加密备份');
     }
 
-    final payload = _encryptionService.decrypt(inputBytes, password);
+    final payload = await _encryptionService.decrypt(inputBytes, password);
     return _DecodedBackupContent(
       bytes: payload.bytes,
       originalFormat: payload.originalFormat,

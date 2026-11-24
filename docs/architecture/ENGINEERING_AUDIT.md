@@ -8,13 +8,13 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-24 · 本项代码 `6a068bb`、测试基建 `79b38a9`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-10 返修（P2 · §10 笔记引用） |
+| 最后更新 | 2026-11-24 · 本项代码 `4b0699c`（注解修正 `b8e82b4`），记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-04B 返修（P3 · §4 小组件回顾时间窗） |
 | 任务状态 | 待复验 |
-| 可复查改动 | ① 引用回调抽出 `applyReferenceNoteChanges`：**只按 id 替换已加载的笔记**，删掉「不在窗口就 `add`」那条分支；② 续页追加前经 `filterUnloadedNotes`（`notes_pagination_helper.dart`）按 id 过滤，同一 id 不会出现两张卡片；③ 引用面板新增 `_deepTargets` / `_resolveTargets`：窗口里没有的对端按 id 调 `AppProvider.getNotesByIds` 查库补标题，删除对 `appProvider.notes` 的 `firstWhere` 依赖；④ 新增 `ThumbCache.debugSettle()`，草稿图片用例的 `addTearDown` 先等后台编码收尾再删临时目录 |
-| 验证结果 | `analyze` → No issues found；`format` 324 文件 0 changed；`flutter test --concurrency=4` 全量 **1128 项全过**（原 1123 + 5）。反向验证三项：回调改回 `add` → 深页用例 `Expected 50 / Actual 51` 变红；面板关掉补查 → `RSB-01` 变红（找不到「批量笔记 69」）；`filterUnloadedNotes` 由 `PAGE-07` 直接咬住重叠页 |
-| 未验证 / 待测 | 无真机（引用面板打开时的补查延迟、深页目标首帧占位「…」的观感未测）；面板补查是逐次全量取回，引用很多（几十条跨页）时的查询次数未测，交 OPT-M01；`_deepTargets` 无容量上限（面板关闭即释放，长驻场景未评估） |
-| 下一项 | OPT-10B（依赖本项复验）：按关系字段更新、保留远端独有关系；或独立项 OPT-04B / OPT-06C 返修、OPT-07A |
+| 可复查改动 | ① 新增 `noteWallClockKey(DateTime)`：ISO 串截到毫秒，与 `noteTimeKeySql` 同口径；② 回顾范围从「按自然日」改回「按时刻」，`selectWidgetCandidates*` 增加可选 `now` 便于固定边界；③ `WidgetStatNote.displayTimeKey` 取 ISO 前 23 位，`displaySortKey` 复用它（与 SQL 同精度）；④ 快照里坏时间串降级：`DateTime.tryParse` + 空文案，标签排序跳过坏时间 |
+| 验证结果 | `analyze` → No issues found；`format` 324 文件 0 changed；`flutter test --concurrency=4` 全量 **1137 项全过**（原 1128 + 9）。反向验证三项：区间退回按日比较 → `RRS-01/04/05` 变红；区间改成 UTC 绝对时刻 → `RRS-04` 变红（`remote-split` 被错误纳入）；快照排序改成按绝对时刻 → `WS-S09` 变红（选中 `pinned-remote`） |
+| 未验证 / 待测 | 无真机（小组件回顾的实际范围、跨时区旅行场景未测）；`todayNotes` 仍按自然日判定（「今天」本身就是自然日概念，未改）；统计分析里月格子仍每格 `DateTime(y,m,d)` 一次（约 31 次/次构建，属 OPT-04C） |
+| 下一项 | OPT-06C 返修（P3 · 扫描失败仍关闭兜底）或 OPT-07A（P2 · 图片）；OPT-02B / OPT-10B 等各自前置复验 |
 | 待用户决策 | ① OPT-01B 的远端归档、本地同内容副本与完整空清单处理规则；② `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓 |
 | 工作区注意事项 | 另有未提交的 `docs/README.md` 索引链接、`dist/`、`.model-desk/`，均非本轮产物，勿回退或顺手带上。发版、推送、装机需单独授权 |
 
@@ -34,7 +34,7 @@
 | OPT-10 | P2 | 待验收 | §10 笔记引用 | 返修完成（`6a068bb`）：回调只替换已加载 ID、续页按 id 去重、面板按 id 查库补标题。待复验深页样本、续页不重复与面板补查。 |
 | OPT-10B | P2 | 待办 | §10 笔记引用 | 返修。依赖 OPT-10 复验。保留只存在于关系数据中的有效引用，批量更新只写关系字段并验证并发编辑场景。 |
 | OPT-04 | P2 | 已验收 | §4 小组件 | 窄列读取、回顾按需判定、首屏快照限量读取通过。 |
-| OPT-04B | P3 | 待办 | §4 小组件 | 返修。恢复原回顾时间边界，验证 UTC / 本地混存时的日期统计、置顶排序和异常数据回退。 |
+| OPT-04B | P3 | 待验收 | §4 小组件 | 返修完成（`4b0699c`）：回顾范围恢复精确时刻，统计/置顶按挂钟键，坏时间串降级。待复验跨日边界、混存样本与坏数据。 |
 | OPT-04C | P3 | 待评估 | §4 小组件 | `Note.fromMap` 每行解析 3 个本地 `DateTime`（本机约 45µs/次），是分页、搜索、统计共同的读取成本。评估把时间字段改成惰性解析的收益与风险。 |
 | OPT-06A | P2 | 已验收 | §6 首屏 | 启动配置和首屏快照并发读取，首页无需等待远程功能开关。真实帧边界未保证。 |
 | OPT-06C | P3 | 待办 | §6 首屏 | 返修。保留目录索引异步化，区分扫描成功和失败。补扫盘半途失败后依然命中已落盘缩略图的测试。 |
@@ -321,6 +321,33 @@
 - **行为变化**：引用涉及的深页目标不再出现在首页列表里（它本来就不该出现在窗口的中间位置）；面板首次打开时对端标题可能短暂显示 `…`，补查回来即换成真实标题；续页在极端情况下（有别的路径提前插入了某条）会少追加重复项并打日志。
 - **未验证**：① 无真机，面板补查的延迟与占位观感未测；② 引用条数很多（跨页几十条）时面板的查询次数与耗时未测，交 OPT-M01；③ `_deepTargets` 没有容量上限——面板是弹出层，关闭即释放，常驻场景未评估；④ 只在 `newest` 排序下验证，其他三种排序的深页样本未单独跑（分页样本本身与排序无关，但没跑就是没跑）。
 - **建议下一项**：OPT-10B（本项复验通过后领取，按关系字段更新并保留远端独有关系）；或独立项 OPT-04B / OPT-06C 返修、OPT-07A。
+
+### 2026-11-24 · OPT-04B 返修 · 待复验
+
+- **问题核对**（先复现再改）：`_withinDays` 把「最近 N 天」实现成「按 `yyyy-MM-dd` 比」。18:00 请求「最近 7 天」时下界本应是 7 天前 18:00，实际变成了 7 天前 00:00 —— 当天 09:00 的笔记被一起收进来，窗口宽出将近一整天。当时这么写是为了避开「1500 行各解析一个本地 `DateTime`（约 45µs/次）」，但代价是产品口径错了。
+- **关键判断**：不必在「精确时刻」和「不解析 DateTime」之间二选一。库里存的就是 ISO 串，截前 23 位得到一个字符串键，字典序就是挂钟时间序——和 OPT-02A 已经在用的 `noteTimeKeySql` / `compareNoteWallClock` 是同一套口径。于是区间判断可以既精确到毫秒、又零解析。
+- **改动**：
+  - `lib/utils/note_sorting_helper.dart`：新增 `noteWallClockKey(DateTime)` → `toIso8601String()` 截 23 位。注释点明它和 `noteTimeKeySql` 严格对应（毫秒精度、`Z` 不参与），以及「库里本来就是 ISO 串的行直接取前 23 位，不必调它」。
+  - `lib/services/random_review_selector_service.dart`：
+    - `selectWidgetCandidatesFrom` 的参数 `displayDayKey` → `displayTimeKey`（语义从「日」变成「时刻」）；`_withinDays` 的 cutoff 也换成 `noteWallClockKey(now - N 天)`，比较用 `>=`。
+    - 新增可选 `now` 参数（`selectWidgetCandidates` 与 `selectWidgetCandidatesFrom` 都有），只给测试固定边界用；生产不传，行为与 `DateTime.now()` 一致。
+    - 删掉不再使用的 `_dayKey(DateTime)`。
+  - `lib/models/widget_stat_note.dart`：新增 `displayTimeKey`（`displayTimeIso` 前 23 位），`displaySortKey` 改为复用它。**这是一个顺带的对齐**：排序键原来用完整 ISO 串（可到微秒），而 SQL 侧排到毫秒，同一毫秒内两种精度的行在内存重排和库查询里可能给出不同顺序。
+  - `lib/services/widget_snapshot_service.dart`：
+    - 回顾候选传给 `displayTimeKey`。
+    - **坏时间串降级**：`_noteSnapshot` 里 `formatWidgetTime(note.createdAt)` / `formatReviewAgeLabel(note.createdAt)` 会 `DateTime.parse`，库里的空串或非 ISO 值直接抛 `FormatException`，整份快照构建失败 → 小组件不更新。改为 `DateTime.tryParse(note.createdAtIso)`，解析不出来时这两个文案给空串。
+    - `_rankQuickTags` 同理：`DateTime.parse` 改 `DateTime.tryParse` 并跳过坏行。仍然只对「去重后的标签」解析，没有把成本摊回每行。
+  - `lib/utils/thumb_cache.dart`（独立提交 `b8e82b4`）：上一轮把 `debugSettle` 插到了 `debugSeed` 的文档注释与 `@visibleForTesting` 之间，导致注解落在错误的方法上。只搬位置，无行为变化。
+  - 未改动：`todayNotes` 仍按自然日判定（「今天」本身就是自然日概念）；`dayCounts` 仍按 `displayDayKey`；月格子的 `DateTime(y, m, d)` 逐格构造留给 OPT-04C。
+- **测试**：1128 → **1137**（+9）。
+  - `test/unit/random_review_selector_service_test.dart` 新增 `RRS-01~06`：固定 `now = 2026-11-24 18:00`。RRS-01 界内 19:00 / 界外 09:00（同一自然日）→ 只收界内；RRS-02 正落在下界那一毫秒仍算界内；RRS-03 跨日但不足 168 小时（前一天 23:30）仍算界内；RRS-04 混存样本，其中 `remote-split`（伪 UTC 墙钟 14:00，绝对时刻为 22:00）是真正的分叉点——按挂钟排除，按绝对时刻就会纳入；RRS-05 统计行只靠串比较，`debugLazyParseCount == 0`；RRS-06 空时间串的坏行被排除且不抛。
+  - `test/unit/widget_snapshot_stats_test.dart` 新增 `WS-S08~10`：伪 UTC `23:30Z` 与本地 `09:00` 归到同一格（按绝对时刻会把前者挪到次日）；两条置顶取挂钟更晚的那条（`pinned-local` 09:00 而非 `pinned-remote` 02:00Z）；空时间串的坏行不让整份快照失败。
+  - `test/unit/widget_snapshot_read_scope_test.dart`：两处调用点跟着参数改名。
+- **验证**：`dart tool/inkpaper.dart analyze` → No issues found；`dart tool/inkpaper.dart format` → 324 文件 0 changed；`flutter test --concurrency=4` → **1137 项全过**。
+- **反向验证**：① 区间退回按日期比较（`substring(0, 10)`）→ `RRS-01`（`before` 被收进来）、`RRS-04`、`RRS-05` 变红；② 区间改成 UTC 绝对时刻（两端都 `toUtc()`）→ `RRS-04` 变红，多出 `remote-split`；③ 快照排序改成按 `DateTime.toUtc()` 比较 → `WS-S09` 变红（选中 `pinned-remote`）。三次恢复后全绿。
+- **行为变化**：回顾窗口变回精确 N×24 小时（`reviewDays = 7` 时最多比原来窄一天）；`displaySortKey` 的精度从微秒降到毫秒（与 SQL 对齐，同一毫秒内的并列交给原顺序）；坏时间串的笔记不再拖垮整个小组件快照，只是时间标签留空。
+- **未验证**：① 无真机，小组件回顾的实际取数、跨时区旅行（设备时区变化）下的表现未测；② 统计月格子仍逐格 `DateTime(y, m, d)`（31 次/构建，约 1.4ms），属 OPT-04C 范围；③ `reviewRangeDays` 的其他取值（1 / 30）只做了逻辑推演，没有单独设样本。
+- **建议下一项**：OPT-06C 返修（与本项无耦合）或 OPT-07A（§7 图片，可拆两轮）；OPT-02B / OPT-10B 仍等各自前置复验。
 
 ## 现有架构
 

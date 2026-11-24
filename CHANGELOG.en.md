@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.144] - 2026-11-25
+
+### Improved
+
+- **Image loading**: large-image thumbnails are now generated in the background, so browsing the gallery no longer stutters.
+- **Long screenshots**: tall screenshots get their thumbnail in one pass, so they show up faster.
+
 ## [1.1.143] - 2026-11-23
 
 ### Improved

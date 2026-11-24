@@ -72,7 +72,17 @@ void main() {
     // 平台通道在测试环境不存在，默认给一个「解不出来」的实现，
     // 需要验证 HEIC 的用例再各自注入假解码器
     ThumbCache.instance.debugSetNativeDecoder((path, width) async => null);
+    // 采样路径的压缩也同步跑，否则 compute 的 Future 在 fake async 里悬空
+    ThumbCache.instance.debugSetRawEncoder(
+      (rgba, width, height, lossless) async => ThumbCache.debugRawEncode(
+        rgba,
+        width,
+        height,
+        lossless: lossless,
+      ),
+    );
     ThumbCache.debugSampledDecodeCount = 0;
+    ThumbCache.debugSampledRetryCount = 0;
   });
 
   tearDown(() {
@@ -704,6 +714,11 @@ void main() {
 
       final file = await cache.ensure(source.path);
       expect(ThumbCache.debugSampledDecodeCount, 1, reason: '大图要走采样解码');
+      expect(
+        ThumbCache.debugSampledRetryCount,
+        0,
+        reason: '方向 6 的宽高已按显示口径归一化，首轮就该算准',
+      );
 
       final sampled = img.decodeImage(file!.readAsBytesSync())!;
       // 全解路径（`_encodeThumbTask`）对同一张图的输出必须同尺寸：
@@ -767,6 +782,38 @@ void main() {
 
       expect(out.height, 4096);
       expect(out.width, lessThan(300));
+    });
+
+    test('TC-35 旋转过的长截图按显示口径一次采样到位，不重解', () async {
+      final cache = ThumbCache.instance;
+      // header 是横的 12500×700，方向 6 让显示尺寸变成 700×12500（竖长截图）。
+      // 修方向归一化之前，这里会先按宽度解出 480×8571、发现超高再按高度重解一次，
+      // 第一次白解。
+      final source = File(p.join(imagesDir, 'image_794.jpg'))
+        ..writeAsBytesSync(_makeJpegOriented(12500, 700, 6));
+
+      final file = await cache.ensure(source.path);
+
+      expect(ThumbCache.debugSampledDecodeCount, 1);
+      expect(
+        ThumbCache.debugSampledRetryCount,
+        0,
+        reason: '方向归一化之后，首轮采样就该算准高度，不该再兜底重解',
+      );
+      final out = img.decodeImage(file!.readAsBytesSync())!;
+      expect(out.height, lessThanOrEqualTo(4096));
+      expect(out.width, lessThan(480), reason: '高度收下来，宽度随之变窄');
+    });
+
+    test('TC-36 方向归一化不影响普通长图的单次采样', () async {
+      // 无 EXIF 方向的 700×12500：头部口径就是显示口径，本来就不该重解。
+      final source = File(p.join(imagesDir, 'image_795.jpg'))
+        ..writeAsBytesSync(_makeJpeg(700, 12500));
+
+      await ThumbCache.instance.ensure(source.path);
+
+      expect(ThumbCache.debugSampledDecodeCount, 1);
+      expect(ThumbCache.debugSampledRetryCount, 0);
     });
   });
 }

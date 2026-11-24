@@ -97,6 +97,13 @@ class ThumbCache {
   @visibleForTesting
   static int debugSampledDecodeCount = 0;
 
+  /// 仅测试用：采样路径走了「解完发现太高、再解一次」兜底的次数。
+  ///
+  /// 修好方向归一化之后正常图片应该是 0；它只在引擎与 EXIF 判断不一致时
+  /// （PNG 的 eXIf 块、异常的 orientation 值）才会涨。
+  @visibleForTesting
+  static int debugSampledRetryCount = 0;
+
   /// 视频首帧也做缩略图（[nativeVideoExtensions]），和 HEIC 一样交给原生。
   ///
   /// 这张表曾经装过 GIF / HEIC / 视频：151 张图只有 108 个缩略图，剩下 43 张
@@ -215,6 +222,9 @@ class ThumbCache {
   /// 编码器。生产环境走 `compute` 丢到后台 isolate；单测里换成同步实现，
   /// 否则 flutter_test 的 fake async 会把 isolate 的 Future 晾在半空。
   ThumbEncoder _encoder = _computeEncode;
+
+  /// 采样解码之后只剩「位图 → PNG/JPEG」，这一步同样不能留在主 isolate。
+  RawThumbEncoder _rawEncoder = _computeRawEncode;
 
   /// HEIC/HEIF 走这条（Dart 侧解不出来）。单测里换成假实现，避开平台通道。
   NativeThumbDecoder _nativeDecoder = decodeNativeThumbnail;
@@ -521,10 +531,16 @@ class ThumbCache {
             sourceSize.width * sourceSize.height > _maxComputeDecodePixels) {
           // 大图先问头部要尺寸，再让引擎按目标尺寸采样解码：`img.decodeImage`
           // 会先解出整张 RGBA 位图，24MP 就要 +393MB。
+          //
+          // 尺寸要按**显示口径**传进去：引擎的 targetWidth / targetHeight 作用
+          // 在 EXIF 之后的空间，而头部里的宽高是方向应用之前的。竖拍照片与旋转
+          // 过的长截图（header 横、显示竖）如果照头部宽高判断，会误以为「按宽度
+          // 采样不会超高」，解出来却有 8571 高，白解一次再重解一次。
+          final swapAxes = _exifSwapsAxes(bytes);
           encoded = await _encodeSampled(
             bytes,
-            sourceSize.width,
-            sourceSize.height,
+            swapAxes ? sourceSize.height : sourceSize.width,
+            swapAxes ? sourceSize.width : sourceSize.height,
             bucket,
             lossless: lossless,
           );
@@ -563,17 +579,32 @@ class ThumbCache {
     }
   }
 
+  /// 图片头部里的 EXIF 方向是否会把宽高对调（5~8 是旋转 90°/270° 与镜像组合）。
+  ///
+  /// 只对 JPEG 有效：`decodeJpgExif` 先校验 SOI，不是 JPEG 直接返回 null；PNG 的
+  /// eXIf 块、WebP 的 EXIF 这一段都不解析。读不到的图按「不交换」处理，走
+  /// [_encodeSampled] 里的兜底重解，正确性不受影响，只是可能多解一次。
+  static bool _exifSwapsAxes(Uint8List bytes) {
+    try {
+      final orientation = img.decodeJpgExif(bytes)?.imageIfd.orientation;
+      return orientation != null && orientation >= 5 && orientation <= 8;
+    } on Object {
+      // 头部残缺的文件不值得为方向再抛一次，按无方向处理。
+      return false;
+    }
+  }
+
   /// 用引擎采样解码大图。
   ///
   /// [ui.instantiateImageCodec] 在解码阶段就按目标尺寸采样（JPEG 走 DCT 缩放、
   /// PNG 走降采样），不会先解出整张位图，所以它只能在根 isolate 调用、不能走
-  /// [compute]。产物已经很小，编码本身只要几毫秒，占住主 isolate 的时间可以
-  /// 忽略；真正贵的那一步在引擎的 IO 线程上。
+  /// [compute]。解码出来的位图交给后台 isolate 压缩，主 isolate 只剩一次
+  /// `toByteData`。
   ///
   /// **只给一个目标维度**：`targetWidth` 与 `targetHeight` 同时给等于指定输出
   /// 尺寸，而 header 里的宽高是 EXIF 方向应用之前的——竖拍照片会让缩略图被拉伸。
-  /// 长度限制改为「先按宽度采样，出来发现还太高再按高度重解一次」，两次都是
-  /// 等比缩放。
+  /// 调用方已按显示口径把宽高归一化（见 [_exifSwapsAxes]），所以这里判断「按宽度
+  /// 采样会不会超高」是准的；[debugSampledRetryCount] 记录兜底分支真正发生的次数。
   Future<Uint8List?> _encodeSampled(
     Uint8List bytes,
     int sourceWidth,
@@ -595,8 +626,9 @@ class ThumbCache {
         return null;
       }
       if (image.height > _maxThumbHeight) {
-        // 兜底：方向交换后真实高度才算数。极端长图会走到这里（第一次白解，
-        // 但采样解码本身只占几十毫秒）。
+        // 兜底：EXIF 读不到方向时（PNG 的 eXIf、残缺头部），真实高度只有解出来
+        // 才知道。正常图片不会走到这里。
+        debugSampledRetryCount++;
         final retry = await _decodeSampled(
           bytes,
           targetHeight: _maxThumbHeight,
@@ -614,17 +646,13 @@ class ThumbCache {
       if (data == null) {
         return null;
       }
-      final rgba = img.Image.fromBytes(
-        width: image.width,
-        height: image.height,
-        bytes: data.buffer,
-        bytesOffset: data.offsetInBytes,
-        order: img.ChannelOrder.rgba,
+      final rgba = data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
       );
-      final encoded = lossless
-          ? img.encodePng(rgba)
-          : img.encodeJpg(rgba, quality: _jpegQuality);
-      return Uint8List.fromList(encoded);
+      // PNG 压缩是纯 CPU 的 zlib 循环，2900×2900 要在主 isolate 上占几十毫秒，
+      // 正好卡在滚动与转场中间。位图已经在手上了，丢给后台 isolate 就行。
+      return await _rawEncoder(rgba, image.width, image.height, lossless);
     } on Object catch (e) {
       debugPrint('ThumbCache 采样解码失败: $e');
       return null;
@@ -1170,6 +1198,13 @@ class ThumbCache {
     _encoder = encoder;
   }
 
+  /// 仅测试用：换掉采样路径的压缩实现。测试环境的 fake async 会把 isolate 的
+  /// Future 晾在半空，所以单测里换成同步实现。
+  @visibleForTesting
+  void debugSetRawEncoder(RawThumbEncoder encoder) {
+    _rawEncoder = encoder;
+  }
+
   /// 仅测试用：换掉原生解码器。测试环境没有平台通道，默认实现会返回 null。
   @visibleForTesting
   void debugSetNativeDecoder(NativeThumbDecoder decoder) {
@@ -1191,6 +1226,24 @@ class ThumbCache {
   }) {
     return _encodeThumbTask(
       _ThumbTask(bytes: bytes, width: width, lossless: lossless),
+    );
+  }
+
+  /// 仅测试用：直接跑一遍采样路径的压缩，用于断言输出字节。
+  @visibleForTesting
+  static Uint8List? debugRawEncode(
+    Uint8List rgba,
+    int width,
+    int height, {
+    bool lossless = false,
+  }) {
+    return _encodeRawTask(
+      _RawThumbTask(
+        rgba: rgba,
+        width: width,
+        height: height,
+        lossless: lossless,
+      ),
     );
   }
 }
@@ -1218,6 +1271,17 @@ typedef ThumbEncoder = Future<Uint8List?> Function(
   bool lossless,
 );
 
+/// 把已经解好的 RGBA 位图压成缩略图字节。
+///
+/// 采样解码那一步必须在主 isolate（引擎的 `instantiateImageCodec` 只能在根
+/// isolate 用），但 PNG/JPEG 压缩是纯 CPU 的，可以丢给后台 isolate。
+typedef RawThumbEncoder = Future<Uint8List?> Function(
+  Uint8List rgba,
+  int width,
+  int height,
+  bool lossless,
+);
+
 /// HEIC/HEIF 的原生解码器：给原图路径与目标宽度，返回 JPEG 字节。
 ///
 /// 返回 null 表示这个平台解不了（桌面端、Android 8.1 及以下、文件损坏），
@@ -1235,6 +1299,50 @@ Future<Uint8List?> _computeEncode(
   return compute(
     _encodeThumbTask,
     _ThumbTask(bytes: bytes, width: width, lossless: lossless),
+  );
+}
+
+Future<Uint8List?> _computeRawEncode(
+  Uint8List rgba,
+  int width,
+  int height,
+  bool lossless,
+) {
+  return compute(
+    _encodeRawTask,
+    _RawThumbTask(rgba: rgba, width: width, height: height, lossless: lossless),
+  );
+}
+
+@immutable
+class _RawThumbTask {
+  const _RawThumbTask({
+    required this.rgba,
+    required this.width,
+    required this.height,
+    required this.lossless,
+  });
+
+  final Uint8List rgba;
+  final int width;
+  final int height;
+  final bool lossless;
+}
+
+/// 顶层函数：采样解码之后只剩压缩，位图直接进 image 包。
+Uint8List? _encodeRawTask(_RawThumbTask task) {
+  final image = img.Image.fromBytes(
+    width: task.width,
+    height: task.height,
+    bytes: task.rgba.buffer,
+    bytesOffset: task.rgba.offsetInBytes,
+    order: img.ChannelOrder.rgba,
+  );
+  if (task.lossless) {
+    return Uint8List.fromList(img.encodePng(image));
+  }
+  return Uint8List.fromList(
+    img.encodeJpg(image, quality: ThumbCache._jpegQuality),
   );
 }
 

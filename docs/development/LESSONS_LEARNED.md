@@ -631,6 +631,30 @@ prompt，所以只能对齐意图，不能照抄。
 - 同一类问题在 `testWidgets` 里碰真库时也出现过，解法同样是 `runAsync`（见前文
   分页相关条目）。
 
+### 2.24 别用 spread 拼大字节：`[...a, ...b]` 是 8 倍放大
+
+**背景**（OPT-07B-2，2026-11-24）：加密导出的 MAC 载荷是
+`Uint8List.fromList([...header, ...salt, ...iv, ...cipherText])`。看起来只是
+「拼几段字节」，实测 40MB 明文加密峰值 **+656MB**（约 15.6 份包体），其中一大半
+来自这一行。
+
+- spread 一个 `Uint8List` 会先展开成 **growable `List<int>`**，Dart 里每个元素是
+  一个 SMIs 槽位（8 字节），40MB 密文 → 320MB；`Uint8List.fromList` 再拷一份又是
+  40MB。要么用 `BytesBuilder().add(...)`，要么干脆别拼 —— `Hmac.startChunkedConversion`
+  可以逐段 `add`，一分钱额外内存都不要。
+- **大段 base64 也一样**：`base64Encode` 只接受整段字节，对 40MB 密文调用会多出一份
+  53MB 的 String，再 `jsonEncode` 又一份。按 **3 字节对齐**切块编码（`=` 填充只会在
+  最后一块），结果与整段编码逐字节一致，直接写进 `BytesBuilder`。
+- **分块 AES 别用 `PaddedBlockCipherImpl.process`**：它按整段建状态机，连续调用不会
+  延续 CBC 链接。用 `CBCBlockCipher` + `processBlock(inp, inOff, out, outOff)` 自己
+  按 16 字节块推进，PKCS7 也自己补（末尾不足一块补 `16 - rest`，正好整块补 0x10）。
+- **改格式必须留黄金样本**：先用旧实现（固定 salt / iv / 迭代 / 时间戳）产出一段
+  信封字节，硬编码进测试，改完要求逐字节相同。它同时钉住字段顺序、base64 分块边界、
+  PKCS7 补齐与 MAC 覆盖范围 —— 只做「往返能解开」是测不出兼容性回归的（新旧实现一起
+  错也能往返）。
+- 剩下的天花板是**交付那一份**：`FilePicker.saveFile(bytes:)` 与 `share_plus` 只收
+  `Uint8List`，流式到底也要在最后留一份整包。要再降只能改成路径交付。
+
 ## 3. 时间显示口径（最容易反复踩）
 
 ### 3.1 Memos 存的是「伪 UTC」

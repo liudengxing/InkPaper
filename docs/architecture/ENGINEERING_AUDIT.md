@@ -8,13 +8,13 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-24 · 本项代码 `de6a0ad`（测试加固 `abffcee`），记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-07C（P2 · §7 导入暂存与失败清理） |
+| 最后更新 | 2026-11-24 · 本项代码 `72f6c2f`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-07B-2（P2 · §7 加密分支的峰值：先量再改） |
 | 任务状态 | 待复验 |
-| 可复查改动 | ① `DecodedBackupArchive.restoredLocalPaths` 记录本次真正新建的资源文件；② 新增 `_allocateRestoredFile`：落盘前查重（`now` 可注入），同一毫秒重复导入不再互相覆盖；③ `decodeArchive` 在「包里没有正文」报错前先回滚；④ 新增 `discardRestoredResources` / `finalizeRestore(importedCount:)`，只删清单内文件；⑤ 页面导入异常先回滚再抛原异常，导入 0 条时整批清理且不再弹「成功导入 0 条」；⑥ 顺带把查看器保留窗口用例改成等条件收敛（`abffcee`） |
-| 验证结果 | `analyze`（lib+test）→ No issues found；`format` 325 文件 0 changed；`flutter test --concurrency=4` 全量 **1160 项全过**（原 1154 + 6），连跑两次均全绿（3:27 与 3:30）。反向验证四项：去掉文件名查重 → 同毫秒用例红（两次路径相同）；去掉空正文回滚 → 孤儿文件仍在；`_discardPaths` 改成清整个目录 → 5 条新用例全红；`finalizeRestore` 恒保留 → 0 条清理用例红 |
-| 未验证 / 待测 | 页面编排（FilePicker → 解包 → 导入）无 widget 测试覆盖，本轮只测到服务边界；进程被杀的中断无法跨会话清理（只保证不覆盖、不越界删）；缩略图缓存里可能留下源文件已删的派生条目；同一包重复导入仍各写一份副本（未做内容寻址）；加密包与真机均未测 |
-| 下一项 | OPT-07B-2（先量加密分支峰值再定方案）；OPT-02B / OPT-10B 等各自前置复验 |
+| 可复查改动 | ① 新增 `lib/services/backup_encryption_service.dart`（纯 Dart）：`encryptToBytes` / `looksEncrypted` / `decrypt`，页面只剩密码输入框，218 行私有实现移出；② 加密改流式：明文 64KB 块 CBC + PKCS7、边加密边喂 HMAC 边按 3 字节对齐转 base64、直接写 `BytesBuilder`；③ 信封改为手拼头 + 分块 base64 + 手拼尾，字段顺序与原 `jsonEncode` 一致；④ MAC 两侧（加密/校验）改 `startChunkedConversion`，去掉 spread 展开 `Uint8List` 的 8 倍放大；⑤ 新增 `OPT-07B-3`：KDF 100000 次 PBKDF2 仍在 UI isolate 同步跑 |
+| 验证结果 | `analyze`（lib+test）→ No issues found；`format` 325 文件 0 changed；`flutter test --concurrency=4` 全量 **1169 项全过**（原 1160 + 9）。峰值实测（本机 JIT，`ProcessInfo.maxRss`）：40MB 明文加密 3381ms/**+656MB** → 2878ms/**+40MB**；80MB 明文 **+129MB**（约 1.1 份输出）。加密输出与改造前**逐字节相同**（744 字节黄金样本硬编码在测试里）。反向验证三项：base64 尾部余数不写 → 黄金样本/往返/补齐边界红；PKCS7 永远补整块 → 同上红；MAC 少喂 iv 与密文 → 往返全红 |
+| 未验证 / 待测 | 解密侧仍是整块路径：40MB 包解密 **+185MB**（约 3.3 份：json 字符串 + 密文 + 明文），要再降需换二进制信封或流式 base64 解码，登记为 OPT-07B-2 剩余；KDF 占加密耗时的大头（约 2.4s/100000 次）且同步跑在 UI isolate，导出与导入都会卡住界面，单独登记 OPT-07B-3；交付仍需一份 `Uint8List`（系统选择器/分享），未做路径交付；无真机 |
+| 下一项 | OPT-07B-3（KDF 移出 UI isolate，量卡顿时长）；OPT-02B / OPT-10B 等各自前置复验 |
 | 待用户决策 | ① OPT-01B 的远端归档、本地同内容副本与完整空清单处理规则；② `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓 |
 | 工作区注意事项 | 另有未提交的 `docs/README.md` 索引链接、`dist/`、`.model-desk/`，均非本轮产物，勿回退或顺手带上。发版、推送、装机需单独授权 |
 
@@ -41,7 +41,8 @@
 | OPT-07A | P2 | 待验收 | §7 图片 | 缩略图解码规模已做（`9c4091b`）：>8MP 走引擎采样解码、输出高度上限 4096、两条路径共用尺寸口径。待复验大图内存、方向/透明度与长图边界。 |
 | OPT-07A-2 | P2 | 待验收 | §7 图片 | 保留窗口已做（`b106ce5`）：当前页左右各留一张，窗口外与退出时 evict，预取按「窗口里谁没解」选边。待复验回看命中、窗口上限与退出释放。 |
 | OPT-07B | P2 | 待验收 | §7 本地备份 | 导出已改流式落盘（`ca596f9`）：视频按 1MB 块 STORE 写入，组装阶段不再攒媒体与整包缓冲；失败删半成品。待复验峰值、历史包与重试。 |
-| OPT-07B-2 | P2 | 待评估 | §7 本地备份 | 加密分支的峰值：`_encryptBytes` 要在整包字节之上再叠 AES 密文、base64 字符串、JSON 字符串与 UTF-8 字节（约 4~5 份包体）。评估入口限流、流式加密或换容器格式，保持既有加密包可解。 |
+| OPT-07B-2 | P2 | 待验收 | §7 本地备份 | 导出侧已做（`72f6c2f`）：加密改流式，40MB 明文峰值 +656MB → +40MB，输出与旧实现逐字节相同。待复验峰值回落、老包兼容与 200MB 外推；**剩余**：解密侧仍 3.3 份（要换二进制信封或流式 base64 解码）。 |
+| OPT-07B-3 | P3 | 待评估 | §7 本地备份 | KDF 同步跑在 UI isolate：100000 次 PBKDF2-HMAC-SHA256 本机约 2.4s，导出加密与导入解密都会整段卡住界面且没有进度提示。评估移到后台 isolate（`Isolate.run` + 可发送参数）与是否要进度反馈。 |
 | OPT-07C | P2 | 待验收 | §7 本地备份 | 导入回滚已做（`de6a0ad`）：解包记录本次新建的资源，导入失败或 0 条时只删这批，同毫秒重复导入不再覆盖。待复验失败/重试/中断三条路径与既有文件保护。 |
 | OPT-05 | P2 | 待评估 | §5 搜索 | 先用可复现样本判定 SQL 扫描或结果装载的主要成本，再决定分批或全文索引。 |
 | OPT-06B | P3 | 待评估 | §6 外部事件 | 根据冷、热启动的通知、分享和深链复现结果决定是否调整事件交付。 |
@@ -490,6 +491,38 @@
 - **未验证**：① 页面编排（FilePicker 选择 → 解包 → 导入 → 回滚）没有 widget 测试，只测到服务边界；`_importDecodedArchive` 的 HTML 分支与写库异常在页面上共用同一个 catch，逻辑上已覆盖，但没有端到端用例；② 进程被杀/闪退的中断无法跨会话清理 —— 只保证「不覆盖已有文件」与「不参与后续批次的回滚清单」；要真正清理得在解包前落一份待提交清单并在启动时核对，属另一项工作；③ 回滚后 `ThumbCache` 里可能留有源文件已删的派生缩略图（键含 size/mtime，源文件不在时 `lookup` 会 miss 并重编码，不会用错图，但会占一点磁盘）；④ 同一包重复导入、且每次都有笔记落库时仍会各写一份副本（旧副本无人引用）；内容寻址去重没做；⑤ 加密包（`.enc`）走的是解密后再解包，回滚逻辑同路径但未单独测；⑥ 无真机，手机闪存上的删除与写入耗时未测。
 - **提交**：`de6a0ad`（代码 + 测试）、`abffcee`（查看器用例加固）。
 - **建议下一项**：OPT-07B-2 —— 加密分支的峰值需要先量（`_encryptBytes` 在整包之上再叠 AES 密文、base64、JSON 字符串与 UTF-8 字节），量完再决定是入口限流、流式加密还是最终降级提示；OPT-02B / OPT-10B 仍等各自前置复验。
+
+### 2026-11-24 · OPT-07B-2 · 待验收
+
+- **先量基线**（本机 JIT，`ProcessInfo.maxRss`，40MB 明文）：加密 3381ms、峰值 **+656MB**，即约 15.6 份包体 —— 比登记时估的「4~5 份」高得多。按这比例，200MB 包要 3GB 以上，Android 上必 OOM。拆开看，最大的一份不在队列里写的那些：
+  - `_backupMacPayload` 用 `Uint8List.fromList([...header, ...salt, ...iv, ...cipherText])`，spread 一个 `Uint8List` 会先展开成 growable `List<int>`（每个元素 8 字节），40MB 密文光这一步就是 320MB，再拷进 `Uint8List` 又 40MB；
+  - 密文 `base64Encode` 成 String（1.33 份）、`jsonEncode` 整个信封又一份 String（1.33 份）、`utf8.encode`（1.33）、`Uint8List.fromList`（1.33）。
+- **改动**：
+  - 新增 `lib/services/backup_encryption_service.dart`（纯 Dart，不 import Flutter）：`encryptToBytes` / `looksEncrypted` / `decrypt`，v2 信封与 v1 老包两条解密路径都搬过来。页面的 218 行私有实现（`_encryptBytes`、`_deriveBackupKeys`、`_aesCbcCrypt`、`_backupMacPayload`、`_secureRandomBytes`、`_constantTimeStringEquals`、`_BackupKeyMaterial`）删掉，`_askBackupPassword` 留在页面。
+  - 加密改流式：明文按 64KB 块（16 字节对齐）走 `CBCBlockCipher` + 手写 PKCS7，比 `PaddedBlockCipherImpl.process` 更适合分块；每块同时喂 HMAC 的 chunked sink 与 `_Base64StreamWriter`（攒 3 字节就编一段，`=` 填充只在最后一块），结果直接写进 `BytesBuilder`。
+  - 信封不再 `jsonEncode`：手拼头 + 分块 base64 + 手拼尾，**字段顺序与原来完全一致**（`marker/version/algorithm/kdf/iterations/originalFormat/salt/iv/ciphertext/mac/timestamp`）。
+  - MAC 改成 `Hmac(sha256, key).startChunkedConversion(_DigestSink())` 逐段 `add`，加密与校验两侧都改，spread 与整份 payload 都没了。
+  - 页面导出改成 `fileBytes = _encryptionService.encryptToBytes(...)`，不再 `utf8.encode` + `Uint8List.fromList` 各拷一份。
+  - 未改动：信封字段与语义、迭代次数（100000）与下限（10000）、v1 兼容规则、错误文案、页面上的密码输入与「加密备份」开关。
+- **兼容性证据**：改造前用固定 `salt` / `iv` / 迭代 10000 / `timestamp` 产出一个 744 字节信封，硬编码为 `ENC-01` 的黄金样本；新实现必须逐字节相同。它同时钉住字段顺序、base64 分块边界、PKCS7 补齐与 MAC 覆盖范围 —— 老版本解新包等价于能解这段字节。
+- **测试**：1160 → **1169**（+9），新增 `test/unit/backup_encryption_service_test.dart`。之前这条路径**零测试覆盖**。
+  - `ENC-01` 黄金样本逐字节一致；`ENC-02` 往返拿回原文与 `originalFormat`；`ENC-03` 密码错报固定文案；`ENC-04` 密文改一个字节 → MAC 校验失败；`ENC-05` 迭代次数 1000 → 「加密备份参数不安全」；`ENC-06` v1 老包（`content` + `signature`）仍能解；`ENC-07` `looksEncrypted` 认标记、拒明文 zip、拒 `marker:false`、拒空字节；`ENC-08` 200KB（跨 4 个 64KB 块、总长非 3 的倍数）往返一致；`ENC-09` 0/1/15/16/17/63/64/65 字节的 PKCS7 边界。
+- **验证**：`dart analyze lib test` → No issues found；`dart format lib test tool` → 325 文件 0 changed；`flutter test --concurrency=4`（`NO_PROXY` 已设）→ **1169 项全过**。
+- **反向验证**（三次，每次恢复后复跑全绿）：① `_Base64StreamWriter.close()` 不写余数 → `ENC-01/02/09` 红（`ENC-08` 因长度是 3 的倍数没触发，属预期）；② PKCS7 改成永远补整块 → 同上三条红；③ MAC 少喂 `iv` 与密文 → `ENC-02/08/09` 全红（往返解不出原文）。
+- **峰值实测**（本机 JIT、合成样本、`ProcessInfo.maxRss`、单次独立进程）：
+
+  | 场景 | 修前 | 修后 |
+  | --- | --- | --- |
+  | 加密 40MB 明文（输出 55.9MB） | 3381ms / **+656MB** | 2878ms / **+40MB** |
+  | 加密 80MB 明文（输出 111.8MB） | 未测（按比例约 +1.3GB） | 5653ms / **+129MB** |
+  | 解密 40MB 包（明文 40MB） | 未改 | 3164ms / **+185MB** |
+
+  加密侧现在只剩「输出那 1.1~1.3 份」；耗时没变多少，因为 100000 次 PBKDF2 占了大头（下面这条）。
+- **顺带发现（登记 OPT-07B-3）**：`_deriveKeys` 是 100000 次 HMAC-SHA256，同步跑在 UI isolate，本机约 2.4s，手机只会更慢；导出加密与导入解密都会整段卡住界面且没有进度提示。移到后台 isolate 要处理「不可发送的 `Random.secure()` 与闭包」，得单独一轮。
+- **行为变化**：加密导出的包内容与以前**完全一致**（旧版本可解，新版本可解旧包）；导出时不再有「整包 → base64 String → JSON String → UTF-8」的三次全量拷贝。界面上看不到变化。
+- **未验证**：① 解密侧仍是整块路径：`jsonDecode` 出一份 1.33 份的 String + Map，`base64Decode` 一份密文，AES 解出一份明文，实测 3.3 份；200MB 加密包导入约 660MB，要继续降得换二进制信封 v3（不再 base64/JSON）或手写流式 base64 解码，属本项剩余；② 交付阶段仍需一份 `Uint8List`（`FilePicker.saveFile(bytes:)` 与 `share_plus` 只收字节），要做路径交付得改 UI 流程；③ 无真机，手机上的 AES/内存峰值与 200MB 包的实际表现未测；④ 未做「加密包体积上限 / 入口限流」的产品决策 —— 现在能流式导出，但交付那一份仍随包体线性增长，需要用户定规则。
+- **提交**：`72f6c2f`（代码 + 测试）。
+- **建议下一项**：OPT-07B-3（KDF 移出 UI isolate，先量真实卡顿时长）；OPT-07B-2 剩余（解密侧）待用户决定是否值得换容器格式；OPT-02B / OPT-10B 仍等各自前置复验。
 
 ## 现有架构
 

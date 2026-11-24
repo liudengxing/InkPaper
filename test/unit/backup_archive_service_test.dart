@@ -642,13 +642,177 @@ void main() {
       );
     });
   });
+
+  group('导入回滚', () {
+    /// 造一个「一条 JSON 笔记 + 一张图」的包，解包后会往图片目录写一份副本。
+    Future<Uint8List> imagePackage() async {
+      final image = await writeImage('rollback_src.png');
+      final built = await service.buildArchive(
+        notes: [_note(id: 'rb', content: '看图 ![猫](${image.path}) 完')],
+        format: BackupContentFormat.json,
+        includeImages: true,
+      );
+      return built.bytes;
+    }
+
+    List<File> backupCopies() => imagesDir
+        .listSync()
+        .whereType<File>()
+        .where(
+          (file) =>
+              file.uri.pathSegments.last.startsWith('backup_image_') ||
+              file.uri.pathSegments.last.startsWith('backup_video_'),
+        )
+        .toList();
+
+    test('解包会记下本次新建的文件，回滚只删这些', () async {
+      final bytes = await imagePackage();
+      // 导入前就在目录里的文件：回滚必须一个都不碰
+      final existing = await writeImage('user_photo_before.png');
+
+      final decoded = await service.decodeArchive(bytes);
+      expect(decoded.restoredLocalPaths, hasLength(1));
+      final restoredPath = decoded.restoredLocalPaths.single;
+      expect(File(restoredPath).existsSync(), isTrue);
+
+      // 正文确实指向这份副本（Windows 上 JSON 里的反斜杠是转义过的）
+      final json =
+          jsonDecode(decoded.entries.single.content) as Map<String, dynamic>;
+      final content = ((json['notes'] as List).first
+          as Map<String, dynamic>)['content'] as String;
+      final referenced =
+          RegExp(r'file://([^)\s]+)').firstMatch(content)?.group(1);
+      expect(referenced, isNotNull);
+      expect(referenced!.replaceAll(r'\\', r'\'), restoredPath);
+
+      expect(await service.discardRestoredResources(decoded), 1);
+      expect(File(restoredPath).existsSync(), isFalse);
+      expect(existing.existsSync(), isTrue, reason: '导入前就在目录里的文件不能碰');
+    });
+
+    test('包里没有正文时，已还原的资源跟着回滚', () async {
+      final bytes = _makeZipBytes({
+        'backup_manifest.json': utf8.encode(
+          jsonEncode({'version': '2.0', 'format': 'JSON'}),
+        ),
+        'resource_manifest.json': utf8.encode(
+          jsonEncode({
+            'version': '2.0',
+            'resources': [
+              {
+                'originalPath': 'file:///old/photo.png',
+                'archivePath': 'resources/photo.png',
+              },
+            ],
+          }),
+        ),
+        'resources/photo.png': _tinyPng,
+      });
+      final existing = await writeImage('keep_me.png');
+
+      await expectLater(
+        service.decodeArchive(bytes),
+        throwsA(isA<Exception>()),
+      );
+
+      expect(
+        backupCopies(),
+        isEmpty,
+        reason: '没有笔记会引用它们，留在图片目录里就是孤儿文件',
+      );
+      expect(existing.existsSync(), isTrue);
+    });
+
+    test('同一毫秒里重复解包不会覆盖上次还原的图', () async {
+      // 文件名原来用「毫秒时间戳 + 本次序号」，连导两次很容易撞名，
+      // 第二次会把第一次的图直接覆盖掉，第一条笔记就指向了别的内容。
+      final fixedClock = BackupArchiveService(
+        imagesDirectoryProvider: () async => imagesDir,
+        tempDirectoryProvider: () async => Directory.systemTemp,
+        now: () => DateTime(2026, 11, 24, 12),
+      );
+      final bytes = await imagePackage();
+
+      final first = await fixedClock.decodeArchive(bytes);
+      final second = await fixedClock.decodeArchive(bytes);
+
+      expect(
+        second.restoredLocalPaths.single,
+        isNot(first.restoredLocalPaths.single),
+      );
+      expect(
+        File(first.restoredLocalPaths.single).existsSync(),
+        isTrue,
+        reason: '第二次解包不能盖掉第一次还原的图',
+      );
+    });
+
+    test('导入 0 条整批清理，之前成功导入的图不受影响', () async {
+      final bytes = await imagePackage();
+
+      final first = await service.decodeArchive(bytes);
+      expect(await service.finalizeRestore(first, importedCount: 1), 0);
+      expect(File(first.restoredLocalPaths.single).existsSync(), isTrue);
+
+      final second = await service.decodeArchive(bytes);
+      expect(await service.finalizeRestore(second, importedCount: 0), 1);
+      expect(File(second.restoredLocalPaths.single).existsSync(), isFalse);
+      expect(
+        File(first.restoredLocalPaths.single).existsSync(),
+        isTrue,
+        reason: '第一次的图还被笔记引用，只能删本次新增的',
+      );
+    });
+
+    test('中断留下的文件不参与下一次回滚', () async {
+      final bytes = await imagePackage();
+      // 模拟进程被杀：解包写完资源，既没提交也没回滚
+      final interrupted = await service.decodeArchive(bytes);
+      final retried = await service.decodeArchive(bytes);
+
+      expect(await service.discardRestoredResources(retried), 1);
+      expect(File(retried.restoredLocalPaths.single).existsSync(), isFalse);
+      expect(
+        File(interrupted.restoredLocalPaths.single).existsSync(),
+        isTrue,
+        reason: '回滚只按本次清单删，不能越界清上次中断的残留',
+      );
+    });
+
+    test('Live 图的动图片段也在回滚清单里', () async {
+      final image = await writeImage('live_rb.jpg');
+      await File(LivePhotoUtils.videoPathFor(image.path))
+          .writeAsBytes(Uint8List(2048), flush: true);
+      final built = await service.buildArchive(
+        notes: [_note(id: 'lvr', content: '动图 ![图片](${image.path})')],
+        format: BackupContentFormat.json,
+        includeImages: true,
+      );
+
+      final decoded = await service.decodeArchive(built.bytes);
+      expect(decoded.restoredLocalPaths, hasLength(2));
+      final restoredImage = decoded.restoredLocalPaths
+          .firstWhere((path) => !path.endsWith('.mp4'));
+      final sidecar = LivePhotoUtils.videoPathFor(restoredImage);
+      expect(decoded.restoredLocalPaths, contains(sidecar));
+      expect(File(sidecar).existsSync(), isTrue);
+
+      expect(await service.discardRestoredResources(decoded), 2);
+      expect(File(restoredImage).existsSync(), isFalse);
+      expect(File(sidecar).existsSync(), isFalse);
+    });
+  });
 }
 
 /// 手工拼一个最小 zip，用来模拟老版本或异常备份包
-Uint8List _makeZip(Map<String, String> files) {
+Uint8List _makeZip(Map<String, String> files) => _makeZipBytes({
+      for (final entry in files.entries) entry.key: utf8.encode(entry.value),
+    });
+
+/// 同上，但条目内容可以是任意字节（资源文件测试要用）。
+Uint8List _makeZipBytes(Map<String, List<int>> files) {
   final archive = Archive();
-  files.forEach((name, content) {
-    final bytes = utf8.encode(content);
+  files.forEach((name, bytes) {
     archive.addFile(ArchiveFile(name, bytes.length, bytes));
   });
   return Uint8List.fromList(ZipEncoder().encode(archive)!);

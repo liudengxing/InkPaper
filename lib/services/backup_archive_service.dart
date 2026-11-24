@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
+import 'package:flutter/foundation.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:inkpaper/utils/media_paths.dart';
@@ -121,6 +121,7 @@ class DecodedBackupArchive {
     required this.entries,
     required this.restoredImageCount,
     this.restoredVideoCount = 0,
+    this.restoredLocalPaths = const [],
   });
 
   final BackupContentFormat format;
@@ -131,6 +132,12 @@ class DecodedBackupArchive {
 
   /// 从包里还原到本地的视频数量。
   final int restoredVideoCount;
+
+  /// 本次解包新写进本机磁盘的资源文件（绝对路径，不带 `file://`）。
+  ///
+  /// 导入失败或一条笔记都没落库时按这份清单回滚，因此写入时必须保证
+  /// 「清单里的都是本次新建的文件」——文件名在落盘前先做过查重。
+  final List<String> restoredLocalPaths;
 }
 
 /// 把笔记打包成「正文 + 图片」的 ZIP，以及把 ZIP 解回可导入的正文。
@@ -141,11 +148,13 @@ class BackupArchiveService {
   BackupArchiveService({
     Future<Directory> Function()? imagesDirectoryProvider,
     Future<Directory> Function()? tempDirectoryProvider,
+    DateTime Function()? now,
     int? maxSingleVideoBytes,
     int? maxVideosTotalBytes,
   })  : _imagesDirectoryProvider =
             imagesDirectoryProvider ?? _defaultImagesDirectory,
         _tempDirectoryProvider = tempDirectoryProvider ?? getTemporaryDirectory,
+        _now = now ?? DateTime.now,
         _maxSingleVideoBytes =
             maxSingleVideoBytes ?? defaultMaxSingleVideoBytes,
         _maxVideosTotalBytes =
@@ -153,6 +162,9 @@ class BackupArchiveService {
 
   /// 图片落地目录（导出时找图、导入时存图都用它）。
   final Future<Directory> Function() _imagesDirectoryProvider;
+
+  /// 时间源。还原文件名用它拼时间戳，测试可以固定住验证同毫秒行为。
+  final DateTime Function() _now;
 
   /// 打包时暂存 zip 的基准目录。
   ///
@@ -714,6 +726,9 @@ class BackupArchiveService {
     }
 
     if (entries.isEmpty) {
+      // 资源已经落盘但没有任何笔记会引用它们：先回滚再报错，
+      // 否则这条失败路径会在图片目录里留下一批孤儿文件。
+      await _discardPaths(restoredResources.createdPaths);
       throw Exception('压缩包里没有找到 ${format.label} 格式的笔记内容');
     }
 
@@ -722,6 +737,7 @@ class BackupArchiveService {
       entries: entries,
       restoredImageCount: restoredPaths.length - restoredResources.videoCount,
       restoredVideoCount: restoredResources.videoCount,
+      restoredLocalPaths: restoredResources.createdPaths,
     );
   }
 
@@ -780,14 +796,26 @@ class BackupArchiveService {
   }
 
   /// 把 `resources/*` 写进应用图片目录，返回「原始路径 → file:// 本地路径」。
-  Future<({Map<String, String> paths, int videoCount})> _restoreResources(
+  ///
+  /// 同时返回本次真正新建的文件清单（`createdPaths`），供导入失败时回滚。
+  Future<
+      ({
+        Map<String, String> paths,
+        int videoCount,
+        List<String> createdPaths,
+      })> _restoreResources(
     Map<String, ArchiveFile> files,
   ) async {
     final restored = <String, String>{};
+    final createdPaths = <String>[];
     var videoCount = 0;
     final manifest = files[resourceManifestName];
     if (manifest == null) {
-      return (paths: restored, videoCount: videoCount);
+      return (
+        paths: restored,
+        videoCount: videoCount,
+        createdPaths: createdPaths
+      );
     }
 
     final Map<String, dynamic> decoded;
@@ -796,11 +824,19 @@ class BackupArchiveService {
         utf8.decode(manifest.content as List<int>, allowMalformed: true),
       );
       if (raw is! Map<String, dynamic> || raw['resources'] is! List) {
-        return (paths: restored, videoCount: videoCount);
+        return (
+          paths: restored,
+          videoCount: videoCount,
+          createdPaths: createdPaths,
+        );
       }
       decoded = raw;
     } on Object {
-      return (paths: restored, videoCount: videoCount);
+      return (
+        paths: restored,
+        videoCount: videoCount,
+        createdPaths: createdPaths
+      );
     }
 
     final imagesDir = await _imagesDirectoryProvider();
@@ -841,14 +877,17 @@ class BackupArchiveService {
       final ext = extensionOf(archivePath);
       final isVideo =
           item['isVideo'] == true || MediaPaths.isVideoPath(archivePath);
-      final safeName = 'backup_${isVideo ? 'video' : 'image'}_'
-          '${DateTime.now().millisecondsSinceEpoch}_${restored.length}.$ext';
-      final localFile =
-          File('${imagesDir.path}${Platform.pathSeparator}$safeName');
+      final localFile = await _allocateRestoredFile(
+        imagesDir,
+        isVideo ? 'video' : 'image',
+        ext,
+      );
+      // 写失败会直接抛出，文件不会进回滚清单（宁可漏删也不能删错）
       await localFile.writeAsBytes(
         archivedFile.content as List<int>,
         flush: true,
       );
+      createdPaths.add(localFile.path);
       // 还原出来的图/视频也要进缩略图缓存，否则恢复后第一次浏览信息流
       // 全是原图解码（视频还会白等首帧）
       unawaited(ThumbCache.instance.ensure(localFile.path));
@@ -871,6 +910,7 @@ class BackupArchiveService {
           sidecar.file.content as List<int>,
           flush: true,
         );
+        createdPaths.add(target);
         restored[sidecar.originalPath] = 'file://$target';
         videoCount++;
       } on Object {
@@ -878,7 +918,74 @@ class BackupArchiveService {
       }
     }
 
-    return (paths: restored, videoCount: videoCount);
+    return (
+      paths: restored,
+      videoCount: videoCount,
+      createdPaths: createdPaths,
+    );
+  }
+
+  /// 给还原出来的资源分配一个**当前不存在**的文件名。
+  ///
+  /// 以前用「毫秒时间戳 + 本次已还原数量」拼名字：同一个包连导两次，时间戳
+  /// 可能落在同一毫秒、序号又都从 0 开始，第二次会直接覆盖第一次还原的图，
+  /// 第一次的笔记就指向了别的内容。查重后还有个好处——回滚删掉的一定是本
+  /// 次新建的文件，不会误伤用户原有数据。
+  Future<File> _allocateRestoredFile(
+    Directory dir,
+    String kind,
+    String ext,
+  ) async {
+    final stamp = _now().millisecondsSinceEpoch;
+    for (var attempt = 0; attempt < 1000; attempt++) {
+      final suffix = attempt == 0 ? '' : '_$attempt';
+      final file = File(
+        '${dir.path}${Platform.pathSeparator}'
+        'backup_${kind}_$stamp$suffix.$ext',
+      );
+      if (!await file.exists()) {
+        return file;
+      }
+    }
+    throw Exception('无法为还原的资源分配文件名');
+  }
+
+  /// 删掉某个解包批次新建的资源文件，返回真正删掉的数量。
+  ///
+  /// 只删 [DecodedBackupArchive.restoredLocalPaths] 里列出的文件，图片目录里
+  /// 的其它内容一律不碰；单个删除失败只记日志，不覆盖调用方的原始异常。
+  Future<int> discardRestoredResources(DecodedBackupArchive decoded) =>
+      _discardPaths(decoded.restoredLocalPaths);
+
+  /// 导入收尾：真落了笔记就保留本次还原的资源，一条都没进来就整批清掉。
+  ///
+  /// 「导入 0 条」既可能是格式不认，也可能是全部因已存在而跳过——两种情况
+  /// 下本次新写的媒体副本都没有任何笔记引用，留着只会变成孤儿文件。
+  /// 返回清理掉的文件数量（保留资源时为 0）。
+  Future<int> finalizeRestore(
+    DecodedBackupArchive decoded, {
+    required int importedCount,
+  }) {
+    if (importedCount > 0) {
+      return Future<int>.value(0);
+    }
+    return _discardPaths(decoded.restoredLocalPaths);
+  }
+
+  Future<int> _discardPaths(List<String> paths) async {
+    var removed = 0;
+    for (final path in paths) {
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+          removed++;
+        }
+      } on Object catch (e) {
+        debugPrint('清理还原资源失败: $path $e');
+      }
+    }
+    return removed;
   }
 
   /// 把正文里的旧图片路径替换成本地还原后的路径。

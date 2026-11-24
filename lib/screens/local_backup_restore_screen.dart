@@ -1996,15 +1996,31 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       var restoredImages = 0;
       var restoredVideos = 0;
       var format = 'JSON';
+      var discardedRestoredCount = 0;
 
       if (originalFormat == 'ZIP' || fileName.endsWith('.zip')) {
         final decodedArchive = await _backupArchiveService.decodeArchive(
           decodedContent.bytes,
         );
         format = decodedArchive.format.label;
-        restoredImages = decodedArchive.restoredImageCount;
-        restoredVideos = decodedArchive.restoredVideoCount;
-        importedCount = await _importDecodedArchive(decodedArchive);
+        final int imported;
+        try {
+          imported = await _importDecodedArchive(decodedArchive);
+        } on Object {
+          // 笔记没写进去，本次解出来的图片/视频没有任何引用
+          await _backupArchiveService.discardRestoredResources(decodedArchive);
+          rethrow;
+        }
+        importedCount = imported;
+        // 一条都没落库时同样整批清掉，别在图片目录里留一堆没人引用的副本
+        discardedRestoredCount = await _backupArchiveService.finalizeRestore(
+          decodedArchive,
+          importedCount: imported,
+        );
+        if (discardedRestoredCount == 0) {
+          restoredImages = decodedArchive.restoredImageCount;
+          restoredVideos = decodedArchive.restoredVideoCount;
+        }
       } else if (originalFormat == 'JSON' ||
           (originalFormat == null && fileName.endsWith('.json'))) {
         // 导入JSON格式
@@ -2058,8 +2074,17 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
 
       // 显示导入成功对话框
       if (mounted) {
-        _showImportSuccessDialog(importedCount);
-        if (restoredImages > 0 || restoredVideos > 0) {
+        if (importedCount > 0) {
+          _showImportSuccessDialog(importedCount);
+        } else {
+          SnackBarUtils.showInfo(context, '没有笔记被导入');
+        }
+        if (discardedRestoredCount > 0) {
+          SnackBarUtils.showInfo(
+            context,
+            '已清理本次还原的 $discardedRestoredCount 个文件',
+          );
+        } else if (restoredImages > 0 || restoredVideos > 0) {
           final parts = <String>[
             if (restoredImages > 0) '$restoredImages 张图片',
             if (restoredVideos > 0) '$restoredVideos 段视频',

@@ -604,7 +604,9 @@ class ThumbCache {
   /// **只给一个目标维度**：`targetWidth` 与 `targetHeight` 同时给等于指定输出
   /// 尺寸，而 header 里的宽高是 EXIF 方向应用之前的——竖拍照片会让缩略图被拉伸。
   /// 调用方已按显示口径把宽高归一化（见 [_exifSwapsAxes]），所以这里判断「按宽度
-  /// 采样会不会超高」是准的；[debugSampledRetryCount] 记录兜底分支真正发生的次数。
+  /// 采样会不会超高」是准的；判断用的是未截断的等比高度，不是 [thumbSize] 的
+  /// 返回值（后者已把高度收在上限）。[debugSampledRetryCount] 记录兜底分支真正
+  /// 发生的次数。
   Future<Uint8List?> _encodeSampled(
     Uint8List bytes,
     int sourceWidth,
@@ -616,7 +618,17 @@ class ThumbCache {
     ui.Image? image;
     try {
       final predicted = thumbSize(sourceWidth, sourceHeight, targetWidth);
-      final tooTall = predicted.height > _maxThumbHeight;
+      // 判断「按宽度采样会不会超高」必须用**未截断**的等比高度：`thumbSize` 会把
+      // 高度收在 [_maxThumbHeight]，拿它的结果比上限永远是 false，`tooTall` 就成了
+      // 死代码。300×30000 缩到宽 300 时等比高度是 30000，`thumbSize` 交出
+      // 41×4096；照旧逻辑会先按宽 41 采样得到 41×4100（等比高度 4100，比上限多
+      // 4 像素），再兜底重解一次，第一次白解。
+      final scaledWidth = math.min(sourceWidth, targetWidth);
+      final proportionalHeight = math.max(
+        1,
+        (sourceHeight * scaledWidth / sourceWidth).round(),
+      );
+      final tooTall = proportionalHeight > _maxThumbHeight;
       image = await _decodeSampled(
         bytes,
         targetWidth: tooTall ? null : predicted.width,

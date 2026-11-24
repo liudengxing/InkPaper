@@ -815,5 +815,27 @@ void main() {
       expect(ThumbCache.debugSampledDecodeCount, 1);
       expect(ThumbCache.debugSampledRetryCount, 0);
     });
+
+    test('TC-37 极窄超长截图首轮就按高度采样，不重解', () async {
+      final cache = ThumbCache.instance;
+      // 300×30000 = 9MP，超过阈值。等比缩到宽 300 时高度是 30000，`thumbSize`
+      // 交出 41×4096——但按宽 41 采样得到的等比高度是 4100，比上限多 4 像素。
+      // 拿 `thumbSize` 的返回值判断「会不会超高」永远为 false，于是先白解一次
+      // 41×4100 再兜底重解。这里钉住首轮就直接指定目标高。
+      final source = File(p.join(imagesDir, 'image_796.jpg'))
+        ..writeAsBytesSync(_makeJpeg(300, 30000));
+
+      final file = await cache.ensure(source.path);
+
+      expect(ThumbCache.debugSampledDecodeCount, 1);
+      expect(
+        ThumbCache.debugSampledRetryCount,
+        0,
+        reason: '等比高度已超上限，首轮就该直接指定目标高，不该先白解一次',
+      );
+      final out = img.decodeImage(file!.readAsBytesSync())!;
+      expect(out.height, lessThanOrEqualTo(4096));
+      expect(out.width, lessThan(300), reason: '高度收下来，宽度随之变窄');
+    });
   });
 }

@@ -935,9 +935,10 @@ class BackupArchiveService {
         restored[sidecar.originalPath] = 'file://$target';
         videoCount++;
       } on Object {
-        // 单个片段写失败不该让整包恢复失败；但磁盘上留下的半成品要登记，
-        // 否则它会一直占着 `<静图>.live.mp4` 这个固定名字
-        await _trackPartialWrite(targetFile, createdPaths);
+        // 单个片段写失败不该让整包恢复失败：正文和静图照样能导入。但磁盘上
+        // 留下的半成品不能只登记进回滚清单，因为导入成功时清单整批保留，坏
+        // 片段会一直占着 `<静图>.live.mp4` 这个名字。目标是解的当前就删。
+        await _discardPartialWrite(targetFile, createdPaths);
       }
     }
 
@@ -1001,6 +1002,28 @@ class BackupArchiveService {
       }
     } on Object catch (e) {
       debugPrint('登记半成品资源失败: ${file.path} $e');
+    }
+  }
+
+  /// 立刻清掉一次失败写入留下的半成品，尽量不让它活到导入收尾。
+  ///
+  /// 和 [_trackPartialWrite] 的区别在于用途：整包要失败时登记进清单就够了，
+  /// 但 Live 片段写失败属于「降级保留」，整包仍会成功、清单会被整批保留，
+  /// 所以这里必须当场删。删除的前提同样是归属可确认——文件名在分配时刚确认
+  /// 过不存在，此刻出现在该路径上的只能是这次写入产生的，不会误伤导入前已有
+  /// 的同名文件；真删不掉才退回登记，让整批回滚还有一次机会。
+  Future<void> _discardPartialWrite(
+    File file,
+    List<String> createdPaths,
+  ) async {
+    try {
+      if (!await file.exists()) {
+        return;
+      }
+      await file.delete();
+    } on Object catch (e) {
+      debugPrint('清理半成品资源失败: ${file.path} $e');
+      await _trackPartialWrite(file, createdPaths);
     }
   }
 

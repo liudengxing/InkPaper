@@ -1000,6 +1000,78 @@ void main() {
         reason: '绕开撞车名字之后，已有视频依旧原样',
       );
     });
+
+    test('Live 片段写到一半失败时，正文和静图照常导入，半成品当场清掉', () async {
+      final image = await writeImage('live_partial.jpg');
+      await File(LivePhotoUtils.videoPathFor(image.path))
+          .writeAsBytes(Uint8List(2048), flush: true);
+      final built = await service.buildArchive(
+        notes: [_note(id: 'lvp', content: '动图 ![图片](${image.path})')],
+        format: BackupContentFormat.json,
+        includeImages: true,
+      );
+
+      // 导入前就在目录里的视频：降级恢复全程都不能碰它
+      final existingVideo = await writeVideo('user_clip_before.mp4');
+      final existingBytes = existingVideo.readAsBytesSync();
+
+      final stamp = DateTime(2026, 11, 24, 12).millisecondsSinceEpoch;
+      final sidecarPath = '${imagesDir.path}${Platform.pathSeparator}'
+          'backup_image_$stamp.live.mp4';
+
+      final failing = fixedClockService(
+        resourceWriter: (file, content) async {
+          if (!file.path.endsWith('.live.mp4')) {
+            await file.writeAsBytes(content, flush: true);
+            return;
+          }
+          // 真机上是写到一半被打断：磁盘上留了几个字节，异常才抛出来
+          await file.writeAsBytes(content.take(4).toList(), flush: true);
+          throw FileSystemException('模拟视频写入中断', file.path);
+        },
+      );
+
+      final decoded = await failing.decodeArchive(built.bytes);
+      // 降级：正文还在，静图也还原了，只是没有动图片段
+      expect(decoded.entries, hasLength(1));
+      expect(decoded.restoredImageCount, 1);
+      expect(decoded.restoredVideoCount, 0);
+      expect(
+        decoded.restoredLocalPaths.where((path) => path.endsWith('.live.mp4')),
+        isEmpty,
+        reason: '失败的片段不进清单',
+      );
+      final still = decoded.restoredLocalPaths.single;
+      expect(File(still).existsSync(), isTrue, reason: '静图仍然可用');
+      expect(
+        File(sidecarPath).existsSync(),
+        isFalse,
+        reason: '写到一半的片段要在继续处理前清掉',
+      );
+
+      // 导入成功收尾会保留整批资源：这时候更不能把坏片段留在磁盘上
+      expect(await failing.finalizeRestore(decoded, importedCount: 1), 0);
+      expect(File(still).existsSync(), isTrue, reason: '静图仍被保留');
+      expect(
+        File(sidecarPath).existsSync(),
+        isFalse,
+        reason: '收尾后也不能留坏片段',
+      );
+      expect(existingVideo.existsSync(), isTrue);
+      expect(existingVideo.readAsBytesSync(), existingBytes);
+
+      // 正常恢复仍成对：换一个不注入写入器的 service 再解一次
+      final decodedNormal =
+          await fixedClockService().decodeArchive(built.bytes);
+      final pairedImage = decodedNormal.restoredLocalPaths.firstWhere(
+        (path) => !path.endsWith('.mp4'),
+      );
+      final sidecar = LivePhotoUtils.videoPathFor(pairedImage);
+      expect(decodedNormal.restoredVideoCount, 1);
+      expect(decodedNormal.restoredLocalPaths, contains(sidecar));
+      expect(File(pairedImage).existsSync(), isTrue);
+      expect(File(sidecar).existsSync(), isTrue);
+    });
   });
 }
 

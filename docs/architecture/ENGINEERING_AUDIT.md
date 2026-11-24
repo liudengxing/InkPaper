@@ -8,15 +8,14 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-24 · 本项代码 `4b0699c`（注解修正 `b8e82b4`），记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-04B 返修（P3 · §4 小组件回顾时间窗） |
+| 最后更新 | 2026-11-24 · 本项代码 `9c7baa7`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-06C 返修（P3 · §6 缩略图扫描失败仍关闭兜底） |
 | 任务状态 | 待复验 |
-| 可复查改动 | ① 新增 `noteWallClockKey(DateTime)`：ISO 串截到毫秒，与 `noteTimeKeySql` 同口径；② 回顾范围从「按自然日」改回「按时刻」，`selectWidgetCandidates*` 增加可选 `now` 便于固定边界；③ `WidgetStatNote.displayTimeKey` 取 ISO 前 23 位，`displaySortKey` 复用它（与 SQL 同精度）；④ 快照里坏时间串降级：`DateTime.tryParse` + 空文案，标签排序跳过坏时间 |
-| 验证结果 | `analyze` → No issues found；`format` 324 文件 0 changed；`flutter test --concurrency=4` 全量 **1137 项全过**（原 1128 + 9）。反向验证三项：区间退回按日比较 → `RRS-01/04/05` 变红；区间改成 UTC 绝对时刻 → `RRS-04` 变红（`remote-split` 被错误纳入）；快照排序改成按绝对时刻 → `WS-S09` 变红（选中 `pinned-remote`） |
-| 未验证 / 待测 | 无真机（小组件回顾的实际范围、跨时区旅行场景未测）；`todayNotes` 仍按自然日判定（「今天」本身就是自然日概念，未改）；统计分析里月格子仍每格 `DateTime(y,m,d)` 一次（约 31 次/次构建，属 OPT-04C） |
-| 下一项 | OPT-06C 返修（P3 · 扫描失败仍关闭兜底）或 OPT-07A（P2 · 图片）；OPT-02B / OPT-10B 等各自前置复验 |
+| 可复查改动 | ① 索引状态拆成两个维度：`_indexSettled`（扫描流程收尾，决定 `indexReady`/补齐/磁盘整理放行）与 `_indexComplete`（索引可信，决定 `lookup` 要不要 stat 兜底）——`_scanDisk` 失败时只置前者，不再把部分清单当完整；② 补齐 `_pendingSources` 在索引不可信时直接跳过这一轮；③ 磁盘记账只在可信时置 `_diskIndexed`；④ 新增 `debugSetDiskLister` 注入「扫到一半抛错」，`debugIndexSettled`/`debugIndexStarted` 供断言 |
+| 验证结果 | `analyze`（lib+test）→ No issues found；`format` 324 文件 0 changed；`flutter test --concurrency=4` 全量 **1140 项全过**（原 1137 + 3）。反向验证两项：`finally` 改回无条件 `_indexComplete = true` → `TC-27/28/29` 三条全红；去掉 `_pendingSources` 的索引闸门 → `TC-28` 变红（补齐把已有缩略图刷一遍，`encodes` 0→1）。首帧保证复核：`prepare` 返回时 `debugIndexStarted == true` 且 `debugIndexComplete == false`（`TC-22`/`TC-27` 各断言一次） |
+| 未验证 / 待测 | 无真机（扫描 IO 失败后的 stat 成本、首屏观感未测）；失败后本进程内不再自动重扫，`_known` 只靠 `lookup` 兜底渐进补全，重启才重建完整索引；磁盘记账在索引不可信期间偏小（淘汰会少做，不会误删） |
+| 下一项 | OPT-07A（P2 · §7 图片，可拆两轮）；OPT-02B / OPT-10B 等各自前置复验 |
 | 待用户决策 | ① OPT-01B 的远端归档、本地同内容副本与完整空清单处理规则；② `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓 |
-| 工作区注意事项 | 另有未提交的 `docs/README.md` 索引链接、`dist/`、`.model-desk/`，均非本轮产物，勿回退或顺手带上。发版、推送、装机需单独授权 |
 
 ## 执行队列
 
@@ -37,7 +36,7 @@
 | OPT-04B | P3 | 待验收 | §4 小组件 | 返修完成（`4b0699c`）：回顾范围恢复精确时刻，统计/置顶按挂钟键，坏时间串降级。待复验跨日边界、混存样本与坏数据。 |
 | OPT-04C | P3 | 待评估 | §4 小组件 | `Note.fromMap` 每行解析 3 个本地 `DateTime`（本机约 45µs/次），是分页、搜索、统计共同的读取成本。评估把时间字段改成惰性解析的收益与风险。 |
 | OPT-06A | P2 | 已验收 | §6 首屏 | 启动配置和首屏快照并发读取，首页无需等待远程功能开关。真实帧边界未保证。 |
-| OPT-06C | P3 | 待办 | §6 首屏 | 返修。保留目录索引异步化，区分扫描成功和失败。补扫盘半途失败后依然命中已落盘缩略图的测试。 |
+| OPT-06C | P3 | 待验收 | §6 首屏 | 返修完成（`9c7baa7`）：扫描收尾与索引可信拆成两个状态，失败时保留 stat 兜底；补齐与磁盘记账按可信度分支。待复验半途失败样本、`clear()` 复位与首帧不等扫描。 |
 | OPT-07A | P2 | 待办 | §7 图片 | 先约束缩略图像素和查看器预取保留范围，验证长图、方向、透明度和回看。可拆成两轮。 |
 | OPT-07B | P2 | 待办 | §7 本地备份 | 优先验证现有 Dart 的流式归档方案。导入暂存与失败清理单独交付。均需覆盖历史备份、附件和失败重试。 |
 | OPT-05 | P2 | 待评估 | §5 搜索 | 先用可复现样本判定 SQL 扫描或结果装载的主要成本，再决定分批或全文索引。 |
@@ -348,6 +347,27 @@
 - **行为变化**：回顾窗口变回精确 N×24 小时（`reviewDays = 7` 时最多比原来窄一天）；`displaySortKey` 的精度从微秒降到毫秒（与 SQL 对齐，同一毫秒内的并列交给原顺序）；坏时间串的笔记不再拖垮整个小组件快照，只是时间标签留空。
 - **未验证**：① 无真机，小组件回顾的实际取数、跨时区旅行（设备时区变化）下的表现未测；② 统计月格子仍逐格 `DateTime(y, m, d)`（31 次/构建，约 1.4ms），属 OPT-04C 范围；③ `reviewRangeDays` 的其他取值（1 / 30）只做了逻辑推演，没有单独设样本。
 - **建议下一项**：OPT-06C 返修（与本项无耦合）或 OPT-07A（§7 图片，可拆两轮）；OPT-02B / OPT-10B 仍等各自前置复验。
+
+### 2026-11-24 · OPT-06C 返修 · 待复验
+
+- **问题核对**（先复现再改）：`_scanDisk` 把「扫描结束」和「索引可信」写进同一个 `_indexComplete`，并由 `finally` 无条件置 `true`。于是目录扫描半途 IO 失败时，`_known` 只是**部分清单**却被当成完整索引，`lookup` 的兜底闸门（`indexed || !_indexComplete`）随之关掉：盘上确实存在的缩略图被判未命中，退回原图并重新编码，`ensure` 也不再复用盘上文件。这正是「缓存做了却用不上」的最坏形态——失败一次就要长时间承受。
+- **改动**（`lib/utils/thumb_cache.dart`）：
+  - 状态拆成两个维度：`_indexSettled`（扫描流程收尾，成功失败都算）与 `_indexComplete`（索引可信）。`_scanDisk` 用局部 `complete` 记录成功，`finally` 里 `_indexComplete = complete; _indexSettled = true;`——收尾照常放行 `indexReady`，可信度如实反映。`indexReady` 的 doc 一并改为「扫描收尾（或扫描失败也照样收尾）的 Future」。
+  - `_prepare` 的 `_startDiskIndex` 两个标志都复位；`_clear()` 清空目录后置 `_indexComplete = true; _indexSettled = true;`（空目录就是完整索引，不能让一次失败把 `clear()` 之后也拖成每张 stat）。
+  - `_pendingSources`：`await indexReady` 之后若索引不可信直接返回空。索引不完整时没有「缺哪些」的判断依据，硬排只会把已有缩略图全刷进队列（`ensure` 的 stat 兜底能防重编码，但白扫一遍源目录）。
+  - `_runDiskMaintenance`：记账循环照跑（`_known` 里的条目仍然有效），但只在 `_indexComplete` 为真时才置 `_diskIndexed`，让 `lookup` 兜底补进来的条目下次维护还能记账，预算不至于长期偏小。
+  - 新增 `debugSetDiskLister`（替换目录枚举）、`debugIndexSettled` / `debugIndexStarted`；`debugSeed` 一并复位 `_indexSettled` 与注入的枚举器，避免跨用例串状态。
+  - 未改动：两档宽度与编码路径、原生解码、`_giveUp`、补齐节奏、`prepare()` 的对外签名与幂等语义、`lookup` 的同步 stat 形态（仍是 build 里唯一允许的 IO）。
+- **测试**：1137 → **1140**（+3），`test/unit/thumb_cache_test.dart` 29 → 32 条。
+  - `TC-27` 扫描半途失败：注入的枚举先交出一条名字再抛 `FileSystemException`。断言 `debugIndexSettled == true`（否则补齐/整理永远在等）、`debugIndexComplete == false`（部分清单不是完整索引）、`knownCount == 1`（已扫到的仍有效）；关键是没扫到的那张 `lookup` 仍要命中盘上缩略图，并把名字补进索引（`knownCount` → 2）。同时断言 `prepare` 返回时 `debugIndexStarted == true` 且 `debugIndexComplete == false`——复验要求的「首帧无需等待扫描」这条保证在失败路径上同样成立。
+  - `TC-28` 扫描失败后补齐不白排：源目录两张图、盘上一张缩略图、索引部分已知。`startBackfill` 后 `encodes == 0`（不排已有缩略图），`lookup` 兜底仍命中，缺的那张由 `ensure` 按需编码 1 次。
+  - `TC-29` `clear()` 之后索引回到可信完整：失败态下 `debugIndexComplete == false`，清空后应为 `true` 且 `debugIndexSettled == true`，避免把失败状态粘到清理之后。
+- **验证**：`dart analyze lib test` → No issues found；`dart tool/inkpaper.dart format` → 324 文件 0 changed；`flutter test --concurrency=4` → **1140 项全过**。
+- **反向验证**：① 把 `finally` 改回无条件 `_indexComplete = true`（复验给出的原缺陷）→ `TC-27`（`Expected: false / Actual: <true>`）、`TC-28`（`encodes` 0→1）、`TC-29` 三条同时变红；② 只去掉 `_pendingSources` 的 `_indexComplete` 闸门 → `TC-28` 变红，`TC-27/29` 仍过，说明三条各自咬住不同路径。两次恢复后全绿。
+- **行为变化**：扫描失败的进程内，`lookup` 对未收录名字一直补 stat（命中即入索引，渐进恢复），不再误判未命中退回原图；主动补齐这一轮直接跳过，缺图仍由渲染路径按需生成；磁盘记账在不可信期间偏小，淘汰会少做（不会误删）。成功路径与改前完全一致。
+- **未验证**：① 无真机，扫描 IO 失败后的 stat 成本与首屏观感未测；② 失败后不自动重扫（`_indexFuture` 已完成，无重试入口），要重建完整索引得重启——是否值得加一次有界重试，等真机确认失败概率再定；③ 只注入 `FileSystemException` 一种失败，权限/路径被删/部分可读等形态未覆盖；④ `_diskIndexed` 在不可信期间保持 false，若失败后从不触发维护（`_diskBytes` 未超限），记账会一直不全，这属于「少做」方向，未单独验证。
+- **提交**：`9c7baa7`（代码 + 测试）。
+- **建议下一项**：OPT-07A（§7 图片，约束缩略图像素与查看器预取范围，可拆两轮）；OPT-02B / OPT-10B 仍等各自前置复验。
 
 ## 现有架构
 

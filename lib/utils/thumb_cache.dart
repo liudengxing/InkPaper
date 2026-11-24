@@ -880,10 +880,6 @@ class ThumbCache {
     return p.normalize(p.join(p.dirname(imagesDirPath), path));
   }
 
-  /// 仅测试用：直接注入索引与目录，跳过 path_provider。
-  ///
-  /// [indexScanned] 传 false 模拟「目录扫描还没跑完」的首帧窗口。
-  @visibleForTesting
   /// 仅测试用：等目录扫描、后台编码与磁盘维护都停下来。
   ///
   /// 用例的临时目录若在这些任务跑完前被删掉，Windows 上就会撞
@@ -896,6 +892,10 @@ class ThumbCache {
     await _maintenance;
   }
 
+  /// 仅测试用：直接注入索引与目录，跳过 path_provider。
+  ///
+  /// [indexScanned] 传 false 模拟「目录扫描还没跑完」的首帧窗口。
+  @visibleForTesting
   void debugSeed({
     required String dirPath,
     String? imagesDirPath,

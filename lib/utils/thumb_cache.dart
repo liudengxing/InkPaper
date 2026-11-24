@@ -178,15 +178,29 @@ class ThumbCache {
   String? _imagesDirPath;
   Future<void>? _prepareFuture;
 
-  /// 目录扫描是否已经出结果。
+  /// 索引是否**可信完整**（扫描全流程跑通）。
   ///
   /// 扫描已从首帧前挪到首帧后（[prepare] 只等到目录建好就返回），在这个标志
   /// 变 true 之前 [_known] 是不完整的：`lookup` 必须对未收录的名字补一次
   /// stat，否则首屏会以为「一张缩略图都没有」而集体退回原图。
+  ///
+  /// 注意它和 [_indexSettled] 不是一件事：扫描半途失败时索引只是「部分已知」，
+  /// 但流程已经收尾。把失败也当完整，会让 [lookup] 对盘上确实存在的缩略图判
+  /// 未命中，退化成原图并重新编码——正好是缓存最不该做的事。
   bool _indexComplete = false;
+
+  /// 目录扫描**已经收尾**（无论成功失败）。
+  ///
+  /// 只表示「不用再等它了」：`indexReady`、补齐与磁盘整理据此放行。索引是否
+  /// 可信仍由 [_indexComplete] 判断。
+  bool _indexSettled = false;
 
   /// 目录扫描的 Future，给需要完整清单的后台任务（补齐、磁盘整理）等待用。
   Future<void>? _indexFuture;
+
+  /// 仅测试用：替换目录枚举，用来造「扫到一半抛错」的样本。
+  Future<void> Function(String dirPath, void Function(String name) onName)?
+      _debugDiskLister;
 
   bool get isReady => _dirPath != null;
 
@@ -261,22 +275,44 @@ class ThumbCache {
   /// 发起目录扫描，不等待结果。
   void _startDiskIndex(String dirPath) {
     _indexComplete = false;
+    _indexSettled = false;
     _indexFuture = _scanDisk(dirPath);
   }
 
   Future<void> _scanDisk(String dirPath) async {
+    var complete = false;
     try {
-      await for (final entity in Directory(dirPath).list()) {
-        if (entity is File && !entity.path.endsWith('.writing')) {
-          _known.add(p.basename(entity.path));
-        }
-      }
+      await _forEachThumbName(dirPath, _known.add);
+      complete = true;
     } on Object catch (e) {
-      // 扫不动就当没有缩略图：`lookup` 的 stat 兜底仍然能找到已有的文件，
-      // 只是每张卡片都要 stat 一次。
+      // 扫到一半出错：已经读进来的名字仍然有效，没读到的那部分是「不知道」
+      // 而不是「不存在」。所以这里**不能**标完整 —— 否则 `lookup` 会对盘上
+      // 已有的缩略图判未命中、退回原图并重新编码（缓存白做，还挤占编码槽）。
+      // 收尾标志照常置位，见 [_indexSettled]。
       debugPrint('ThumbCache 目录扫描失败: $e');
     } finally {
-      _indexComplete = true;
+      _indexComplete = complete;
+      _indexSettled = true;
+    }
+  }
+
+  /// 逐个交出一条缩略图文件名。
+  ///
+  /// 抽出来是为了让测试注入「扫到一半抛错」的目录：真实缺陷只在 IO 失败时
+  /// 才露头，靠真实文件系统造不出来。
+  Future<void> _forEachThumbName(
+    String dirPath,
+    void Function(String name) onName,
+  ) async {
+    final override = _debugDiskLister;
+    if (override != null) {
+      await override(dirPath, onName);
+      return;
+    }
+    await for (final entity in Directory(dirPath).list()) {
+      if (entity is File && !entity.path.endsWith('.writing')) {
+        onName(p.basename(entity.path));
+      }
     }
   }
 
@@ -317,8 +353,10 @@ class ThumbCache {
       return null;
     }
     final indexed = _known.contains(name);
-    // 扫描还没跑完时索引不完整，未收录的名字再花一次 stat 确认：
-    // 命中就补进索引，之后走快速路径；真没有才按未命中处理。
+    // 扫描还没跑完（或半途失败、索引只是部分已知）时，未收录的名字再花一次
+    // stat 确认：命中就补进索引，之后走快速路径；真没有才按未命中处理。
+    // 代价是索引不完整期间每张卡片多一次 stat，换来的是「盘上有图就照样出
+    // 缩略图」，比退回原图重编码便宜得多。
     final file = File(p.join(dirPath, name));
     if (indexed || !_indexComplete) {
       // 系统低存储、用户点「清理缓存」都会把 cacheDir 清空，而索引还在内存里。
@@ -652,6 +690,12 @@ class ThumbCache {
     // （`ensure` 会靠 stat 兜住、不会真重编码，但白扫一遍目录）。补齐本来就是
     // 后台任务，等索引扫完再开始。
     await indexReady;
+    // 扫描半途失败时 `_known` 只是「部分已知」：拿它算缺什么，会把盘上已有的
+    // 缩略图全排进队列。这一轮没有可信依据，直接跳过（缩略图仍由 `lookup` 的
+    // stat 兜底命中和按需生成覆盖），下次启动重建索引后再补。
+    if (!_indexComplete) {
+      return const <File>[];
+    }
     final imagesDir = Directory(imagesDirPath);
     if (!await imagesDir.exists()) {
       return const <File>[];
@@ -700,6 +744,10 @@ class ThumbCache {
       // 磁盘记账（`_diskBytes`）按 `_known` 逐条 stat，索引没扫完就记不全，
       // 淘汰会算错。整理是后台任务，等扫描收尾即可。
       await indexReady;
+      // 扫描失败时 `_known` 只是部分清单：这次记账必定不全，所以只记下现有的
+      // 条目、不把 `_diskIndexed` 置位 —— 留着它，下次维护会把 lookup 兜底
+      // 补进来的新条目一并记上，预算不至于长期偏小。
+      final indexTrusted = _indexComplete;
       if (!_diskIndexed) {
         for (final name in _known.toList()) {
           if (_diskEntries.containsKey(name)) {
@@ -714,7 +762,7 @@ class ThumbCache {
             }
           }
         }
-        _diskIndexed = true;
+        _diskIndexed = indexTrusted;
       }
 
       final imagesPath = _imagesDirPath;
@@ -825,6 +873,7 @@ class ThumbCache {
       _diskIndexed = false;
       // 目录已被清空重建，空索引就是完整索引。
       _indexComplete = true;
+      _indexSettled = true;
       _indexFuture = null;
     }
   }
@@ -916,6 +965,27 @@ class ThumbCache {
     _prepareFuture = null;
     _indexFuture = null;
     _indexComplete = indexScanned;
+    _indexSettled = indexScanned;
+    _debugDiskLister = null;
+  }
+
+  /// 仅测试用：目录扫描是否已经有结果（成功或失败都算）。
+  @visibleForTesting
+  bool get debugIndexSettled => _indexSettled;
+
+  /// 仅测试用：目录扫描是否已经开始（区别于「还没起来」）。
+  @visibleForTesting
+  bool get debugIndexStarted => _indexFuture != null;
+
+  /// 仅测试用：替换目录枚举，[lister] 传 null 恢复真实目录。
+  ///
+  /// 真实文件系统造不出「扫到一半 IO 失败」，只能在这里注入。
+  @visibleForTesting
+  void debugSetDiskLister(
+    Future<void> Function(String dirPath, void Function(String name) onName)?
+        lister,
+  ) {
+    _debugDiskLister = lister;
   }
 
   /// 仅测试用：目录扫描是否已经有结果。

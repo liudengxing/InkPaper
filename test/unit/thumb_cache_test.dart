@@ -548,5 +548,128 @@ void main() {
       final files = Directory(thumbsDir).listSync().whereType<File>();
       expect(files, hasLength(2));
     });
+
+    test('TC-27 扫描半途失败：流程收尾但索引不完整，盘上缩略图照样命中', () async {
+      final cache = ThumbCache.instance;
+      final reached = File(p.join(imagesDir, 'image_750.jpg'))
+        ..writeAsBytesSync(_makeImage(1200, 900));
+      final missed = File(p.join(imagesDir, 'image_751.jpg'))
+        ..writeAsBytesSync(_makeImage(1200, 900));
+      final reachedName = cache.fileNameFor(reached.path)!;
+      final missedName = cache.fileNameFor(missed.path)!;
+      final reachedThumb = File(p.join(thumbsDir, reachedName))
+        ..writeAsBytesSync(_makeImage(480, 360));
+      final missedThumb = File(p.join(thumbsDir, missedName))
+        ..writeAsBytesSync(_makeImage(480, 360));
+
+      cache.debugSeed(
+        dirPath: thumbsDir,
+        imagesDirPath: imagesDir,
+        indexScanned: false,
+      );
+      // 真实文件系统造不出「扫到一半 IO 失败」：交出一条就抛。
+      cache.debugSetDiskLister((dirPath, onName) async {
+        onName(reachedName);
+        throw const FileSystemException('模拟目录扫描中断', 'thumbs');
+      });
+
+      await cache.prepare(overrideDir: thumbsDir, overrideImagesDir: imagesDir);
+      expect(cache.debugIndexStarted, isTrue, reason: '扫描由 prepare 发起');
+      expect(
+        cache.debugIndexComplete,
+        isFalse,
+        reason: 'prepare 不等扫描，回来时扫描还没收尾',
+      );
+      await cache.indexReady;
+
+      expect(cache.debugIndexSettled, isTrue, reason: '失败也要收尾，否则补齐永远在等');
+      expect(
+        cache.debugIndexComplete,
+        isFalse,
+        reason: '没扫到的部分是「不知道」而不是「不存在」，不能当完整索引',
+      );
+      expect(cache.knownCount, 1, reason: '已经扫到的条目仍然有效');
+
+      // 关键：没扫到的那张不能判未命中退回原图 —— 一次 stat 兜底就能命中。
+      expect(cache.lookup(missed.path)?.path, missedThumb.path);
+      expect(cache.knownCount, 2, reason: '兜底命中要补进索引');
+      expect(cache.lookup(reached.path)?.path, reachedThumb.path);
+    });
+
+    test('TC-28 扫描失败后不把已有缩略图排进补齐队列', () async {
+      final cache = ThumbCache.instance;
+      var encodes = 0;
+      cache.debugSetEncoder((bytes, width, lossless) async {
+        encodes++;
+        return ThumbCache.debugEncode(bytes, width, lossless: lossless);
+      });
+      final existing = File(p.join(imagesDir, 'image_760.jpg'))
+        ..writeAsBytesSync(_makeImage(1200, 900));
+      final pending = File(p.join(imagesDir, 'image_761.jpg'))
+        ..writeAsBytesSync(_makeImage(1200, 900));
+      final existingName = cache.fileNameFor(existing.path)!;
+      File(p.join(thumbsDir, existingName))
+          .writeAsBytesSync(_makeImage(480, 360));
+
+      cache.debugSeed(
+        dirPath: thumbsDir,
+        imagesDirPath: imagesDir,
+        indexScanned: false,
+      );
+      cache.debugSetDiskLister((dirPath, onName) async {
+        // 扫到一张就断：`_known` 非空但不可信，正是要区分的那种状态。
+        onName(existingName);
+        throw const FileSystemException('模拟目录扫描中断', 'thumbs');
+      });
+
+      await cache.prepare(overrideDir: thumbsDir, overrideImagesDir: imagesDir);
+      await cache.indexReady;
+      await cache.startBackfill();
+
+      expect(
+        encodes,
+        0,
+        reason: '索引只是部分已知时没有算缺什么的依据，这一轮补齐该直接跳过',
+      );
+      expect(cache.knownCount, 1, reason: '`_known` 里已扫到的条目不被补齐清掉');
+      // 兜底仍然成立：盘上已有的那份命中，缺的那张按需生成
+      expect(
+        cache.lookup(existing.path),
+        isNotNull,
+        reason: '索引不完整时 lookup 的 stat 兜底要命中已缓存的缩略图',
+      );
+      expect(await cache.ensure(pending.path), isNotNull);
+      expect(encodes, 1, reason: '缺的那张照常按需编码，只是不由补齐批量排');
+    });
+
+    test('TC-29 clear 之后索引回到可信完整', () async {
+      final cache = ThumbCache.instance;
+      final source = File(p.join(imagesDir, 'image_770.jpg'))
+        ..writeAsBytesSync(_makeImage(1200, 900));
+      final name = cache.fileNameFor(source.path)!;
+      File(p.join(thumbsDir, name)).writeAsBytesSync(_makeImage(480, 360));
+
+      cache.debugSeed(
+        dirPath: thumbsDir,
+        imagesDirPath: imagesDir,
+        indexScanned: false,
+      );
+      cache.debugSetDiskLister((dirPath, onName) async {
+        throw const FileSystemException('模拟目录扫描中断', 'thumbs');
+      });
+
+      await cache.prepare(overrideDir: thumbsDir, overrideImagesDir: imagesDir);
+      await cache.indexReady;
+      expect(cache.debugIndexComplete, isFalse);
+
+      await cache.clear();
+      expect(cache.debugIndexSettled, isTrue);
+      expect(
+        cache.debugIndexComplete,
+        isTrue,
+        reason: '目录已清空重建，空索引就是完整索引，不该继续每张 stat',
+      );
+      expect(cache.lookup(source.path), isNull);
+    });
   });
 }

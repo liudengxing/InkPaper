@@ -158,6 +158,16 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   late int _currentIndex;
   Timer? _precacheTimer;
 
+  /// 保留窗口半径：当前页左右各留一张。
+  static const int _retainRadius = 1;
+
+  /// 查看器解出来的高清图，按页索引记账（见 [_retainAround]）。
+  ///
+  /// 页面本身不负责 evict：翻走的那张在页面销毁时就清掉的话，回看要重新
+  /// 解码一遍；而预取的那张可能从没被显示过，页面更不会替它收尾。两件事
+  /// 都收到这里，按窗口统一处理。
+  final Map<int, ImageProvider> _retainedProviders = <int, ImageProvider>{};
+
   /// 当前页的变换矩阵。
   ///
   /// `Matrix4.identity()` 就代表「按原始比例完整显示并居中」，图片本身由
@@ -206,6 +216,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
     _pageController = PageController(initialPage: _currentIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        _retainAround(_currentIndex);
         _precacheAround(_currentIndex);
       }
     });
@@ -214,6 +225,13 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
   @override
   void dispose() {
     _precacheTimer?.cancel();
+    // 查看器的高清图解码尺寸与列表/详情不同，对其它页面没有复用价值，
+    // 退出时连同预取的那张一起清掉 —— 预取的邻居可能从未显示，页面自己
+    // 不会替它收尾，留在全局缓存里就是白占一块纹理。
+    for (final provider in _retainedProviders.values) {
+      unawaited(provider.evict());
+    }
+    _retainedProviders.clear();
     _pageController.dispose();
     _transformationController.dispose();
     super.dispose();
@@ -551,6 +569,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
     setState(() {
       _currentIndex = index;
     });
+    _retainAround(index);
     _precacheAround(index);
   }
 
@@ -1044,35 +1063,84 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
     );
   }
 
-  /// 预取相邻的一张（没有下一张时退回上一张）。
+  /// 查看器里某一页的高清图 provider。
+  ///
+  /// 解码宽度与 [_PhotoPage] 完全一致，缓存键才对得上 —— 预取、保留窗口和
+  /// 页面本身必须共用同一个键，否则预取白做、evict 也清不到正主。
+  ImageProvider _viewerProvider(int index) => getImageProvider(
+        widget.imagePaths[index],
+        context,
+        maxWidth: viewerDecodeWidth(context),
+      );
+
+  /// 把保留窗口挪到 [index]：窗口内的记下来（退出时统一回收），窗口外的
+  /// 立刻 evict。
+  ///
+  /// 只留左右各一张是有意的：翻回上一张是最常见的操作，一离开就 evict 等于
+  /// 每次回看都重新解码（12MP 原图 150~300ms，还要再传一块纹理）；而一律留
+  /// 着，滑过几十张就把全局缓存的额度吃光，详情页缩略图被挤出去，回列表又
+  /// 要重解一遍。三张是「回看不用等」和「不吃缓存」之间最省的那一档。
+  void _retainAround(int index) {
+    final first = math.max(0, index - _retainRadius);
+    final last = math.min(widget.imagePaths.length - 1, index + _retainRadius);
+    for (final stale in _retainedProviders.keys.toList()) {
+      if (stale >= first && stale <= last) {
+        continue;
+      }
+      final provider = _retainedProviders.remove(stale);
+      if (provider != null) {
+        unawaited(provider.evict());
+      }
+    }
+    for (var i = first; i <= last; i++) {
+      _retainedProviders[i] = _viewerProvider(i);
+    }
+  }
+
+  /// 预取窗口里还没解码的那一张。
   ///
   /// 两点收敛：一是只取一张，二是等翻页/进入动画结束再解码。之前的实现会同时
   /// 预取左右两张超大图，解码线程与转场动画抢同一段时间线，于是"打开查看器"
   /// 和"左右滑动"都会卡一下。
+  ///
+  /// 取哪一张按「窗口里还有谁没解」来定，先看下一张再看上一张：往回滑是最常见
+  /// 的纠错动作，如果只在打开时预取过下一张，回看永远要现场解码 150~300ms。
   void _precacheAround(int index) {
     _precacheTimer?.cancel();
     _precacheTimer = Timer(const Duration(milliseconds: 180), () {
       if (!mounted) {
         return;
       }
-      final nextIndex =
-          index + 1 < widget.imagePaths.length ? index + 1 : index - 1;
-      if (nextIndex < 0 || nextIndex == index) {
+      unawaited(_prefetchNeighbour(index));
+    });
+  }
+
+  Future<void> _prefetchNeighbour(int index) async {
+    final candidates = <int>[
+      if (index + 1 < widget.imagePaths.length) index + 1,
+      if (index - 1 >= 0) index - 1,
+    ];
+    final configuration = createLocalImageConfiguration(context);
+    for (final candidate in candidates) {
+      if (!mounted) {
         return;
       }
-      unawaited(
-        precacheImage(
-          getImageProvider(
-            widget.imagePaths[nextIndex],
-            context,
-            maxWidth: viewerDecodeWidth(context),
-          ),
-          context,
-        ).catchError((Object _) {
-          // 预取失败不影响当前图片展示
-        }),
-      );
-    });
+      final provider = _viewerProvider(candidate);
+      try {
+        final key = await provider.obtainKey(configuration);
+        if (!mounted) {
+          return;
+        }
+        // 已经在缓存里（含正在解码的）就不用再排一次队。
+        if (PaintingBinding.instance.imageCache.containsKey(key)) {
+          continue;
+        }
+        await precacheImage(provider, context);
+        return;
+      } on Object {
+        // 预取失败不影响当前图片展示，换另一侧再试。
+      }
+    }
   }
 }
 
@@ -1453,12 +1521,9 @@ class _PhotoPageState extends State<_PhotoPage> {
     _originalTimer?.cancel();
     _liveAutoPlayTimer?.cancel();
     _imageProbe.cancel();
-    // 查看器的高清图解码尺寸与列表/详情不同，对其它页面没有复用价值；
-    // 退出时主动 evict，别让几十 MB 的纹理把详情页缩略图挤出缓存。
-    final provider = _imageProvider;
-    if (provider != null) {
-      unawaited(provider.evict());
-    }
+    // 高清图不在这里 evict：翻走的那张如果在这一页销毁时清掉，回看就要重新
+    // 解码。保留窗口与退出时的回收都由 `_ImageViewerScreenState._retainAround`
+    // 与它的 dispose 统一负责。
     _detachPreview();
     _disposeLiveController();
     super.dispose();

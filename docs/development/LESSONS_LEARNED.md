@@ -520,6 +520,42 @@ prompt，所以只能对齐意图，不能照抄。
 - 引擎解码只能在根 isolate（不能用 `compute`），但解码在引擎 IO 线程、主 isolate
   只剩几毫秒的字节转换与编码，不卡帧。
 
+### 2.20 大图的 evict 别写在使用它的 widget 里
+
+**背景**（OPT-07A-2，2026-11-24）：查看器的高清图在 `_PhotoPageState.dispose`
+里 `provider.evict()`，而预取走的是全局 `imageCache`。看起来都在「收尾」，实际
+两个方向都错：
+
+- **该留的没留**：`PageView` 的 `cacheExtent` 是 0，翻走的那一页立刻 dispose，
+  于是刚离开的那张被清掉 —— 回看要重新解码（12MP 原图 150~300ms）。
+- **该清的没清**：`precacheImage` 预取的邻居可能从未被显示，它没有页面，也就
+  没有 dispose 替它收尾，退出查看器后还留在全局缓存里占一块纹理。
+
+用 `ImageCache.containsKey(key)` 采样（`o`=在缓存，4 张图，打开→翻→翻→回→退出）：
+
+| 阶段 | 修前 | 修后 |
+| --- | --- | --- |
+| 打开 @0 | `[o,o,x,x]` | `[o,o,x,x]` |
+| 翻到 1 | `[x,o,o,x]` | `[o,o,o,x]` |
+| 翻到 2 | `[x,x,o,o]` | `[x,o,o,o]` |
+| 回看到 1 | `[x,o,x,o]` | `[x,o,o,x]` |
+| 退出 | `[x,x,x,o]` | `[x,x,x,x]` |
+
+- **保留窗口放在页面之上一级**：`_retainAround(index)` 维护「当前页左右各一张」，
+  窗口外的立刻 evict，窗口内的登记在一张 map 里、由查看器自己的 `dispose`
+  统一回收。谁显示、谁预取、谁释放三件事由同一个对象拍板，才谈得上「共用同一
+  保留范围」。
+- **键必须一致**：页面、预取、窗口三处都走同一个 `_viewerProvider(index)`（同一
+  路径 + 同一 `viewerDecodeWidth`）。width 差一档就是两个缓存键，预取白做、
+  evict 也清不到正主。
+- **预取要按「窗口里谁还没解」挑边**：只认「下一张」的话，回看方向永远没有预热。
+  先 `obtainKey` 再看 `containsKey`，已在缓存（含正在解码）就跳过，仍然只解一张。
+- **测试怎么断言「不重解码」**：`ImageCache` 不暴露解码次数，但键还在缓存里就说明
+  `resolve` 会命中。用固定的 surface（800×600@3x）把解码宽度钉成 1600，再用
+  `ResizeImage(FileImage(file), width: 1600)` 自己算键比对。真实图片解码需要
+  `tester.runAsync` 里推进真实 IO，`pumpAndSettle` 会因为加载指示器转不停而超时，
+  改用「runAsync 30ms + pump 60ms」循环几次。
+
 ## 3. 时间显示口径（最容易反复踩）
 
 ### 3.1 Memos 存的是「伪 UTC」

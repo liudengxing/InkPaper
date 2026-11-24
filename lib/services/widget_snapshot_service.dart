@@ -172,7 +172,7 @@ abstract final class WidgetSnapshotService {
     // 早先这里只按出现次数降序，和新打笔记的建议栏顺序对不上。
     // 注意这里喂的是全部笔记（含归档）：与改造前一致，编辑器「#标签」补全
     // 也是按全库统计的，别顺手收窄成 visibleNotes。
-    final quickTags = _rankQuickTags(notes);
+    final quickTags = _rankQuickTags(notes, now);
 
     final reviewNotes = _pickReviewNotes(
       visibleNotes,
@@ -270,29 +270,29 @@ abstract final class WidgetSnapshotService {
   /// 快速记录小部件的标签排序。
   ///
   /// 与编辑器「#标签」补全同源（`rankTagsByUsage`：频次 × 新鲜度加权），但这里
-  /// 先按标签记下最晚更新时间的 ISO 串，只对真正进入排序的标签解析 DateTime——
-  /// 1500 条笔记要解析的是「去重后的标签数」，不是「笔记数」。
-  static List<String> _rankQuickTags(List<WidgetStatNote> notes) {
-    final lastUsedIso = <String, String>{};
+  /// 先按标签累计频次并记下最晚更新时间，只为每个标签解析一次日期。
+  static List<String> _rankQuickTags(List<WidgetStatNote> notes, DateTime now) {
+    final usageByTag = <String, ({int count, String lastUsedIso})>{};
     for (final note in notes) {
       for (final tag in note.tags) {
-        final previous = lastUsedIso[tag];
-        if (previous == null || note.updatedAtIso.compareTo(previous) > 0) {
-          lastUsedIso[tag] = note.updatedAtIso;
-        }
+        final previous = usageByTag[tag];
+        usageByTag[tag] = (
+          count: (previous?.count ?? 0) + 1,
+          lastUsedIso: previous == null ||
+                  note.updatedAtIso.compareTo(previous.lastUsedIso) > 0
+              ? note.updatedAtIso
+              : previous.lastUsedIso,
+        );
       }
     }
-    // 只对去重后的标签解析（不是每行都解析）；时间串坏掉的那条跳过——
-    // 库里的时间字段来自 Memos、导入和老版本，坏值不该让整个小组件不更新。
-    final usable = <({List<String> tags, DateTime updatedAt})>[];
-    for (final entry in lastUsedIso.entries) {
-      final time = DateTime.tryParse(entry.value);
-      if (time == null) {
-        continue;
+    final usage = <String, ({int count, DateTime lastUsed})>{};
+    for (final entry in usageByTag.entries) {
+      final lastUsed = DateTime.tryParse(entry.value.lastUsedIso);
+      if (lastUsed != null) {
+        usage[entry.key] = (count: entry.value.count, lastUsed: lastUsed);
       }
-      usable.add((tags: <String>[entry.key], updatedAt: time));
     }
-    return rankTagsByUsage(notes: usable);
+    return rankTagUsageStats(usage, now: now);
   }
 
   static WidgetStatNote? _firstPinnedNote(List<WidgetStatNote> notes) {

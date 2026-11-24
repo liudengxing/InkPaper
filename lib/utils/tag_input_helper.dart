@@ -28,29 +28,38 @@ List<String> rankTagsByUsage({
   required Iterable<TagUsageEntry> notes,
   DateTime? now,
 }) {
-  final reference = now ?? DateTime.now();
-  final counts = <String, int>{};
-  final lastUsed = <String, DateTime>{};
+  final usage = <String, ({int count, DateTime lastUsed})>{};
 
   for (final note in notes) {
     for (final tag in note.tags) {
-      counts[tag] = (counts[tag] ?? 0) + 1;
-      final previous = lastUsed[tag];
-      if (previous == null || note.updatedAt.isAfter(previous)) {
-        lastUsed[tag] = note.updatedAt;
-      }
+      final previous = usage[tag];
+      usage[tag] = (
+        count: (previous?.count ?? 0) + 1,
+        lastUsed: previous == null || note.updatedAt.isAfter(previous.lastUsed)
+            ? note.updatedAt
+            : previous.lastUsed,
+      );
     }
   }
 
-  final ranked = counts.keys
+  return rankTagUsageStats(usage, now: now);
+}
+
+/// 对已经聚合的标签频次和最近使用时间应用同一套评分。
+List<String> rankTagUsageStats(
+  Map<String, ({int count, DateTime lastUsed})> usage, {
+  DateTime? now,
+}) {
+  final reference = now ?? DateTime.now();
+  final ranked = usage.entries
       .map(
-        (tag) => (
-          tag: tag,
-          count: counts[tag]!,
-          used: lastUsed[tag]!,
+        (entry) => (
+          tag: entry.key,
+          count: entry.value.count,
+          used: entry.value.lastUsed,
           score: _tagUsageScore(
-            count: counts[tag]!,
-            used: lastUsed[tag]!,
+            count: entry.value.count,
+            used: entry.value.lastUsed,
             now: reference,
           ),
         ),

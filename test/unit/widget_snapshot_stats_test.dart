@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/models/widget_stat_note.dart';
 import 'package:inkpaper/services/widget_snapshot_service.dart';
+import 'package:inkpaper/utils/tag_input_helper.dart';
 
 void main() {
   Note note({
@@ -231,6 +232,31 @@ void main() {
 
       expect(snapshot['stats'], isNotNull);
       expect(countOnMonthDay(snapshot, now.day), 1);
+    });
+
+    test('WS-S11 快速记录标签和编辑器一样兼顾频次与时效', () {
+      final entries = <TagUsageEntry>[
+        for (var i = 0; i < 20; i++)
+          (
+            tags: ['常用'],
+            updatedAt: now.subtract(const Duration(days: 2)),
+          ),
+        (tags: ['新标签'], updatedAt: now),
+      ];
+      final rows = <WidgetStatNote>[
+        for (final (index, entry) in entries.indexed)
+          WidgetStatNote(
+            id: 'tag-note-$index',
+            content: '笔记 $index',
+            tags: entry.tags,
+            createdAtIso: entry.updatedAt.toIso8601String(),
+            updatedAtIso: entry.updatedAt.toIso8601String(),
+          ),
+      ];
+
+      final expected = rankTagsByUsage(notes: entries, now: now);
+      expect(expected, ['常用', '新标签']);
+      expect(buildFromRows(rows)['quickTags'], expected);
     });
   });
 }

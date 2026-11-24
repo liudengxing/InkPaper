@@ -24,8 +24,25 @@ import 'package:path/path.dart' as p;
 const int _decodeWidth = 1600;
 
 /// 让真实 IO / 解码推进，同时把假时钟往前拨，等 180ms 的预取定时器触发。
-Future<void> _settle(WidgetTester tester) async {
-  for (var i = 0; i < 12; i++) {
+///
+/// 轮数固定，只用来推进动画和定时器；「解码有没有完成」不靠它判断，
+/// 见 [_waitFor]。
+Future<void> _settle(WidgetTester tester) =>
+    _waitFor(tester, () => false, maxRounds: 12);
+
+/// 推进真实 IO 与假时钟，直到 [done] 成立（或超出轮数预算）。
+///
+/// 全量并发跑时单张 1200×900 的解码可能远慢于固定轮数，用「等到条件成立」
+/// 代替「等够 360ms 真实时间」，否则断言会随机读到解码中途的缓存状态。
+Future<void> _waitFor(
+  WidgetTester tester,
+  bool Function() done, {
+  int maxRounds = 150,
+}) async {
+  for (var i = 0; i < maxRounds; i++) {
+    if (done()) {
+      return;
+    }
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 30)),
     );
@@ -118,6 +135,7 @@ void main() {
   testWidgets('IVR-01 打开后当前页与下一张已解码', (tester) async {
     final keys = await makeKeys(tester, 3);
     await pumpViewer(tester, 3);
+    await _waitFor(tester, () => cached(keys[0]) && cached(keys[1]));
 
     expect(
       cached(keys[0]),
@@ -133,6 +151,7 @@ void main() {
     await pumpViewer(tester, 3);
 
     await _steppedDrag(tester, -400);
+    await _waitFor(tester, () => snapshot(keys).every((value) => value));
 
     expect(
       snapshot(keys),
@@ -148,6 +167,10 @@ void main() {
 
     await _steppedDrag(tester, -400); // → 1
     await _steppedDrag(tester, -400); // → 2
+    await _waitFor(tester, () {
+      final state = snapshot(keys);
+      return !state[0] && state[1] && state[2] && state[3] && !state[4];
+    });
 
     expect(
       snapshot(keys),
@@ -156,6 +179,10 @@ void main() {
     );
 
     await _steppedDrag(tester, -400); // → 3
+    await _waitFor(tester, () {
+      final state = snapshot(keys);
+      return !state[0] && !state[1] && state[2] && state[3] && state[4];
+    });
     expect(
       snapshot(keys),
       <bool>[false, false, true, true, true],
@@ -169,6 +196,10 @@ void main() {
 
     await _steppedDrag(tester, -400); // 1 → 2
     await _steppedDrag(tester, 400); // 2 → 1
+    await _waitFor(tester, () {
+      final state = snapshot(keys);
+      return state[0] && state[1] && state[2] && !state[3];
+    });
 
     expect(
       cached(keys[1]),
@@ -186,11 +217,13 @@ void main() {
     final keys = await makeKeys(tester, 3);
     await pumpViewer(tester, 3);
     await _steppedDrag(tester, -400); // → 1，2 号被预取进缓存
+    await _waitFor(tester, () => cached(keys[2]));
 
     expect(cached(keys[2]), isTrue, reason: '前置条件：2 号已预取');
 
     await tester.pumpWidget(const SizedBox.shrink());
     await _settle(tester);
+    await _waitFor(tester, () => snapshot(keys).every((value) => !value));
 
     expect(
       snapshot(keys),

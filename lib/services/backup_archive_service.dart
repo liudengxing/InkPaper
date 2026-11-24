@@ -152,6 +152,7 @@ class BackupArchiveService {
     int? maxSingleVideoBytes,
     int? maxVideosTotalBytes,
     Future<void> Function()? beforeDecodeEntries,
+    Future<void> Function(File file, List<int> bytes)? resourceWriter,
   })  : _imagesDirectoryProvider =
             imagesDirectoryProvider ?? _defaultImagesDirectory,
         _tempDirectoryProvider = tempDirectoryProvider ?? getTemporaryDirectory,
@@ -160,7 +161,8 @@ class BackupArchiveService {
             maxSingleVideoBytes ?? defaultMaxSingleVideoBytes,
         _maxVideosTotalBytes =
             maxVideosTotalBytes ?? defaultMaxVideosTotalBytes,
-        _beforeDecodeEntries = beforeDecodeEntries;
+        _beforeDecodeEntries = beforeDecodeEntries,
+        _resourceWriter = resourceWriter;
 
   /// 图片落地目录（导出时找图、导入时存图都用它）。
   final Future<Directory> Function() _imagesDirectoryProvider;
@@ -171,6 +173,10 @@ class BackupArchiveService {
   /// 仅供测试：资源落盘之后、正文读取之前插一个可能抛错的钩子，用来验证
   /// 「附件已写进磁盘、正文读取失败」时本批文件会被统一回滚。生产调用不传。
   final Future<void> Function()? _beforeDecodeEntries;
+
+  /// 仅供测试：替换单个资源文件的写入动作，用来模拟「写进去几个字节就抛
+  /// 错」的真机磁盘异常（进程被杀、存储配额耗尽）。生产调用不传。
+  final Future<void> Function(File file, List<int> bytes)? _resourceWriter;
 
   /// 打包时暂存 zip 的基准目录。
   ///
@@ -889,12 +895,18 @@ class BackupArchiveService {
         isVideo ? 'video' : 'image',
         ext,
       );
-      // 写失败会直接抛出，由 decodeArchive 的统一 catch 回滚本批已完成的
-      // 文件；这条失败的路径本身不记入清单（宁可漏删也不能删错）。
-      await localFile.writeAsBytes(
-        archivedFile.content as List<int>,
-        flush: true,
-      );
+      try {
+        await _writeResourceFile(
+          localFile,
+          archivedFile.content as List<int>,
+        );
+      } on Object {
+        // 写失败时磁盘上可能已经留下半成品（写进几个字节后中断）。这个
+        // 文件名在分配时刚确认过不存在，此刻出现在该路径上的只能是本次
+        // 写入创建的，登记进清单跟着回滚；确认不了归属的就不碰。
+        await _trackPartialWrite(localFile, createdPaths);
+        rethrow;
+      }
       createdPaths.add(localFile.path);
       // 还原出来的图/视频也要进缩略图缓存，否则恢复后第一次浏览信息流
       // 全是原图解码（视频还会白等首帧）
@@ -913,16 +925,19 @@ class BackupArchiveService {
       }
       final localImage = imagePath.replaceFirst('file://', '');
       final target = LivePhotoUtils.videoPathFor(localImage);
+      final targetFile = File(target);
       try {
-        await File(target).writeAsBytes(
+        await _writeResourceFile(
+          targetFile,
           sidecar.file.content as List<int>,
-          flush: true,
         );
         createdPaths.add(target);
         restored[sidecar.originalPath] = 'file://$target';
         videoCount++;
       } on Object {
-        // 单个片段写失败不该让整包恢复失败
+        // 单个片段写失败不该让整包恢复失败；但磁盘上留下的半成品要登记，
+        // 否则它会一直占着 `<静图>.live.mp4` 这个固定名字
+        await _trackPartialWrite(targetFile, createdPaths);
       }
     }
 
@@ -947,11 +962,46 @@ class BackupArchiveService {
         '${dir.path}${Platform.pathSeparator}'
         'backup_${kind}_$stamp$suffix.$ext',
       );
-      if (!await file.exists()) {
-        return file;
+      if (await file.exists()) {
+        continue;
       }
+      // Live 图的动图片段名由静图路径推出来，是固定值：静图名空闲、但
+      // `<静图>.live.mp4` 已被占用时，还原会先覆盖那个已有文件、失败回滚
+      // 时再把它删掉，所以这种名字同样不能用。
+      if (kind == 'image' &&
+          await File(LivePhotoUtils.videoPathFor(file.path)).exists()) {
+        continue;
+      }
+      return file;
     }
     throw Exception('无法为还原的资源分配文件名');
+  }
+
+  /// 落盘一份还原出来的资源。
+  ///
+  /// 测试可以替换写入动作，模拟「写进去几个字节就抛错」这类真机磁盘异常
+  /// （进程被杀、存储配额耗尽），真实路径仍然走 [File.writeAsBytes]。
+  Future<void> _writeResourceFile(File file, List<int> bytes) {
+    final writer = _resourceWriter;
+    if (writer != null) {
+      return writer(file, bytes);
+    }
+    return file.writeAsBytes(bytes, flush: true);
+  }
+
+  /// 把一次失败写入留下的半成品登记进回滚清单。
+  ///
+  /// 只在目标文件确实落盘时登记：文件名在写之前刚由 [_allocateRestoredFile]
+  /// 确认过不存在，能出现在这个路径上的只能是这次写入产生的，所以删它不会
+  /// 误伤导入前就有的文件。确认不了归属就宁可不登记。
+  Future<void> _trackPartialWrite(File file, List<String> createdPaths) async {
+    try {
+      if (await file.exists()) {
+        createdPaths.add(file.path);
+      }
+    } on Object catch (e) {
+      debugPrint('登记半成品资源失败: ${file.path} $e');
+    }
   }
 
   /// 删掉某个解包批次新建的资源文件，返回真正删掉的数量。

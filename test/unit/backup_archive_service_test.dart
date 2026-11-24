@@ -822,6 +822,7 @@ void main() {
     /// 固定时钟的 service：还原文件名可预测，才能用同名目录占位制造写失败。
     BackupArchiveService fixedClockService({
       Future<void> Function()? beforeDecodeEntries,
+      Future<void> Function(File file, List<int> bytes)? resourceWriter,
     }) {
       final clock = DateTime(2026, 11, 24, 12);
       return BackupArchiveService(
@@ -829,6 +830,7 @@ void main() {
         tempDirectoryProvider: () async => Directory.systemTemp,
         now: () => clock,
         beforeDecodeEntries: beforeDecodeEntries,
+        resourceWriter: resourceWriter,
       );
     }
 
@@ -906,6 +908,97 @@ void main() {
         reason: '失败那批已经回滚，目录里只剩重试新建的两份',
       );
       expect(existing.existsSync(), isTrue);
+    });
+
+    test('附件写到一半就失败时，磁盘上的半成品也一起回滚', () async {
+      final bytes = await twoImagePackage();
+      // 导入前就在目录里的文件：回滚必须一个都不碰、内容也不能变
+      final existing = await writeImage('user_photo_before.png');
+      final stamp = DateTime(2026, 11, 24, 12).millisecondsSinceEpoch;
+      final partialPath =
+          '${imagesDir.path}${Platform.pathSeparator}backup_image_${stamp}_1.png';
+
+      // 真机上是写到一半被打断（进程被杀 / 存储耗尽）：目标路径上已经有几个
+      // 字节，但 writeAsBytes 抛错时这个路径还没进本批清单。
+      final failing = fixedClockService(
+        resourceWriter: (file, content) async {
+          if (file.path != partialPath) {
+            await file.writeAsBytes(content, flush: true);
+            return;
+          }
+          await file.writeAsBytes(content.take(4).toList(), flush: true);
+          throw FileSystemException('模拟写入中断', partialPath);
+        },
+      );
+
+      await expectLater(
+        failing.decodeArchive(bytes),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.message,
+            'message',
+            '模拟写入中断',
+          ),
+        ),
+      );
+
+      expect(backupCopies(), isEmpty, reason: '写完的那个和半成品都不能留在磁盘上');
+      expect(File(partialPath).existsSync(), isFalse, reason: '半成品也要回滚');
+      expect(existing.existsSync(), isTrue, reason: '导入前的文件不能删');
+      expect(existing.readAsBytesSync(), _tinyPng, reason: '导入前的文件内容不能改');
+    });
+
+    test('静图名空闲、配套视频名被占用时，还原不能用会撞车的那对名字', () async {
+      final image = await writeImage('live_rb.jpg');
+      await File(LivePhotoUtils.videoPathFor(image.path))
+          .writeAsBytes(Uint8List(2048), flush: true);
+      final built = await service.buildArchive(
+        notes: [_note(id: 'lvc', content: '动图 ![图片](${image.path})')],
+        format: BackupContentFormat.json,
+        includeImages: true,
+      );
+
+      final stamp = DateTime(2026, 11, 24, 12).millisecondsSinceEpoch;
+      // 导入前就有的视频，名字正好压在第一个候选静图的侧车路径上。以前这里
+      // 会被还原过程覆盖、正文处理失败后又被当成"本批新建"删掉。
+      final occupied = File(
+        '${imagesDir.path}${Platform.pathSeparator}backup_image_$stamp.live.mp4',
+      );
+      final originalBytes = List<int>.generate(64, (i) => i + 1);
+      await occupied.writeAsBytes(originalBytes, flush: true);
+
+      final failing = fixedClockService(
+        beforeDecodeEntries: () async => throw StateError('正文读取失败'),
+      );
+      final decode = failing.decodeArchive(built.bytes);
+      await expectLater(decode, throwsA(isA<StateError>()));
+
+      expect(occupied.existsSync(), isTrue, reason: '导入前的视频不能被删');
+      expect(
+        occupied.readAsBytesSync(),
+        originalBytes,
+        reason: '导入前的视频内容也不能被覆盖',
+      );
+      expect(
+        backupCopies().where((file) => file.path != occupied.path),
+        isEmpty,
+        reason: '本批还原的静图和侧车都要回滚',
+      );
+
+      // 正常恢复要仍然成对：静图与 `<静图>.live.mp4` 一起落在本地
+      final decoded = await fixedClockService().decodeArchive(built.bytes);
+      final restoredImage = decoded.restoredLocalPaths.firstWhere(
+        (path) => !path.endsWith('.mp4'),
+      );
+      final sidecar = LivePhotoUtils.videoPathFor(restoredImage);
+      expect(decoded.restoredLocalPaths, contains(sidecar));
+      expect(File(restoredImage).existsSync(), isTrue);
+      expect(File(sidecar).existsSync(), isTrue);
+      expect(
+        occupied.readAsBytesSync(),
+        originalBytes,
+        reason: '绕开撞车名字之后，已有视频依旧原样',
+      );
     });
   });
 }

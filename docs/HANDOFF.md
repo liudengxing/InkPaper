@@ -171,6 +171,7 @@ adb $D shell screencap -p /sdcard/s.png   # 再 pull 回来，别用 exec-out �
 | ORIENT-001 | **App 没有方向锁** | `lib/` 内无 `SystemChrome.setPreferredOrientations`，`AndroidManifest.xml` 无 `android:screenOrientation`；设备当前 `accelerometer_rotation=0`（锁定竖屏）、`user_rotation=0`。即：转不转完全由系统开关决定 | 若希望 App 行为确定，可在 `main()` 锁竖屏，仅在图片查看器放开横屏；需产品确认 |
 | PERF-IMG-001 | **多图笔记详情页 / 大图查看器是否还卡** | `fc1b832` 已统一解码档位并延后解码，但**没有做过真机前后对比**，是否彻底解决未知 | 用 9 图笔记复测：进详情页、连续翻图、Live 图播放，看是否还有掉帧 |
 | ~~DOC-001~~ | **已解决（1.1.58 `1ee212e` + 2026-11-09 文档整理）**：工具链噪音清理完毕 | `_backup/` 进 `analysis_options.yaml` 的 exclude，`analyze` 退出码归 0；`CHANGELOG.md` 按「以 PROGRESS.md 为准」结项，文件头声明历史断档原因，并补齐 `1.1.57`–`1.1.62` | 无需后续动作 |
+| DOC-002 | **文档内链失效 68 处 / 45 条**（2026-11-24 扫描） | 大多在 `docs/user-guide/`：`README.md` 指向的 `features/*.md`、`sync/*.md`、`tutorials/*.md`、`faq.md`、`troubleshooting.md` 全都不存在（该目录只有 `README.md` 与 `getting-started.md`）；`docs/architecture/README.md` 指向的 `adr/002`~`005`、`security-design.md`、`performance.md` 也不存在 | 要么把这些页面补出来，要么把索引改成「规划中」并去掉死链；不要在没内容时保留「看起来已经写好」的目录 |
 | SHARE-001 | **系统分享进来没弹预填编辑器**（2026-11-06 新发现） | 用 adb 合成 `ACTION_SEND text/plain` 打进 1.1.62 release 包，冷启动与后台两种情形都停在首页。原生载荷键名与 Dart 解析对得上，release 包 `ReleaseLog` 静默，logcat 无线索 | 先在微信里长按转发一次确认真伪；真坏了换 debug 包抓 `已通知Flutter处理分享内容` 定位。「微信 → 笔记」目前只靠这条手动通道 |
 | ~~TAG-REC-001~~ | **已解决（1.1.63）**：「标签推荐提示词」死配置已删除 | 溯源确认它是原「相关标签推荐」（`tag_ai_service.dart`，TF-IDF + LLM 合并）的提示词，而该服务在 v1.0.0 基线 `ca0ed14` 导入时就零调用，`33c9647` 清理死代码时整文件删除。已删设置页输入框 + `AppConfig` 字段 + 6 个孤儿文案键，帮助页能力说明同步更正 | 无需后续动作；新增设置项时务必同时确认有真实读者 |
 

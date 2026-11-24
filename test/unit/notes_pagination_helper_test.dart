@@ -148,4 +148,28 @@ void main() {
     );
     expect(noMore.loadMoreState, LoadMoreState.noMore);
   });
+
+  test('PAGE-07 续页结果只保留窗口里没有的 id', () {
+    final loaded = <String>['n-3', 'n-2', 'n-1'];
+    // 第 2 页里有两条与窗口重叠（引用回调插进来过的那种情况）
+    final page = <String>['n-1', 'n-0', 'n--1'];
+
+    expect(
+      filterUnloadedNotes(loaded, page, (id) => id),
+      <String>['n-0', 'n--1'],
+      reason: '重叠的 id 不能再追加一次，否则列表里出现两张同 id 卡片',
+    );
+
+    // 整页都不重叠时原样返回，顺序不变
+    expect(
+      filterUnloadedNotes(loaded, <String>['n-0', 'n--1'], (id) => id),
+      <String>['n-0', 'n--1'],
+    );
+
+    // 整页都重叠时返回空，调用方据此知道这一页没有新增
+    expect(
+      filterUnloadedNotes(loaded, <String>['n-2'], (id) => id),
+      isEmpty,
+    );
+  });
 }

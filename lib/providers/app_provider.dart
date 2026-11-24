@@ -720,6 +720,48 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
     }
   }
 
+  /// 引用管理器回传「本次改到的那一两条」，按 id 就地替换已加载的那份。
+  ///
+  /// **不往列表里插新条目**：被引用的目标可能仍在深页没加载，插进来会占据
+  /// 首页末尾的位置；而下一次 SQL 续页按 `OFFSET` 取，照样把它再返回一遍，
+  /// 列表里就会出现两条同 id 的卡片（OPT-10 复验时的原始现象）。
+  /// 深页目标的标题由引用面板按 id 查库（[getNotesByIds]），不靠这个窗口。
+  void applyReferenceNoteChanges(List<Note> changedNotes) {
+    if (changedNotes.isEmpty) {
+      return;
+    }
+    // 一次建 id → 下标，别对每条改动的笔记各扫一遍列表。
+    final indexById = <String, int>{
+      for (var i = 0; i < _notesStore.notes.length; i++)
+        _notesStore.notes[i].id: i,
+    };
+    for (final note in changedNotes) {
+      final index = indexById[note.id];
+      if (index != null) {
+        _notesStore.notes[index] = note;
+      } else {
+        debugPrint(
+          'AppProvider: 引用涉及的笔记 ${note.id} 不在当前窗口，等翻页时再取',
+        );
+      }
+    }
+    // 🔧 修复：使用双重通知确保UI更新
+    notifyListeners();
+    _scheduleWidgetSnapshotUpdate();
+    // 添加微延迟后再次通知，确保所有监听器都能收到更新
+    Future.microtask(() {
+      if (mounted) {
+        notifyListeners();
+        _scheduleWidgetSnapshotUpdate();
+      }
+    });
+  }
+
+  /// 按 id 取笔记：引用面板要显示的目标可能在深页没加载，不能靠 [notes]
+  /// 这个分页窗口，按 id 查库（超过 SQLite 变量上限时分批由服务层处理）。
+  Future<List<Note>> getNotesByIds(List<String> ids) =>
+      _databaseService.getNotesByIds(ids);
+
   Future<void> initializeApp() async {
     if (_notesStore.isInitialized) {
       return;
@@ -736,29 +778,7 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
       // 初始化统一引用管理器
       UnifiedReferenceManager().initialize(
         databaseService: _databaseService,
-        onNotesChanged: (changedNotes) {
-          // 引用管理器只回传「本次改到的那一两条」，按 id 就地更新即可；
-          // 以前回传整表，分页之后整表替换会把深页状态和排序位置冲掉。
-          for (final note in changedNotes) {
-            final index = _notesStore.notes.indexWhere((n) => n.id == note.id);
-            if (index != -1) {
-              _notesStore.notes[index] = note;
-            } else {
-              // 被引用的目标可能还没出现在当前这一页里。
-              _notesStore.notes.add(note);
-            }
-          }
-          // 🔧 修复：使用双重通知确保UI更新
-          notifyListeners();
-          _scheduleWidgetSnapshotUpdate();
-          // 添加微延迟后再次通知，确保所有监听器都能收到更新
-          Future.microtask(() {
-            if (mounted) {
-              notifyListeners();
-              _scheduleWidgetSnapshotUpdate();
-            }
-          });
-        },
+        onNotesChanged: applyReferenceNoteChanges,
         onError: (error) {},
         syncReferenceToServerUnified: _syncReferenceToServerUnified,
       );
@@ -1293,9 +1313,22 @@ class AppProvider with ChangeNotifier implements NotificationAppProviderBridge {
 
       // 7️⃣ 处理加载结果
       if (moreNotes.isNotEmpty) {
-        _notesStore.notes.addAll(moreNotes);
+        // 窗口里已有的 id 不能再追加一次：同一个 id 出现两条卡片，点哪条都对不上
+        // 状态。引用回调已经不再往列表里插深页目标，这里是最后一道闸门。
+        final freshNotes = paging.filterUnloadedNotes(
+          _notesStore.notes,
+          moreNotes,
+          (note) => note.id,
+        );
+        if (freshNotes.length != moreNotes.length) {
+          debugPrint(
+            'AppProvider: 续页丢弃 ${moreNotes.length - freshNotes.length} 条'
+            '已在窗口中的笔记，避免重复条目',
+          );
+        }
+        _notesStore.notes.addAll(freshNotes);
         debugPrint(
-          'AppProvider: ✅ 第 ${_notesStore.pagingState.currentPage} 页加载完成，本页 ${moreNotes.length} 条，总计 ${_notesStore.notes.length}/$_notesStore.totalNotesCount 条',
+          'AppProvider: ✅ 第 ${_notesStore.pagingState.currentPage} 页加载完成，新增 ${freshNotes.length} 条，总计 ${_notesStore.notes.length}/$_notesStore.totalNotesCount 条',
         );
       }
       _notesStore.pagingState = paging.applyLoadMoreResult(

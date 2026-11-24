@@ -24,6 +24,76 @@ class ReferencesSidebar extends StatefulWidget {
 class _ReferencesSidebarState extends State<ReferencesSidebar> {
   String _filterType = 'all'; // 'all', 'outgoing', 'incoming'
 
+  /// 深页目标的标题。`appProvider.notes` 只有已加载的那几页，被引用的笔记
+  /// 很可能还在后面没翻到——早先的做法是把它插进首页列表，但那是分页窗口，
+  /// 插进去会和续页返回的同一条撞成两张卡片（OPT-10 复验现象）。
+  /// 这里按 id 查库补标题；value 为 null 表示查过了、库里也没有。
+  final Map<String, Note?> _deepTargets = <String, Note?>{};
+  final Set<String> _resolvingTargets = <String>{};
+
+  @override
+  void didUpdateWidget(covariant ReferencesSidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 换了一篇笔记就看新的关系集合，旧缓存可能过期
+    if (oldWidget.note.id != widget.note.id) {
+      _deepTargets.clear();
+      _resolvingTargets.clear();
+    }
+  }
+
+  /// 引用指向的对端 id（正向取 relatedMemoId，反向取 memoId）。
+  String _targetIdOf(Map<String, dynamic> ref, {required bool isOutgoing}) =>
+      isOutgoing
+          ? (ref['relatedMemoId']?.toString() ?? '')
+          : (ref['memoId']?.toString() ?? '');
+
+  Note? _targetNote(AppProvider appProvider, String id) {
+    if (id.isEmpty) {
+      return null;
+    }
+    for (final note in appProvider.notes) {
+      if (note.id == id) {
+        return note;
+      }
+    }
+    return _deepTargets[id];
+  }
+
+  /// 把当前窗口里找不到的目标 id 交给数据库补上。
+  ///
+  /// 在 build 里调用，所以真正的 setState 推迟到这一帧画完之后；同一批 id
+  /// 只查一次（[_resolvingTargets] 拦住重复调度）。
+  void _scheduleResolveTargets(AppProvider appProvider, List<String> ids) {
+    final loadedIds = appProvider.notes.map((note) => note.id).toSet();
+    final missing = <String>[
+      for (final id in ids)
+        if (id.isNotEmpty &&
+            !loadedIds.contains(id) &&
+            !_deepTargets.containsKey(id) &&
+            !_resolvingTargets.contains(id))
+          id,
+    ];
+    if (missing.isEmpty) {
+      return;
+    }
+    _resolvingTargets.addAll(missing);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final notes = await appProvider.getNotesByIds(missing);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        for (final id in missing) {
+          _deepTargets[id] = null;
+        }
+        for (final note in notes) {
+          _deepTargets[note.id] = note;
+        }
+        _resolvingTargets.removeAll(missing);
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -226,6 +296,12 @@ class _ReferencesSidebarState extends State<ReferencesSidebar> {
       return _buildEmptyState(isDarkMode);
     }
 
+    // 关系里记的只是 id：窗口外的对端按 id 补查，补完再让卡片显示真实标题
+    _scheduleResolveTargets(appProvider, <String>[
+      for (final ref in displayRefs)
+        _targetIdOf(ref, isOutgoing: outgoingRefs.contains(ref)),
+    ]);
+
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: displayRefs.length,
@@ -279,20 +355,19 @@ class _ReferencesSidebarState extends State<ReferencesSidebar> {
     final textColor = isDarkMode ? Colors.white : Colors.black87;
 
     // 获取关联笔记ID
-    final relatedNoteId = isOutgoing
-        ? (ref['relatedMemoId']?.toString() ?? '')
-        : (ref['memoId']?.toString() ?? '');
+    final relatedNoteId = _targetIdOf(ref, isOutgoing: isOutgoing);
 
-    // 查找关联笔记
-    final relatedNote = appProvider.notes.firstWhere(
-      (n) => n.id == relatedNoteId,
-      orElse: () => Note(
-        id: relatedNoteId,
-        content: localizations?.noteNotFound ?? '笔记未找到',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      ),
-    );
+    // 窗口里没有就先显示占位，补查回来会 setState 换成真实标题
+    final resolved = _targetNote(appProvider, relatedNoteId);
+    final relatedNote = resolved ??
+        Note(
+          id: relatedNoteId,
+          content: _resolvingTargets.contains(relatedNoteId)
+              ? '…'
+              : (localizations?.noteNotFound ?? '笔记未找到'),
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
 
     return InkWell(
       onTap: () => widget.onNoteTap(relatedNoteId),

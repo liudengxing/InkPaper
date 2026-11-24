@@ -60,8 +60,11 @@ void main() {
 
   setUp(() async {
     imagesDir = await Directory.systemTemp.createTemp('inkpaper_backup_test');
-    service =
-        BackupArchiveService(imagesDirectoryProvider: () async => imagesDir);
+    service = BackupArchiveService(
+      imagesDirectoryProvider: () async => imagesDir,
+      // 单测里没有 path_provider 通道，落盘位置直接给系统临时目录
+      tempDirectoryProvider: () async => Directory.systemTemp,
+    );
   });
 
   tearDown(() async {
@@ -344,6 +347,7 @@ void main() {
     test('超过单段体积上限的视频跳过并计数', () async {
       final tight = BackupArchiveService(
         imagesDirectoryProvider: () async => imagesDir,
+        tempDirectoryProvider: () async => Directory.systemTemp,
         maxSingleVideoBytes: 1024,
       );
       final video = await writeVideo('big.mp4', size: 4096);
@@ -441,6 +445,170 @@ void main() {
           (await service.decodeArchive(built.bytes)).entries.single.content;
       expect(html, contains('<video'));
       expect(html, contains('resources/video_'));
+    });
+  });
+
+  group('流式打包', () {
+    test('视频按 STORE 流式写入，图片与正文仍压缩', () async {
+      await writeImage('photo.png');
+      final video = await writeVideo('clip.mp4', size: 4096);
+      final built = await service.buildArchive(
+        notes: [
+          _note(
+            id: 'n1',
+            content: '![](photo.png)\n![视频](${video.path})\n${'正文' * 400}',
+          ),
+        ],
+        format: BackupContentFormat.json,
+        includeImages: true,
+        includeVideos: true,
+      );
+
+      final archive = ZipDecoder().decodeBytes(built.bytes);
+      final videoEntry = archive.files.firstWhere(
+        (file) => file.name.startsWith('resources/video_'),
+      );
+      expect(
+        videoEntry.compress,
+        isFalse,
+        reason: 'deflate 分支会先把整个条目读成 Uint8List 再压，'
+            '150MB 的视频等于把省下的内存又拿回来',
+      );
+      expect(videoEntry.size, video.lengthSync());
+
+      final imageEntry = archive.files.firstWhere(
+        (file) => file.name.startsWith('resources/note_'),
+      );
+      expect(
+        imageEntry.compress,
+        isTrue,
+        reason: '图片要整张读出来切动图片段，压缩不会再额外占一份整图',
+      );
+
+      final text = archive.files.firstWhere(
+        (file) => file.name == 'notes.json',
+      );
+      expect(text.compress, isTrue, reason: '正文只有几百 KB，压缩更划算');
+      expect(text.rawContent!.length, lessThan(text.size));
+    });
+
+    test('跨多个 1MB 块的大视频按原样还原', () async {
+      // 6MB 视频：流式写出每次只取 1MB，跨块边界不能截断或错位
+      final video = await writeVideo('big.mp4', size: 6 * 1024 * 1024);
+      final original = await video.readAsBytes();
+      final built = await service.buildArchive(
+        notes: [_note(id: 'v1', content: '![视频](${video.path})')],
+        format: BackupContentFormat.json,
+        includeImages: false,
+        includeVideos: true,
+      );
+
+      final decoded = await service.decodeArchive(built.bytes);
+      final restored = RegExp(
+        r'file://([^)\s]+)',
+      ).firstMatch(decoded.entries.single.content)?.group(1);
+      expect(decoded.restoredVideoCount, 1);
+      expect(restored, isNotNull);
+      expect(
+        await File(restored!).readAsBytes(),
+        orderedEquals(original),
+        reason: '分块读写必须逐字节一致',
+      );
+    });
+
+    test('老版本整包压缩出来的媒体条目仍能还原', () async {
+      // 旧备份把图片也 deflate 了；现在的写入端改成 STORE，但读端必须两种都认。
+      final imageBytes = await writeImage('legacy.png').then(
+        (file) => file.readAsBytes(),
+      );
+      final notesJson = jsonEncode({
+        'version': '1.0',
+        'notes': [
+          {'content': '![](legacy.png)'},
+        ],
+      });
+      final resourcesJson = jsonEncode({
+        'version': '1.0',
+        'resources': [
+          {
+            'originalPath': 'legacy.png',
+            'archivePath': 'resources/note_1_1.png',
+          },
+        ],
+      });
+      final archive = Archive()
+        ..addFile(
+          ArchiveFile(
+            'resources/note_1_1.png',
+            imageBytes.length,
+            imageBytes,
+          ),
+        )
+        ..addFile(
+          ArchiveFile(
+            'notes.json',
+            utf8.encode(notesJson).length,
+            utf8.encode(notesJson),
+          ),
+        )
+        ..addFile(
+          ArchiveFile(
+            'resource_manifest.json',
+            utf8.encode(resourcesJson).length,
+            utf8.encode(resourcesJson),
+          ),
+        );
+      final legacy = Uint8List.fromList(ZipEncoder().encode(archive)!);
+
+      final decoded = await service.decodeArchive(legacy);
+      expect(decoded.restoredImageCount, 1);
+      expect(decoded.entries.single.content, contains('file://'));
+    });
+
+    test('中途失败删掉半成品，重试能成功', () async {
+      await writeImage('a.png');
+      await writeImage('b.png');
+      final note = _note(id: 'n1', content: '![](a.png)\n![](b.png)');
+      final outDir = await Directory.systemTemp.createTemp('backup_out');
+      addTearDown(() => outDir.delete(recursive: true));
+      final target = File('${outDir.path}/backup.zip');
+
+      // 第二次去取图片目录时抛错：此时第一条媒体已经写进 zip
+      var calls = 0;
+      final flaky = BackupArchiveService(
+        tempDirectoryProvider: () async => Directory.systemTemp,
+        imagesDirectoryProvider: () async {
+          calls++;
+          if (calls >= 2) {
+            throw const FileSystemException('模拟取图片目录失败');
+          }
+          return imagesDir;
+        },
+      );
+
+      await expectLater(
+        flaky.buildArchiveToFile(
+          target: target,
+          notes: [note],
+          format: BackupContentFormat.json,
+          includeImages: true,
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(
+        target.existsSync(),
+        isFalse,
+        reason: '写了一半的 zip 不能留给用户，否则会被当成有效备份',
+      );
+
+      final retried = await service.buildArchiveToFile(
+        target: target,
+        notes: [note],
+        format: BackupContentFormat.json,
+        includeImages: true,
+      );
+      expect(retried.imageCount, 2);
+      expect(target.existsSync(), isTrue);
     });
   });
 

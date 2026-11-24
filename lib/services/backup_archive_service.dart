@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:inkpaper/utils/media_paths.dart';
@@ -80,6 +80,32 @@ class BackupArchiveBuildResult {
   final int skippedVideoCount;
 }
 
+/// 落盘版打包结果：字节在 [file] 里，计数与 [BackupArchiveBuildResult] 一致。
+///
+/// 只有能给「文件路径」的调用方（分享、复制到应用目录）才用得上它；
+/// 需要整包字节的入口走 [BackupArchiveService.buildArchive]。
+class BackupArchiveFileResult {
+  const BackupArchiveFileResult({
+    required this.file,
+    required this.format,
+    required this.noteCount,
+    required this.imageCount,
+    required this.missingImageCount,
+    this.videoCount = 0,
+    this.missingVideoCount = 0,
+    this.skippedVideoCount = 0,
+  });
+
+  final File file;
+  final BackupContentFormat format;
+  final int noteCount;
+  final int imageCount;
+  final int missingImageCount;
+  final int videoCount;
+  final int missingVideoCount;
+  final int skippedVideoCount;
+}
+
 /// 解包后的一份正文文件（图片路径已重写成本地可读路径）。
 class BackupArchiveEntry {
   const BackupArchiveEntry({required this.name, required this.content});
@@ -114,10 +140,12 @@ class DecodedBackupArchive {
 class BackupArchiveService {
   BackupArchiveService({
     Future<Directory> Function()? imagesDirectoryProvider,
+    Future<Directory> Function()? tempDirectoryProvider,
     int? maxSingleVideoBytes,
     int? maxVideosTotalBytes,
   })  : _imagesDirectoryProvider =
             imagesDirectoryProvider ?? _defaultImagesDirectory,
+        _tempDirectoryProvider = tempDirectoryProvider ?? getTemporaryDirectory,
         _maxSingleVideoBytes =
             maxSingleVideoBytes ?? defaultMaxSingleVideoBytes,
         _maxVideosTotalBytes =
@@ -125,6 +153,13 @@ class BackupArchiveService {
 
   /// 图片落地目录（导出时找图、导入时存图都用它）。
   final Future<Directory> Function() _imagesDirectoryProvider;
+
+  /// 打包时暂存 zip 的基准目录。
+  ///
+  /// 用 `getTemporaryDirectory()` 而不是 `Directory.systemTemp`：后者在授权
+  /// 范围外（见 `apk_install_service` 的同类注释），写进去的文件再想分享出去
+  /// 会被 FileProvider 拒掉。
+  final Future<Directory> Function() _tempDirectoryProvider;
 
   static Future<Directory> _defaultImagesDirectory() async {
     final docs = await getApplicationDocumentsDirectory();
@@ -162,6 +197,10 @@ class BackupArchiveService {
   ///
   /// [markdownExporter] 由调用方注入（复用数据库层的 Markdown 序列化），
   /// 不传时退化成带 Front Matter 的简单实现。
+  ///
+  /// 打包本身全程落盘（见 [buildArchiveToFile]），只有最后要交给系统选择器或
+  /// 加密时才把整包读成字节 —— 那一次副本无法避免，但组装阶段的中间数组
+  /// 已经省掉了。
   Future<BackupArchiveBuildResult> buildArchive({
     required List<Note> notes,
     required BackupContentFormat format,
@@ -170,235 +209,332 @@ class BackupArchiveService {
     String Function(Note note)? markdownExporter,
     DateTime? now,
   }) async {
-    final exportedAt = now ?? DateTime.now();
-    final archive = Archive();
-    final resources = <Map<String, dynamic>>[];
-    final archivedByOriginal = <String, String>{};
-    // 只统计正文里真正引用到的图片，resourceList 里只是附件元数据，
-    // 找不到也不影响阅读，不拿它去打扰用户
-    final missingPaths = <String>{};
-    final missingVideoPaths = <String>{};
-    final skippedVideoPaths = <String>{};
-    var videoCount = 0;
-    var videoBytesTotal = 0;
+    final baseDir = await _tempDirectoryProvider();
+    final tempDir = await baseDir.createTemp('inkpaper_backup_');
+    final target = File('${tempDir.path}/backup.zip');
+    try {
+      final packed = await buildArchiveToFile(
+        target: target,
+        notes: notes,
+        format: format,
+        includeImages: includeImages,
+        includeVideos: includeVideos,
+        markdownExporter: markdownExporter,
+        now: now,
+      );
+      return BackupArchiveBuildResult(
+        bytes: await target.readAsBytes(),
+        format: packed.format,
+        noteCount: packed.noteCount,
+        imageCount: packed.imageCount,
+        missingImageCount: packed.missingImageCount,
+        videoCount: packed.videoCount,
+        missingVideoCount: packed.missingVideoCount,
+        skippedVideoCount: packed.skippedVideoCount,
+      );
+    } finally {
+      // 失败时临时目录里会留一个写了一半的 zip，按「本次新增」清掉。
+      await _deleteQuietly(tempDir);
+    }
+  }
 
-    Future<void> archiveMedia({
-      required int noteIndex,
-      required Note note,
-      required String originalPath,
-      required bool isVideo,
-      required bool referencedInBody,
-      String? liveOf,
-    }) async {
-      // 同一份媒体被多条笔记引用时只打一份
-      if (archivedByOriginal.containsKey(originalPath)) {
-        return;
-      }
-      final file = await _resolveMediaFile(originalPath);
-      if (file == null) {
-        if (referencedInBody) {
-          (isVideo ? missingVideoPaths : missingPaths).add(originalPath);
-        }
-        return;
-      }
-      if (isVideo) {
-        final size = file.lengthSync();
-        if (size > _maxSingleVideoBytes ||
-            videoBytesTotal + size > _maxVideosTotalBytes) {
-          // 打包是整块进内存的，体积不设限会直接把低端机的堆打爆。
-          // 跳过并计数，交给界面提示用户改用 WebDAV 备份。
-          skippedVideoPaths.add(originalPath);
+  /// 生成备份 ZIP 并直接写到 [target]。
+  ///
+  /// 和 `ZipEncoder().encode(archive)` 的关键差别是**不把整包攒在内存里**：
+  /// 视频条目按 1MB 块从源文件流进 zip 的输出流，峰值只跟单块缓冲有关，
+  /// 不再随附件总量线性上涨。图片仍读成字节再压缩 —— 动图的片段要从字节里
+  /// 切，本来就得整张读出来，而单张图片的额外拷贝只在处理它自己那一瞬间存在。
+  ///
+  /// 视频必须走 STORE（不压缩）：`ZipEncoder` 的压缩分支会先把整个条目读成
+  /// 一个 `Uint8List` 再压，正好把刚省下的内存又拿回来；150MB 的视频在那条
+  /// 路上要两份 150MB。视频本来就压不动，存原样体积几乎不变。
+  Future<BackupArchiveFileResult> buildArchiveToFile({
+    required File target,
+    required List<Note> notes,
+    required BackupContentFormat format,
+    required bool includeImages,
+    bool includeVideos = false,
+    String Function(Note note)? markdownExporter,
+    DateTime? now,
+  }) async {
+    final exportedAt = now ?? DateTime.now();
+    final encoder = ZipFileEncoder();
+    encoder.create(target.path);
+    try {
+      final resources = <Map<String, dynamic>>[];
+      final archivedByOriginal = <String, String>{};
+      // 只统计正文里真正引用到的图片，resourceList 里只是附件元数据，
+      // 找不到也不影响阅读，不拿它去打扰用户
+      final missingPaths = <String>{};
+      final missingVideoPaths = <String>{};
+      final skippedVideoPaths = <String>{};
+      var videoCount = 0;
+      var videoBytesTotal = 0;
+
+      Future<void> archiveMedia({
+        required int noteIndex,
+        required Note note,
+        required String originalPath,
+        required bool isVideo,
+        required bool referencedInBody,
+        String? liveOf,
+      }) async {
+        // 同一份媒体被多条笔记引用时只打一份
+        if (archivedByOriginal.containsKey(originalPath)) {
           return;
         }
-        videoBytesTotal += size;
-      }
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) {
-        if (referencedInBody) {
-          (isVideo ? missingVideoPaths : missingPaths).add(originalPath);
+        final file = await _resolveMediaFile(originalPath);
+        if (file == null) {
+          if (referencedInBody) {
+            (isVideo ? missingVideoPaths : missingPaths).add(originalPath);
+          }
+          return;
         }
-        return;
-      }
-      final ext = extensionOf(file.path);
-      final prefix = isVideo ? 'video' : 'note';
-      final archivePath =
-          '$resourceDirName/${prefix}_${noteIndex + 1}_${resources.length + 1}.$ext';
-      archive.addFile(ArchiveFile(archivePath, bytes.length, bytes));
-      resources.add({
-        'noteId': note.id,
-        'originalPath': originalPath,
-        'archivePath': archivePath,
-        if (isVideo) 'isVideo': true,
-        if (isVideo) 'sizeBytes': bytes.length,
-        // Live 图的动态片段：还原时要贴着同名静图落盘（`<图>.live.mp4`），
-        // 否则动图会退化成静态图。
-        if (liveOf != null) 'liveOf': liveOf,
-      });
-      archivedByOriginal[originalPath] = archivePath;
-      if (isVideo) {
-        videoCount++;
-      }
+        final size = file.lengthSync();
+        if (size == 0) {
+          if (referencedInBody) {
+            (isVideo ? missingVideoPaths : missingPaths).add(originalPath);
+          }
+          return;
+        }
+        if (isVideo) {
+          if (size > _maxSingleVideoBytes ||
+              videoBytesTotal + size > _maxVideosTotalBytes) {
+            // 单包体积上限：视频进包后不压缩，而最终交付（系统选择器 / 加密）
+            // 还是要一份整包字节，不设限等于拿低端机的堆在赌。跳过并计数，
+            // 交给界面提示用户改用 WebDAV 备份。
+            skippedVideoPaths.add(originalPath);
+            return;
+          }
+          videoBytesTotal += size;
+        }
+        final ext = extensionOf(file.path);
+        final prefix = isVideo ? 'video' : 'note';
+        final archivePath =
+            '$resourceDirName/${prefix}_${noteIndex + 1}_${resources.length + 1}.$ext';
 
-      // 动图没播放过时旁边还没有 `<图>.live.mp4`（播放才会抽出片段），
-      // 但片段就嵌在刚读到的字节里。直接切出来当 sidecar 落包，
-      // 否则备份出来的动图会退化成静态图。
-      if (!isVideo && !LivePhotoUtils.hasLiveVideo(originalPath)) {
-        final liveBytes = LivePhotoUtils.extractMotionPhoto(bytes)?.videoBytes;
-        if (liveBytes != null &&
-            liveBytes.isNotEmpty &&
-            liveBytes.length <= _maxSingleVideoBytes &&
-            videoBytesTotal + liveBytes.length <= _maxVideosTotalBytes) {
-          videoBytesTotal += liveBytes.length;
-          final liveArchivePath = '$resourceDirName/'
-              'video_${noteIndex + 1}_${resources.length + 1}.mp4';
-          archive.addFile(
-            ArchiveFile(liveArchivePath, liveBytes.length, liveBytes),
-          );
-          final livePath = LivePhotoUtils.videoPathFor(originalPath);
-          resources.add({
-            'noteId': note.id,
-            'originalPath': livePath,
-            'archivePath': liveArchivePath,
-            'isVideo': true,
-            'sizeBytes': liveBytes.length,
-            'liveOf': originalPath,
-          });
-          archivedByOriginal[livePath] = liveArchivePath;
+        // 视频只按块过一遍，不进堆；图片要读出来，动图的片段还得从字节里切。
+        Uint8List? bytes;
+        if (isVideo) {
+          _addFileEntry(encoder, file, archivePath);
+        } else {
+          bytes = await file.readAsBytes();
+          encoder.addArchiveFile(ArchiveFile(archivePath, bytes.length, bytes));
+        }
+        resources.add({
+          'noteId': note.id,
+          'originalPath': originalPath,
+          'archivePath': archivePath,
+          if (isVideo) 'isVideo': true,
+          if (isVideo) 'sizeBytes': size,
+          // Live 图的动态片段：还原时要贴着同名静图落盘（`<图>.live.mp4`），
+          // 否则动图会退化成静态图。
+          if (liveOf != null) 'liveOf': liveOf,
+        });
+        archivedByOriginal[originalPath] = archivePath;
+        if (isVideo) {
           videoCount++;
         }
-      }
-    }
 
-    if (includeImages || includeVideos) {
-      for (var i = 0; i < notes.length; i++) {
-        final note = notes[i];
-        final refs = contentMediaRefs(note);
-        final bodyImages =
-            refs.where((ref) => !ref.isVideo).map((ref) => ref.path).toList();
-        final bodyVideos =
-            refs.where((ref) => ref.isVideo).map((ref) => ref.path).toList();
-
-        if (includeImages) {
-          final candidates = <String>[
-            ...bodyImages,
-            ...extractImagePaths(note).where((p) => !bodyImages.contains(p)),
-          ];
-          for (final originalPath in candidates) {
-            await archiveMedia(
-              noteIndex: i,
-              note: note,
-              originalPath: originalPath,
-              isVideo: false,
-              referencedInBody: bodyImages.contains(originalPath),
+        // 动图没播放过时旁边还没有 `<图>.live.mp4`（播放才会抽出片段），
+        // 但片段就嵌在刚读到的字节里。直接切出来当 sidecar 落包，
+        // 否则备份出来的动图会退化成静态图。
+        if (!isVideo && !LivePhotoUtils.hasLiveVideo(originalPath)) {
+          final liveBytes =
+              LivePhotoUtils.extractMotionPhoto(bytes!)?.videoBytes;
+          if (liveBytes != null &&
+              liveBytes.isNotEmpty &&
+              liveBytes.length <= _maxSingleVideoBytes &&
+              videoBytesTotal + liveBytes.length <= _maxVideosTotalBytes) {
+            videoBytesTotal += liveBytes.length;
+            final liveArchivePath = '$resourceDirName/'
+                'video_${noteIndex + 1}_${resources.length + 1}.mp4';
+            encoder.addArchiveFile(
+              ArchiveFile(liveArchivePath, liveBytes.length, liveBytes),
             );
-            // Live 图的动态片段不写在正文里（正文只有一张静图），但少了它
-            // 动图就退化成静态图。所以只要打了这张图，就顺手把旁边的
-            // `<图>.live.mp4` 一起收进包，并记下它属于哪张图。
-            if (LivePhotoUtils.hasLiveVideo(originalPath)) {
+            final livePath = LivePhotoUtils.videoPathFor(originalPath);
+            resources.add({
+              'noteId': note.id,
+              'originalPath': livePath,
+              'archivePath': liveArchivePath,
+              'isVideo': true,
+              'sizeBytes': liveBytes.length,
+              'liveOf': originalPath,
+            });
+            archivedByOriginal[livePath] = liveArchivePath;
+            videoCount++;
+          }
+        }
+      }
+
+      if (includeImages || includeVideos) {
+        for (var i = 0; i < notes.length; i++) {
+          final note = notes[i];
+          final refs = contentMediaRefs(note);
+          final bodyImages =
+              refs.where((ref) => !ref.isVideo).map((ref) => ref.path).toList();
+          final bodyVideos =
+              refs.where((ref) => ref.isVideo).map((ref) => ref.path).toList();
+
+          if (includeImages) {
+            final candidates = <String>[
+              ...bodyImages,
+              ...extractImagePaths(note).where((p) => !bodyImages.contains(p)),
+            ];
+            for (final originalPath in candidates) {
               await archiveMedia(
                 noteIndex: i,
                 note: note,
-                originalPath: LivePhotoUtils.videoPathFor(originalPath),
+                originalPath: originalPath,
+                isVideo: false,
+                referencedInBody: bodyImages.contains(originalPath),
+              );
+              // Live 图的动态片段不写在正文里（正文只有一张静图），但少了它
+              // 动图就退化成静态图。所以只要打了这张图，就顺手把旁边的
+              // `<图>.live.mp4` 一起收进包，并记下它属于哪张图。
+              if (LivePhotoUtils.hasLiveVideo(originalPath)) {
+                await archiveMedia(
+                  noteIndex: i,
+                  note: note,
+                  originalPath: LivePhotoUtils.videoPathFor(originalPath),
+                  isVideo: true,
+                  referencedInBody: false,
+                  liveOf: originalPath,
+                );
+              }
+            }
+          }
+
+          if (includeVideos) {
+            final candidates = <String>[
+              ...bodyVideos,
+              ...extractVideoPaths(note).where((p) => !bodyVideos.contains(p)),
+            ];
+            for (final originalPath in candidates) {
+              await archiveMedia(
+                noteIndex: i,
+                note: note,
+                originalPath: originalPath,
                 isVideo: true,
-                referencedInBody: false,
-                liveOf: originalPath,
+                referencedInBody: bodyVideos.contains(originalPath),
               );
             }
           }
         }
-
-        if (includeVideos) {
-          final candidates = <String>[
-            ...bodyVideos,
-            ...extractVideoPaths(note).where((p) => !bodyVideos.contains(p)),
-          ];
-          for (final originalPath in candidates) {
-            await archiveMedia(
-              noteIndex: i,
-              note: note,
-              originalPath: originalPath,
-              isVideo: true,
-              referencedInBody: bodyVideos.contains(originalPath),
-            );
-          }
-        }
       }
-    }
 
-    // 正文文件
-    switch (format) {
-      case BackupContentFormat.json:
-        final payload = jsonEncode({
-          'version': '1.0',
-          'exportTime': exportedAt.toIso8601String(),
-          'notes': notes.map((note) => note.toJson()).toList(),
-        });
-        _addTextFile(archive, 'notes.json', payload);
+      // 正文文件
+      switch (format) {
+        case BackupContentFormat.json:
+          final payload = jsonEncode({
+            'version': '1.0',
+            'exportTime': exportedAt.toIso8601String(),
+            'notes': notes.map((note) => note.toJson()).toList(),
+          });
+          _addTextFile(encoder, 'notes.json', payload);
 
-      case BackupContentFormat.markdown:
-        final exporter = markdownExporter ?? _defaultMarkdownExport;
-        for (var i = 0; i < notes.length; i++) {
-          _addTextFile(archive, 'note_${i + 1}.md', exporter(notes[i]));
-        }
+        case BackupContentFormat.markdown:
+          final exporter = markdownExporter ?? _defaultMarkdownExport;
+          for (var i = 0; i < notes.length; i++) {
+            _addTextFile(encoder, 'note_${i + 1}.md', exporter(notes[i]));
+          }
 
-      case BackupContentFormat.txt:
-        _addTextFile(archive, 'notes.txt', _buildTxt(notes));
+        case BackupContentFormat.txt:
+          _addTextFile(encoder, 'notes.txt', _buildTxt(notes));
 
-      case BackupContentFormat.html:
+        case BackupContentFormat.html:
+          _addTextFile(
+            encoder,
+            'notes.html',
+            _buildHtml(notes, archivedByOriginal, exportedAt),
+          );
+      }
+
+      if (resources.isNotEmpty) {
         _addTextFile(
-          archive,
-          'notes.html',
-          _buildHtml(notes, archivedByOriginal, exportedAt),
+          encoder,
+          resourceManifestName,
+          jsonEncode({'version': '1.0', 'resources': resources}),
         );
-    }
+      }
 
-    if (resources.isNotEmpty) {
       _addTextFile(
-        archive,
-        resourceManifestName,
-        jsonEncode({'version': '1.0', 'resources': resources}),
+        encoder,
+        manifestName,
+        jsonEncode({
+          'version': archiveVersion,
+          'format': format.label,
+          'exportedAt': exportedAt.toIso8601String(),
+          'noteCount': notes.length,
+          'includeImages': includeImages,
+          'includeVideos': includeVideos,
+          'imageCount': resources.length - videoCount,
+          'videoCount': videoCount,
+          'missingImageCount': missingPaths.length,
+          'missingVideoCount': missingVideoPaths.length,
+          'skippedVideoCount': skippedVideoPaths.length,
+          'generator': 'InkPaper',
+        }),
       );
+
+      await encoder.close();
+
+      return BackupArchiveFileResult(
+        file: target,
+        format: format,
+        noteCount: notes.length,
+        imageCount: resources.length - videoCount,
+        missingImageCount: missingPaths.length,
+        videoCount: videoCount,
+        missingVideoCount: missingVideoPaths.length,
+        skippedVideoCount: skippedVideoPaths.length,
+      );
+    } on Object {
+      // 半成品不留：先收尾把文件句柄放掉（Windows 上不关删不掉），再删掉
+      // 写了一半的 zip，最后把原始异常抛出去。
+      try {
+        await encoder.close();
+      } on Object {
+        // 流已经写坏时收尾本身也会抛，这里不再追究。
+      }
+      await _deleteQuietly(target);
+      rethrow;
     }
-
-    _addTextFile(
-      archive,
-      manifestName,
-      jsonEncode({
-        'version': archiveVersion,
-        'format': format.label,
-        'exportedAt': exportedAt.toIso8601String(),
-        'noteCount': notes.length,
-        'includeImages': includeImages,
-        'includeVideos': includeVideos,
-        'imageCount': resources.length - videoCount,
-        'videoCount': videoCount,
-        'missingImageCount': missingPaths.length,
-        'missingVideoCount': missingVideoPaths.length,
-        'skippedVideoCount': skippedVideoPaths.length,
-        'generator': 'InkPaper',
-      }),
-    );
-
-    final encoded = ZipEncoder().encode(archive);
-    if (encoded == null) {
-      throw Exception('压缩备份失败');
-    }
-
-    return BackupArchiveBuildResult(
-      bytes: Uint8List.fromList(encoded),
-      format: format,
-      noteCount: notes.length,
-      imageCount: resources.length - videoCount,
-      missingImageCount: missingPaths.length,
-      videoCount: videoCount,
-      missingVideoCount: missingVideoPaths.length,
-      skippedVideoCount: skippedVideoPaths.length,
-    );
   }
 
-  void _addTextFile(Archive archive, String name, String content) {
+  /// 把一个媒体文件按块写进 zip（STORE，不压缩）。
+  ///
+  /// 不用 `ZipFileEncoder.addFile` 的压缩分支：那条路会先把整个条目读成一个
+  /// `Uint8List` 再 deflate，150MB 的视频等于把刚省下的内存又拿回来。STORE
+  /// 分支直接从 [InputFileStream] 按 1MB 块写到输出流，峰值与文件大小无关。
+  void _addFileEntry(ZipFileEncoder encoder, File file, String name) {
+    final entry = ArchiveFile.stream(
+      name,
+      file.lengthSync(),
+      InputFileStream(file.path),
+    )
+      ..compress = false
+      ..lastModTime = file.lastModifiedSync().millisecondsSinceEpoch ~/ 1000;
+    // addArchiveFile 写完条目会自己关掉输入流，这里不要再 close 一次。
+    encoder.addArchiveFile(entry);
+  }
+
+  /// 清理打包留下的临时文件/目录。
+  ///
+  /// 删不掉只是留垃圾，不该把「备份其实成功了」判成失败，所以吞掉异常。
+  static Future<void> _deleteQuietly(FileSystemEntity entity) async {
+    try {
+      if (await entity.exists()) {
+        await entity.delete(recursive: true);
+      }
+    } on Object {
+      // 见上
+    }
+  }
+
+  void _addTextFile(ZipFileEncoder encoder, String name, String content) {
     final bytes = utf8.encode(content);
-    archive.addFile(ArchiveFile(name, bytes.length, bytes));
+    encoder.addArchiveFile(ArchiveFile(name, bytes.length, bytes));
   }
 
   String _defaultMarkdownExport(Note note) {

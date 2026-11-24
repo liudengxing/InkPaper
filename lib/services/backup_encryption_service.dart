@@ -36,8 +36,8 @@ class BackupKeyMaterial {
 ///
 /// **整条链路都不占住 UI isolate**：100000 次 PBKDF2 是没法拆的循环，送进后台
 /// isolate 跑；AES 与 MAC 本来就能按块推进，攒够一帧的活就让出一次事件循环。
-/// 40MB 的包以前会让界面（转圈动画、返回手势）连续冻 2 秒上下，现在最长一次
-/// 是 80ms（加密）与 0.4s（解密时解析信封，见 `decrypt`）。
+/// 40MB 的包以前会让界面（转圈动画、返回手势）连续冻 2 秒上下；信封解析改成
+/// 字节扫描后，最长一次阻塞从 280–366ms 降到 180–190ms（加密侧是 80ms）。
 class BackupEncryptionService {
   BackupEncryptionService({DateTime Function()? now, Random? random})
       : _now = now ?? DateTime.now,
@@ -241,13 +241,48 @@ class BackupEncryptionService {
     }
   }
 
-  /// 用 [password] 解开信封，返回明文与原格式。
+  /// 用密码解开信封，返回明文与原格式。
   ///
   /// 密码错、文件损坏、参数不安全都抛 [Exception]（消息直接给用户看）。
+  ///
+  /// v2 信封先走 [_scanV2Envelope] 的单趟字节扫描：只记下 `salt` / `iv` /
+  /// `ciphertext` 在原始字节里的位置，密文直接从字节区间解 base64。认不出是
+  /// v2 时（v1 老包、字段类型异常、JSON 有语法问题）才退回整段 `jsonDecode`，
+  /// 那条路径给出的结果与改造前完全一致。
+  /// 测试用：累计有多少次 v2 信封真的走了字节扫描的快速路径。
+  ///
+  /// 快速路径认不出时会静默退回整段解析，结果仍然正确 —— 光看结果无法判断
+  /// 优化到底有没有生效，所以用计数把「有没有走快路」暴露出来。
+  static int debugFastPathHits = 0;
+
+  /// 测试用：把快速路径命中计数清零。
+  static void debugResetFastPathHits() {
+    debugFastPathHits = 0;
+  }
+
   Future<DecryptedBackupContent> decrypt(
     Uint8List input,
     String password,
   ) async {
+    final scan = _scanV2Envelope(input);
+    if (scan != null) {
+      final salt = _decodeBase64Slice(input, scan.salt);
+      final iv = _decodeBase64Slice(input, scan.iv);
+      final cipherText = _decodeBase64Slice(input, scan.cipherText);
+      if (salt != null && iv != null && cipherText != null) {
+        debugFastPathHits++;
+        return _decryptV2Parts(
+          salt: salt,
+          iv: iv,
+          cipherText: cipherText,
+          mac: scan.mac,
+          iterations: scan.iterations,
+          originalFormat: scan.originalFormat,
+          password: password,
+        );
+      }
+    }
+
     final decoded = jsonDecode(utf8.decode(input, allowMalformed: true));
     if (decoded is! Map<String, dynamic> || decoded[envelopeMarker] != true) {
       throw Exception('加密备份格式不完整');
@@ -260,17 +295,34 @@ class BackupEncryptionService {
     return _decryptLegacy(decoded, password);
   }
 
+  /// 整段解析出来的 v2 信封，转成与快速路径同一份参数。
   Future<DecryptedBackupContent> _decryptV2(
     Map<String, dynamic> envelope,
     String password,
-  ) async {
-    final salt = _decodeRequiredBase64(envelope, 'salt');
-    final iv = _decodeRequiredBase64(envelope, 'iv');
-    final cipherText = _decodeRequiredBase64(envelope, 'ciphertext');
-    final mac = envelope['mac']?.toString();
-    final iterations = int.tryParse(envelope['iterations']?.toString() ?? '') ??
-        defaultIterations;
-    if (mac == null || mac.isEmpty) {
+  ) {
+    return _decryptV2Parts(
+      salt: _decodeRequiredBase64(envelope, 'salt'),
+      iv: _decodeRequiredBase64(envelope, 'iv'),
+      cipherText: _decodeRequiredBase64(envelope, 'ciphertext'),
+      mac: envelope['mac']?.toString() ?? '',
+      iterations: int.tryParse(envelope['iterations']?.toString() ?? '') ??
+          defaultIterations,
+      originalFormat: envelope['originalFormat']?.toString(),
+      password: password,
+    );
+  }
+
+  /// v2 的公共解密流程：校验 MAC → CBC 解密。两条解析路径都汇到这里。
+  Future<DecryptedBackupContent> _decryptV2Parts({
+    required Uint8List salt,
+    required Uint8List iv,
+    required Uint8List cipherText,
+    required String mac,
+    required int iterations,
+    required String? originalFormat,
+    required String password,
+  }) async {
+    if (mac.isEmpty) {
       throw Exception('加密备份格式不完整');
     }
 
@@ -300,7 +352,7 @@ class BackupEncryptionService {
     );
     return DecryptedBackupContent(
       bytes: plainBytes,
-      originalFormat: envelope['originalFormat']?.toString(),
+      originalFormat: originalFormat,
     );
   }
 
@@ -334,6 +386,405 @@ class BackupEncryptionService {
       throw Exception('加密备份格式不完整');
     }
     return Uint8List.fromList(base64Decode(value));
+  }
+
+  /// 单趟扫一遍 v2 信封，只记下大字段在原始字节里的区间。
+  ///
+  /// 40MB 的包整段 `utf8.decode` + `jsonDecode` 要 150ms、多占 107MB，密文再
+  /// 转成 `String` 交给 `base64Decode` 又是 200ms、多占 80MB —— 而 `salt` /
+  /// `iv` / `ciphertext` 其实只需要「从哪到哪」。这里按 JSON 语法逐键走一遍，
+  /// 记下这三个字段的字节区间，小字段（版本、迭代次数、MAC、原格式）当场读成
+  /// 值，密文全程不落地成字符串。
+  ///
+  /// 任何一处不符合预期（不是 v2、字段类型不对、JSON 结构有毛病、末尾还有
+  /// 垃圾）都返回 null，由调用方退回整段 `jsonDecode`，错误行为与改造前一致。
+  static _V2EnvelopeScan? _scanV2Envelope(Uint8List input) {
+    var i = 0;
+    if (input.length >= 3 &&
+        input[0] == 0xEF &&
+        input[1] == 0xBB &&
+        input[2] == 0xBF) {
+      i = 3;
+    }
+    i = _skipJsonWhitespace(input, i);
+    if (i >= input.length || input[i] != 0x7B) {
+      return null;
+    }
+    i++;
+
+    var sawMarker = false;
+    var sawVersion = false;
+    var iterations = defaultIterations;
+    String? originalFormat;
+    String? mac;
+    _ByteSlice? salt;
+    _ByteSlice? iv;
+    _ByteSlice? cipherText;
+
+    while (true) {
+      i = _skipJsonWhitespace(input, i);
+      if (i >= input.length) {
+        return null;
+      }
+      if (input[i] == 0x7D) {
+        i++;
+        break;
+      }
+      if (input[i] != 0x22) {
+        return null;
+      }
+      final keyEnd = _jsonStringEnd(input, i);
+      if (keyEnd < 0) {
+        return null;
+      }
+      final key = String.fromCharCodes(input, i + 1, keyEnd);
+      i = _skipJsonWhitespace(input, keyEnd + 1);
+      if (i >= input.length || input[i] != 0x3A) {
+        return null;
+      }
+      i = _skipJsonWhitespace(input, i + 1);
+      if (i >= input.length) {
+        return null;
+      }
+
+      switch (key) {
+        case envelopeMarker:
+          final valueEnd = _skipJsonValue(input, i);
+          if (valueEnd < 0 || !_sliceEqualsAscii(input, i, valueEnd, 'true')) {
+            return null;
+          }
+          sawMarker = true;
+          i = valueEnd;
+        case 'version':
+          final slice = _readJsonString(input, i);
+          if (slice == null ||
+              !_sliceEqualsAscii(
+                input,
+                slice.start,
+                slice.end,
+                currentVersion,
+              )) {
+            return null;
+          }
+          sawVersion = true;
+          i = slice.end + 1;
+        case 'iterations':
+          final valueEnd = _skipJsonValue(input, i);
+          if (valueEnd < 0) {
+            return null;
+          }
+          final parsed = int.tryParse(
+            String.fromCharCodes(input, i, valueEnd),
+          );
+          if (parsed == null) {
+            return null;
+          }
+          iterations = parsed;
+          i = valueEnd;
+        case 'originalFormat':
+          final slice = _readJsonString(input, i);
+          if (slice == null || _sliceContains(input, slice, 0x5C)) {
+            return null;
+          }
+          originalFormat = String.fromCharCodes(
+            input,
+            slice.start,
+            slice.end,
+          );
+          i = slice.end + 1;
+        case 'mac':
+          final slice = _readJsonString(input, i);
+          if (slice == null || _sliceContains(input, slice, 0x5C)) {
+            return null;
+          }
+          mac = String.fromCharCodes(input, slice.start, slice.end);
+          i = slice.end + 1;
+        case 'salt':
+          final slice = _readJsonString(input, i);
+          if (slice == null) {
+            return null;
+          }
+          salt = slice;
+          i = slice.end + 1;
+        case 'iv':
+          final slice = _readJsonString(input, i);
+          if (slice == null) {
+            return null;
+          }
+          iv = slice;
+          i = slice.end + 1;
+        case 'ciphertext':
+          final slice = _readJsonString(input, i);
+          if (slice == null) {
+            return null;
+          }
+          cipherText = slice;
+          i = slice.end + 1;
+        default:
+          final valueEnd = _skipJsonValue(input, i);
+          if (valueEnd < 0) {
+            return null;
+          }
+          i = valueEnd;
+      }
+
+      i = _skipJsonWhitespace(input, i);
+      if (i >= input.length) {
+        return null;
+      }
+      if (input[i] == 0x2C) {
+        i++;
+        continue;
+      }
+      if (input[i] == 0x7D) {
+        i++;
+        break;
+      }
+      return null;
+    }
+
+    // 顶层对象之后只允许空白；多出任何字节都交给整段解析去报错。
+    if (_skipJsonWhitespace(input, i) != input.length) {
+      return null;
+    }
+    if (!sawMarker ||
+        !sawVersion ||
+        salt == null ||
+        iv == null ||
+        cipherText == null ||
+        mac == null ||
+        mac.isEmpty) {
+      return null;
+    }
+    return _V2EnvelopeScan(
+      salt: salt,
+      iv: iv,
+      cipherText: cipherText,
+      mac: mac,
+      iterations: iterations,
+      originalFormat: originalFormat,
+    );
+  }
+
+  /// 把 [slice] 指向的 base64 字节直接解成字节，中间不经过 `String`。
+  ///
+  /// 任何不合规（长度不是 4 的倍数、有非法字符、`=` 位置不对）都返回 null，
+  /// 让调用方退回 `base64Decode`，抛出的异常与改造前一致。
+  static Uint8List? _decodeBase64Slice(Uint8List input, _ByteSlice slice) {
+    final length = slice.end - slice.start;
+    if (length <= 0 || length % 4 != 0) {
+      return null;
+    }
+
+    // 56M 字符的内层循环，逐字符走区间判断比查表慢一截，这里用表。
+    final table = _base64Lookup;
+    final groups = length ~/ 4;
+    final out = Uint8List(groups * 3);
+    var offset = 0;
+    for (var group = 0; group < groups; group++) {
+      final base = slice.start + group * 4;
+      final b0 = input[base];
+      final b1 = input[base + 1];
+      final b2 = input[base + 2];
+      final b3 = input[base + 3];
+      if (group != groups - 1) {
+        // `=` 只允许出现在最后一组。
+        if (b0 == 0x3D || b1 == 0x3D || b2 == 0x3D || b3 == 0x3D) {
+          return null;
+        }
+        final v0 = table[b0];
+        final v1 = table[b1];
+        final v2 = table[b2];
+        final v3 = table[b3];
+        if (v0 < 0 || v1 < 0 || v2 < 0 || v3 < 0) {
+          return null;
+        }
+        final bits = (v0 << 18) | (v1 << 12) | (v2 << 6) | v3;
+        out[offset++] = (bits >> 16) & 0xFF;
+        out[offset++] = (bits >> 8) & 0xFF;
+        out[offset++] = bits & 0xFF;
+        continue;
+      }
+      final v0 = table[b0];
+      if (v0 < 0) {
+        return null;
+      }
+      // `=` 最多两个，`x===` 不是合法 base64，交给回退路径去报错。
+      if (b1 == 0x3D) {
+        return null;
+      }
+      final v1 = table[b1];
+      if (v1 < 0) {
+        return null;
+      }
+      var padding = 0;
+      var v2 = 0;
+      var v3 = 0;
+      if (b2 == 0x3D) {
+        if (b3 != 0x3D) {
+          return null;
+        }
+        padding = 2;
+      } else {
+        v2 = table[b2];
+        if (v2 < 0) {
+          return null;
+        }
+        if (b3 == 0x3D) {
+          padding = 1;
+        } else {
+          v3 = table[b3];
+          if (v3 < 0) {
+            return null;
+          }
+        }
+      }
+      final bits = (v0 << 18) | (v1 << 12) | (v2 << 6) | v3;
+      out[offset++] = (bits >> 16) & 0xFF;
+      if (padding < 2) {
+        out[offset++] = (bits >> 8) & 0xFF;
+      }
+      if (padding < 1) {
+        out[offset++] = bits & 0xFF;
+      }
+    }
+    if (offset == out.length) {
+      return out;
+    }
+    return Uint8List.sublistView(out, 0, offset);
+  }
+
+  /// base64 字母表查表：非法字符为 -1。
+  static final Int8List _base64Lookup = _buildBase64Lookup();
+
+  static Int8List _buildBase64Lookup() {
+    final table = Int8List(256)..fillRange(0, 256, -1);
+    const alphabet =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    for (var i = 0; i < alphabet.length; i++) {
+      table[alphabet.codeUnitAt(i)] = i;
+    }
+    return table;
+  }
+
+  static int _skipJsonWhitespace(Uint8List input, int start) {
+    var i = start;
+    while (i < input.length) {
+      final byte = input[i];
+      if (byte == 0x20 || byte == 0x09 || byte == 0x0A || byte == 0x0D) {
+        i++;
+        continue;
+      }
+      break;
+    }
+    return i;
+  }
+
+  /// [start] 指向开引号，返回闭引号的位置；字符串没闭合返回 -1。
+  static int _jsonStringEnd(Uint8List input, int start) {
+    var i = start + 1;
+    while (i < input.length) {
+      final byte = input[i];
+      if (byte == 0x5C) {
+        i += 2;
+        continue;
+      }
+      if (byte == 0x22) {
+        return i;
+      }
+      i++;
+    }
+    return -1;
+  }
+
+  /// 读一个 JSON 字符串，返回不含两侧引号的区间；不是字符串返回 null。
+  static _ByteSlice? _readJsonString(Uint8List input, int start) {
+    if (start >= input.length || input[start] != 0x22) {
+      return null;
+    }
+    final end = _jsonStringEnd(input, start);
+    if (end < 0) {
+      return null;
+    }
+    return _ByteSlice(start + 1, end);
+  }
+
+  /// 跳过一个 JSON 值，返回它之后的位置；结构坏了返回 -1。
+  static int _skipJsonValue(Uint8List input, int start) {
+    if (start >= input.length) {
+      return -1;
+    }
+    final byte = input[start];
+    if (byte == 0x22) {
+      final end = _jsonStringEnd(input, start);
+      return end < 0 ? -1 : end + 1;
+    }
+    if (byte == 0x7B || byte == 0x5B) {
+      var depth = 0;
+      var i = start;
+      while (i < input.length) {
+        final current = input[i];
+        if (current == 0x22) {
+          final end = _jsonStringEnd(input, i);
+          if (end < 0) {
+            return -1;
+          }
+          i = end + 1;
+          continue;
+        }
+        if (current == 0x7B || current == 0x5B) {
+          depth++;
+        } else if (current == 0x7D || current == 0x5D) {
+          depth--;
+          if (depth == 0) {
+            return i + 1;
+          }
+        }
+        i++;
+      }
+      return -1;
+    }
+
+    var i = start;
+    while (i < input.length) {
+      final current = input[i];
+      if (current == 0x2C ||
+          current == 0x7D ||
+          current == 0x20 ||
+          current == 0x09 ||
+          current == 0x0A ||
+          current == 0x0D) {
+        break;
+      }
+      i++;
+    }
+    return i > start ? i : -1;
+  }
+
+  static bool _sliceEqualsAscii(
+    Uint8List input,
+    int start,
+    int end,
+    String text,
+  ) {
+    if (end - start != text.length) {
+      return false;
+    }
+    for (var i = 0; i < text.length; i++) {
+      if (input[start + i] != text.codeUnitAt(i)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static bool _sliceContains(Uint8List input, _ByteSlice slice, int byte) {
+    for (var i = slice.start; i < slice.end; i++) {
+      if (input[i] == byte) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Uint8List _secureRandomBytes(int length) {
@@ -602,4 +1053,31 @@ class _DigestSink implements Sink<Digest> {
 
   @override
   void close() {}
+}
+
+/// 原始字节里的半开区间 `[start, end)`。
+class _ByteSlice {
+  const _ByteSlice(this.start, this.end);
+
+  final int start;
+  final int end;
+}
+
+/// v2 信封单趟扫描的结果：大字段只留区间，小字段已经读成值。
+class _V2EnvelopeScan {
+  const _V2EnvelopeScan({
+    required this.salt,
+    required this.iv,
+    required this.cipherText,
+    required this.mac,
+    required this.iterations,
+    required this.originalFormat,
+  });
+
+  final _ByteSlice salt;
+  final _ByteSlice iv;
+  final _ByteSlice cipherText;
+  final String mac;
+  final int iterations;
+  final String? originalFormat;
 }

@@ -8,13 +8,13 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-24 · 本项代码 `b106ce5`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-07A-2（P2 · §7 查看器预取与保留范围） |
+| 最后更新 | 2026-11-24 · 本项代码 `ca596f9`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-07B 第一轮（P2 · §7 本地备份导出流式归档），导入暂存拆成 OPT-07C，加密分支峰值登记为 OPT-07B-2 |
 | 任务状态 | 待复验 |
-| 可复查改动 | ① 新增 `_ImageViewerScreenState._retainAround(index)`：保留窗口 = 当前页左右各一张（`_retainRadius = 1`），窗口外立刻 `evict`，窗口内记进 `_retainedProviders`；② 查看器 `dispose` 时把窗口内**全部** evict（含预取但从未显示的那张）；③ `_PhotoPageState.dispose` 不再自己 evict 高清图；④ 新增 `_viewerProvider(index)` 统一出 provider（解码宽度与页面一致，缓存键才是同一个）；⑤ `_prefetchNeighbour` 按「窗口里还有谁没解」预取：先下一张再上一张，已在缓存就跳过 |
-| 验证结果 | `analyze`（lib+test）→ No issues found；`format` 325 文件 0 changed；`flutter test --concurrency=4` 全量 **1150 项全过**（原 1145 + 5）。反向验证四项，各自只红对应用例：恢复每页自清 → `IVR-02/03`（另 `IVR-04` 同因）；去掉退出清理 → `IVR-05`；翻页不挪窗口 → `IVR-03/04`；预取只看下一张 → `IVR-04` |
-| 未验证 / 待测 | 无真机（窗口 3 张纹理的峰值内存未实测：1600 宽竖拍约 13.6MB/张、长图受 4096 高上限约 26MB/张，全局缓存上限 300MB）；`resource:`/网络图共用一个缓存键时退出 evict 会让其它页面重取（体积都很小，未单独处理）；播放 Live 图时的解码器占用未计入窗口 |
-| 下一项 | OPT-07B（P2 · §7 本地备份，优先验证流式归档）；OPT-02B / OPT-10B 等各自前置复验 |
+| 可复查改动 | ① 新增 `BackupArchiveService.buildArchiveToFile(target)`：用 `ZipFileEncoder` 直接写文件，视频条目走 `ArchiveFile.stream` + `InputFileStream`（STORE，不压缩）；② `buildArchive` 改为「落盘一次 + 读一次字节」，返回结构不变；③ 新增 `BackupArchiveFileResult`（只有计数 + 文件）；④ 临时目录改用可注入的 `getTemporaryDirectory()`（`tempDirectoryProvider`）；⑤ 打包失败删掉半成品 zip 再抛原异常；⑥ 视频体积上限保留，注释改为「最终交付仍需整包字节」 |
+| 验证结果 | `analyze`（lib+test）→ No issues found；`format` 325 文件 0 changed；`flutter test --concurrency=4` 全量 **1154 项全过**（原 1150 + 4）。峰值实测（本机 JIT，`ProcessInfo.maxRss`）：5×8MB 压不动的图片 2569ms/+131MB → **2585ms/+49MB**；单个 60MB 视频 3726ms/+92MB → **1157ms/+49MB**。反向验证两项：视频退回 `readAsBytes` → STORE 用例红（`compress` true）；去掉失败清理 → 半成品用例红（`target` 仍存在） |
+| 未验证 / 待测 | 无真机（AOT 与手机闪存下的吞吐未测）；交付阶段仍有**一份整包字节**（系统选择器 / 加密需要），200MB 包最终仍要 200MB 堆；加密分支还要再叠 base64 与 AES 的副本，单独登记 OPT-07B-2；图片仍整张读入（动图要切片段），单张超大 PNG 未见上限 |
+| 下一项 | OPT-07C（P2 · §7 导入暂存与失败清理）；OPT-07B-2 待评估；OPT-02B / OPT-10B 等各自前置复验 |
 | 待用户决策 | ① OPT-01B 的远端归档、本地同内容副本与完整空清单处理规则；② `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓 |
 | 工作区注意事项 | 另有未提交的 `docs/README.md` 索引链接、`dist/`、`.model-desk/`，均非本轮产物，勿回退或顺手带上。发版、推送、装机需单独授权 |
 
@@ -40,7 +40,9 @@
 | OPT-06C | P3 | 待验收 | §6 首屏 | 返修完成（`9c7baa7`）：扫描收尾与索引可信拆成两个状态，失败时保留 stat 兜底；补齐与磁盘记账按可信度分支。待复验半途失败样本、`clear()` 复位与首帧不等扫描。 |
 | OPT-07A | P2 | 待验收 | §7 图片 | 缩略图解码规模已做（`9c4091b`）：>8MP 走引擎采样解码、输出高度上限 4096、两条路径共用尺寸口径。待复验大图内存、方向/透明度与长图边界。 |
 | OPT-07A-2 | P2 | 待验收 | §7 图片 | 保留窗口已做（`b106ce5`）：当前页左右各留一张，窗口外与退出时 evict，预取按「窗口里谁没解」选边。待复验回看命中、窗口上限与退出释放。 |
-| OPT-07B | P2 | 待办 | §7 本地备份 | 优先验证现有 Dart 的流式归档方案。导入暂存与失败清理单独交付。均需覆盖历史备份、附件和失败重试。 |
+| OPT-07B | P2 | 待验收 | §7 本地备份 | 导出已改流式落盘（`ca596f9`）：视频按 1MB 块 STORE 写入，组装阶段不再攒媒体与整包缓冲；失败删半成品。待复验峰值、历史包与重试。 |
+| OPT-07B-2 | P2 | 待评估 | §7 本地备份 | 加密分支的峰值：`_encryptBytes` 要在整包字节之上再叠 AES 密文、base64 字符串、JSON 字符串与 UTF-8 字节（约 4~5 份包体）。评估入口限流、流式加密或换容器格式，保持既有加密包可解。 |
+| OPT-07C | P2 | 待办 | §7 本地备份 | 导入暂存与失败清理。解包先把资源写本地、再由页面导入笔记，导入失败会留下没被引用的新文件；明确暂存与提交顺序，清理只碰本次新增资源，覆盖成功/重试/中断。 |
 | OPT-05 | P2 | 待评估 | §5 搜索 | 先用可复现样本判定 SQL 扫描或结果装载的主要成本，再决定分批或全文索引。 |
 | OPT-06B | P3 | 待评估 | §6 外部事件 | 根据冷、热启动的通知、分享和深链复现结果决定是否调整事件交付。 |
 | OPT-08 | P3 | 待评估 | §8 结构 | 结合前述业务改动逐步提取查询、同步或导入边界。 |
@@ -431,6 +433,34 @@
 - **未验证**：① 无真机，窗口 3 张纹理的峰值未实测（1600 宽竖拍约 13.6MB/张，长图受 4096 高上限约 26MB/张，全局上限 300MB），滑动时的纹理上传开销也未量；② `resource:` 资源图与网络图的键可能被别处共用，退出时 evict 会让那些页面重取一次（体积都小，未单独豁免）；③ Live 图视频解码器不计入窗口，它的释放仍走 `_disposeLiveController`；④ 只测了 4 张图的小样本，几十张的滑动序列没做长跑（逻辑与窗口大小无关，靠 `IVR-03` 覆盖）；⑤ 复跑 `image_viewer_actions_test` 时曾见 `IVA-01` 失败一次（两文件并发、本机内存紧张），单独跑 3 次与全量 1150 项均通过，未定位到与本项相关的因果，先记为可疑抖动。
 - **提交**：`b106ce5`（代码 + 测试）。
 - **建议下一项**：OPT-07B（§7 本地备份，优先验证流式归档）；OPT-02B / OPT-10B 仍等各自前置复验。
+
+### 2026-11-24 · OPT-07B 第一轮 · 待复验
+
+- **问题核对**（先量再改）：`buildArchive` 把每个附件 `readAsBytes()` 塞进 `Archive`，再 `ZipEncoder().encode(archive)` 出一整包，最后 `Uint8List.fromList(encoded)` 再拷一份。单段 150MB 的视频在结构上要占：源字节 + `Archive` 引用（同一份）+ deflate 输出 + 整包缓冲 + 拷贝 —— 而 §7 的原始担心正是这条路径的峰值。用 `ProcessInfo.maxRss` 量到的基线（本机 JIT、临时目录、合成样本）：
+  | 样本 | 修前 | 修后 |
+  | --- | --- | --- |
+  | 5×8MB 压不动的图片（合计 40MB） | 2569ms、峰值 **+131MB** | 2585ms、**+49MB** |
+  | 单个 60MB 视频 | 3726ms、**+92MB** | 1157ms、**+49MB** |
+  修前的视频数字用等价的「整块读 + `Deflate` + `Uint8List.fromList`」量的，真实 `buildArchive` 在它之上还要再留一份 `Archive` 期间的媒体引用。
+- **改动**（`lib/services/backup_archive_service.dart`）：
+  - 新增 `buildArchiveToFile({required File target, ...})`：用 `ZipFileEncoder` 直接往文件写，条目按「先来的先写」顺序落盘（与原来的 `Archive` 顺序一致）。
+  - 视频条目 `_addFileEntry`：`ArchiveFile.stream(name, size, InputFileStream(path))..compress = false`。**必须 STORE** —— `ZipEncoder.addFile` 的压缩分支会 `content.toUint8List()` 再 `Deflate`，等于把整个视频再读进堆一次；STORE 分支走 `writeInputStream`，`OutputFileStream` 按 1MB 缓冲直写，内存与文件大小无关。CRC 也是分块算的（先扫一遍再写一遍，代价是两次读盘）。
+  - 图片保持原样（`readAsBytes` + deflate）：动图要从字节里切片段，本来就得整张读；单张的额外拷贝只在处理它那一瞬间存在，不随总量累积。
+  - `buildArchive` 变成「落盘 + 读一次字节」，对外签名与 `BackupArchiveBuildResult` 不变，调用点（`local_backup_restore_screen`）无需改。
+  - 临时目录用可注入的 `tempDirectoryProvider`（默认 `getTemporaryDirectory()`）。**不用 `Directory.systemTemp`**：它在 Android 上可能落在授权范围外，写出来的包再分享会被 FileProvider 拒（`apk_install_service` 里有同类踩坑注释）。
+  - 失败清理由 `buildArchiveToFile` 自己负责：`create` 之后的任何异常都会先 `close()` 放掉句柄再删掉半成品，然后把原异常抛出去；`buildArchive` 的 `finally` 再清临时目录。重试就是再调一次。
+  - 未改动：视频体积上限（单段 150MB / 合计 200MB）、正文与清单的 deflate、资源命名规则、`decodeArchive` 的读端。
+- **测试**：1150 → **1154**（+4），`test/unit/backup_archive_service_test.dart` 19 → 23 条。原有 19 条全部在新实现下通过（它们本身就做「打包 → 解包 → 比正文与媒体」的往返）。
+  - `BAK-S01` 视频条目 `compress == false`（STORE）、图片条目与 `notes.json` 仍 `compress == true`，且 `notes.json` 确实被压小。
+  - `BAK-S02` 6MB 视频（跨 6 个 1MB 块）还原后逐字节相同 —— 分块读写不能在块边界截断或错位。
+  - `BAK-S03` 用旧路径（`ZipEncoder().encode(Archive)`，媒体也 deflate）造的历史包仍能还原，正文里的图片路径被重写为 `file://`。
+  - `BAK-S04` 打包中途失败（取图片目录的 provider 抛错，此时第一条媒体已写进 zip）→ 抛原异常且目标文件不存在；随后用正常 service 重试同一路径成功。测试里注入 `tempDirectoryProvider: () async => Directory.systemTemp`，因为单测没有 path_provider 通道。
+- **验证**：`dart analyze lib test` → No issues found；`dart tool/inkpaper.dart format` → 325 文件 0 changed；`flutter test --concurrency=4` → **1154 项全过**。
+- **反向验证**：① 视频退回 `readAsBytes` + 普通 `ArchiveFile` → `BAK-S01` 红（`compress` 为 true）；② 去掉失败时的 `_deleteQuietly(target)` → `BAK-S04` 红（半成品仍在）。两次恢复后全绿。
+- **行为变化**：视频进包不再压缩（体积几乎不变，视频本来就压不动）；整个打包不再占用「媒体总量 + 整包」的堆，只留交付那一份；失败不再留下能被当成有效备份的半成品。压缩包结构（条目名、清单字段、manifest 版本 2.0）完全不变，旧包照常可解。
+- **未验证**：① 无真机，AOT 与手机闪存下的吞吐未测（`OutputFileStream` 每次 `flush` 1MB，低端机 IO 可能更慢）；② 交付阶段仍要一份整包字节（系统选择器与加密接口只收 `Uint8List`），200MB 包最终仍需 200MB 堆 —— 要继续降只能走路径交付（分享 `XFile(path)`、应用目录 `copy`），本轮没动 UI 流程；③ 加密分支在整包之上再叠 AES 密文 + base64 + JSON 字符串 + UTF-8，约 4~5 份包体，单独登记 **OPT-07B-2**；④ 图片仍整张读入，单张超大 PNG 没有上限（动图必须切片段，暂时无法流式）；⑤ 只测了本地文件源，`content://` / 服务端资源本来就返回 null（不进包），未受影响。
+- **提交**：`ca596f9`（代码 + 测试）。
+- **建议下一项**：OPT-07C（导入暂存与失败清理，队列里本来就写着「单独交付」）；OPT-07B-2 待评估；OPT-02B / OPT-10B 仍等各自前置复验。
 
 ## 现有架构
 

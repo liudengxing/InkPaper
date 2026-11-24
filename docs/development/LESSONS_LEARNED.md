@@ -556,6 +556,38 @@ prompt，所以只能对齐意图，不能照抄。
   `tester.runAsync` 里推进真实 IO，`pumpAndSettle` 会因为加载指示器转不停而超时，
   改用「runAsync 30ms + pump 60ms」循环几次。
 
+### 2.21 ZIP 想流式，就别让 deflate 碰大文件
+
+**背景**（OPT-07B，2026-11-24）：本地备份原来把每个附件 `readAsBytes()` 塞进
+`Archive`，再 `ZipEncoder().encode` 出一整包。视频上限是单段 150MB / 合计
+200MB，这条路上峰值是总量的好几倍。
+
+`archive` 包给了 `ZipFileEncoder`（写文件、`OutputFileStream` 按 1MB 缓冲）和
+`InputFileStream`（按块读），但它们**只对 STORE 条目才是流式的**：
+
+- `ZipEncoder.addFile` 的压缩分支是 `file.content.toUint8List()` → `Deflate(...)`
+  → `InputStream(bytes)`。传进去的是流也先被读成一整块，等于白省。
+- STORE 分支直接把 `InputStreamBase` 当 `compressedData`，`writeInputStream`
+  在 `OutputFileStream` 上按 1MB 分块写出；CRC 也分块算（代价是先把文件扫一遍）。
+
+所以「流式」的前提是给大文件 `..compress = false`。视频本来就压不动，体积几乎
+不变；图片留在压缩分支没关系 —— 它反正要整张读出来切动图片段，单张的拷贝不随
+总量累积。
+
+| 样本（本机 JIT） | 整包 encode | 流式落盘 |
+| --- | --- | --- |
+| 5×8MB 压不动的图片 | 2569ms / 峰值 +131MB | 2585ms / +49MB |
+| 单个 60MB 视频 | 3726ms / +92MB | 1157ms / +49MB |
+
+- **交付才是剩下的那份内存**：系统选择器（`FilePicker.saveFile(bytes:)`）和加密
+  都只收 `Uint8List`，所以 `buildArchive` 最后仍要读一次整包。要继续降只能改成
+  路径交付（分享 `XFile(path)`、应用目录 `copy`），那是 UI 流程的活。
+- **临时目录别用 `Directory.systemTemp`**：Android 上它可能落在授权范围外，写出
+  来的文件再分享会被 FileProvider 拒。用 `getTemporaryDirectory()`，并把它做成
+  构造参数，单测里注入 `Directory.systemTemp` 绕开 path_provider 通道。
+- **失败要删半成品**：`create()` 之后任何异常都先 `close()` 放句柄再删文件，然后
+  抛原异常。留一个写了一半的 zip 比不留更糟 —— 用户会把它当成有效备份。
+
 ## 3. 时间显示口径（最容易反复踩）
 
 ### 3.1 Memos 存的是「伪 UTC」

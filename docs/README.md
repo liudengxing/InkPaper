@@ -5,10 +5,6 @@ This directory contains project documentation for users and maintainers.
 ## Start Here
 
 - New users: [Getting Started](user-guide/getting-started.md)
-- **Resuming development / handing over: [HANDOFF](HANDOFF.md)**
-- **需求池 / Feature backlog: [REQUIREMENTS](REQUIREMENTS.md)** —— 用户口述的需求登记处，开工前先看这里有哪些待做
-- **Business flows, parameters and device setup: [Business Overview](BUSINESS_OVERVIEW.md)**
-- **IDE project instructions (paste into settings): [Project Instructions](PROJECT_INSTRUCTIONS.md)**
 - Project structure and builds: [Project Structure and Build Guide](PROJECT_STRUCTURE_AND_BUILD.md)
 - Maintainers: [Maintenance](MAINTENANCE.md)
 - Store review: [Store Compliance](STORE_COMPLIANCE.md)
@@ -23,10 +19,8 @@ This directory contains project documentation for users and maintainers.
 
 ## Development
 
-- **踩坑与经验 / Lessons Learned: [development/LESSONS_LEARNED.md](development/LESSONS_LEARNED.md)** —— 本项目真实踩过的坑，改代码前扫一眼能省几小时
 - [Project Structure and Build Guide](PROJECT_STRUCTURE_AND_BUILD.md)
 - [Debugging](development/debugging.md)
-- [Troubleshooting 故障速查](development/troubleshooting.md)
 - [API Reference](api/README.md)
 - [API Reference Chinese](api/README.zh.md)
 

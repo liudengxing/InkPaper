@@ -243,13 +243,9 @@ improvements are listed one per line with the value the user can feel.
 
 When a problem takes more than a few minutes to diagnose, record it before moving on:
 
-1. Add an entry to [`docs/development/LESSONS_LEARNED.md`](docs/development/LESSONS_LEARNED.md)
-   under the matching section, written as **symptom → cause → fix**, with exact file paths
-   or commands.
-2. Add one line to the symptom table in
-   [`docs/development/troubleshooting.md`](docs/development/troubleshooting.md) pointing at
-   the section number.
-3. Update an existing entry instead of adding a duplicate when it is the same trap.
+1. Document reproducible symptoms and fixes in the relevant public guide, such as
+   the [debugging guide](docs/development/debugging.md).
+2. Update an existing entry when it already covers the same issue.
 
 `CHANGELOG` is for users; these two files are for whoever touches the code next — including
 your future self. Environment quirks (proxy shape, device ports, launcher caches) belong

@@ -103,8 +103,7 @@ CI mirrors the code, tags and release notes to the Gitee repository. The APK its
 
 ## Documentation
 
-- [Business flows and Random Walk rules](docs/BUSINESS_OVERVIEW.md)
-- [Build and device testing](docs/BUILD_AND_DEVICE_TESTING.md)
+- [Project structure and build guide](docs/PROJECT_STRUCTURE_AND_BUILD.md)
 - [Maintenance guide](docs/MAINTENANCE.md)
 - [Store compliance checklist](docs/STORE_COMPLIANCE.md)
 - [Changelog](CHANGELOG.en.md)

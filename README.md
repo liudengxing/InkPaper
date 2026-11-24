@@ -103,8 +103,6 @@ Gitee 镜像仓的代码、tag 和发行说明由 CI 同步；安装包因为 Ac
 ## 文档
 
 - [项目结构与构建指南](docs/PROJECT_STRUCTURE_AND_BUILD.md)
-- [业务说明与随机漫步规则](docs/BUSINESS_OVERVIEW.md)
-- [构建与真机测试](docs/BUILD_AND_DEVICE_TESTING.md)
 - [维护指南](docs/MAINTENANCE.md)
 - [商店合规清单](docs/STORE_COMPLIANCE.md)
 - [更新日志](CHANGELOG.md)

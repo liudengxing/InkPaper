@@ -129,3 +129,44 @@ LOCAL_DEV_SETUP.md
 
 # Local scratch dir (screenshots / throwaway scripts, NOT project source)
 _backup/
+
+# Local development state and extracts
+/.model-desk/
+/.workbuddy/
+/dist/
+/coverage/
+/android/.kotlin/
+/友商 APK/
+*.aab
+*.dmg
+*.bak
+
+# Local credentials; sanitized templates are tracked
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Local audit, handoff and device records
+/ARCHITECTURE.md
+/AUDIT.md
+/BASELINE.md
+/BLOCKERS.md
+/PROGRESS.md
+/docs/BUILD_AND_DEVICE_TESTING.md
+/docs/BUSINESS_OVERVIEW.md
+/docs/FLUTTER_AUDIT_PROMPT.md
+/docs/HANDOFF.md
+/docs/PROJECT_INSTRUCTIONS.md
+/docs/REQUIREMENTS.md
+/docs/ROADMAP.md
+/docs/ROADMAP.template.md
+/docs/ROADMAP_SPEC.md
+/docs/VERIFY_*.md
+/docs/architecture/ENGINEERING_AUDIT.md
+/docs/development/LESSONS_LEARNED.md
+/docs/development/troubleshooting.md
+
+# Unprocessed screenshots and legacy installer source artifacts
+/marketing/real/raw/
+/marketing/real/raw*-contact-sheet.jpg

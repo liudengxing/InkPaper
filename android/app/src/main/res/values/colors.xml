@@ -2,11 +2,8 @@
 <resources>
     <!-- 与桌面图标母版的奶白纸色对齐。 -->
     <color name="ic_launcher_background">#013E36</color>
-    <!-- 启动图底色：明暗主题共用同一张墨绿底图，这里是它的纯色版，
-         用作窗口在图片加载前、以及图片未覆盖区域的颜色 -->
-    <color name="splash_brand">#143B30</color>
-    <color name="splash_color">#143B30</color>
-    <color name="splash_color_dark">#143B30</color>
+    <!-- 明暗模式共用的启动底色，与竖排启动图边缘一致。 -->
+    <color name="splash_brand">#0E362B</color>
     <color name="inkpaper_primary">#2C9678</color>
     <!-- 桌面小部件玻璃质感：半透明底 + 垂直高光 + 双层描边（外暗边 + 内亮边）。
          RemoteViews 拿不到实时模糊（launcher 进程拿不到 Window，且 HyperOS

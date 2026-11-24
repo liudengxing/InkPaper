@@ -182,7 +182,40 @@ Future<void> _runApp() async {
     );
   };
 
+  if (Platform.isAndroid) {
+    runApp(const _StartupCover());
+  }
   await _initializeApp();
+}
+
+class _StartupCover extends StatelessWidget {
+  const _StartupCover();
+
+  static const _background = Color(0xFF0E362B);
+
+  @override
+  Widget build(BuildContext context) => AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light.copyWith(
+          statusBarColor: Colors.transparent,
+          systemNavigationBarColor: _background,
+        ),
+        child: ColoredBox(
+          color: _background,
+          child: Image.asset(
+            'assets/images/splash_inkpaper.png',
+            fit: BoxFit.contain,
+            semanticLabel: '记录是为了成为更好的自己',
+            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+              if (frame != null) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  FlutterNativeSplash.remove();
+                });
+              }
+              return child;
+            },
+          ),
+        ),
+      );
 }
 
 /// 初始化应用

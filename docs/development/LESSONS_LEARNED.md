@@ -655,6 +655,46 @@ prompt，所以只能对齐意图，不能照抄。
 - 剩下的天花板是**交付那一份**：`FilePicker.saveFile(bytes:)` 与 `share_plus` 只收
   `Uint8List`，流式到底也要在最后留一份整包。要再降只能改成路径交付。
 
+### 2.25 「不要卡死界面」只有两条路：送出去，或者让出来
+
+**背景**（OPT-07B-3，2026-11-24）：加密导出的 100000 次 PBKDF2 与 AES/MAC 都同步
+跑在主 isolate，40MB 包的加解密各会连续冻住界面 2 秒上下（转圈动画、返回手势全停）。
+
+- **分两类处理，别一把梭**：
+  - 不能拆的紧循环（PBKDF2）→ `Isolate.run`。跨 isolate 只传密码、salt、迭代次数；
+    **闭包不能捕获 `this`**，否则服务里的 `Random.secure()` 会被一起拖过去并直接抛
+    「不能跨 isolate 发送」。所以计算部分要写成顶层或静态函数。
+  - 本来就能分块的（AES、MAC、base64）→ 原地按块推进，块间 `await Future.delayed(Duration.zero)`
+    让出事件循环。**内存不涨**，这点比整包搬进 isolate 强得多：整包搬要付一份输入
+    拷贝（`TransferableTypedData.fromList` 也是拷贝），40MB 的包白多 40~100MB。
+- **按时间攒，别按字节切**：一次让出约 1~3ms。按 64KB 一刀切，40MB 加密从 2878ms
+  涨到 3436ms（640 次让出全白付）；改成「攒够 16ms（一帧）再让」，只多 7%，界面
+  照样一帧一让。
+- **`PaddedBlockCipherImpl.process` 只能整段算**。要分块解密就自己来：
+  `CBCBlockCipher(AESEngine())..init(false, ParametersWithIV(...))` 配
+  `processBlock(inp, inOff, out, outOff)` 按 16 字节推进（CBC 链接在 cipher 内部延续，
+  逐块喂不会断），PKCS7 自己去尾 —— 末尾 `pad` 字节校验后 `sublistView` 截掉。
+- **量「卡不卡」要用自驱转轮，不要用 `Timer.periodic`**：零时长的
+  `Future.delayed` 会把周期定时器饿死，读数完全不可读（当时报「最长停顿 17ms」，
+  实际卡了 2.4 秒）。用 `while (...) { await Future.delayed(Duration.zero); 记时间差 }`
+  的自循环，并且**先自检**：同步忙等 500ms，探针必须报 ~500ms，否则仪器本身坏了。
+- 判断「哪些活该送出去」先拆阶段量：40MB 解密是 jsonDecode 146ms / base64 210ms /
+  KDF 856ms / MAC 536ms / AES 1296ms。**只搬 KDF 只解决 28%**，先量再决定顺序。
+
+### 2.26 `testWidgets` 的 tearDown 删临时目录会撞上没读完的文件
+
+**背景**（`37d9729`，2026-11-24）：查看器保留窗口的用例全量并发跑时，报的不是断言
+失败，而是 `tearDown` 里 `dir.deleteSync(recursive: true)` 抛
+`PathAccessException (errno 32, 另一个程序正在使用此文件)`。单跑该文件必过。
+
+- 原因：树上还挂着一次没读完的 `FileImage.load`，Windows 锁着 PNG 不放。清理动作
+  撞上异步 IO，与断言无关。
+- 处理：删目录最多试三次，仍失败就放弃。**临时目录残留不影响任何断言**，不该让
+  清理把用例搞红；真要断言「退出后句柄已释放」得单独写用例。
+- 同类竞态在这个仓库里出现过两次（`note_editor_draft_image_test` 的缩略图 worker
+  也占过临时目录），判断口径一样：**先看报错是哪一步**（断言 vs 清理），别急着改
+  等待时长。
+
 ## 3. 时间显示口径（最容易反复踩）
 
 ### 3.1 Memos 存的是「伪 UTC」

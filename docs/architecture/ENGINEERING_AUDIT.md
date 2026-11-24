@@ -8,13 +8,13 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-24 · 本项代码 `72f6c2f`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-07B-2（P2 · §7 加密分支的峰值：先量再改） |
+| 最后更新 | 2026-11-24 · 本项代码 `42d6139`（用例加固 `37d9729`），记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-07B-3（P3 · §7 本地备份：加解密不再连续占住 UI isolate） |
 | 任务状态 | 待复验 |
-| 可复查改动 | ① 新增 `lib/services/backup_encryption_service.dart`（纯 Dart）：`encryptToBytes` / `looksEncrypted` / `decrypt`，页面只剩密码输入框，218 行私有实现移出；② 加密改流式：明文 64KB 块 CBC + PKCS7、边加密边喂 HMAC 边按 3 字节对齐转 base64、直接写 `BytesBuilder`；③ 信封改为手拼头 + 分块 base64 + 手拼尾，字段顺序与原 `jsonEncode` 一致；④ MAC 两侧（加密/校验）改 `startChunkedConversion`，去掉 spread 展开 `Uint8List` 的 8 倍放大；⑤ 新增 `OPT-07B-3`：KDF 100000 次 PBKDF2 仍在 UI isolate 同步跑 |
-| 验证结果 | `analyze`（lib+test）→ No issues found；`format` 325 文件 0 changed；`flutter test --concurrency=4` 全量 **1169 项全过**（原 1160 + 9）。峰值实测（本机 JIT，`ProcessInfo.maxRss`）：40MB 明文加密 3381ms/**+656MB** → 2878ms/**+40MB**；80MB 明文 **+129MB**（约 1.1 份输出）。加密输出与改造前**逐字节相同**（744 字节黄金样本硬编码在测试里）。反向验证三项：base64 尾部余数不写 → 黄金样本/往返/补齐边界红；PKCS7 永远补整块 → 同上红；MAC 少喂 iv 与密文 → 往返全红 |
-| 未验证 / 待测 | 解密侧仍是整块路径：40MB 包解密 **+185MB**（约 3.3 份：json 字符串 + 密文 + 明文），要再降需换二进制信封或流式 base64 解码，登记为 OPT-07B-2 剩余；KDF 占加密耗时的大头（约 2.4s/100000 次）且同步跑在 UI isolate，导出与导入都会卡住界面，单独登记 OPT-07B-3；交付仍需一份 `Uint8List`（系统选择器/分享），未做路径交付；无真机 |
-| 下一项 | OPT-07B-3（KDF 移出 UI isolate，量卡顿时长）；OPT-02B / OPT-10B 等各自前置复验 |
+| 可复查改动 | ① KDF 挪到后台 isolate（顶层 `_pbkdf2KeyBytes`，闭包只捕获密码、salt 与迭代次数，不拖 `Random.secure()`）；② `encryptToBytes` / `decrypt` 变 `Future`，页面加 `await`；③ AES 与 MAC 分块推进时**按时间**让出事件循环（16ms 一帧），不按字节硬切；④ 解密侧新增 `_streamCbcDecrypt`：`CBCBlockCipher` + 手写去 PKCS7 换掉只能整段算的 `PaddedBlockCipherImpl.process`，输出写进预分配缓冲；⑤ `looksEncrypted` 改前缀探测（512 字节），认不出但确实含该键时退回整段解析；⑥ 顺带 `37d9729`：查看器用例 `tearDown` 容忍临时目录被占用 |
+| 验证结果 | `analyze`（lib+test）→ No issues found；`format` 327 文件 0 changed；`flutter test --concurrency=4` 全量 **1172 项全过**（原 1169 + 3），修复清理竞态后全量连跑两次全绿（4:04 / 4:01，widget 目录另跑两次 2:08 / 1:37）。主 isolate 最长不可用时长（本机 JIT，自驱异步转轮，40MB 明文）：加密 **2393ms → 73~80ms**，解密 **1972ms → 371~400ms**；耗时只多约 7%（加密 3379 → 3615ms）。KDF 单独量：100000 次 848ms，占满期间 50ms 定时器 **0 次**触发，挪进 isolate 后 **16 次**；`Isolate.run` 每次约 2ms，连开三次峰值内存无增长。解密峰值（独立进程）**+187MB**（上轮 +185MB，同量级）。输出仍逐字节相同。反向验证三项：KDF 改回同步 → ENC-10/11 `Actual: <0>`；永不让出 → 最长停顿回到 2393ms / 1972ms（探针）；去掉整段回退 → ENC-12 红 |
+| 未验证 / 待测 | 解密仍有一次**整段信封解码**：`utf8.decode`（56MB 字符串）+ `jsonDecode` + `base64Decode`，40MB 包实测约 0.4s 停顿与 +187MB 峰值，登记 OPT-07B-4；真机未测（AOT 下 PBKDF2 与 AES 吞吐、isolate 启动开销都可能与桌面不同）；交付仍需一份 `Uint8List`；页面编排（FilePicker → 解密 → 解包）仍无 widget 测试；`iterations` 取自文件且没有上限，畸形包可让后台 isolate 长期占用（非真实威胁模型，未加） |
+| 下一项 | OPT-07B-4（信封整段解码：按字节扫描 / 分块 base64 / 二进制信封 v3）；OPT-02B / OPT-10B 等各自前置复验 |
 | 待用户决策 | ① OPT-01B 的远端归档、本地同内容副本与完整空清单处理规则；② `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓 |
 | 工作区注意事项 | 另有未提交的 `docs/README.md` 索引链接、`dist/`、`.model-desk/`，均非本轮产物，勿回退或顺手带上。发版、推送、装机需单独授权 |
 
@@ -42,7 +42,8 @@
 | OPT-07A-2 | P2 | 待验收 | §7 图片 | 保留窗口已做（`b106ce5`）：当前页左右各留一张，窗口外与退出时 evict，预取按「窗口里谁没解」选边。待复验回看命中、窗口上限与退出释放。 |
 | OPT-07B | P2 | 待验收 | §7 本地备份 | 导出已改流式落盘（`ca596f9`）：视频按 1MB 块 STORE 写入，组装阶段不再攒媒体与整包缓冲；失败删半成品。待复验峰值、历史包与重试。 |
 | OPT-07B-2 | P2 | 待验收 | §7 本地备份 | 导出侧已做（`72f6c2f`）：加密改流式，40MB 明文峰值 +656MB → +40MB，输出与旧实现逐字节相同。待复验峰值回落、老包兼容与 200MB 外推；**剩余**：解密侧仍 3.3 份（要换二进制信封或流式 base64 解码）。 |
-| OPT-07B-3 | P3 | 待评估 | §7 本地备份 | KDF 同步跑在 UI isolate：100000 次 PBKDF2-HMAC-SHA256 本机约 2.4s，导出加密与导入解密都会整段卡住界面且没有进度提示。评估移到后台 isolate（`Isolate.run` + 可发送参数）与是否要进度反馈。 |
+| OPT-07B-3 | P3 | 待验收 | §7 本地备份 | 已做（`42d6139`）：KDF 进后台 isolate、AES/MAC 按时间让出事件循环，40MB 包最长停顿 2393ms → 80ms（加密）/ 1972ms → 400ms（解密）。待复验真机卡顿、老包兼容与解密封信剩余部分。 |
+| OPT-07B-4 | P2 | 待办 | §7 本地备份 | 信封解码仍整段：`decrypt` 对 53MB 信封做一次 `utf8.decode`（56MB 字符串）+ `jsonDecode` + `base64Decode`，40MB 包实测约 0.4s 瞬时停顿、+187MB 峰值，是整个加解密链路最后一块。评估按字节扫描 + 4 字符对齐分块 base64 解码，或二进制信封 v3（必须保持老包可解，靠 `ENC-01` 黄金样本咬住）。 |
 | OPT-07C | P2 | 待验收 | §7 本地备份 | 导入回滚已做（`de6a0ad`）：解包记录本次新建的资源，导入失败或 0 条时只删这批，同毫秒重复导入不再覆盖。待复验失败/重试/中断三条路径与既有文件保护。 |
 | OPT-05 | P2 | 待评估 | §5 搜索 | 先用可复现样本判定 SQL 扫描或结果装载的主要成本，再决定分批或全文索引。 |
 | OPT-06B | P3 | 待评估 | §6 外部事件 | 根据冷、热启动的通知、分享和深链复现结果决定是否调整事件交付。 |
@@ -523,6 +524,38 @@
 - **未验证**：① 解密侧仍是整块路径：`jsonDecode` 出一份 1.33 份的 String + Map，`base64Decode` 一份密文，AES 解出一份明文，实测 3.3 份；200MB 加密包导入约 660MB，要继续降得换二进制信封 v3（不再 base64/JSON）或手写流式 base64 解码，属本项剩余；② 交付阶段仍需一份 `Uint8List`（`FilePicker.saveFile(bytes:)` 与 `share_plus` 只收字节），要做路径交付得改 UI 流程；③ 无真机，手机上的 AES/内存峰值与 200MB 包的实际表现未测；④ 未做「加密包体积上限 / 入口限流」的产品决策 —— 现在能流式导出，但交付那一份仍随包体线性增长，需要用户定规则。
 - **提交**：`72f6c2f`（代码 + 测试）。
 - **建议下一项**：OPT-07B-3（KDF 移出 UI isolate，先量真实卡顿时长）；OPT-07B-2 剩余（解密侧）待用户决定是否值得换容器格式；OPT-02B / OPT-10B 仍等各自前置复验。
+
+### 2026-11-24 · OPT-07B-3 · 待验收
+
+- **先量，结果推翻了队列里的前提**：队列写的是「KDF 本机约 2.4s，占住界面」，实测 100000 次 PBKDF2 是 **848ms**（`crypto` 包的 `Hmac` 比 pointycastle 的 `PBKDF2KeyDerivator` 快：668ms vs 955ms，所以没换实现）。拆开 40MB 加密包的解密各阶段：`jsonDecode` 146ms / `base64Decode` 210ms / KDF 856ms / MAC 536ms / AES 1296ms —— KDF 只占 28%，**只搬 KDF 修不好卡死**。
+- **改动**（`lib/services/backup_encryption_service.dart`、`lib/screens/local_backup_restore_screen.dart`）：
+  - KDF 进后台 isolate：顶层 `_pbkdf2KeyBytes(password, salt, iterations)`，`Isolate.run` 的闭包只捕获这三样。**必须是顶层/静态函数** —— 实例方法会捕获 `this`，而服务里握着 `Random.secure()`，跨 isolate 发送会直接失败。
+  - `encryptToBytes` / `decrypt` 变 `Future`；页面两处调用加 `await`。
+  - 加密的 64KB 块循环、MAC 的 256KB 块循环、解密的新块循环，统一按「攒够 16ms 就让出」而不是按字节切：按 64KB 一刀切时 40MB 加密从 2878ms 涨到 3436ms（一次让出约 1~3ms，640 次白付），按时间攒只多 7%。
+  - 解密新增 `_streamCbcDecrypt`：`CBCBlockCipher`（`processBlock` 逐块、CBC 链接自然延续）+ 手写 PKCS7 去尾，输出写进按密文长度预分配的缓冲、最后 `sublistView` 截掉补齐。换掉原 `PaddedBlockCipherImpl.process`（它只能整段一次算完，40MB 要连占主线程 1.3s）。
+  - `looksEncrypted` 改前缀探测：先看开头 512 字节是否以 `{"InkPaperEncryptedBackup":true` 开头；认不出但开头确实出现这个键（外部工具重排过字段、值被截断）时退回整段解析，保证判定与整段解析一致。原来它对 53MB 信封做一次 `utf8.decode` + `jsonDecode`（约 150ms、多出 56MB 字符串和一张 Map），而 `decrypt` 紧接着还要再解一次。
+  - 未改动：信封格式与字段顺序、迭代次数与下限、v1 老包路径、错误文案、页面密码框与开关。
+- **验证方法**：写了个「自驱异步转轮」探针（`await Future.delayed(Duration.zero)` 自循环，记录相邻两轮的 `DateTime` 差）量主 isolate 的最长不可用时长。**先用 `_busy(500)` 自检**（报 504ms）再量，否则计量本身不可信 —— 一开始用 `Timer.periodic(5ms)`，被零时长定时器饿死，数字完全不可读。
+- **测试**：1169 → **1172**（+3）。
+  - `ENC-10` 加密期间 3ms 定时器照常触发（300 字节明文，只有 KDF 在 isolate 里跑，所以 tick 只能来自它）；`ENC-11` 解密同理。把 KDF 改回同步后两条都是 `Expected: a value greater than <0> / Actual: <0>`。
+  - `ENC-12` 1MB 包跨 4 个 256KB 解密块往返一致（此前只测到 200KB，单块），外加前缀探测与整段解析在「字段重排 / 多一个空白 / 值不是 true」下结论一致。
+- **验证**：`dart analyze lib test` → No issues found；`dart tool/inkpaper.dart format` → 327 文件 0 changed；`flutter test --concurrency=4` → **1172 项全过**，修复清理竞态后连跑两次全绿。
+- **反向验证**（三次）：① `_deriveKeys` 改回同步 → `ENC-10`/`ENC-11` 红（`Actual: <0>`）；② `_yieldSliceMs` 设成 `1 << 30`（永不让出）→ 探针量到最长停顿回到 **2393ms / 1972ms**（这条是测量而非用例，阈值型断言在并发负载下会抖，见 §2.23 的教训）；③ 去掉 `looksEncrypted` 的整段回退 → `ENC-12` 红（`Expected: true / Actual: <false>`）。
+- **实测**（本机 JIT，40MB 明文，同一个探针前后各跑两次）：
+
+  | 场景 | 永不让出 | 16ms 让出 |
+  | --- | --- | --- |
+  | 加密最长停顿 | 2393ms | **73 / 80ms** |
+  | 解密最长停顿 | 1972ms | **371 / 400ms** |
+  | 加密总耗时 | 3379 / 3286ms | 3615 / 3316 / 3297ms |
+  | 解密总耗时 | 3447ms | 3237 / 3329ms |
+
+  KDF 单独看：100000 次 848ms，占满期间 50ms 定时器 **0 次**触发；`Isolate.run` 后 **16 次**。`Isolate.run` 每次约 2ms（5 次 10ms），连开三次 `maxRss` 无增长。解密峰值（独立进程读 53MB 信封）**+187MB**，与上轮 +185MB 同量级。
+- **行为变化**：输出逐字节不变（`ENC-01` 黄金样本仍过），老包（v1 与 v2）都能解；界面上的进度指示器现在真的在转，返回手势可用。`encryptToBytes` / `decrypt` 从同步变异步，调用方必须 `await`。
+- **未验证**：① 解密仍有一次**整段信封解码**（`utf8.decode` + `jsonDecode` + `base64Decode`），40MB 包实测 0.4s 停顿、峰值 187MB 基本由它决定，登记 **OPT-07B-4**；② 无真机 —— AOT 下 PBKDF2/AES 吞吐与 isolate 启动开销都可能与桌面不同（手机 PBKDF2 通常更慢，isolate 启动可能 10~30ms）；③ 交付仍需一份 `Uint8List`；④ 页面编排仍无 widget 测试；⑤ `iterations` 从文件读取且没有上限，畸形包可让后台 isolate 跑很久（不是真实威胁模型，未加）。
+- **顺带修复（`37d9729`，范围外）**：全量并发连续两次各挂一条 `IVR-01` / `IVR-03`，报的是 `tearDown` 删 `viewer-retention*` 临时目录 `PathAccessException(errno 32)` —— 树上还挂着没读完的 `FileImage.load`，Windows 锁着文件。清理改成最多试三次、失败就放弃（临时目录残留不影响断言）。
+- **提交**：`42d6139`（代码 + 测试）、`37d9729`（查看器用例加固）。
+- **建议下一项**：OPT-07B-4 —— 把信封解码也拆开（按字节扫描字段 + 4 字符对齐分块 base64），这是加解密链路最后一块 0.4s / 187MB；或先做 OPT-02B / OPT-10B（等各自前置复验）。
 
 ## 现有架构
 

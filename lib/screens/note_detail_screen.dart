@@ -102,8 +102,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       _renderVideoPaths = const <String>[];
       return;
     }
-    _renderImagePaths = MemosContentHelper.extractNoteImagePaths(note);
-    _renderVideoPaths = MemosContentHelper.extractNoteVideoPaths(note);
+    // 图片与视频一次扫出，避免对同一篇正文跑两遍媒体正则
+    final mediaPaths = MemosContentHelper.extractNoteMediaPaths(note);
+    _renderImagePaths = mediaPaths.images;
+    _renderVideoPaths = mediaPaths.videos;
     _wordCount = _countVisibleChars(note.content);
   }
 

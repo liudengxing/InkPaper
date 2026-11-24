@@ -174,5 +174,68 @@ void main() {
         '今天去海边',
       );
     });
+
+    test('MC-04 一次提取与分开调用给同一份结果', () {
+      final note = _note(
+        content: '正文\n'
+            '![图片](file:///tmp/a.jpg)\n'
+            '![视频](file:///tmp/b.mp4)\n'
+            '![图片](/o/r/img-res)\n'
+            '![视频](/o/r/vid-res)',
+        resources: <Map<String, dynamic>>[
+          {'uid': 'img-res', 'type': 'image/png', 'filename': 'a.png'},
+          {'uid': 'vid-res', 'type': 'video/mp4', 'filename': 'a.mp4'},
+          // 正文没提到的资源图也要收进来：顺序是「资源在前、正文在后」
+          {'uid': 'img-only', 'type': 'image/jpeg', 'filename': 'c.jpg'},
+        ],
+      );
+
+      final media = MemosContentHelper.extractNoteMediaPaths(note);
+      expect(media.images, [
+        '/o/r/img-res',
+        '/o/r/img-only',
+        'file:///tmp/a.jpg',
+      ]);
+      expect(media.videos, ['/o/r/vid-res', 'file:///tmp/b.mp4']);
+      expect(media.isEmpty, isFalse);
+
+      // 两个旧入口现在都走合并实现，结果必须逐项相同
+      expect(MemosContentHelper.extractNoteImagePaths(note), media.images);
+      expect(MemosContentHelper.extractNoteVideoPaths(note), media.videos);
+    });
+
+    test('MC-05 图片分类与视频分类各去各的重，互不影响', () {
+      // 资源说它是图片、正文却按视频写法引用：两套分类依据独立，
+      // 两个列表各保留一次（卡片据此仍按视频渲染）
+      final note = _note(
+        content: '![视频](/o/r/same)',
+        resources: <Map<String, dynamic>>[
+          {'uid': 'same', 'type': 'image/png', 'filename': 'same.png'},
+        ],
+      );
+
+      final media = MemosContentHelper.extractNoteMediaPaths(note);
+      expect(media.images, ['/o/r/same']);
+      expect(media.videos, ['/o/r/same']);
+    });
+
+    test('MC-06 合并提取对正文只扫一遍，分开取是两遍', () {
+      final note = _note(
+        content: '![a](file:///tmp/a.jpg)\n![b](file:///tmp/b.mp4)',
+      );
+
+      MemosContentHelper.debugMarkdownMediaScanCount = 0;
+      MemosContentHelper.extractNoteMediaPaths(note);
+      expect(
+        MemosContentHelper.debugMarkdownMediaScanCount,
+        1,
+        reason: '卡片与详情页要同时拿图片和视频，必须一次扫完',
+      );
+
+      // 老入口各自扫一遍：调用方若同时需要两者，就该用合并入口
+      MemosContentHelper.extractNoteImagePaths(note);
+      MemosContentHelper.extractNoteVideoPaths(note);
+      expect(MemosContentHelper.debugMarkdownMediaScanCount, 3);
+    });
   });
 }

@@ -154,73 +154,103 @@ abstract final class MemosContentHelper {
       if (isVideoResource(resource) != video) {
         continue;
       }
-
-      final externalLink = resource['externalLink']?.toString();
-      if (externalLink != null && externalLink.isNotEmpty) {
-        paths.add(externalLink);
-        continue;
+      final path = resourcePathOf(resource);
+      if (path != null) {
+        paths.add(path);
       }
-
-      final name = resource['name']?.toString();
-      final filename = resource['filename']?.toString();
-      if (name != null && name.startsWith('attachments/')) {
-        paths.add(
-          filename != null && filename.isNotEmpty
-              ? '/file/$name/$filename'
-              : name,
-        );
-        continue;
-      }
-
-      final uid = resource['uid']?.toString() ?? name?.split('/').last;
-      if (uid == null || uid.isEmpty) {
-        continue;
-      }
-
-      paths.add('/o/r/$uid');
     }
 
     return paths;
+  }
+
+  /// 一条资源在正文与九宫格里该用的路径；拼不出来时返回 null。
+  ///
+  /// 抽出来是因为 [extractNoteMediaPaths] 要按视频/图片分流但**只遍历一遍**
+  /// resourceList，路径拼装规则不能在两处各写一份。
+  static String? resourcePathOf(Map<String, dynamic> resource) {
+    final externalLink = resource['externalLink']?.toString();
+    if (externalLink != null && externalLink.isNotEmpty) {
+      return externalLink;
+    }
+
+    final name = resource['name']?.toString();
+    final filename = resource['filename']?.toString();
+    if (name != null && name.startsWith('attachments/')) {
+      return filename != null && filename.isNotEmpty
+          ? '/file/$name/$filename'
+          : name;
+    }
+
+    final uid = resource['uid']?.toString() ?? name?.split('/').last;
+    if (uid == null || uid.isEmpty) {
+      return null;
+    }
+
+    return '/o/r/$uid';
   }
 
   static bool isMemosResourcePath(String path) =>
       MemosResourceService.isServerResourcePath(path);
 
-  static List<String> extractNoteImagePaths(Note note) {
-    final paths = <String>[];
-
-    for (final path in extractResourceImagePaths(note.resourceList)) {
-      if (!paths.contains(path)) {
-        paths.add(path);
-      }
-    }
-
-    for (final path in extractMarkdownImagePaths(note.content)) {
-      if (!paths.contains(path)) {
-        paths.add(path);
-      }
-    }
-
-    return paths;
-  }
+  static List<String> extractNoteImagePaths(Note note) =>
+      extractNoteMediaPaths(note).images;
 
   /// 笔记里的视频路径：resourceList 里的视频 + 正文里写成视频的 markdown。
-  static List<String> extractNoteVideoPaths(Note note) {
-    final paths = <String>[];
+  static List<String> extractNoteVideoPaths(Note note) =>
+      extractNoteMediaPaths(note).videos;
 
-    for (final path in extractResourceVideoPaths(note.resourceList)) {
-      if (!paths.contains(path)) {
-        paths.add(path);
+  /// 仅测试用：正文媒体正则的扫描次数。
+  ///
+  /// 卡片和详情页都要同时拿到图片与视频，若实现让两边各自扫一遍正文，
+  /// 滚动时每次 build 就是两趟正则（长笔记正文几千字）。这条计数把
+  /// 「一次扫描」变成可断言的事实，而不是靠耗时观察。
+  @visibleForTesting
+  static int debugMarkdownMediaScanCount = 0;
+
+  /// 一次扫出图片与视频，顺序与去重口径同原来分开取的两个方法。
+  ///
+  /// resourceList 只遍历一遍、正文只跑一遍正则；图片与视频各自去重
+  /// （同一路径若既是图片资源、又在正文里按视频写法出现，两边都保留，
+  /// 这与卡片「图片/视频互斥」的判定无关，是两套独立的分类依据）。
+  static NoteMediaPaths extractNoteMediaPaths(Note note) {
+    debugMarkdownMediaScanCount++;
+    final images = <String>[];
+    final videos = <String>[];
+    final seenImages = <String>{};
+    final seenVideos = <String>{};
+
+    void add(List<String> target, Set<String> seen, String path) {
+      if (path.isEmpty || !seen.add(path)) {
+        return;
+      }
+      target.add(path);
+    }
+
+    for (final resource in note.resourceList) {
+      final path = resourcePathOf(resource);
+      if (path == null) {
+        continue;
+      }
+      if (isVideoResource(resource)) {
+        add(videos, seenVideos, path);
+      } else {
+        add(images, seenImages, path);
       }
     }
 
-    for (final path in extractMarkdownVideoPaths(note.content)) {
-      if (!paths.contains(path)) {
-        paths.add(path);
+    for (final match in markdownMediaRegex.allMatches(note.content)) {
+      final path = match.group(2) ?? '';
+      if (MediaPaths.isVideoMarkdown(
+        path: path,
+        alt: match.group(1) ?? '',
+      )) {
+        add(videos, seenVideos, path);
+      } else {
+        add(images, seenImages, path);
       }
     }
 
-    return paths;
+    return NoteMediaPaths(images: images, videos: videos);
   }
 
   static String contentWithResourceImages(Note note) {
@@ -259,4 +289,25 @@ abstract final class MemosContentHelper {
     final filename = resource['filename']?.toString() ?? '';
     return MediaPaths.isVideoPath(filename);
   }
+}
+
+/// 一条笔记的媒体路径，图片与视频各一份。
+///
+/// 由 [MemosContentHelper.extractNoteMediaPaths] 一次扫描产出：卡片九宫格、
+/// 详情页和媒体筛选都要同时知道两者，分两次取等于把正文正则扫两遍。
+@immutable
+class NoteMediaPaths {
+  const NoteMediaPaths({required this.images, required this.videos});
+
+  static const NoteMediaPaths empty = NoteMediaPaths(
+    images: <String>[],
+    videos: <String>[],
+  );
+
+  final List<String> images;
+  final List<String> videos;
+
+  bool get isEmpty => images.isEmpty && videos.isEmpty;
+
+  bool get isNotEmpty => !isEmpty;
 }

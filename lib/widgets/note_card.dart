@@ -140,9 +140,12 @@ class _NoteCardState extends State<NoteCard>
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final note = _effectiveNote;
 
-    final imagePaths = MemosContentHelper.extractNoteImagePaths(note);
+    // 一次扫出图片与视频：分两次取会把正文正则跑两遍，而卡片滚动时每次
+    // build 都走这里（长笔记正文几千字、二十几张图）
+    final mediaPaths = MemosContentHelper.extractNoteMediaPaths(note);
+    final imagePaths = mediaPaths.images;
     // 视频与图片互斥，一条笔记最多一段，取第一条即可
-    final videoPaths = MemosContentHelper.extractNoteVideoPaths(note);
+    final videoPaths = mediaPaths.videos;
 
     // 轻量预览：一次解析成纯文本 + 样式区间，渲染侧只产出一个 Text.rich。
     final preview = NotePreviewCache.resolve(note.content);

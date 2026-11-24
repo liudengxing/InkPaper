@@ -437,6 +437,22 @@ prompt，所以只能对齐意图，不能照抄。
 - 断言「合并了」不要靠耗时（JIT 抖动大），加个 `@visibleForTesting` 扫描计数，
   直接断言「一次合并 = 1，两个旧入口 = 3」。
 
+### 2.17 分页窗口不是缓存：往 `notes` 里 `add` 一条，后面全错位
+
+**背景**（OPT-10 返修，2026-11-24）：引用管理器改到一条深页笔记时，回调为了「让引用面板能显示对端标题」，
+把它 `add` 进了 `AppProvider.notes`。那个列表是分页窗口，续页按 `OFFSET` 取，下一条 SQL 照样返回它 ——
+同一个 id 两张卡片。
+
+- **判别标准**：这个 `List` 的第 i 个位置是否对应 SQL 的 `OFFSET i`？是，就不能往中间或末尾插。
+  `hasMoreData`、`totalNotesCount` 的比较、滚动位置恢复都建立在「窗口 = 库的一个前缀」上。
+- **要显示窗口外的数据，就按 id 查库**：`getNotesByIds` 走一次点查，比污染窗口便宜得多。
+  异步补查在 build 里调度时用 `addPostFrameCallback`，回来 `setState`；未回来的那一帧显示 `…` 而不是
+  「未找到」——否则用户会看到假的失败态。
+- **去重闸门**：续页 `addAll` 前按 id 过滤（`filterUnloadedNotes`）。它平时不触发，但把「窗口里不会出现
+  两条同 id」变成结构保证而不是约定；纯泛型函数也便于直接单测，不用先造一个真分页窗口。
+- **`testWidgets` 里碰真库要用 `tester.runAsync`**：FakeAsync 不推进真实 IO，直接 `await` +
+  `pumpAndSettle` 会一直卡到进程被 SIGTERM，症状是「测试没输出、耗时很久、退出码 1」。
+
 ---
 
 ## 3. 时间显示口径（最容易反复踩）

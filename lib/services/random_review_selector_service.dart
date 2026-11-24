@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/utils/memos_content_helper.dart';
+import 'package:inkpaper/utils/note_sorting_helper.dart';
 import 'package:inkpaper/utils/tag_utils.dart' as tag_utils;
 
 abstract final class RandomReviewSelectorService {
@@ -93,13 +94,15 @@ abstract final class RandomReviewSelectorService {
     int reviewDays = allDays,
     int reviewCount = 8,
     Random? random,
+    DateTime? now,
   }) =>
       selectWidgetCandidatesFrom<Note>(
         notes: notes,
         reviewDays: reviewDays,
         reviewCount: reviewCount,
         random: random,
-        displayDayKey: (note) => _dayKey(note.displayTime),
+        now: now,
+        displayTimeKey: (note) => noteWallClockKey(note.displayTime),
         contentOf: (note) => note.content,
       );
 
@@ -107,23 +110,36 @@ abstract final class RandomReviewSelectorService {
   /// 只带 ISO 字符串的统计行（`WidgetStatNote`），日期比较与可见文字判定都
   /// 由回调提供。
   ///
-  /// 时间范围按「自然日」比较：`reviewDays = 7` 就是今天往前数 7 个日历日，
-  /// 而不是精确到时分秒的 168 小时。窗口最多宽出不到一天，换来的是统计行不必
-  /// 为了过滤而解析 1500 个本地 `DateTime`（每次都要查时区，约 45µs）。
+  /// 时间范围按**精确时刻**比较（`reviewDays = 7` = 此刻往前 168 小时），
+  /// 但比较的是挂钟时间键而不是 `DateTime`：18:00 请求「最近 7 天」时，
+  /// 7 天前 09:00 必须在范围外。
+  ///
+  /// 早先这里退化成「按自然日比较」（只比 `yyyy-MM-dd`），窗口最多宽出
+  /// 一整天，会把昨天同一时刻之前、但仍在 7 个日历日内的笔记收进来。
+  /// 让统计行不必为了过滤去解析 1500 个本地 `DateTime`（每次都要查时区，
+  /// 约 45µs）的代价，靠 ISO 串前 23 位比较就能拿到——见
+  /// [noteWallClockKey]，与列表排序 `noteTimeKeySql` 同一口径。
+  /// [now] 只给测试固定「此刻」用，生产不传。
   static List<T> selectWidgetCandidatesFrom<T>({
     required List<T> notes,
-    required String Function(T note) displayDayKey,
+    required String Function(T note) displayTimeKey,
     required String Function(T note) contentOf,
     int reviewDays = allDays,
     int reviewCount = 8,
     Random? random,
+    DateTime? now,
   }) {
     if (notes.isEmpty || reviewCount <= 0) {
       return <T>[];
     }
 
     final rng = random ?? Random();
-    final inRange = _withinDays<T>(notes, reviewDays, displayDayKey);
+    final inRange = _withinDays<T>(
+      notes,
+      reviewDays,
+      displayTimeKey,
+      now ?? DateTime.now(),
+    );
     final primary = inRange.isEmpty ? notes : inRange;
 
     final picked = _takeWithVisibleText<T>(
@@ -152,18 +168,22 @@ abstract final class RandomReviewSelectorService {
   static List<T> _withinDays<T>(
     List<T> notes,
     int reviewDays,
-    String Function(T note) displayDayKey,
+    String Function(T note) displayTimeKey,
+    DateTime now,
   ) {
     final normalizedDays = reviewDays <= 0 ? allDays : reviewDays;
     // 999999 天 ≈ 2738 年，等于「不限」；顺带避开把 cutoff 算到公元前之后
-    // 日期字符串比较失效的问题。
+    // 时间键比较失效的问题。
     if (normalizedDays >= allDays) {
       return notes;
     }
-    final cutoff = DateTime.now().subtract(Duration(days: normalizedDays));
-    final cutoffKey = _dayKey(cutoff);
+    // 区间下界取到毫秒，和排序键同精度：只比较 `yyyy-MM-dd` 会让窗口宽出
+    // 将近一天（18:00 请求时，7 天前 09:00 也会被算进「最近 7 天」）。
+    final cutoff = noteWallClockKey(
+      now.subtract(Duration(days: normalizedDays)),
+    );
     return notes
-        .where((note) => displayDayKey(note).compareTo(cutoffKey) >= 0)
+        .where((note) => displayTimeKey(note).compareTo(cutoff) >= 0)
         .toList();
   }
 
@@ -187,11 +207,5 @@ abstract final class RandomReviewSelectorService {
       }
     }
     return picked;
-  }
-
-  /// 日历日键（yyyy-MM-dd），按字段值取，不做时区换算。
-  static String _dayKey(DateTime time) {
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${time.year}-${two(time.month)}-${two(time.day)}';
   }
 }

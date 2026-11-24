@@ -284,7 +284,7 @@ void main() {
         RandomReviewSelectorService.selectWidgetCandidatesFrom<WidgetStatNote>(
       notes: stat,
       random: Random(3),
-      displayDayKey: (note) => note.displayDayKey,
+      displayTimeKey: (note) => note.displayTimeKey,
       contentOf: (note) => note.content,
     );
 
@@ -350,7 +350,7 @@ void main() {
       notes: stat,
       reviewDays: 7,
       random: Random(1),
-      displayDayKey: (note) => note.displayDayKey,
+      displayTimeKey: (note) => note.displayTimeKey,
       contentOf: (note) => note.content,
     );
 

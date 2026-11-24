@@ -31,6 +31,17 @@ String noteOrderBySql(SortOrder order) => switch (order) {
 String noteTimeKeySql(String column) =>
     "substr(replace($column, ' ', 'T'), 1, 23)";
 
+/// Dart 侧的时间比较键，字符串形态、同一口径。
+///
+/// 与 [noteTimeKeySql] 严格对应：取到毫秒（23 位），`Z` 后缀不参与比较。
+/// 有了它，**不构造 `DateTime` 也能做时间区间判断**——本机构造本地时间每次
+/// 都要查时区（约 45µs），整库过滤时这一项就是几十毫秒。库里存的就是 ISO
+/// 串的行（如小组件统计行）直接取前 23 位即可，不必调这个函数。
+String noteWallClockKey(DateTime time) {
+  final iso = time.toIso8601String();
+  return iso.length > 23 ? iso.substring(0, 23) : iso;
+}
+
 /// 该排序是倒序还是正序；`id` 并列兜底跟着同一方向，让「从旧到新」正好是
 /// 「从新到旧」的镜像。
 bool _isDescending(SortOrder order) =>

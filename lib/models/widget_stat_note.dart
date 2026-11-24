@@ -129,9 +129,18 @@ class WidgetStatNote {
   /// 但不用构造 DateTime。
   String get displayDayKey => _dayKeyOf(displayTimeIso);
 
-  /// 排序键。同一格式的 ISO 串按字典序排就是按时间排；这里只用于
-  /// 「回顾候选的池子顺序」和「多条置顶取哪一条」，同一秒内的先后不影响结果。
-  String get displaySortKey => displayTimeIso;
+  /// 排序 / 区间键：ISO 串的前 23 位（到毫秒，`Z` 与微秒不参与）。
+  ///
+  /// 同一格式的 ISO 串按字典序排就是按挂钟时间排；截到毫秒是为了和 SQL 侧
+  /// `noteTimeKeySql('createdAt')` 同精度——否则同一毫秒内两种精度的行，
+  /// 内存重排与库查询会给出不同顺序。
+  String get displayTimeKey => displayTimeIso.length > 23
+      ? displayTimeIso.substring(0, 23)
+      : displayTimeIso;
+
+  /// 排序键，与 [displayTimeKey] 同一个值：这里只用于「回顾候选的池子顺序」
+  /// 和「多条置顶取哪一条」，同一毫秒内的先后不影响结果。
+  String get displaySortKey => displayTimeKey;
 
   static String _dayKeyOf(String iso) =>
       iso.length >= 10 ? iso.substring(0, 10) : iso;

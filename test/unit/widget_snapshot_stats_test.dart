@@ -5,6 +5,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/models/widget_stat_note.dart';
 import 'package:inkpaper/services/widget_snapshot_service.dart';
 
 void main() {
@@ -29,6 +30,15 @@ void main() {
   Map<String, Object?> build(List<Note> notes) =>
       WidgetSnapshotService.debugBuildSnapshot(
         notes: notes,
+        isLocalMode: true,
+        isLoggedIn: false,
+        isSyncing: false,
+      );
+
+  /// 直接喂「库里的原始 ISO 串」，模拟本地写法与 Memos 伪 UTC 混存。
+  Map<String, Object?> buildFromRows(List<WidgetStatNote> rows) =>
+      WidgetSnapshotService.debugBuildSnapshotFromRows(
+        notes: rows,
         isLocalMode: true,
         isLoggedIn: false,
         isSyncing: false,
@@ -145,6 +155,82 @@ void main() {
 
       expect(asMap(stats['week'])['total'], 0);
       expect(snapshot['pinnedNote'], isNull);
+    });
+  });
+
+  group('WidgetSnapshotService · 时间口径（OPT-04B）', () {
+    String two(int v) => v.toString().padLeft(2, '0');
+    final now = DateTime.now();
+    final dayKey = '${now.year}-${two(now.month)}-${two(now.day)}';
+
+    WidgetStatNote row({
+      required String id,
+      required String displayIso,
+      bool isPinned = false,
+    }) =>
+        WidgetStatNote(
+          id: id,
+          content: '内容 $id',
+          createdAtIso: displayIso,
+          updatedAtIso: displayIso,
+          displayTimeIso: displayIso,
+          isPinned: isPinned,
+        );
+
+    /// 当月第 [day] 天落在月统计格子的条数
+    int countOnMonthDay(Map<String, Object?> snapshot, int day) {
+      final month = asMap(asMap(snapshot['stats'])['month']);
+      return asInts(month['days'])[day - 1];
+    }
+
+    test('WS-S08 伪 UTC 与本地写法按挂钟归到同一天', () {
+      final snapshot = buildFromRows(<WidgetStatNote>[
+        // Memos 把北京时间当 UTC 存：字段值 23:30 就是 23:30
+        row(id: 'remote-late', displayIso: '${dayKey}T23:30:00.000Z'),
+        row(id: 'local-morning', displayIso: '${dayKey}T09:00:00.000'),
+      ]);
+
+      expect(
+        countOnMonthDay(snapshot, now.day),
+        2,
+        reason: '换算成绝对时刻的话，23:30Z 会落到次日 07:30，这一格就只剩 1 条',
+      );
+    });
+
+    test('WS-S09 多条置顶取挂钟更晚的那条，不受 Z 后缀影响', () {
+      final snapshot = buildFromRows(<WidgetStatNote>[
+        row(
+          id: 'pinned-remote',
+          displayIso: '${dayKey}T02:00:00.000Z',
+          isPinned: true,
+        ),
+        row(
+          id: 'pinned-local',
+          displayIso: '${dayKey}T09:00:00.000',
+          isPinned: true,
+        ),
+      ]);
+
+      expect(
+        asMap(snapshot['pinnedNote'])['id'],
+        'pinned-local',
+        reason: '挂钟 09:00 晚于 02:00；按绝对时刻算会把远端那条排前面',
+      );
+    });
+
+    test('WS-S10 坏行（空时间串）不让整份快照失败', () {
+      final snapshot = buildFromRows(<WidgetStatNote>[
+        WidgetStatNote(
+          id: 'broken',
+          content: '时间字段是空的',
+          createdAtIso: '',
+          updatedAtIso: '',
+        ),
+        row(id: 'good', displayIso: '${dayKey}T09:00:00.000'),
+      ]);
+
+      expect(snapshot['stats'], isNotNull);
+      expect(countOnMonthDay(snapshot, now.day), 1);
     });
   });
 }

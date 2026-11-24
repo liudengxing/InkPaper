@@ -262,7 +262,7 @@ abstract final class WidgetSnapshotService {
           ? RandomReviewSelectorService.allDays
           : reviewRangeDays,
       random: random ?? Random(),
-      displayDayKey: (note) => note.displayDayKey,
+      displayTimeKey: (note) => note.displayTimeKey,
       contentOf: (note) => note.content,
     );
   }
@@ -282,14 +282,17 @@ abstract final class WidgetSnapshotService {
         }
       }
     }
-    return rankTagsByUsage(
-      notes: lastUsedIso.entries.map(
-        (entry) => (
-          tags: <String>[entry.key],
-          updatedAt: DateTime.parse(entry.value),
-        ),
-      ),
-    );
+    // 只对去重后的标签解析（不是每行都解析）；时间串坏掉的那条跳过——
+    // 库里的时间字段来自 Memos、导入和老版本，坏值不该让整个小组件不更新。
+    final usable = <({List<String> tags, DateTime updatedAt})>[];
+    for (final entry in lastUsedIso.entries) {
+      final time = DateTime.tryParse(entry.value);
+      if (time == null) {
+        continue;
+      }
+      usable.add((tags: <String>[entry.key], updatedAt: time));
+    }
+    return rankTagsByUsage(notes: usable);
   }
 
   static WidgetStatNote? _firstPinnedNote(List<WidgetStatNote> notes) {
@@ -318,6 +321,8 @@ abstract final class WidgetSnapshotService {
   static Map<String, Object?> _noteSnapshot(WidgetStatNote note) {
     final visibleText =
         MemosContentHelper.previewVisibleText(note.content).trim();
+    // 坏掉的时间串只让「时间标签」留空，不该把整份快照构建打断
+    final createdAt = DateTime.tryParse(note.createdAtIso);
     final preview = visibleText.isNotEmpty
         ? _trimPreview(visibleText, 120)
         : _attachmentPreview(note);
@@ -334,11 +339,11 @@ abstract final class WidgetSnapshotService {
       'createdAt': note.createdAtIso,
       // 桌面小部件直接展示这个本地时间文案。格式化放在 Dart 侧做：
       // 原生只裁剪 ISO 字符串，一旦序列化成 UTC 就会显示错时区。
-      'createdAtLabel': formatWidgetTime(note.createdAt),
+      'createdAtLabel': createdAt == null ? '' : formatWidgetTime(createdAt),
       // 回顾小组件顶部的「时间语境」标签（今天 / 昨天 / 去年今日…）。
       // 说清「多久以前」比裸时间戳更能唤起回忆，对应 flomo 桌面组件的
       // 「去年今日」那一层标注。
-      'ageLabel': formatReviewAgeLabel(note.createdAt),
+      'ageLabel': createdAt == null ? '' : formatReviewAgeLabel(createdAt),
       'updatedAt': note.updatedAtIso,
       'displayTime': note.displayTimeIso,
     };

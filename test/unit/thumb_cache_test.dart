@@ -444,6 +444,11 @@ void main() {
 
       await cache.prepare(overrideDir: thumbsDir, overrideImagesDir: imagesDir);
       expect(
+        cache.debugIndexStarted,
+        isTrue,
+        reason: '扫描由 prepare 发起，只是不等它',
+      );
+      expect(
         cache.debugIndexComplete,
         isFalse,
         reason: 'prepare 不该等目录扫描，否则首帧继续被它拖住',

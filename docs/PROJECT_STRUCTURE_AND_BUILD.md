@@ -8,6 +8,8 @@
 
 本文只描述工程结构和构建流程，不记录任何密码、Token、证书口令或服务器口令。
 
+> **最后同步（2026-11-24）**：`lib/services`（50 个）与 `lib/utils`（44 个）速查表已按当前文件逐条对齐，版本 `1.1.143+10243`；新增的本机备份、更新安装、微信读书与缩略图缓存相关文件都已登记。
+
 ## 仓库总览
 
 InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`，原生外壳只有 `android/`，自动化入口集中在 `tool/inkpaper.dart` 和 `.github/workflows/`。
@@ -120,7 +122,7 @@ InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`�
 - `lib/widgets/memos_markdown_renderer.dart`：主页和详情页 Markdown 渲染核心。
 - `lib/widgets/simple_memo_content.dart`：简化笔记内容展示。
 - `lib/widgets/note_card.dart`：首页笔记卡片、展开收起、图片和交互入口。
-- `lib/widgets/image_viewer_screen.dart`：图片预览、多图浏览和退出交互。
+- `lib/screens/image_viewer_screen.dart`：图片预览、多图浏览和退出交互（`c75fa13` 从 `widgets/` 移入）。
 - `lib/widgets/sidebar.dart`：侧边栏、标签入口和导航。
 - `lib/widgets/tag_tree_item.dart`：层级标签树 UI。
 - `lib/screens/home_screen.dart`：首页整体页面。
@@ -132,20 +134,21 @@ InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`�
 - `lib/screens/ai_settings_screen.dart`：AI 配置页。
 - `lib/screens/webdav_settings_screen.dart`：WebDAV 设置和测试入口。
 - `lib/services/database_service.dart`：本地数据库和迁移。
-- `lib/services/api_service.dart`：服务端 API 抽象。
 - `lib/services/api_service_factory.dart`：本地模式、官方服务器、自托管服务器之间的服务创建。
 - `lib/services/memos_api_service_fixed.dart`：Memos API 对接。
 - `lib/services/memos_resource_service.dart`：Memos 图片和资源处理。
-- `lib/services/incremental_sync_service.dart`：增量同步。
-- `lib/services/sync_merge_helper.dart`：同步合并策略，涉及创建时间、更新时间和冲突处理。
+- `lib/utils/sync_merge_helper.dart`：同步合并策略，涉及创建时间、更新时间和冲突处理（`c75fa13` 从 `services/` 移入）。
 - `lib/services/webdav_service.dart`：WebDAV 基础访问。
 - `lib/services/webdav_sync_engine.dart`：WebDAV 备份和恢复流程。
+- `lib/services/backup_archive_service.dart`：本机备份 ZIP 的打包与解包（资源还原、路径重写、失败回滚）。
+- `lib/services/backup_encryption_service.dart`：加密备份信封（AES-256-CBC + HMAC-SHA256 + PBKDF2），兼容 v1 老包。
 - `lib/services/ai_insight_engine.dart`：AI 洞察。
 - `lib/services/ai_enhanced_service.dart`：摘要、续写、标签推荐等增强能力。
 - `lib/services/random_walk_index.dart`：相关笔记与随机漫步共用的本地索引。
 - `lib/services/local_note_analysis_service.dart`：本地笔记分析。
-- `lib/services/tag_ai_service.dart`：标签推荐和标签洞察。
 - `lib/services/sentry_monitoring_service.dart`：Sentry 监控（Dart 侧错误上报，可选）。
+- `lib/utils/thumb_cache.dart`：图片缩略图的持久化缓存（分档解码、磁盘索引、采样解码大图）。
+- `lib/utils/startup_essentials.dart`：冷启动首帧前必须就绪的数据，一次 `Future.wait` 并行加载。
 
 ## lib 文件速查表
 
@@ -230,50 +233,58 @@ InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`�
 
 ### lib/services
 
+> 50 个文件（2026-11-24 重数）。`c75fa13` 把排序/标签/分页/同步合并/同步状态等纯函数移到了 `lib/utils/`；`ARCH-LAYER` 系列清理删掉了 10 个零调用服务，本表只列当前存在的文件。
+
 - `ai_enhanced_service.dart`：AI 摘要、续写、标签推荐等增强能力。
-- `ai_insight_engine.dart`：洞察生成逻辑。
-- `ai_related_notes_service.dart`：AI 相关笔记能力。
-- `alert_service.dart`：告警规则和关键指标告警。
-- `announcement_service.dart`：公告拉取、缓存和展示判断。
-- `api_service.dart`：应用服务端 API 抽象。
-- `api_service_factory.dart`：根据本地模式、官方服务器、自部署服务器创建 API 服务。
-- `app_info_service.dart`：应用版本、包信息和平台信息。
-- `baidu_realtime_speech_service.dart`：百度实时语音识别。
-- `baidu_speech_service.dart`：百度语音识别封装。
+- `ai_insight_engine.dart`：六视角 AI 洞察的提示词编排与报告生成。
+- `ai_insight_service.dart`：一次洞察的模型调用、流式输出与结果解析。
+- `api_service_factory.dart`：按本地模式 / 官方服务器 / 自部署服务器创建 Memos 服务。
+- `apk_install_service.dart`：拉起系统安装器安装新版本 APK。
+- `app_info_service.dart`：应用版本号与构建号的单一真源。
+- `attachment_maintenance_service.dart`：服务端附件的离线缓存维护（补齐与清理）。
+- `backup_archive_service.dart`：本机备份 ZIP 的打包与解包（资源还原、路径重写、失败回滚）。
+- `backup_encryption_service.dart`：加密备份信封（AES-256-CBC + HMAC-SHA256 + PBKDF2），兼容 v1 老包。
 - `cloud_verification_service.dart`：官方服务器校验、AppID/AppKey 验证和登录前置检查。
-- `database_service.dart`：SQLite 本地数据库、表结构、迁移、读写和缓存。
-- `deepseek_api_service.dart`：DeepSeek/OpenAI 兼容 AI API 调用。
-- `feature_flag_service.dart`：功能开关、本地缓存和远程配置读取。
-- `incremental_sync_service.dart`：增量同步流程。
-- `random_walk_index.dart`：本地相关笔记排序与随机漫步选路。
-- `local_note_analysis_service.dart`：本地笔记内容分析。
-- `local_reference_service.dart`：本地引用关系处理。
-- `logger_service.dart`：结构化日志服务。
-- `memos_api_service_fixed.dart`：Memos API 对接实现。
+- `database_service.dart`：SQLite 本地数据库、表结构、迁移、分页查询与写入。
+- `deepseek_api_service.dart`：DeepSeek / OpenAI 兼容接口调用。
+- `draft_service.dart`：编辑器草稿的存取与清理。
+- `feature_flag_service.dart`：功能开关（首帧前读本地，首帧后刷远程）。
+- `feed_snapshot_service.dart`：首页首屏快照，供桌面小组件与冷启动秒开。
+- `iflytek_speech_service.dart`：讯飞语音识别（唯一的语音链路，默认关闭）。
+- `insight_history_service.dart`：AI 洞察报告的历史存取。
+- `local_note_analysis_service.dart`：本地笔记内容分析（词频、标签、相似度）。
+- `local_reference_service.dart`：本地引用关系处理（离线可用）。
+- `memos_api_service_fixed.dart`：Memos API 对接实现（兼容 v0.21 → v0.27+）。
 - `memos_resource_service.dart`：Memos 图片资源上传、下载和解析。
-- `note_actions_service.dart`：笔记常用操作聚合。
-- `note_sorting_helper.dart`：笔记排序辅助。
-- `note_tags_helper.dart`：笔记标签提取和处理。
-- `notes_pagination_helper.dart`：笔记分页加载辅助。
-- `notification_service.dart`：本地通知基础服务。
+- `note_actions_service.dart`：把 `AppProvider` 的写操作包成无 UI 依赖的服务。
+- `note_edit_history_service.dart`：笔记编辑历史版本。
+- `notes_qa_service.dart`：「问笔记」的一轮对话编排。
+- `notification_service.dart`：本地通知（Android AlarmManager）。
 - `notion_api_service.dart`：Notion API 调用。
-- `notion_sync_service.dart`：Notion 同步流程。
-- `observability_service.dart`：日志、追踪和可观测性能力。
+- `notion_sync_service.dart`：Notion 双向同步流程。
+- `observability_service.dart`：日志级别、结构化日志与追踪。
 - `performance_monitor_service.dart`：性能计时、指标采集和报告。
+- `periodic_review_service.dart`：周/月回顾的数据准备与总结缓存。
 - `preferences_service.dart`：SharedPreferences 配置读写。
-- `reminder_notification_service.dart`：提醒通知调度。
+- `random_review_selector_service.dart`：随机回顾的取样区间与候选筛选。
+- `random_walk_index.dart`：随机漫步与相关笔记共用的局部索引。
+- `reminder_notification_service.dart`：提醒通知的数据库存储与调度。
 - `sentry_monitoring_service.dart`：Sentry 错误上报。
-- `simple_permission_service.dart`：简化权限请求封装。
-- `speech_service.dart`：语音输入统一入口。
-- `sync_merge_helper.dart`：同步合并、去重、时间字段保护和冲突处理。
-- `sync_status_helper.dart`：同步状态展示辅助。
-- `tag_ai_service.dart`：标签推荐和标签洞察。
-- `tag_stats_service.dart`：标签统计。
+- `speech_service.dart`：语音输入统一入口（只转发给讯飞）。
+- `startup_update_service.dart`：开屏自动检查更新。
+- `tag_stats_service.dart`：侧边栏与标签页的标签统计。
 - `unified_reference_manager.dart`：双向引用关系管理。
+- `update_check_diagnostics.dart`：上一次更新检查的结论，供「关于」页展示。
+- `update_check_service.dart`：更新检查的多个数据源与汇总。
+- `update_download_service.dart`：安装包下载与进度。
+- `update_installer.dart`：应用内更新的「下载 → 安装」链路。
 - `user_behavior_service.dart`：用户点击、偏好学习和个性化权重。
 - `webdav_service.dart`：WebDAV 基础请求、目录、上传下载。
 - `webdav_sync_engine.dart`：WebDAV 备份、恢复、图片附件处理。
-- `weread_parser.dart`：微信读书导入解析。
+- `weread_api_service.dart`：微信读书 Agent 网关接口。
+- `weread_note_builder.dart`：把划线 / 想法翻译成 InkPaper 笔记。
+- `weread_sync_service.dart`：微信读书同步的阶段编排与读完档案整理。
+- `widget_snapshot_service.dart`：桌面小组件快照的构建与写入。
 
 ### lib/themes
 
@@ -283,24 +294,52 @@ InkPaper 是只面向 Android 的 Flutter 应用。核心业务代码在 `lib/`�
 
 ### lib/utils
 
-- `error_handler.dart`：统一错误处理辅助。
+> 44 个文件（2026-11-24 重数）。这里放无状态工具与纯计算；同步合并、排序、分页、缩略图缓存等原在 `services/` 或页面里的逻辑都已收在这里。
+
+- `attachment_cache.dart`：服务端附件的本地只读缓存索引。
+- `attachment_maintenance.dart`：附件缓存与缩略图的磁盘记账、补齐与清理。
+- `error_handler.dart`：统一错误处理，集成 Sentry 上报。
+- `home_tag_filter.dart`：首页标签屏蔽的纯计算。
 - `image_cache_manager.dart`：图片缓存管理。
+- `image_decode_width.dart`：缩略图解码宽度分桶。
 - `image_utils.dart`：图片压缩、保存、格式和路径处理。
-- `logger.dart`：轻量日志工具。
-- `memos_content_helper.dart`：Memos 内容格式处理。
-- `memos_markdown_converter.dart`：Memos Markdown 和应用渲染格式转换。
+- `insight_text_spans.dart`：「[12]」这类角标的点击回调容器。
+- `live_photo_utils.dart`：Motion Photo / Live 图的动态片段解析与配对。
+- `logger.dart`：结构化日志（级别、格式化、性能）。
+- `media_paths.dart`：笔记媒体的类型判定（图片 / 视频 Markdown 口径）。
+- `memos_content_helper.dart`：Memos 内容格式处理与媒体路径提取。
+- `memos_markdown_converter.dart`：Memos Markdown 与标准 Markdown 互转。
+- `native_thumb_decoder.dart`：HEIC / HEIF 缩略图的原生解码通道。
 - `network_utils.dart`：网络状态和请求辅助。
-- `performance_tracker.dart`：性能追踪辅助。
-- `responsive_utils.dart`：响应式布局工具。
-- `share_image_widget.dart`：分享图片渲染组件辅助。
-- `share_utils.dart`：分享图片和系统分享能力。
-- `snackbar_utils.dart`：统一 Toast/SnackBar 展示。
+- `note_dedupe.dart`：附件资源 uid 解析与同内容笔记判重。
+- `note_image_anchor.dart`：编辑器里「图片锚点」偏移的纯计算。
+- `note_preview_builder.dart`：卡片预览的轻量行内样式构建。
+- `note_sorting_helper.dart`：首页排序子句，供 SQLite 分页查询使用。
+- `note_tags_helper.dart`：笔记标签的轻量提取。
+- `note_timestamp_format.dart`：flomo 风格的缩减时间格式。
+- `notes_context_builder.dart`：「问笔记」的上下文编号与 token 预算。
+- `notes_pagination_helper.dart`：分页加载状态与去重辅助。
+- `performance_tracker.dart`：轻量性能追踪（仅本地日志，不上报）。
+- `pull_refresh_physics.dart`：放大下拉位移，缩短触发刷新所需的行程。
+- `release_notes_formatter.dart`：把 Release 说明精简成弹窗文案。
+- `responsive_utils.dart`：响应式布局换算。
+- `revisioned_future_cache.dart`：按语料版本号缓存一次昂贵构建的结果。
+- `share_image_widget.dart`：分享图片 / 长图的版式与渲染。
+- `share_utils.dart`：分享图片生成与系统分享。
+- `shared_payload_utils.dart`：分享来源包名 → 来源标签。
+- `snackbar_utils.dart`：统一提示条与撤销条样式。
+- `startup_essentials.dart`：冷启动首帧前必须就绪的数据，一次 `Future.wait` 并行加载。
+- `sync_merge_helper.dart`：同步合并、去重与时间字段保护。
+- `sync_status_helper.dart`：同步状态展示辅助。
+- `tag_input_helper.dart`：编辑器「#标签」补全的纯计算。
 - `tag_path_utils.dart`：层级标签路径处理。
-- `tag_utils.dart`：标签解析、格式化和清洗。
+- `tag_utils.dart`：标签解析、格式化和正则。
 - `text_analysis_utils.dart`：文本分析辅助。
-- `text_style_helper.dart`：动态字体和文字样式辅助。
-- `time_utils.dart`：时间格式化、创建时间和更新时间处理。
-- `todo_parser.dart`：Markdown 待办项解析和切换。
+- `text_style_helper.dart`：文字样式的静态辅助。
+- `thumb_cache.dart`：图片缩略图的持久化缓存（分档解码、磁盘索引、大图采样解码）。
+- `time_utils.dart`：时间格式化与时间戳转换。
+- `todo_parser.dart`：Markdown 待办解析与切换。
+- `typewriter_text.dart`：打字机式重排（只重排正在输入的那一段）。
 
 ### lib/widgets
 

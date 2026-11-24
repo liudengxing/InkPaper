@@ -1,8 +1,10 @@
 # 小纸 InkPaper 架构解析与架构图
 
-> 分析对象：`InkPaper` 仓库（Flutter 包名 `inkpaper`，应用名 `InkPaper`，v1.1.13+10113）
+> 分析对象：`InkPaper` 仓库（Flutter 包名 `inkpaper`，应用名 `InkPaper`，v1.1.143+10243）
 > 分析方法：对仓库做**只读静态分析**（源码阅读 + 依赖关系提取 + 构建/清单核对），不修改任何业务代码
-> 分析时间：2026-10 · 分析范围：`lib/` 162 个 Dart 文件、`android/` 4 个 Kotlin 文件、平台工程、CI 工作流
+> 分析时间：2026-10 · 分析范围：`lib/` 208 个 Dart 文件、`android/` 4 个 Kotlin 文件、平台工程、CI 工作流
+>
+> **局部同步（2026-11-24）**：版本号、文件/行数统计、§5 服务分组清单、§6.1 的加密出处与 §11.3 的死代码清单已按当前代码刷新。§2 架构图、§3 启动序列、§7 同步链路仍是 2026-10 快照，未逐条复核；文中行号以当时文件为准。
 
 > ⚠️ **平台范围变更（2026-11-12）**：项目已收敛为**只保留 Android**，`ios/`、`macos/`、`windows/`、`linux/`、`web/` 五个平台工程与对应的构建目标、发布作业、辅助脚本全部删除，Dart 侧的平台分支判定也一并清空。下文凡涉及这些平台的历史分析、行数统计与结论，属于当时的快照，只作背景参考，不再代表当前仓库状态。
 
@@ -13,11 +15,11 @@
 | 问题 | 结论 |
 |---|---|
 | 这是"安卓 app 源码"吗？ | **是。** 这是一个只保留 Android 的 Flutter 工程：业务代码几乎全部在 `lib/*.dart`，原生外壳只有 `android/`（4 个 Kotlin 文件、1,353 行）。原先的 `ios/ macos/ windows/ linux/ web/` 五个外壳已于 2026-11-12 删除。 |
-| 架构风格 | **分层架构 + 单一状态中心**：表现层 → 状态层（1 个 `ChangeNotifier`）→ 服务层（54 个服务）→ 数据层（1 个 SQLite 库）→ 平台层/外部服务。 |
+| 架构风格 | **分层架构 + 单一状态中心**：表现层 → 状态层（1 个 `ChangeNotifier`）→ 服务层（50 个服务）→ 数据层（1 个 SQLite 库）→ 平台层/外部服务。 |
 | 数据策略 | **本地优先（local-first）**：所有写入先落 SQLite，云同步是可选的二级链路。 |
 | 同步后端 | 3 条并行链路：**Memos API**（官方 / 自托管，主力）、**WebDAV**（备份恢复）、**Notion**（双向同步）。 |
-| 规模 | `lib/` 102,042 行 / 162 文件；测试 6,277 行 / 39 文件（约为 lib 代码量的 6%）；Android 原生 1,353 行；平台外壳 1 套（Android）；CI 7 + 9 个 job。 |
-| 最大结构性风险 | ① `AppProvider` 单类 **4,613 行 / 131 个方法**的上帝对象，且包住整个 `MaterialApp.router` 全量重建；② `notes.db` **明文无加密**；③ 同步**无删除墓碑、无冲突记录、无离线队列**；④ 约 **3,000+ 行死代码**（服务 10 个文件 + Widget 7 个文件）。 |
+| 规模 | `lib/` 113,152 行 / 208 文件；测试 23,825 行 / 117 文件（约为 lib 代码量的 21%）；Android 原生 1,353 行；平台外壳 1 套（Android）；CI 7 + 9 个 job。 |
+| 最大结构性风险 | ① `AppProvider` 单类 **5,031 行 / 约 135 个方法**的上帝对象，且包住整个 `MaterialApp.router` 全量重建；② `notes.db` **明文无加密**；③ 同步**无删除墓碑、无冲突记录、无离线队列**；④ ~~约 3,000+ 行死代码~~ 已在 2026-11 清理（原 10 个死服务 + 7 个死 Widget，见 §11.3）。 |
 | 构建状态（2026-10-16 实测） | ✅ `flutter build apk --debug` **成功**，产出 176 MB 的 `app-debug.apk`（详见 [§9.3](#93-android-构建兼容性与实测编译记录)）。曾导致硬失败的 Gradle 8.12 / AGP 8.9.1 / KGP 2.1.0 已在工作区升级为 **8.14.3 / 8.11.1 / 2.2.20（改动尚未提交）**，现仅剩 3 条"版本将不再支持"告警。 |
 
 ---
@@ -108,19 +110,19 @@ flowchart TB
 |---|---|---|---|---|
 | ① 表现层 | `lib/screens` `lib/widgets` `lib/themes` `lib/l10n` `lib/routes` | 34 / 38,760<br/>27 / 17,501<br/>3 / 1,060<br/>5+2 / 7,814<br/>1 / 960 | 页面、复用组件、主题、文案、路由 | `home_screen.dart`(2,749)、`note_editor.dart`(3,284) |
 | ② 状态层 | `lib/providers` | 2 / 4,900 | 全局状态与业务编排 | `app_provider.dart`(4,613) |
-| ③ 服务层 | `lib/services` | 54 / 20,526 | 领域能力，隔离 IO 与第三方 | `database_service.dart`(781)、`memos_api_service_fixed.dart`(1,046) |
+| ③ 服务层 | `lib/services` | 50 / 21,763 | 领域能力，隔离 IO 与第三方 | `webdav_sync_engine.dart`(1,577)、`database_service.dart`(1,569) |
 | ④ 数据层 | `lib/models` + 平台存储 | 13 / 2,521 | 实体模型与持久化 | `note_model.dart`(503) |
 | ⑤ 平台层 | `android/` | 4 / 1,353 | 原生能力与 Android 外壳 | `MainActivity.kt`(767) |
 | ⑥ 外部依赖 | 网络 / 第三方 SDK | — | 同步后端、AI、语音、监控 | — |
-| 工具层 | `lib/utils` | 19 / 6,522 | 无状态工具函数 | `share_utils.dart`(2,434) |
+| 工具层 | `lib/utils` | 44 / 12,205 | 无状态工具函数 | `share_utils.dart`(2,403) |
 
 ### 目录地图
 
 ```mermaid
 flowchart LR
-    ROOT["InkPaper/"] --> LIB["lib/ — Dart 业务代码 102,042 行 / 162 文件"]
+    ROOT["InkPaper/"] --> LIB["lib/ — Dart 业务代码 113,152 行 / 208 文件"]
     ROOT --> AND["android/ — Kotlin + Gradle"]
-    ROOT --> TST["test/ — 30 单元 + 7 Widget"]
+    ROOT --> TST["test/ — 83 单元 + 33 Widget"]
     ROOT --> TOOL["tool/inkpaper.dart — 608 行项目 CLI"]
     ROOT --> CI[".github/workflows — ci.yml + release.yml"]
     ROOT --> DOCS["docs/ — 结构/维护/合规/官网静态页"]
@@ -131,9 +133,9 @@ flowchart LR
     LIB --> L3["providers/ 2"]
     LIB --> L4["routes/ 1"]
     LIB --> L5["screens/ 34"]
-    LIB --> L6["services/ 54"]
+    LIB --> L6["services/ 50"]
     LIB --> L7["themes/ 3"]
-    LIB --> L8["utils/ 19"]
+    LIB --> L8["utils/ 44"]
     LIB --> L9["widgets/ 27"]
     LIB --> L10["l10n/ 5 + 2 ARB"]
 ```
@@ -284,7 +286,7 @@ flowchart TB
 
 ## 5. 服务层拓扑
 
-54 个服务按能力分 15 组。下图是**从 import 语句提取的真实依赖边**（不是推测）：
+50 个服务按能力分 18 组（2026-11-24 重数）。下图是**从 import 语句提取的真实依赖边**（不是推测，取自 2026-10 快照）：
 
 ```mermaid
 flowchart TB
@@ -387,26 +389,31 @@ flowchart TB
 | 分组 | 服务 |
 |---|---|
 | 本地存储 | `database_service` `preferences_service` `reminder_notification_service` |
-| Memos API | `api_service`* `api_service_factory` `memos_api_service_fixed` `memos_resource_service` |
-| 云校验/公告 | `cloud_verification_service` `announcement_service`* `app_info_service` |
-| 同步引擎 | `incremental_sync_service` `sync_merge_helper` `sync_status_helper` |
+| Memos API | `api_service_factory` `memos_api_service_fixed` `memos_resource_service` |
+| 云校验/版本 | `cloud_verification_service` `app_info_service` |
 | WebDAV 备份 | `webdav_service` `webdav_sync_engine` |
+| 本机备份与加密 | `backup_archive_service` `backup_encryption_service` |
 | Notion 同步 | `notion_api_service` `notion_sync_service` |
-| AI 对话/生成 | `deepseek_api_service` `ai_enhanced_service` `ai_insight_engine` |
-| AI 分析/本地算法 | `ai_related_notes_service`* `tag_ai_service`* `intelligent_related_notes_service` `local_note_analysis_service` `user_behavior_service` |
-| 语音识别 | `speech_service` `baidu_speech_service` `baidu_realtime_speech_service` `iflytek_speech_service` |
-| 通知/提醒 | `notification_service` `alert_service`* |
-| 监控/日志 | `logger_service`* `observability_service` `performance_monitor_service` `sentry_monitoring_service`* |
-| 权限 | `permission_manager`* `simple_permission_service`* `ios_permission_service`* |
-| 领域辅助 | `note_actions_service` `note_sorting_helper` `note_tags_helper` `notes_pagination_helper` `tag_stats_service` |
-| 引用/图谱 | `local_reference_service` `unified_reference_manager` `graph_data_service`* `graph_isolate_service` |
-| 其它 | `random_review_selector_service` `widget_snapshot_service` `feature_flag_service` `ios_update_service`* `weread_parser` |
+| 微信读书导入 | `weread_api_service` `weread_note_builder` `weread_sync_service` |
+| AI 对话/生成 | `deepseek_api_service` `ai_enhanced_service` `notes_qa_service` |
+| AI 洞察 | `ai_insight_engine` `ai_insight_service` `insight_history_service` |
+| AI 分析/本地算法 | `local_note_analysis_service` `user_behavior_service` `random_walk_index` |
+| 回顾/漫步 | `periodic_review_service` `random_review_selector_service` |
+| 语音识别 | `speech_service` `iflytek_speech_service` |
+| 通知/提醒 | `notification_service` |
+| 监控/日志 | `observability_service` `performance_monitor_service` `sentry_monitoring_service` |
+| 更新与安装 | `startup_update_service` `update_check_service` `update_check_diagnostics` `update_download_service` `update_installer` `apk_install_service` |
+| 领域辅助 | `note_actions_service` `tag_stats_service` `draft_service` `note_edit_history_service` `feed_snapshot_service` `attachment_maintenance_service` |
+| 引用/图谱 | `local_reference_service` `unified_reference_manager` |
+| 开关/快照 | `feature_flag_service` `widget_snapshot_service` |
 
-> `*` = 全库无调用点的死代码（共 10 个服务文件，详见 [§12.3](#123-死代码与重复实现清单)）
+> 2026-11-24 重数：`lib/services` 现有 50 个文件，上表逐一对齐。原表的死服务（`api_service`、`logger_service`、`tag_ai_service` 等 10 个）与 iOS 专用服务已删除；`note_sorting_helper`、`note_tags_helper`、`notes_pagination_helper`、`sync_merge_helper`、`sync_status_helper` 已按 `c75fa13` 从 `services/` 移到 `utils/`，不再计入服务层。
 
 ### 依赖倒置的破例
 
-`lib/services/note_actions_service.dart`（1,698 行）**反向依赖了表现层**——它在 `lib/services/` 里 import 了 `AppProvider` 与 `screens/*`（`:9-10`），承担了"编辑/删除/置顶/分享/AI 点评/提醒/引用"的 UI 编排职责。这是本项目最明显的分层破坏点。
+`lib/services/note_actions_service.dart`（50 行）现在只包装 `AppProvider` 的写操作（`updateContent` / `delete` / `restore` / `togglePin` / `setVisibility`），仍 import `providers/app_provider.dart`，但**不再 import 任何 `screens/`**；弹窗、页面跳转与 SnackBar 都在 `lib/widgets/note_actions_ui.dart`（`NoteActionsUi`）。服务层因此可以脱离 Widget 树单测。
+
+> 原「1,698 行，反向依赖表现层」的记录来自 2026-10 快照，已在 `ARCH-LAYER-002 / A-05` 拆分中消除。
 
 ---
 
@@ -452,14 +459,17 @@ erDiagram
 | 项 | 值 | 出处 |
 |---|---|---|
 | 库文件 | `notes.db` | `config/app_config.dart:231` |
-| schema 版本 | **8** | `config/app_config.dart:234` |
+| schema 版本 | **16** | `config/app_config.dart:173`（`AppConfig.databaseVersion`） |
 | 移动端路径 | `getDatabasesPath()` | `database_service.dart:40` |
 | 桌面端路径 | `getApplicationSupportDirectory()/databases`（Windows/Linux 用 FFI） | `database_service.dart:30-40,55-63` |
 | 外键 | `PRAGMA foreign_keys = ON` | `database_service.dart:47` |
-| **加密** | **无。** 无 SQLCipher、无 `PRAGMA key`；`notes.db` 是明文。加密只用于**导出的备份文件**（AES-256-CBC + HMAC-SHA256 + PBKDF2，`local_backup_restore_screen.dart:1203-1421`） | — |
-| 索引 | 仅 2 个，都在 `reminder_notifications`；**`notes` 表一个索引都没有** | `database_service.dart:106-111` |
+| **加密** | **无。** 无 SQLCipher、无 `PRAGMA key`；`notes.db` 是明文。加密只用于**导出的备份文件**：信封与 KDF 在 `lib/services/backup_encryption_service.dart`（AES-256-CBC + HMAC-SHA256 + PBKDF2 100000 次，v2 JSON 信封，兼容 v1 老包），ZIP 结构与资源还原在 `lib/services/backup_archive_service.dart` | — |
+| 视图 | `active_notes`（查询一律走它，软删的行不进视图） | `database_service.dart:110` |
+| 索引 | 仅 2 个，都在 `reminder_notifications`；**`notes` 表一个索引都没有** | `database_service.dart:106-111`（2026-10 快照，2026-11-24 未复核） |
 
 **迁移历史（手工 `if (oldVersion < N)` 链，`database_service.dart:115-183`）**
+
+> 下表只列到 `oldVersion < 7`，是 2026-10 时的样子；现在 `databaseVersion = 16`，后面几档迁移未在此展开（改库前直接看 `database_service.dart` 的迁移链）。
 
 | 版本门 | 变更 |
 |---|---|
@@ -709,7 +719,7 @@ flowchart TB
 | 功能开关 | `FeatureFlagService` 在 `main.dart:133` 初始化，但**全项目没有任何代码读 flag** | 整套 feature flag 是摆设 |
 | 权限 | 三套权限服务**全部为死代码**（`permission_manager`、`simple_permission_service`、`ios_permission_service`）；实际请求逻辑散在 `permission_dialog.dart` / `permission_guide_dialog.dart` | 重复实现 4 处权限弹窗 |
 | 统计 | 不集成任何第三方统计 SDK；遥测只有可选的 Dart 侧错误上报 | 2026-10-23 移除友盟 |
-| 测试 | 30 个单元测试 + 7 个 Widget 测试 + 1 个 integration test（6,277 行，约为 lib 代码量的 6%） | 覆盖模型、DB 迁移、Memos API、同步合并、标签、待办解析、Markdown 渲染 |
+| 测试 | 83 个单元测试文件 + 33 个 Widget 测试文件 + 1 个 `widget_test.dart`（2026-11-24 重数：23,825 行，约为 lib 代码量的 21%；`flutter test` 共 **1172 项**） | 覆盖模型、DB 迁移、Memos API、同步合并、标签、待办解析、Markdown 渲染、缩略图缓存、备份归档与加密 |
 
 ---
 
@@ -729,8 +739,8 @@ flowchart TB
 |---|---|---|---|
 | **P0** | `notes.db` **明文无加密**，而隐私政策文案声称安全存储 | `database_service.dart`（无 SQLCipher）；`legal_document_screen.dart:291` | 隐私合规 / 数据泄露 |
 | ~~P0~~ **已修复** | ~~**Android 构建在当前 Flutter SDK 下硬失败**~~ | 原：Gradle 8.12 / AGP 8.9.1 / KGP 2.1.0 低于 Flutter 3.47.7 下限 | 已在工作区升级为 8.14.3 / 8.11.1 / 2.2.20（**未提交**），2026-10-16 实测出包成功；仅剩 3 条待消除的告警（见 [§9.3](#93-android-构建兼容性与实测编译记录)） |
-| **P1** | `AppProvider` 上帝对象：4,613 行 / 131 方法，根级 `Consumer` 包住整个 `MaterialApp.router` | `app_provider.dart:56`；`main.dart:619-761`；64 处 `notifyListeners` | 任一状态变更全树重建；可维护性与性能 |
-| **P1** | **同步语义不完整**：无删除墓碑、无冲突记录、无离线队列、失败上传被吞 | `incremental_sync_service.dart:92,115-117`；`app_provider_sync.part.dart:214-216`；`SyncStats.deleted/conflicts` 从未赋值 | 多端使用会静默丢数据 |
+| **P1** | `AppProvider` 上帝对象：5,031 行 / 约 135 方法，根级 `Consumer` 包住整个 `MaterialApp.router` | `app_provider.dart:56`；`main.dart:619-761`；64 处 `notifyListeners` | 任一状态变更全树重建；可维护性与性能 |
+| **P1** | **同步语义不完整**：无删除墓碑、无冲突记录、无离线队列、失败上传被吞 | `app_provider_sync.part.dart:214-216`（原 `incremental_sync_service.dart` 已删）；`SyncStats.deleted/conflicts` 从未赋值 | 多端使用会静默丢数据 |
 | **P1** | 本地/服务端 ID 判定用 `id.contains('-')`，UUID 形式的服务端 id 会被当成"本地未同步"而**静默跳过更新与删除** | `memos_api_service_fixed.dart:596,656,813` | 同步静默失效 |
 | **P1** | `AppProvider.initializeApp()` 在 HomeScreen 首帧后才跑，深链直达其他页面时 provider 未初始化 | `home_screen.dart:82,423-455` | 冷启动竞态 |
 | **P2** | `notes` 表**无任何索引**，却按 `createdAt DESC`、`is_synced=0`、`tags LIKE` 查询并全量载入内存 | `database_service.dart:218-237,271-275,361-370` | 大库性能 |
@@ -738,20 +748,22 @@ flowchart TB
 | **P2** | Token 过期用**中文字符串匹配**判定 | `sync_status_helper.dart:3-6` | 服务端改文案即失效 |
 | **P2** | 版本缓存 key 用 `String.hashCode` | `memos_api_service_fixed.dart:52,87,177,190` | Dart 字符串 hash 不保证跨运行稳定 |
 | **P2** | `GlobalErrorCatcher` 的错误上报被覆盖，脱敏逻辑失效 | `main.dart:45` vs `:95-122` | 崩溃上报缺失隐私脱敏 |
-| **P2** | 三套同步实现、两套 i18n、两套日志、两套 Markdown 渲染、三套权限服务 | 见 §12.3 | 维护成本翻倍 |
+| **P2** | ~~三套同步实现、三套权限服务~~ 已随死代码清理收敛；仍有两套 i18n、两套日志、两套 Markdown 渲染 | 见 §11.3 | 维护成本翻倍 |
 | **P2** | `getInitialPayload` 原生返 `Int` 而 Dart 期望 `String` | `MainActivity.kt:140-143`；`main.dart:339` | 冷启动通知跳转失效 |
 | **P3** | 死配置：`canaryStages/canaryPercentage`、`isFeatureEnabled`、`appUpdateUrl`、`enableAutoUpdate`、`setThemeMode` | `config/app_config.dart:220-226,520,573`；`main.dart:72` | 认知负担 |
 | **P3** | 平台判定三套标准不一致：桌面 = macOS\|Windows、视觉缩放 = +Linux、DB FFI = Windows\|Linux | `app_router.dart:350`；`main.dart:767-768`；`database_service.dart:30,38` | Linux 行为混合 |
-| **P3** | 文档与实现漂移（见 §12.4） | — | 误导维护者 |
+| **P3** | 文档与实现漂移：`docs/PROJECT_STRUCTURE_AND_BUILD.md` 的 `lib/services`、`lib/utils` 速查表长期没跟上（2026-11-24 已按当前代码刷新，见该文档） | — | 误导维护者 |
 
 ### 11.3 死代码与重复实现清单
 
+> **2026-11-24 复核**：下表前两行的死服务与死 Widget **文件已全部删除**（`ARCH-LAYER` 系列清理），3,411 + 1,811 行死代码已出仓，清单保留作历史证据。仍残留的是「重复实现」里未动的那几项，逐项未重新核对。
+
 | 类别 | 内容 | 规模 |
 |---|---|---|
-| 死服务（10） | `api_service`(168)、`alert_service`(239)、`announcement_service`(178)、`ios_permission_service`(169)、`ios_update_service`(237)、`logger_service`(307)、`permission_manager`(388)、`simple_permission_service`(291)、`tag_ai_service`(706)、`ai_related_notes_service`(728) | **约 3,411 行** |
-| 死 Widget（7） | `related_notes_bottom_sheet`(425)、`tag_color_picker`(437)、`user_agreement_screen`(366)、`privacy_policy_dialog`(176)、`permission_dialog`(182)、`interactive_markdown`(163)、`progress_overlay`(62) | **约 1,811 行** |
-| 死配置/开关 | feature flag 全套、灰度发布、`themeMode='fenglan'`、`appUpdateUrl` | — |
-| 重复实现 | 3 套同步 · 2 套 i18n · 2 套日志 · 2 套 Markdown 渲染 · 4 处权限弹窗 · 3 套"相关笔记" · 2 个主题排版文件（`themes/typography.dart` 与 `themes/app_typography.dart` 各 311 行、同名同类、逐行重复且均未被引用） | — |
+| ~~死服务（10）~~ **已删除** | `api_service`、`alert_service`、`announcement_service`、`ios_permission_service`、`ios_update_service`、`logger_service`、`permission_manager`、`simple_permission_service`、`tag_ai_service`、`ai_related_notes_service` | 约 3,411 行，已出仓 |
+| ~~死 Widget（7）~~ **已删除** | `related_notes_bottom_sheet`、`tag_color_picker`、`user_agreement_screen`、`privacy_policy_dialog`、`permission_dialog`、`interactive_markdown`、`progress_overlay` | 约 1,811 行，已出仓 |
+| 死配置/开关 | 灰度发布、`themeMode='fenglan'`、`appUpdateUrl`、`enableAutoUpdate` | 未复核；`feature flag` 已不是死配置 —— `FeatureFlagService` 现在是真实读点（首帧前 `loadLocal()`、首帧后 `refreshRemote()`） |
+| 重复实现 | 2 套 i18n · 2 套日志 · 2 套 Markdown 渲染 · 2 个主题排版文件（`themes/typography.dart` 与 `themes/app_typography.dart` 各 311 行、同名同类、逐行重复且均未被引用） | 3 套同步已收敛为 1 套（`app_provider_sync.part.dart` + `utils/sync_merge_helper.dart`）；逐项未复核 |
 
 ### 11.4 建议的改进顺序
 
@@ -759,11 +771,11 @@ flowchart TB
 1. **（已部分完成）** Gradle/AGP/Kotlin 已在工作区升到 Flutter 3.47.7 的**错误下限**（8.14.3 / 8.11.1 / 2.2.20），构建可通过但仍打印 3 条告警——建议继续升到 Gradle 9.1.0 / AGP 9.0.1 / KGP 2.3.20 彻底消除，否则下个 Flutter 版本会再次硬失败。同时删除 `gradle.properties` 与 `android/build.gradle` 中失效的 SDK 版本声明（实测产物为 compileSdk 36 / minSdk 24 / targetSdk 36），避免误导。
 2. 给 `notes` 表补索引：`createdAt`、`is_synced`、并把标签规范化（`note_tags` 关联表）以替换 `LIKE` 匹配。
 3. 修正 `getInitialPayload` 的 Int/String 类型不匹配；删除 Dart 侧 `onSharedImage/Images/File` 死分支与重复路由注册（`/notifications`、`/account-deletion`）。
-4. 清理死代码：先删零引用的服务与 Widget（约 5,200 行），并把 `AppConfig` 的两个同名类改名消除歧义。
+4. ~~清理死代码：先删零引用的服务与 Widget（约 5,200 行）~~ **已完成**（10 个死服务 + 7 个死 Widget 已出仓，见 §11.3）；剩下 `AppConfig` 的两个同名类改名消除歧义。
 
 **中期（结构性）**
 5. 拆分 `AppProvider`：按领域切成 `NoteStore` / `SyncStore` / `AuthStore` / `UiPrefsStore`，用 `MultiProvider` + `Selector` 替换根级 `Consumer`，消除"任一变更全树重建"。
-6. 补同步语义：引入 tombstone（删除标记）、冲突记录表与失败重试队列；把三套同步实现收敛为一套 `SyncEngine` 接口 + 3 个后端适配器。
+6. 补同步语义：引入 tombstone（删除标记）、冲突记录表与失败重试队列。三套同步实现已随 `incremental_sync_service` 删除收敛为 1 套（`app_provider_sync.part.dart` + `utils/sync_merge_helper.dart`），剩下的是语义补齐，不是收敛。
 7. 修 `id.contains('-')` 判定，改用显式的 `localId` 标记位或 `origin` 字段。
 8. 数据库加密（SQLCipher 或应用层字段加密），使隐私声明与实现一致；同时把 `AppProvider.initializeApp()` 提到 `runApp` 之前或做幂等守卫，解决深链竞态。
 9. i18n 二选一（建议保留 ARB 生成式），日志二选一，把 `GlobalErrorCatcher` 与 `main.dart` 的错误处理合并为一条链路。
@@ -775,6 +787,8 @@ flowchart TB
 ---
 
 ## 12. 与现有文档的差异（文档已过期，建议同步）
+
+> **2026-11-24 状态**：`docs/architecture/README.md` 的数量已同步为 Screens 40 / Widgets 37 / Services 50；`docs/PROJECT_STRUCTURE_AND_BUILD.md` 的 `lib/services`、`lib/utils` 速查表已按当前文件重写。下表保留 2026-10 的原始对照作历史证据，未逐条复核（如「iOS 目标」一项已随平台删除失效）。
 
 `docs/architecture/README.md` 与实际代码的偏差：
 
@@ -841,7 +855,7 @@ flowchart TB
 
 | 结论类型 | 方法 |
 |---|---|
-| 代码规模 | 按目录统计 `lib/`、`test/`、`android/` 各文件行数（lib 102,042 行 + 测试 6,277 行 = 108,319 行 Dart；行数含空行，与 `read` 工具报告的总行数一致） |
+| 代码规模 | 按目录统计 `lib/`、`test/`、`android/` 各文件行数（2026-11-24 重数：lib 113,152 行 + 测试 23,825 行 = 136,977 行 Dart；行数含空行，与 `read` 工具报告的总行数一致） |
 | 服务依赖边 | 解析每个 `lib/services/*.dart` 的 `package:inkpaper/...` import，提取真实拓扑（非推测） |
 | 数据库结构 | 直读 `database_service.dart` 的 `CREATE TABLE` / `CREATE INDEX` / `upgradeSchema` |
 | 路由 | 直读 `app_router.dart` 全部 `GoRoute` 并以 `path/name/pageBuilder` 三元组核对 |

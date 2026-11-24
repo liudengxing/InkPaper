@@ -25,8 +25,8 @@ InkPaper follows a **layered architecture** pattern with clear separation of con
 ```
 ┌─────────────────────────────────────────────┐
 │         Presentation Layer (UI)              │
-│  • Screens (34 files)                        │
-│  • Widgets (27 files)                        │
+│  • Screens (40 files)                        │
+│  • Widgets (37 files)                        │
 │  • Material Design 3                         │
 └─────────────────────────────────────────────┘
                     ↓↑
@@ -39,7 +39,7 @@ InkPaper follows a **layered architecture** pattern with clear separation of con
                     ↓↑
 ┌─────────────────────────────────────────────┐
 │       Business Logic Layer (Services)        │
-│  • 54 Service Classes                        │
+│  • 50 Service Classes                        │
 │  • API Integration                           │
 │  • Business Rules                            │
 └─────────────────────────────────────────────┘
@@ -104,7 +104,7 @@ See [ADR Template](adr/template.md) for guidelines on creating new architecture 
 │  │  • SyncService                    │          │
 │  │  • AIService                      │          │
 │  │  • NotificationService            │          │
-│  │  • ... (54 services total)        │          │
+│  │  • ... (50 services total)        │          │
 │  └──────────────────────────────────┘          │
 │         ↓↑                 ↓↑                    │
 │  ┌─────────────┐    ┌─────────────┐            │

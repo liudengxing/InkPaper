@@ -8,13 +8,13 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-24 · 返修代码 `022b36c` · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-02A 返修（P1 · §2 首页排序口径） |
-| 任务状态 | 待复验 |
-| 可复查改动 | ① 新增 `noteTimeKeySql(column)`：`substr(replace(col, ' ', 'T'), 1, 23)`，四种排序的 SQL 时间级都换成它，`Z` 后缀与微秒不再参与比较；② 新增 `compareNoteWallClock(a, b)`：只比年月日时分秒毫秒，`noteComparator` 的时间级改用它；③ 两处共用同一口径，SQL 与 Dart 在混合来源下顺序一致 |
-| 验证结果 | `dart tool/inkpaper.dart analyze` → No issues found；`format` 321 文件 0 changed；`flutter test --concurrency=4` 全量 **1117 项全过**（复验基线 1104 + 13）。反向验证两项：SQL 改回裸列 → `PGSORT-mixed-*` 变红；比较器改回比绝对时间点 → `PGSORT-mixed-*`、`HSW-01` 变红 |
-| 未验证 / 待测 | 无真机（切换排序的重建帧、滚动观感未测）；大库（万条级）下 `ORDER BY` 表达式无法走索引、临时排序耗时未测，交 OPT-M01；`loadNotesFromLocal()` 全量回载后重复追加同页的既有问题仍留给 OPT-02B |
-| 下一项 | OPT-02B（依赖本项复验）或独立项 OPT-09B / OPT-10；OPT-04B、OPT-06C 返修与 OPT-02B 之间互不影响 |
+| 最后更新 | 2026-11-24 · 本项代码 `3196ab4`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-09B（P2 · §9 卡片媒体提取合并） |
+| 任务状态 | 待验收 |
+| 可复查改动 | ① 新增 `MemosContentHelper.extractNoteMediaPaths(note)`：`resourceList` 只遍历一遍、正文只跑一遍 `markdownMediaRegex`，返回 `NoteMediaPaths{images, videos}`；② 抽出 `resourcePathOf(resource)`，路径拼装（externalLink / `attachments/` / `/o/r/<uid>`）不再写两份；③ 图片与视频各自独立去重（分类依据不同，不交叉去重）；④ 卡片与详情页改用合并入口，`extractNoteImagePaths` / `extractNoteVideoPaths` 保留为转发；⑤ 新增 `debugMarkdownMediaScanCount` 把「一次扫描」变成可断言事实 |
+| 验证结果 | `analyze` → No issues found；`format` 322 文件 0 changed；`flutter test --concurrency=4` 全量 **1123 项全过**（原 1117 + 6）。反向验证两项：图片/视频共用去重集合 → `MC-05` 变红；正文拆回两趟正则 → `MC-06` 变红。校准（4359 字 / 31 图 / 2 视频）：合并 **31.88µs** vs 分开两次 **61.55µs**，只取图片也是 31.83µs → 合并基本等于「只扫一遍」 |
+| 未验证 / 待测 | 无真机（卡片滚动帧时间交 OPT-M01）；校准是本机 JIT 单轮取值，未做多轮统计；`NoteMediaPaths.images/videos` 是可变列表（与旧返回值类型一致），调用方若改元素会互相影响，当前无此用法 |
+| 下一项 | OPT-02B（仍等 OPT-02A 复验）或独立项 OPT-04B / OPT-06C 返修、OPT-07A；OPT-10 返修可独立领取 |
 | 待用户决策 | ① OPT-01B 的远端归档、本地同内容副本与完整空清单处理规则；② `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓 |
 | 工作区注意事项 | 另有会话的启动页提交 `617b5c8` 与未提交的 `docs/README.md` 索引链接、`dist/`、`.model-desk/`，均非本轮产物，勿回退或顺手带上。发版、推送、装机需单独授权 |
 
@@ -30,7 +30,7 @@
 | OPT-02B | P1 | 待办 | §2 首页刷新 | 依赖 OPT-02A。同步和导入后刷新已浏览窗口，保留原有的全库读取入口，并覆盖过滤口径、浏览位置和翻页。 |
 | OPT-03 | P2 | 已验收 | §3 探索索引 | 按写库版本复用，排序和续页复用同一语料索引。索引结构及后台查询调整另行评估。 |
 | OPT-09A | P2 | 已验收 | §9 短预览缓存 | 解析前缀指纹、长短预览隔离与字符预算通过，OPT-09B 前置条件满足。 |
-| OPT-09B | P2 | 待办 | §9 卡片媒体提取 | 依赖 OPT-09A 的取样口径。把卡片分别提取图片与视频合并成一次媒体扫描，保持图片/视频互斥与顺序。 |
+| OPT-09B | P2 | 待验收 | §9 卡片媒体提取 | 完成（`3196ab4`）：`extractNoteMediaPaths` 一次扫出图片与视频，卡片/详情页改用合并入口。待复验分类独立性、去重口径与扫描次数。 |
 | OPT-10 | P2 | 待办 | §10 笔记引用 | 返修。保留按 ID 查找，修复增量回调把深页目标提前插入首页导致的重复，测试保存引用后继续翻页。 |
 | OPT-10B | P2 | 待办 | §10 笔记引用 | 返修。依赖 OPT-10 复验。保留只存在于关系数据中的有效引用，批量更新只写关系字段并验证并发编辑场景。 |
 | OPT-04 | P2 | 已验收 | §4 小组件 | 窄列读取、回顾按需判定、首屏快照限量读取通过。 |
@@ -269,6 +269,31 @@
 - **行为变化**：混合来源下「排序顺序」与「界面显示的时刻」重新对齐（此前远端笔记在 `oldest` 排序里可能出现在比它显示更晚的位置）；纯本地库或纯 Memos 库的顺序不变（同一来源内两种比较等价）。`ORDER BY` 从裸列变成表达式，SQLite 无法用 `idx_notes_created_at` 走有序扫描，改走临时排序——这是本轮换来的代价，量级待 OPT-M01。
 - **未验证**：① 无真机，切换排序的重建帧与滚动观感未测；② 大库（万条级）下临时排序的 SQL 耗时未测，要加 `(isPinned, createdAt, id)` / `(isPinned, updatedAt, id)` 组合索引需升 schema，按「不擅自动数据契约」留给校准后决定；③ 伪 UTC 的绝对时刻仍比真实时刻早 8 小时，只有排序/区间比较被本项拉回墙钟口径，`_parseTimestamp` 与 WebDAV 冲突判断没动；④ `loadNotesFromLocal()` 全量回载后把分页状态归零、滑到底会重复追加同页的既有问题仍未处理，属 OPT-02B。
 - **建议下一项**：OPT-02B（本项复验通过后领取，接手时把上面 ④ 一并处理），或独立项 OPT-09B / OPT-10 返修；OPT-04B、OPT-06C 返修与本项无耦合。
+
+### 2026-11-24 · OPT-09B · 待验收
+
+- **问题核对**：`NoteCard` 每次 build 都要同时知道「图片有哪些」和「视频有哪些」（两者互斥，视频优先）。原来的做法是连调两次 `extractNoteImagePaths` / `extractNoteVideoPaths`，而这两个方法各自把 `note.content` 交给 `markdownMediaRegex` 跑一遍全量 `allMatches`，再各自过一遍 `resourceList`。同一篇正文的媒体正则因此被扫两遍——长笔记（几千字、二三十张图）在滚动时每帧都要付两次。详情页 `_renderImagePaths` / `_renderVideoPaths` 是同一形状。`OPT-09A` 已经把预览正文的重复解析收掉了，这一项是同一方向上剩下的最后一处。
+- **改动**：
+  - `lib/utils/memos_content_helper.dart`：
+    - 新增 `extractNoteMediaPaths(Note) → NoteMediaPaths`：`resourceList` 单趟遍历，按 `isVideoResource` 分流进 images / videos；正文单趟 `markdownMediaRegex.allMatches`，按 `MediaPaths.isVideoMarkdown` 分流。结果顺序与旧实现逐项一致（先资源、后正文）。
+    - 抽出 `resourcePathOf(resource)`：externalLink → `attachments/<name>/<filename>` → `/o/r/<uid>` 三级拼装，原来在 `_resourcePaths` 里写了一份，合并实现不能照抄第二份。
+    - `_resourcePaths(resources, video:)` 改为「过滤 + 调 `resourcePathOf`」，行为不变。
+    - 新增 `NoteMediaPaths`（`@immutable`，含 `empty` / `isEmpty` / `isNotEmpty`），放在同文件底部。
+    - 图片与视频**各自**一个 `Set` 做去重，不共用：两者的「是不是同一个东西」是两套独立判断——一条资源声明为图片、正文却写成 `![视频](/o/r/x)` 时，图片列表和视频列表各保留一次，卡片据此走视频分支。共用集合会把它从视频列表里悄悄抹掉。
+    - `extractNoteImagePaths` / `extractNoteVideoPaths` 保留，改为转发到合并入口（公开 API 不变，其余调用点无需改）。
+    - 新增 `@visibleForTesting static int debugMarkdownMediaScanCount`：只靠耗时观察「合并了没有」太脆弱，计数能让断言直接咬住「一遍 vs 两遍」。
+  - `lib/widgets/note_card.dart`：`imagePaths` / `videoPaths` 改为从一次 `extractNoteMediaPaths` 取。
+  - `lib/screens/note_detail_screen.dart`：`_renderImagePaths` / `_renderVideoPaths` 同上。
+  - 未改动：图片/视频互斥的渲染优先级（视频在前）、`NoteImageGrid` 的延后解码、`extractResourceImagePaths` / `extractMarkdownImagePaths` 等按单一类型取路径的公开方法（小组件快照与备份仍在用）。
+- **测试**：1117 → **1123**（+6）。
+  - `test/unit/media_paths_test.dart` 新增 `MC-04`（同一篇笔记带资源图、资源视频、正文图、正文视频，外加只在资源里出现的图：断言 images/videos 的具体顺序，且两个旧入口的返回值与合并结果逐项相同）、`MC-05`（资源说图片、正文按视频写 → 两个列表各保留一次，专咬「共用去重集合」这个回退）、`MC-06`（一次合并 = 扫描计数 1，两个旧入口各调一次 = 3）。
+  - `test/widget_tests/note_card_media_test.dart`（新增）3 条，走真实 `NoteCard`：`NCM-01` 正文有视频 + 资源有图片时只出现 `NoteVideoCard`、不出现九宫格（合并不能把优先级弄反）、`NCM-02` 视频只来自 `resourceList` 时同样走视频分支（资源分类仍按 type/filename 判）、`NCM-03` 纯图片笔记不出现视频卡片。
+- **验证**：`dart tool/inkpaper.dart analyze` → No issues found；`dart tool/inkpaper.dart format` → 322 文件 0 changed；`flutter test --concurrency=4` → **1123 项全过**。
+- **反向验证**：① 把 `seenVideos` 指向 `seenImages`（两套分类共用去重集合）→ `MC-05` 变红；② 把正文改成「先调 `extractMarkdownImagePaths` 再调 `extractMarkdownVideoPaths`」两趟 → `MC-06` 变红（计数 3 而非 1）。两次恢复后全绿。
+- **量级校准**（本机、临时脚本、单轮取值）：4359 字正文、31 张图、2 段视频。合并 **31.88µs**，分开两次 **61.55µs**，只取图片 **31.83µs**。即合并的代价等于「只扫一遍」，省掉的正是第二遍；首屏可见十几张卡片时按每张 30µs 估算省 0.3~0.5ms，滚动时每帧同理。
+- **行为变化**：对外结果不变（顺序、去重、互斥优先级都保持）。唯一可观察差异是 `debugMarkdownMediaScanCount` 的推进次数。`NoteMediaPaths.images/videos` 与旧返回值一样是可变 `List`，没有改成不可变，避免给调用方制造 breaking change。
+- **未验证**：① 无真机，卡片滚动的帧时间与重建次数未测，交 OPT-M01；② 校准只取了一轮，未做多轮统计；③ 正文正则本身没有优化（仍是全量 `allMatches`），只是从两遍降到一遍——若后续要再快，得换增量扫描或缓存 `matchCount`，属新项。
+- **建议下一项**：OPT-02B（仍等 OPT-02A 复验）；可独立领取的是 OPT-04B / OPT-06C 返修、OPT-07A，或 OPT-10 返修。
 
 ## 现有架构
 

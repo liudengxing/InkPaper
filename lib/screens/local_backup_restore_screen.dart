@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
-import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +9,7 @@ import 'package:inkpaper/l10n/app_localizations_simple.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/attachment_maintenance_service.dart';
 import 'package:inkpaper/services/backup_archive_service.dart';
+import 'package:inkpaper/services/backup_encryption_service.dart';
 import 'package:inkpaper/services/database_service.dart';
 import 'package:inkpaper/services/preferences_service.dart';
 import 'package:inkpaper/themes/app_theme.dart';
@@ -18,7 +17,6 @@ import 'package:inkpaper/utils/snackbar_utils.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:pointycastle/export.dart' as pc;
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -44,19 +42,10 @@ class _DecodedBackupContent {
   String get text => utf8.decode(bytes);
 }
 
-class _BackupKeyMaterial {
-  const _BackupKeyMaterial({
-    required this.encryptionKey,
-    required this.macKey,
-  });
-
-  final Uint8List encryptionKey;
-  final Uint8List macKey;
-}
-
 class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _encryptionService = BackupEncryptionService();
   bool _isExporting = false;
   bool _isImporting = false;
   String? _lastBackupTime;
@@ -1561,12 +1550,11 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       }
 
       if (_encryptBackup) {
-        final encrypted = await _encryptBytes(
+        fileBytes = _encryptionService.encryptToBytes(
           fileBytes,
           _passwordController.text,
           originalFormat: 'ZIP',
         );
-        fileBytes = Uint8List.fromList(utf8.encode(encrypted));
         fileName = '$fileName.enc';
       }
 
@@ -1626,62 +1614,11 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
     }
   }
 
-  static const int _backupKdfIterations = 100000;
-
-  Future<String> _encryptBytes(
-    Uint8List bytes,
-    String password, {
-    required String originalFormat,
-  }) async {
-    final salt = _secureRandomBytes(16);
-    final iv = _secureRandomBytes(16);
-    final keys = _deriveBackupKeys(
-      password: password,
-      salt: salt,
-      iterations: _backupKdfIterations,
-    );
-    final cipherText = _aesCbcCrypt(
-      input: bytes,
-      key: keys.encryptionKey,
-      iv: iv,
-      encrypt: true,
-    );
-    final mac = Hmac(sha256, keys.macKey).convert(
-      _backupMacPayload(salt, iv, cipherText),
-    );
-
-    return jsonEncode({
-      'InkPaperEncryptedBackup': true,
-      'version': '2.0',
-      'algorithm': 'AES-256-CBC-HMAC-SHA256',
-      'kdf': 'PBKDF2-HMAC-SHA256',
-      'iterations': _backupKdfIterations,
-      'originalFormat': originalFormat,
-      'salt': base64Encode(salt),
-      'iv': base64Encode(iv),
-      'ciphertext': base64Encode(cipherText),
-      'mac': mac.toString(),
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
-  }
-
+  /// 加密备份解包：信封交给 [BackupEncryptionService]，密码仍在这里问。
   Future<_DecodedBackupContent> _decryptContentIfNeededBytes(
     Uint8List inputBytes,
   ) async {
-    final content = utf8.decode(inputBytes, allowMalformed: true);
-    Map<String, dynamic> envelope;
-    try {
-      final decoded = jsonDecode(content);
-      if (decoded is! Map<String, dynamic> ||
-          decoded['InkPaperEncryptedBackup'] != true) {
-        return _DecodedBackupContent(
-          bytes: inputBytes,
-          originalFormat: null,
-          encrypted: false,
-        );
-      }
-      envelope = decoded;
-    } on Object {
+    if (!_encryptionService.looksEncrypted(inputBytes)) {
       return _DecodedBackupContent(
         bytes: inputBytes,
         originalFormat: null,
@@ -1694,159 +1631,12 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       throw Exception('已取消导入加密备份');
     }
 
-    final version = envelope['version']?.toString() ?? '1.0';
-    if (version == '2.0') {
-      final salt = _decodeRequiredBase64(envelope, 'salt');
-      final iv = _decodeRequiredBase64(envelope, 'iv');
-      final cipherText = _decodeRequiredBase64(envelope, 'ciphertext');
-      final mac = envelope['mac']?.toString();
-      final iterations =
-          int.tryParse(envelope['iterations']?.toString() ?? '') ??
-              _backupKdfIterations;
-      if (mac == null || mac.isEmpty) {
-        throw Exception('加密备份格式不完整');
-      }
-
-      final keys = _deriveBackupKeys(
-        password: password,
-        salt: salt,
-        iterations: iterations,
-      );
-      final expectedMac = Hmac(sha256, keys.macKey)
-          .convert(_backupMacPayload(salt, iv, cipherText))
-          .toString();
-      if (!_constantTimeStringEquals(expectedMac, mac)) {
-        throw Exception('备份密码错误或文件已损坏');
-      }
-
-      final plainBytes = _aesCbcCrypt(
-        input: cipherText,
-        key: keys.encryptionKey,
-        iv: iv,
-        encrypt: false,
-      );
-      return _DecodedBackupContent(
-        bytes: plainBytes,
-        originalFormat: envelope['originalFormat']?.toString(),
-        encrypted: true,
-      );
-    }
-
-    final encodedContent = envelope['content']?.toString();
-    final signature = envelope['signature']?.toString();
-    if (encodedContent == null || signature == null) {
-      throw Exception('加密备份格式不完整');
-    }
-
-    final rawBytes = base64Decode(encodedContent);
-    final expectedDigest =
-        Hmac(sha256, utf8.encode(password)).convert(rawBytes);
-    if (expectedDigest.toString() != signature) {
-      throw Exception('备份密码错误或文件已损坏');
-    }
-
+    final payload = _encryptionService.decrypt(inputBytes, password);
     return _DecodedBackupContent(
-      bytes: Uint8List.fromList(rawBytes),
-      originalFormat: envelope['originalFormat']?.toString(),
+      bytes: payload.bytes,
+      originalFormat: payload.originalFormat,
       encrypted: true,
     );
-  }
-
-  Uint8List _decodeRequiredBase64(Map<String, dynamic> envelope, String key) {
-    final value = envelope[key]?.toString();
-    if (value == null || value.isEmpty) {
-      throw Exception('加密备份格式不完整');
-    }
-    return Uint8List.fromList(base64Decode(value));
-  }
-
-  Uint8List _secureRandomBytes(int length) {
-    final random = Random.secure();
-    return Uint8List.fromList(
-      List<int>.generate(length, (_) => random.nextInt(256)),
-    );
-  }
-
-  _BackupKeyMaterial _deriveBackupKeys({
-    required String password,
-    required Uint8List salt,
-    required int iterations,
-  }) {
-    if (iterations < 10000) {
-      throw Exception('加密备份参数不安全');
-    }
-
-    final passwordBytes = utf8.encode(password);
-    final output = <int>[];
-    var blockIndex = 1;
-    while (output.length < 64) {
-      final block = Uint8List(salt.length + 4)..setRange(0, salt.length, salt);
-      block[salt.length] = (blockIndex >> 24) & 0xff;
-      block[salt.length + 1] = (blockIndex >> 16) & 0xff;
-      block[salt.length + 2] = (blockIndex >> 8) & 0xff;
-      block[salt.length + 3] = blockIndex & 0xff;
-
-      var u = Hmac(sha256, passwordBytes).convert(block).bytes;
-      final t = List<int>.from(u);
-      for (var i = 1; i < iterations; i++) {
-        u = Hmac(sha256, passwordBytes).convert(u).bytes;
-        for (var j = 0; j < t.length; j++) {
-          t[j] ^= u[j];
-        }
-      }
-      output.addAll(t);
-      blockIndex++;
-    }
-
-    return _BackupKeyMaterial(
-      encryptionKey: Uint8List.fromList(output.sublist(0, 32)),
-      macKey: Uint8List.fromList(output.sublist(32, 64)),
-    );
-  }
-
-  Uint8List _backupMacPayload(
-    Uint8List salt,
-    Uint8List iv,
-    Uint8List cipherText,
-  ) {
-    final header = utf8.encode('InkPaperEncryptedBackupV2');
-    return Uint8List.fromList([
-      ...header,
-      ...salt,
-      ...iv,
-      ...cipherText,
-    ]);
-  }
-
-  Uint8List _aesCbcCrypt({
-    required Uint8List input,
-    required Uint8List key,
-    required Uint8List iv,
-    required bool encrypt,
-  }) {
-    final cipher = pc.PaddedBlockCipherImpl(
-      pc.PKCS7Padding(),
-      pc.CBCBlockCipher(pc.AESEngine()),
-    );
-    cipher.init(
-      encrypt,
-      pc.PaddedBlockCipherParameters(
-        pc.ParametersWithIV(pc.KeyParameter(key), iv),
-        null,
-      ),
-    );
-    return cipher.process(input);
-  }
-
-  bool _constantTimeStringEquals(String a, String b) {
-    if (a.length != b.length) {
-      return false;
-    }
-    var diff = 0;
-    for (var i = 0; i < a.length; i++) {
-      diff |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
-    }
-    return diff == 0;
   }
 
   Future<String?> _askBackupPassword() async {

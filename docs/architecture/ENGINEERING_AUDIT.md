@@ -8,15 +8,15 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 最后更新 | 2026-11-24 · 本项代码 `3196ab4`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
-| 本轮任务 | OPT-09B（P2 · §9 卡片媒体提取合并） |
-| 任务状态 | 待验收 |
-| 可复查改动 | ① 新增 `MemosContentHelper.extractNoteMediaPaths(note)`：`resourceList` 只遍历一遍、正文只跑一遍 `markdownMediaRegex`，返回 `NoteMediaPaths{images, videos}`；② 抽出 `resourcePathOf(resource)`，路径拼装（externalLink / `attachments/` / `/o/r/<uid>`）不再写两份；③ 图片与视频各自独立去重（分类依据不同，不交叉去重）；④ 卡片与详情页改用合并入口，`extractNoteImagePaths` / `extractNoteVideoPaths` 保留为转发；⑤ 新增 `debugMarkdownMediaScanCount` 把「一次扫描」变成可断言事实 |
-| 验证结果 | `analyze` → No issues found；`format` 322 文件 0 changed；`flutter test --concurrency=4` 全量 **1123 项全过**（原 1117 + 6）。反向验证两项：图片/视频共用去重集合 → `MC-05` 变红；正文拆回两趟正则 → `MC-06` 变红。校准（4359 字 / 31 图 / 2 视频）：合并 **31.88µs** vs 分开两次 **61.55µs**，只取图片也是 31.83µs → 合并基本等于「只扫一遍」 |
-| 未验证 / 待测 | 无真机（卡片滚动帧时间交 OPT-M01）；校准是本机 JIT 单轮取值，未做多轮统计；`NoteMediaPaths.images/videos` 是可变列表（与旧返回值类型一致），调用方若改元素会互相影响，当前无此用法 |
-| 下一项 | OPT-02B（仍等 OPT-02A 复验）或独立项 OPT-04B / OPT-06C 返修、OPT-07A；OPT-10 返修可独立领取 |
+| 最后更新 | 2026-11-24 · 本项代码 `6a068bb`、测试基建 `79b38a9`，记录随本笔 · 应用版本 `1.1.143+10243`（未升版本、未推送、未装机） |
+| 本轮任务 | OPT-10 返修（P2 · §10 笔记引用） |
+| 任务状态 | 待复验 |
+| 可复查改动 | ① 引用回调抽出 `applyReferenceNoteChanges`：**只按 id 替换已加载的笔记**，删掉「不在窗口就 `add`」那条分支；② 续页追加前经 `filterUnloadedNotes`（`notes_pagination_helper.dart`）按 id 过滤，同一 id 不会出现两张卡片；③ 引用面板新增 `_deepTargets` / `_resolveTargets`：窗口里没有的对端按 id 调 `AppProvider.getNotesByIds` 查库补标题，删除对 `appProvider.notes` 的 `firstWhere` 依赖；④ 新增 `ThumbCache.debugSettle()`，草稿图片用例的 `addTearDown` 先等后台编码收尾再删临时目录 |
+| 验证结果 | `analyze` → No issues found；`format` 324 文件 0 changed；`flutter test --concurrency=4` 全量 **1128 项全过**（原 1123 + 5）。反向验证三项：回调改回 `add` → 深页用例 `Expected 50 / Actual 51` 变红；面板关掉补查 → `RSB-01` 变红（找不到「批量笔记 69」）；`filterUnloadedNotes` 由 `PAGE-07` 直接咬住重叠页 |
+| 未验证 / 待测 | 无真机（引用面板打开时的补查延迟、深页目标首帧占位「…」的观感未测）；面板补查是逐次全量取回，引用很多（几十条跨页）时的查询次数未测，交 OPT-M01；`_deepTargets` 无容量上限（面板关闭即释放，长驻场景未评估） |
+| 下一项 | OPT-10B（依赖本项复验）：按关系字段更新、保留远端独有关系；或独立项 OPT-04B / OPT-06C 返修、OPT-07A |
 | 待用户决策 | ① OPT-01B 的远端归档、本地同内容副本与完整空清单处理规则；② `OPT-M01` / `OPT-R01` / `OPT-R02` / `OPT-MEMOS` 保持暂缓 |
-| 工作区注意事项 | 另有会话的启动页提交 `617b5c8` 与未提交的 `docs/README.md` 索引链接、`dist/`、`.model-desk/`，均非本轮产物，勿回退或顺手带上。发版、推送、装机需单独授权 |
+| 工作区注意事项 | 另有未提交的 `docs/README.md` 索引链接、`dist/`、`.model-desk/`，均非本轮产物，勿回退或顺手带上。发版、推送、装机需单独授权 |
 
 ## 执行队列
 
@@ -31,7 +31,7 @@
 | OPT-03 | P2 | 已验收 | §3 探索索引 | 按写库版本复用，排序和续页复用同一语料索引。索引结构及后台查询调整另行评估。 |
 | OPT-09A | P2 | 已验收 | §9 短预览缓存 | 解析前缀指纹、长短预览隔离与字符预算通过，OPT-09B 前置条件满足。 |
 | OPT-09B | P2 | 待验收 | §9 卡片媒体提取 | 完成（`3196ab4`）：`extractNoteMediaPaths` 一次扫出图片与视频，卡片/详情页改用合并入口。待复验分类独立性、去重口径与扫描次数。 |
-| OPT-10 | P2 | 待办 | §10 笔记引用 | 返修。保留按 ID 查找，修复增量回调把深页目标提前插入首页导致的重复，测试保存引用后继续翻页。 |
+| OPT-10 | P2 | 待验收 | §10 笔记引用 | 返修完成（`6a068bb`）：回调只替换已加载 ID、续页按 id 去重、面板按 id 查库补标题。待复验深页样本、续页不重复与面板补查。 |
 | OPT-10B | P2 | 待办 | §10 笔记引用 | 返修。依赖 OPT-10 复验。保留只存在于关系数据中的有效引用，批量更新只写关系字段并验证并发编辑场景。 |
 | OPT-04 | P2 | 已验收 | §4 小组件 | 窄列读取、回顾按需判定、首屏快照限量读取通过。 |
 | OPT-04B | P3 | 待办 | §4 小组件 | 返修。恢复原回顾时间边界，验证 UTC / 本地混存时的日期统计、置顶排序和异常数据回退。 |
@@ -294,6 +294,33 @@
 - **行为变化**：对外结果不变（顺序、去重、互斥优先级都保持）。唯一可观察差异是 `debugMarkdownMediaScanCount` 的推进次数。`NoteMediaPaths.images/videos` 与旧返回值一样是可变 `List`，没有改成不可变，避免给调用方制造 breaking change。
 - **未验证**：① 无真机，卡片滚动的帧时间与重建次数未测，交 OPT-M01；② 校准只取了一轮，未做多轮统计；③ 正文正则本身没有优化（仍是全量 `allMatches`），只是从两遍降到一遍——若后续要再快，得换增量扫描或缓存 `matchCount`，属新项。
 - **建议下一项**：OPT-02B（仍等 OPT-02A 复验）；可独立领取的是 OPT-04B / OPT-06C 返修、OPT-07A，或 OPT-10 返修。
+
+### 2026-11-24 · OPT-10 返修 · 待复验
+
+- **问题核对**（先复现再改）：`initializeApp()` 里注册的 `onNotesChanged` 对每条受影响的笔记做 `indexWhere`，找不到就 `_notesStore.notes.add(note)`。注释写的是「被引用的目标可能还没出现在当前这一页里」——动机合理（引用面板要显示对端标题），但代价被低估了：`notes` 是**分页窗口**，续页按 `OFFSET` 取，下一条 SQL 照样会返回这条，`addAll` 之后同一个 id 在列表里出现两次。复现样本是 120 条库里「首屏 50 条引用第 51 条」：回调后 `notes.length` 从 50 变 51，翻一页后 `r-69` 出现两次。
+- **为什么不能靠「翻页前先查重」了事**：真正的问题不是重复本身，而是**把分页窗口当成缓存用**。窗口的第 i 个位置对应 SQL 的 OFFSET i，往中间或末尾插一条，后面所有位置都对不上——`hasMoreData` 的判定、`totalNotesCount` 的比较、乃至滚动位置都建立在「窗口 = 库的一个前缀」这个前提上。
+- **改动**：
+  - `lib/providers/app_provider.dart`：
+    - 回调体抽成 `applyReferenceNoteChanges(List<Note>)`（生产注册直接用这个方法），改为**只按 id 就地替换**；不在窗口的只打一行 debug 日志，等翻页时从库里读到最新行。索引 `indexById` 一次建好，不再对每条改动各扫一遍列表（原实现是 O(m·n)）。
+    - 新增 `getNotesByIds(List<String>)` 转发（服务层已按 900 一批处理 SQLite 变量上限），给面板按 id 取深页目标。
+    - 续页 `addAll` 之前经 `filterUnloadedNotes` 过滤：万一有别的路径把某条提前插进窗口，这里也不会变成两张卡片，并打日志说明丢弃了几条。
+  - `lib/utils/notes_pagination_helper.dart`：新增 `filterUnloadedNotes<T>(loaded, page, idOf)`——纯函数、泛型，便于直接单测，不必先造一个分页窗口。
+  - `lib/widgets/references_sidebar.dart`：
+    - 新增 `_deepTargets`（id → Note?，null 表示查过但没有）与 `_resolvingTargets`；`_targetIdOf` 统一「正向取 relatedMemoId、反向取 memoId」。
+    - `_scheduleResolveTargets` 在 build 里收集窗口外的对端 id，用 `addPostFrameCallback` 推迟到本帧画完后调 `getNotesByIds`，回来 `setState` 换真实标题。同一批 id 只查一次。
+    - `_buildReferenceCard` 的 `notes.firstWhere(..., orElse: 笔记未找到)` 换成 `_targetNote`：先查窗口、再查 `_deepTargets`，都没有时若仍在查就显示 `…`，查完确实没有才显示「笔记未找到」。
+    - `didUpdateWidget` 里换笔记就清缓存，避免看上一条笔记的标题。
+  - `lib/utils/thumb_cache.dart` + `test/widget_tests/note_editor_draft_image_test.dart`（独立提交 `79b38a9`）：新增 `debugSettle()`（等目录扫描、inflight 编码与磁盘维护），4 处 `addTearDown` 先等它再删临时目录。**理由是上一轮 OPT-06C 把扫描改成 fire-and-forget 后，后台 worker 更容易和 tearDown 抢文件**，全量跑时 `note_editor_draft_image_test` 偶发 `PathAccessException`（单跑必过）。这不是功能缺陷，是清理顺序问题，顺手修掉以免每轮全量都有红灯干扰判断。
+  - 未改动：`UnifiedReferenceManager` 的关系写入逻辑（OPT-10B 的范围）、引用面板的筛选与布局、`rebuildAllReferences` 的「重建后只重查首屏」。
+- **测试**：1123 → **1128**（+5）。
+  - `test/unit/reference_deep_target_paging_test.dart`（新增）3 条：`OPT-10 引用深页目标不插进首屏，续页也不会出现同 id 两条`（120 条样本、首屏 50 条、目标是第 51 条 `r-69`；回调后仍是 50 条；翻页后 100 条且 `r-69` 只出现一次）、`窗口内的引用更新仍然就地生效`（不能因为去掉 `add` 把功能也去掉）、`深页目标可以按 id 取到`（面板补查的依据）。
+  - `test/unit/notes_pagination_helper_test.dart` 新增 `PAGE-07`：重叠 / 不重叠 / 整页重叠三种输入下 `filterUnloadedNotes` 的返回。
+  - `test/widget_tests/references_sidebar_test.dart`（新增）`RSB-01`：真实 `AppProvider` + 内存库 + 真 `ReferencesSidebar`，对端在深页时面板要显示「批量笔记 69」而不是「笔记未找到」，且窗口长度仍是 50。真库 IO 在 `testWidgets` 的 FakeAsync 里不推进，准备与等待都用 `tester.runAsync` 包住（第一次写成直接 `await` + `pumpAndSettle` 会卡死到被 SIGTERM）。
+- **验证**：`dart tool/inkpaper.dart analyze` → No issues found；`dart tool/inkpaper.dart format` → 324 文件 0 changed；`flutter test --concurrency=4` → **1128 项全过**。第一轮全量曾红在 `note_editor_draft_image_test`（`PathAccessException`），单跑 9 条全过，加固清理顺序后连跑两次 + 全量均绿。
+- **反向验证**：① 回调改回 `_notesStore.notes.add(note)` → 深页用例变红（`Expected: <50> / Actual: <51>`）；② 面板把 `_scheduleResolveTargets` 关掉 → `RSB-01` 变红（找不到「批量笔记 69」）；③ `PAGE-07` 直接覆盖去重函数，改动它的保留策略会立刻红。
+- **行为变化**：引用涉及的深页目标不再出现在首页列表里（它本来就不该出现在窗口的中间位置）；面板首次打开时对端标题可能短暂显示 `…`，补查回来即换成真实标题；续页在极端情况下（有别的路径提前插入了某条）会少追加重复项并打日志。
+- **未验证**：① 无真机，面板补查的延迟与占位观感未测；② 引用条数很多（跨页几十条）时面板的查询次数与耗时未测，交 OPT-M01；③ `_deepTargets` 没有容量上限——面板是弹出层，关闭即释放，常驻场景未评估；④ 只在 `newest` 排序下验证，其他三种排序的深页样本未单独跑（分页样本本身与排序无关，但没跑就是没跑）。
+- **建议下一项**：OPT-10B（本项复验通过后领取，按关系字段更新并保留远端独有关系）；或独立项 OPT-04B / OPT-06C 返修、OPT-07A。
 
 ## 现有架构
 

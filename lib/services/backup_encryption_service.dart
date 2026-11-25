@@ -600,6 +600,11 @@ class BackupEncryptionService {
           }
         }
       }
+      // Match Dart's standard decoder: padding must discard only zero bits.
+      if ((padding == 2 && (v1 & 0x0F) != 0) ||
+          (padding == 1 && (v2 & 0x03) != 0)) {
+        return null;
+      }
       final bits = (v0 << 18) | (v1 << 12) | (v2 << 6) | v3;
       out[offset++] = (bits >> 16) & 0xFF;
       if (padding < 2) {

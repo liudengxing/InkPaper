@@ -603,6 +603,20 @@ void main() {
     await expectRejected('=${cipher.substring(1)}');
     // `x===` 三个补齐符不是合法 base64。
     await expectRejected('${cipher.substring(0, cipher.length - 3)}===');
+
+    // The standard decoder rejects nonzero unused bits before padding.
+    final padding = cipher.endsWith('==') ? 2 : 1;
+    final lastDataChar = cipher.length - padding - 1;
+    const alphabet =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    final index = alphabet.indexOf(cipher[lastDataChar]);
+    final nonCanonical = cipher.replaceRange(
+      lastDataChar,
+      lastDataChar + 1,
+      alphabet[index | 1],
+    );
+    expect(() => base64Decode(nonCanonical), throwsFormatException);
+    await expectRejected(nonCanonical);
   });
 
   test('ENC-19 大包的快速路径与整段解析给出同一份正文', () async {

@@ -1748,11 +1748,10 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
     });
 
     try {
-      // 使用file_picker选择文件
+      // 仅取文件路径。Android 文件选择器加载字节时会分配整个备份的内存。
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json', 'md', 'txt', 'zip', 'markdown', 'enc'],
-        withData: true,
       );
 
       if (result == null || result.files.isEmpty) {
@@ -1764,23 +1763,20 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
 
       final pickedFile = result.files.first;
       final fileName = pickedFile.name.toLowerCase();
-      final fileBytes = pickedFile.bytes ??
-          (pickedFile.path != null
-              ? Uint8List.fromList(await File(pickedFile.path!).readAsBytes())
-              : null);
-
-      if (fileBytes == null) {
+      final filePath = pickedFile.path;
+      final file = filePath == null ? null : File(filePath);
+      final pickedBytes = pickedFile.bytes;
+      if (file == null && pickedBytes == null) {
         throw Exception('文件不存在');
       }
 
-      final decodedContent = fileName.endsWith('.zip')
-          ? _DecodedBackupContent(
-              bytes: fileBytes,
-              originalFormat: 'ZIP',
-              encrypted: false,
-            )
-          : await _decryptContentIfNeededBytes(fileBytes);
-      final originalFormat = decodedContent.originalFormat?.toUpperCase();
+      final isZipFile = fileName.endsWith('.zip');
+      final decodedContent = isZipFile
+          ? null
+          : await _decryptContentIfNeededBytes(
+              pickedBytes ?? await file!.readAsBytes(),
+            );
+      final originalFormat = decodedContent?.originalFormat?.toUpperCase();
 
       var importedCount = 0;
       var restoredImages = 0;
@@ -1788,10 +1784,12 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       var format = 'JSON';
       var discardedRestoredCount = 0;
 
-      if (originalFormat == 'ZIP' || fileName.endsWith('.zip')) {
-        final decodedArchive = await _backupArchiveService.decodeArchive(
-          decodedContent.bytes,
-        );
+      if (isZipFile || originalFormat == 'ZIP') {
+        final decodedArchive = isZipFile && file != null
+            ? await _backupArchiveService.decodeArchiveFile(file)
+            : await _backupArchiveService.decodeArchive(
+                decodedContent?.bytes ?? pickedBytes!,
+              );
         format = decodedArchive.format.label;
         final int imported;
         try {
@@ -1816,7 +1814,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         // 导入JSON格式
         format = 'JSON';
         importedCount = await _databaseService.importNotesFromJson(
-          decodedContent.text,
+          decodedContent!.text,
           overwriteExisting: _overwriteExisting,
           asNewNotes: _importAsNew,
         );
@@ -1827,7 +1825,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         format = 'Markdown';
         importedCount = await _databaseService.importNotesFromMarkdown(
           [fileName],
-          [decodedContent.text],
+          [decodedContent!.text],
           overwriteExisting: _overwriteExisting,
           asNewNotes: _importAsNew,
         );
@@ -1837,11 +1835,12 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         format = 'TXT';
         importedCount = await _databaseService.importNotesFromText(
           [fileName],
-          [decodedContent.text],
+          [decodedContent!.text],
           overwriteExisting: _overwriteExisting,
           asNewNotes: _importAsNew,
         );
-      } else if (decodedContent.encrypted && originalFormat == 'HTML') {
+      } else if ((decodedContent?.encrypted ?? false) &&
+          originalFormat == 'HTML') {
         throw Exception('HTML备份仅用于阅读，不能恢复为笔记');
       } else {
         // 不支持的格式

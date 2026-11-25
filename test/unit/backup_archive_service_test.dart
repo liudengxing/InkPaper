@@ -87,6 +87,35 @@ void main() {
   }
 
   group('导出打包', () {
+    test('从磁盘恢复 ZIP 后可以读取正文和媒体，并释放备份文件', () async {
+      final image = await writeImage('restore.png');
+      final video = await writeVideo('restore.mp4');
+      final zip = File('${imagesDir.path}${Platform.pathSeparator}restore.zip');
+      await service.buildArchiveToFile(
+        target: zip,
+        notes: [
+          _note(
+            id: 'file-restore',
+            content: '正文 ![图](${image.path}) ![视频](${video.path})',
+          ),
+        ],
+        format: BackupContentFormat.json,
+        includeImages: true,
+        includeVideos: true,
+      );
+
+      final decoded = await service.decodeArchiveFile(zip);
+      expect(decoded.entries.single.content, contains('正文'));
+      expect(decoded.restoredImageCount, 1);
+      expect(decoded.restoredVideoCount, 1);
+      expect(await File(decoded.restoredLocalPaths[0]).readAsBytes(), _tinyPng);
+      expect(
+        await File(decoded.restoredLocalPaths[1]).readAsBytes(),
+        await video.readAsBytes(),
+      );
+      await zip.delete();
+    });
+
     test('JSON 导出会把图片一起塞进 zip，并在导入时还原路径', () async {
       final image = await writeImage('photo.png');
       final note = _note(

@@ -692,10 +692,23 @@ class BackupArchiveService {
   // ---------------------------------------------------------------------------
 
   /// 解开备份 ZIP：还原图片到本地、重写正文里的图片路径，按内容格式返回文件。
-  Future<DecodedBackupArchive> decodeArchive(Uint8List bytes) async {
+  Future<DecodedBackupArchive> decodeArchive(Uint8List bytes) =>
+      _decodeArchive(InputStream(bytes));
+
+  /// 从磁盘读取 ZIP，避免先把整个压缩包复制进内存。
+  Future<DecodedBackupArchive> decodeArchiveFile(File file) async {
+    final input = InputFileStream(file.path);
+    try {
+      return await _decodeArchive(input);
+    } finally {
+      await input.close();
+    }
+  }
+
+  Future<DecodedBackupArchive> _decodeArchive(InputStreamBase input) async {
     final Archive archive;
     try {
-      archive = ZipDecoder().decodeBytes(bytes);
+      archive = ZipDecoder().decodeBuffer(input);
     } on Object catch (e) {
       throw Exception('无法解析备份压缩包：$e');
     }

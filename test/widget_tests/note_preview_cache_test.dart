@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
@@ -113,6 +114,55 @@ void main() {
 
     expect(NotePreviewCache.entryCount, 1);
     expect(_renderedText(tester), contains('第 9 段'));
+  });
+
+  testWidgets('切换行数复用富文本，待办回调仍跟随当前组件', (tester) async {
+    final calls = <String>[];
+    Widget preview({int? lines, String? highlight, String? callback}) => _wrap(
+          NotePreviewText(
+            content: '- [ ] 检查待办\n\n第二段 #工作',
+            style: const TextStyle(fontSize: 15),
+            maxLines: lines,
+            highlightQuery: highlight,
+            onCheckboxTap: callback == null
+                ? null
+                : (index) => calls.add('$callback$index'),
+          ),
+        );
+
+    TextSpan span() => tester
+        .widgetList<Text>(
+          find.descendant(
+            of: find.byType(NotePreviewText),
+            matching: find.byType(Text),
+          ),
+        )
+        .single
+        .textSpan! as TextSpan;
+
+    await tester.pumpWidget(preview(lines: 1, callback: '旧'));
+    final original = span();
+    await tester.pumpWidget(preview(callback: '展开'));
+    expect(span(), same(original));
+    await tester.pumpWidget(preview(lines: 1, callback: '收起'));
+    expect(span(), same(original));
+    final checkbox = _flattenSpans(span()).singleWhere(
+      (piece) => piece.recognizer is TapGestureRecognizer,
+    );
+    (checkbox.recognizer! as TapGestureRecognizer).onTap!();
+    expect(calls, ['收起0']);
+
+    await tester.pumpWidget(preview(lines: 1, highlight: '第二段'));
+    expect(span(), isNot(same(original)));
+    expect(
+      _flattenSpans(span()).any((piece) => piece.recognizer != null),
+      isFalse,
+    );
+    expect(
+      _flattenSpans(span())
+          .any((piece) => piece.style?.backgroundColor != null),
+      isTrue,
+    );
   });
 }
 

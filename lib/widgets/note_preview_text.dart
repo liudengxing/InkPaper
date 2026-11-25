@@ -85,6 +85,17 @@ class _NotePreviewTextState extends State<NotePreviewText> {
   Future<NotePreview>? _pendingPreview;
   String? _previewSource;
   int? _previewLimit;
+  ({
+    NotePreview preview,
+    Color accent,
+    Brightness brightness,
+    String query,
+    bool compactBlankLines,
+    bool hasCheckboxTap,
+    bool hasTagTap,
+    bool hasLinkTap,
+  })? _spanInputs;
+  TextSpan? _cachedSpan;
 
   @override
   void initState() {
@@ -112,6 +123,9 @@ class _NotePreviewTextState extends State<NotePreviewText> {
         _previewLimit == widget.parseLimit) {
       return;
     }
+    _spanInputs = null;
+    _cachedSpan = null;
+    _disposeRecognizers();
     _previewSource = widget.content;
     _previewLimit = widget.parseLimit;
     if (widget.content.length >= _backgroundParseThreshold &&
@@ -166,16 +180,13 @@ class _NotePreviewTextState extends State<NotePreviewText> {
       return const SizedBox.shrink();
     }
 
-    // 每次 build 重建 recognizer：旧 TextSpan 会被新树替换，不会悬挂。
-    _disposeRecognizers();
-
-    final accent = widget.accentColor ?? Theme.of(context).colorScheme.primary;
-    final spans = _buildSpans(preview, accent, Theme.of(context).brightness);
+    final span = _resolveSpan(context, preview);
+    final spans = span.children!;
 
     if (widget.selectable) {
       // SelectableText 不支持 overflow，选择模式下不做省略号截断
       return SelectableText.rich(
-        TextSpan(children: spans),
+        span,
         maxLines: widget.maxLines,
         style: widget.style,
       );
@@ -187,26 +198,58 @@ class _NotePreviewTextState extends State<NotePreviewText> {
       return LayoutBuilder(
         builder: (context, constraints) {
           if (!constraints.hasBoundedWidth || constraints.maxWidth == 0) {
-            return _richText(spans);
+            return _richText(span);
           }
-          final paragraphs =
-              _splitAtWrappedLines(spans, context, constraints.maxWidth);
+          final paragraphs = _splitAtWrappedLines(
+            spans.cast<TextSpan>(),
+            context,
+            constraints.maxWidth,
+          );
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final paragraph in paragraphs) _richText(paragraph),
+              for (final paragraph in paragraphs)
+                _richText(TextSpan(children: paragraph)),
             ],
           );
         },
       );
     }
 
-    return _richText(spans);
+    return _richText(span);
   }
 
-  Widget _richText(List<TextSpan> spans) => Text.rich(
-        TextSpan(children: spans),
+  TextSpan _resolveSpan(BuildContext context, NotePreview preview) {
+    final theme = Theme.of(context);
+    final inputs = (
+      preview: preview,
+      accent: widget.accentColor ?? theme.colorScheme.primary,
+      brightness: theme.brightness,
+      query: widget.highlightQuery?.trim() ?? '',
+      compactBlankLines: widget.compactBlankLines,
+      hasCheckboxTap: widget.onCheckboxTap != null,
+      hasTagTap: widget.onTagTap != null,
+      hasLinkTap: widget.onLinkTap != null,
+    );
+    if (inputs == _spanInputs) {
+      return _cachedSpan!;
+    }
+
+    // 展开和收起只改变行数。点击回调在手势触发时读取当前 widget，
+    // 即使父组件提供了新的回调，也可以复用这些识别器。
+    _disposeRecognizers();
+    final span = TextSpan(
+      children:
+          _buildSpans(preview, inputs.accent, inputs.brightness, inputs.query),
+    );
+    _spanInputs = inputs;
+    _cachedSpan = span;
+    return span;
+  }
+
+  Widget _richText(TextSpan span) => Text.rich(
+        span,
         maxLines: widget.maxLines,
         overflow:
             widget.maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis,
@@ -291,9 +334,9 @@ class _NotePreviewTextState extends State<NotePreviewText> {
     NotePreview preview,
     Color accent,
     Brightness brightness,
+    String query,
   ) {
     final text = preview.text;
-    final query = widget.highlightQuery?.trim() ?? '';
     final highlights = _findHighlightRanges(text, query);
     final tags = _findTagRanges(text);
     final links = preview.links;

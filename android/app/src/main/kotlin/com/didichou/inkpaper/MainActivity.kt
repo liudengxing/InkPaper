@@ -33,6 +33,8 @@ class MainActivity: FlutterActivity() {
     private var flutterReadyForNativeEvents = false
     private val shareExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val saveBackupRequest = 0x4950
+    private var pendingBackupSave: Pair<File, MethodChannel.Result>? = null
 
     private data class SharedUriItem(
         val uri: Uri,
@@ -126,6 +128,14 @@ class MainActivity: FlutterActivity() {
                     // 这个路径，Dart 侧自己拼的路径可能落在授权范围之外。
                     result.success(apkUpdatesDir().absolutePath)
                 }
+                "saveBackupFile" -> {
+                    val path = call.argument<String>("path")
+                    if (path == null) {
+                        result.error("BACKUP_SOURCE", "Backup path is missing", null)
+                    } else {
+                        saveBackupFile(path, result)
+                    }
+                }
                 "installApk" -> {
                     val apkPath = call.argument<String>("path") ?: ""
                     result.success(installApk(apkPath))
@@ -143,6 +153,52 @@ class MainActivity: FlutterActivity() {
         // 尝试读壁纸。预热成功则烘焙缓存落盘，widget 更新时直接读缓存；
         // 系统拒绝（如 HyperOS 静默返回 null）时小部件保持手绘玻璃兜底。
         Thread { WallpaperGlass.warmUp(this) }.start()
+    }
+
+    private fun saveBackupFile(path: String, result: MethodChannel.Result) {
+        if (pendingBackupSave != null) {
+            result.error("BACKUP_BUSY", "A backup save is already pending", null)
+            return
+        }
+        try {
+            val source = File(path).canonicalFile
+            val cacheRoot = cacheDir.canonicalPath + File.separator
+            require(source.path.startsWith(cacheRoot) && source.isFile)
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = if (source.extension == "zip") "application/zip" else "application/octet-stream"
+                putExtra(Intent.EXTRA_TITLE, source.name)
+            }
+            pendingBackupSave = source to result
+            startActivityForResult(intent, saveBackupRequest)
+        } catch (e: Exception) {
+            pendingBackupSave = null
+            result.error("BACKUP_PICKER", e.message, null)
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != saveBackupRequest) return
+        val (source, result) = pendingBackupSave ?: return
+        pendingBackupSave = null
+        val destination = data?.data
+        if (resultCode != RESULT_OK || destination == null) {
+            result.success(null)
+            return
+        }
+        shareExecutor.execute {
+            try {
+                source.inputStream().use { input ->
+                    val output = contentResolver.openOutputStream(destination, "w")
+                        ?: error("Cannot open backup destination")
+                    output.use { input.copyTo(it, 64 * 1024) }
+                }
+                mainHandler.post { result.success(destination.toString()) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("BACKUP_WRITE", e.message, null) }
+            }
+        }
     }
     
     override fun onNewIntent(intent: Intent) {

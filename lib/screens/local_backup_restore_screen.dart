@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:inkpaper/l10n/app_localizations_simple.dart';
+import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/providers/app_provider.dart';
 import 'package:inkpaper/services/attachment_maintenance_service.dart';
 import 'package:inkpaper/services/backup_archive_service.dart';
@@ -41,6 +43,26 @@ class _DecodedBackupContent {
 
   String get text => utf8.decode(bytes);
 }
+
+Future<BackupArchiveFileResult> _buildBackupOnDisk({
+  required File target,
+  required Directory images,
+  required List<Note> notes,
+  required BackupContentFormat format,
+  required bool includeImages,
+  required bool includeVideos,
+}) =>
+    Isolate.run(
+      () => BackupArchiveService(imagesDirectoryProvider: () async => images)
+          .buildArchiveToFile(
+        target: target,
+        notes: notes,
+        format: format,
+        includeImages: includeImages,
+        includeVideos: includeVideos,
+        markdownExporter: DatabaseService().exportNoteToMarkdown,
+      ),
+    );
 
 class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
     with SingleTickerProviderStateMixin {
@@ -1512,6 +1534,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       _isExporting = true;
     });
 
+    Directory? exportDirectory;
     try {
       // 生成备份文件名
       final now = DateTime.now();
@@ -1524,7 +1547,9 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
           : sourceNotes.map((note) => note.copyWith(tags: const [])).toList();
 
       // 所有格式统一打包成 ZIP：图片随包一起走，换设备或服务器失效也不丢
-      Uint8List fileBytes;
+      final temp = await getTemporaryDirectory();
+      exportDirectory = await temp.createTemp('inkpaper_export_');
+      var backupFile = File('${exportDirectory.path}/$fileName');
       final notesCount = exportNotes.length;
       var missingImages = 0;
       var missingVideos = 0;
@@ -1534,14 +1559,15 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
               BackupContentFormat.json;
 
       try {
-        final built = await _backupArchiveService.buildArchive(
+        final docs = await getApplicationDocumentsDirectory();
+        final built = await _buildBackupOnDisk(
+          target: backupFile,
+          images: Directory('${docs.path}/images'),
           notes: exportNotes,
           format: exportFormat,
           includeImages: _includeImages,
           includeVideos: _includeVideos,
-          markdownExporter: _databaseService.exportNoteToMarkdown,
         );
-        fileBytes = built.bytes;
         missingImages = built.missingImageCount;
         missingVideos = built.missingVideoCount;
         skippedVideos = built.skippedVideoCount;
@@ -1550,12 +1576,14 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       }
 
       if (_encryptBackup) {
-        fileBytes = await _encryptionService.encryptToBytes(
-          fileBytes,
+        final encrypted = await _encryptionService.encryptToBytes(
+          await backupFile.readAsBytes(),
           _passwordController.text,
           originalFormat: 'ZIP',
         );
         fileName = '$fileName.enc';
+        backupFile = await File('${exportDirectory.path}/$fileName')
+            .writeAsBytes(encrypted);
       }
 
       // 显示导出选项对话框
@@ -1566,10 +1594,12 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
 
       if (exportChoice == 'local') {
         // 保存到本地
-        await _saveFileWithPlatformPicker(fileName, fileBytes, notesCount);
+        if (!await _saveFileWithPlatformPicker(fileName, backupFile)) {
+          return;
+        }
       } else if (exportChoice == 'share') {
         // 分享文件
-        await _shareToFilesApp(fileName, fileBytes);
+        await _shareToFilesApp(fileName, backupFile);
       }
 
       // 保存导出历史记录
@@ -1606,6 +1636,13 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
     } on Object catch (e) {
       _showErrorDialog('导出失败: $e');
     } finally {
+      if (exportDirectory != null) {
+        try {
+          await exportDirectory.delete(recursive: true);
+        } on FileSystemException catch (error) {
+          debugPrint('清理临时备份失败: ${error.message}');
+        }
+      }
       if (mounted) {
         setState(() {
           _isExporting = false;
@@ -2068,45 +2105,49 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         ),
       );
 
-  Future<void> _saveFileWithPlatformPicker(
+  Future<bool> _saveFileWithPlatformPicker(
     String fileName,
-    Uint8List fileBytes,
-    int notesCount,
+    File backupFile,
   ) async {
     final l10n = AppLocalizationsSimple.of(context);
     final chooseSaveLocation = l10n?.chooseSaveLocation ?? '选择保存位置';
-    final userCancelledSave = l10n?.userCancelledSave ?? '用户取消保存';
     try {
-      final result = await FilePicker.platform.saveFile(
-        dialogTitle: chooseSaveLocation,
-        fileName: fileName,
-        bytes: fileBytes,
-      );
-
-      if (result != null) {
-        _showLocalSaveSuccessDialog(fileName, result);
-      } else {
-        throw Exception(userCancelledSave);
+      final result = Platform.isAndroid
+          ? await const MethodChannel('com.didichou.inkpaper/native_alarm')
+              .invokeMethod<String>('saveBackupFile', {'path': backupFile.path})
+          : await FilePicker.platform.saveFile(
+              dialogTitle: chooseSaveLocation,
+              fileName: fileName,
+              bytes: await backupFile.readAsBytes(),
+            );
+      if (result == null) {
+        return false;
       }
+      if (mounted) {
+        _showLocalSaveSuccessDialog(fileName, result);
+      }
+      return true;
     } on Object catch (_) {
       try {
-        await _saveToAppPrivateDirectory(fileName, fileBytes);
-        return;
+        await _saveToAppPrivateDirectory(fileName, backupFile);
+        return true;
       } on Object {
         // Fall through to share fallback.
       }
 
       final shouldShare = await _showSaveFailedDialog();
       if (shouldShare ?? false) {
-        await _shareToFilesApp(fileName, fileBytes);
+        await _shareToFilesApp(fileName, backupFile);
+        return true;
       }
+      return false;
     }
   }
 
   // 保存到应用私有目录
   Future<void> _saveToAppPrivateDirectory(
     String fileName,
-    Uint8List fileBytes,
+    File backupFile,
   ) async {
     final l10n = AppLocalizationsSimple.of(context);
     final fileSaveFailed = l10n?.fileSaveFailed ?? '文件保存失败';
@@ -2118,7 +2159,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
       final filePath = '${directory.path}/$fileName';
       final file = File(filePath);
 
-      await file.writeAsBytes(fileBytes);
+      await backupFile.copy(filePath);
 
       // 验证文件保存成功
       if (!file.existsSync()) {
@@ -2133,7 +2174,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
   }
 
   // 分享文件到系统文件应用
-  Future<void> _shareToFilesApp(String fileName, Uint8List fileBytes) async {
+  Future<void> _shareToFilesApp(String fileName, File backupFile) async {
     final l10n = AppLocalizationsSimple.of(context);
     final backupShareSubject = l10n?.backupShareSubject ?? 'InkPaper 备份';
     final backupShareText =
@@ -2142,14 +2183,8 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
         l10n?.fileSharedToSave ?? '文件已通过分享发送，您可以选择保存到文件管理器';
     final shareFailed = l10n?.shareFailed ?? '分享失败';
     try {
-      // 创建临时文件
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/$fileName');
-      await tempFile.writeAsBytes(fileBytes);
-
-      // 使用share_plus分享文件
       await Share.shareXFiles(
-        [XFile(tempFile.path)],
+        [XFile(backupFile.path)],
         subject: backupShareSubject,
         text: backupShareText,
       );
@@ -2244,8 +2279,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
               // 读取文件并分享
               try {
                 final file = File(filePath);
-                final bytes = await file.readAsBytes();
-                await _shareToFilesApp(fileName, Uint8List.fromList(bytes));
+                await _shareToFilesApp(fileName, file);
               } on Object catch (e) {
                 if (context.mounted) {
                   SnackBarUtils.showError(

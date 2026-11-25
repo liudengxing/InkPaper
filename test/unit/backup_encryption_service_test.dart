@@ -712,9 +712,9 @@ void main() {
     expect(fast.bytes, origin);
   });
 
-  test('ENC-22 格式名含转义时退回标准解析，结果仍与基线一致', () async {
-    // jsonEncode 会把引号与反斜杠写成 \" 与 \\。字节扫描不实现转义规则，
-    // 必须整段退回 jsonDecode，而不是自己猜一段半成品字符串。
+  test('ENC-22 格式名含转义时结果与标准解析一致，且仍走字节快路', () async {
+    // jsonEncode 会把引号与反斜杠写成 \" 与 \\。小字段一律由标准 jsonDecode
+    // 解码，所以含转义也不再需要退回整段解析 —— 语义一致由构造保证。
     const password = 'p@ss-转义格式';
     final origin = _bytes(4096, seed: 47);
 
@@ -736,14 +736,127 @@ void main() {
       final decoded = await service.decrypt(envelope, password);
       expect(
         BackupEncryptionService.debugFastPathHits,
-        0,
-        reason: '含转义的格式名要退回标准解析，不能走字节快路',
+        1,
+        reason: '转义只影响小字段，大密文照旧走字节快路',
       );
-      expect(decoded.bytes, origin, reason: '退回标准解析后正文仍要一致');
+      expect(decoded.bytes, origin, reason: '转义不影响正文');
       expect(
         decoded.originalFormat,
         format,
         reason: '转义由标准解析处理，格式名要与写入时完全一致',
+      );
+    }
+  });
+
+  test('ENC-23 格式名以 U+FEFF 开头时逐字符保留，文件开头的 BOM 仍被吞掉', () async {
+    // 字段值开头的 U+FEFF 是内容，不是文件签名。它必须原样留在 originalFormat
+    // 里；而真正贴在文件最前面的 BOM 属于编码签名，解析时应当被忽略。
+    const password = 'p@ss-零宽';
+    const format = '\uFEFF笔记格式';
+    final origin = _bytes(4096, seed: 53);
+    final envelope = await service.encryptToBytes(
+      origin,
+      password,
+      originalFormat: format,
+      iterations: 10000,
+      salt: salt,
+      iv: iv,
+    );
+
+    BackupEncryptionService.debugResetFastPathHits();
+    final decoded = await service.decrypt(envelope, password);
+    expect(
+      BackupEncryptionService.debugFastPathHits,
+      1,
+      reason: '字段内的 U+FEFF 不该让快路放弃',
+    );
+    expect(
+      decoded.originalFormat,
+      format,
+      reason: '字段开头的 U+FEFF 是内容，必须逐字符保留',
+    );
+    expect(decoded.originalFormat!.codeUnitAt(0), 0xFEFF);
+    expect(decoded.bytes, origin);
+
+    // 文件开头再加 BOM 与前导空白：那个 BOM 是文件签名，应当被吞掉。
+    final withBom = Uint8List.fromList(<int>[
+      0xEF,
+      0xBB,
+      0xBF,
+      ...utf8.encode('  \r\n\t '),
+      ...envelope,
+    ]);
+    BackupEncryptionService.debugResetFastPathHits();
+    final decodedBom = await service.decrypt(withBom, password);
+    expect(
+      BackupEncryptionService.debugFastPathHits,
+      1,
+      reason: '文件开头的 BOM 不该把快路挡掉',
+    );
+    expect(decodedBom.originalFormat, format);
+    expect(decodedBom.bytes, origin);
+  });
+
+  test('ENC-24 与标准解析一致：重复键取最后一个，结构不合法就一起失败', () async {
+    // 快路不再自己解释 JSON 语法，但这些边界必须和 jsonDecode 给出同一结论。
+    const password = 'p@ss-语义';
+    final origin = _bytes(8192, seed: 59);
+    final envelope = await service.encryptToBytes(
+      origin,
+      password,
+      originalFormat: 'ZIP',
+      iterations: 10000,
+      salt: salt,
+      iv: iv,
+    );
+    final text = utf8.decode(envelope);
+
+    // 重复键：标准解析取最后一个，快路也必须取最后一个。
+    final dupBefore = Uint8List.fromList(
+      utf8.encode('{"ciphertext":"AAAA",${text.substring(1)}'),
+    );
+    BackupEncryptionService.debugResetFastPathHits();
+    final decoded = await service.decrypt(dupBefore, password);
+    expect(BackupEncryptionService.debugFastPathHits, 1);
+    expect(
+      decoded.bytes,
+      origin,
+      reason: '重复的 ciphertext 要取最后一个，和 jsonDecode 一致',
+    );
+
+    // 重复键放在后面：最后一个才是坏的那个，应当按坏密文失败。
+    final dupAfter = Uint8List.fromList(
+      utf8.encode('${text.substring(0, text.length - 1)},"ciphertext":"AAAA"}'),
+    );
+    await expectLater(
+      () => service.decrypt(dupAfter, password),
+      throwsA(isA<Exception>()),
+      reason: '最后一个 ciphertext 是坏的，快路不能偷偷用前一个',
+    );
+
+    // 嵌套同名键不算顶层字段。
+    final nested = Uint8List.fromList(
+      utf8.encode('{"meta":{"ciphertext":"AAAA"},${text.substring(1)}'),
+    );
+    BackupEncryptionService.debugResetFastPathHits();
+    final nestedDecoded = await service.decrypt(nested, password);
+    expect(BackupEncryptionService.debugFastPathHits, 1);
+    expect(
+      nestedDecoded.bytes,
+      origin,
+      reason: '嵌套里的同名键不是顶层 ciphertext',
+    );
+
+    // 末尾垃圾与尾逗号：标准解析报错，快路也必须报错，不能悄悄收下。
+    for (final broken in <String>[
+      '$text x',
+      '${text.substring(0, text.length - 1)},}',
+    ]) {
+      await expectLater(
+        () =>
+            service.decrypt(Uint8List.fromList(utf8.encode(broken)), password),
+        throwsA(isA<Exception>()),
+        reason: '结构不合法的信封要和整段解析一样失败',
       );
     }
   });

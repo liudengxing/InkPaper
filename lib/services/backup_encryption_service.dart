@@ -38,6 +38,10 @@ class BackupKeyMaterial {
 /// isolate 跑；AES 与 MAC 本来就能按块推进，攒够一帧的活就让出一次事件循环。
 /// 40MB 的包以前会让界面（转圈动画、返回手势）连续冻 2 秒上下；信封解析改成
 /// 字节扫描后，最长一次阻塞从 280–366ms 降到 180–190ms（加密侧是 80ms）。
+///
+/// 解密侧的字节扫描只做一件事：定位 `ciphertext` 的字节区间。其余字段由标准
+/// `jsonDecode` 解析一份把密文换成空串的小信封 —— JSON 的转义、键重复、末尾
+/// 垃圾、BOM 这些语义不在这里重实现，语义一致由构造保证。
 class BackupEncryptionService {
   BackupEncryptionService({DateTime Function()? now, Random? random})
       : _now = now ?? DateTime.now,
@@ -245,10 +249,13 @@ class BackupEncryptionService {
   ///
   /// 密码错、文件损坏、参数不安全都抛 [Exception]（消息直接给用户看）。
   ///
-  /// v2 信封先走 [_scanV2Envelope] 的单趟字节扫描：只记下 `salt` / `iv` /
-  /// `ciphertext` 在原始字节里的位置，密文直接从字节区间解 base64。认不出是
-  /// v2 时（v1 老包、字段类型异常、JSON 有语法问题）才退回整段 `jsonDecode`，
-  /// 那条路径给出的结果与改造前完全一致。
+  /// v2 信封先走 [_locateCipherText] 定位密文的字节区间：把这段区间抠掉，剩下
+  /// 的几百字节小信封交给标准 `jsonDecode` 解析。结构、转义、键重复、末尾垃圾
+  /// 全部由标准解析定夺，小字段（`originalFormat` / `mac` / `iterations`）也直接
+  /// 取标准解析的结果，语义一致由构造保证；只有大密文不落地成字符串。
+  ///
+  /// 定位不到、或小信封解析出来对不上（密文没被抠掉、版本不是 2.0、v1 老包）
+  /// 就退回整段 `jsonDecode`，那条路径给出的结果与改造前完全一致。
   /// 测试用：累计有多少次 v2 信封真的走了字节扫描的快速路径。
   ///
   /// 快速路径认不出时会静默退回整段解析，结果仍然正确 —— 光看结果无法判断
@@ -264,16 +271,14 @@ class BackupEncryptionService {
     Uint8List input,
     String password,
   ) async {
-    final scan = _scanV2Envelope(input);
+    final scan = _locateCipherText(input);
     if (scan != null) {
-      final salt = _decodeBase64Slice(input, scan.salt);
-      final iv = _decodeBase64Slice(input, scan.iv);
       final cipherText = _decodeBase64Slice(input, scan.cipherText);
-      if (salt != null && iv != null && cipherText != null) {
+      if (cipherText != null) {
         debugFastPathHits++;
         return _decryptV2Parts(
-          salt: salt,
-          iv: iv,
+          salt: scan.salt,
+          iv: scan.iv,
           cipherText: cipherText,
           mac: scan.mac,
           iterations: scan.iterations,
@@ -388,17 +393,62 @@ class BackupEncryptionService {
     return Uint8List.fromList(base64Decode(value));
   }
 
-  /// 单趟扫一遍 v2 信封，只记下大字段在原始字节里的区间。
+  /// 定位 `ciphertext` 的字节区间，其余字段交给标准解析。
   ///
   /// 40MB 的包整段 `utf8.decode` + `jsonDecode` 要 150ms、多占 107MB，密文再
-  /// 转成 `String` 交给 `base64Decode` 又是 200ms、多占 80MB —— 而 `salt` /
-  /// `iv` / `ciphertext` 其实只需要「从哪到哪」。这里按 JSON 语法逐键走一遍，
-  /// 记下这三个字段的字节区间，小字段（版本、迭代次数、MAC、原格式）当场读成
-  /// 值，密文全程不落地成字符串。
+  /// 转成 `String` 交给 `base64Decode` 又是 200ms、多占 80MB —— 而密文其实只
+  /// 需要「从哪到哪」。这里只按 JSON 语法走一遍顶层键，记下密文的字节区间，
+  /// 把这段内容抠掉，剩下的几百字节小信封交给标准 `jsonDecode`：
   ///
-  /// 任何一处不符合预期（不是 v2、字段类型不对、JSON 结构有毛病、末尾还有
-  /// 垃圾）都返回 null，由调用方退回整段 `jsonDecode`，错误行为与改造前一致。
-  static _V2EnvelopeScan? _scanV2Envelope(Uint8List input) {
+  /// - 结构合法性、转义规则、键重复、末尾垃圾、BOM 全由标准解析定夺，不在这里
+  ///   重实现一遍 JSON 语法 —— 语义一致由构造保证；
+  /// - 小字段（`originalFormat` / `mac` / `iterations`）直接取标准解析的结果，
+  ///   所以 `'\uFEFF笔记格式'` 这类字段内字符不会因为单独解码切片而丢掉开头的
+  ///   U+FEFF（`utf8.decode` 只吞掉**整段开头**的 BOM）。
+  ///
+  /// 抠掉密文后的小信封里 `ciphertext` 必须恰好变成空串，否则说明定位到的不是
+  /// 真正的密文（重复键、结构判断出错），一律返回 null 让调用方退回整段解析。
+  _V2EnvelopeScan? _locateCipherText(Uint8List input) {
+    final slice = _findCipherTextSlice(input);
+    if (slice == null) {
+      return null;
+    }
+
+    final shrunk = BytesBuilder(copy: false)
+      ..add(Uint8List.sublistView(input, 0, slice.start))
+      ..add(Uint8List.sublistView(input, slice.end));
+    final Object? parsed;
+    try {
+      parsed = jsonDecode(
+        utf8.decode(shrunk.takeBytes(), allowMalformed: true),
+      );
+    } on FormatException {
+      return null;
+    }
+    if (parsed is! Map<String, dynamic> ||
+        parsed[envelopeMarker] != true ||
+        parsed['version']?.toString() != currentVersion ||
+        parsed['ciphertext'] != '') {
+      return null;
+    }
+
+    return _V2EnvelopeScan(
+      salt: _decodeRequiredBase64(parsed, 'salt'),
+      iv: _decodeRequiredBase64(parsed, 'iv'),
+      cipherText: slice,
+      mac: parsed['mac']?.toString() ?? '',
+      iterations: int.tryParse(parsed['iterations']?.toString() ?? '') ??
+          defaultIterations,
+      originalFormat: parsed['originalFormat']?.toString(),
+    );
+  }
+
+  /// 单趟走一遍顶层键，返回最后一个 `ciphertext` 字符串值的字节区间。
+  ///
+  /// 与 `jsonDecode` 一致：重复键取最后一个。嵌套对象/数组整体跳过，所以嵌在
+  /// 里面的同名键不会被误认。走不通（不是对象、键名带转义或非 ASCII、值不是
+  /// 字符串）返回 null。
+  static _ByteSlice? _findCipherTextSlice(Uint8List input) {
     var i = 0;
     if (input.length >= 3 &&
         input[0] == 0xEF &&
@@ -412,15 +462,7 @@ class BackupEncryptionService {
     }
     i++;
 
-    var sawMarker = false;
-    var sawVersion = false;
-    var iterations = defaultIterations;
-    String? originalFormat;
-    String? mac;
-    _ByteSlice? salt;
-    _ByteSlice? iv;
     _ByteSlice? cipherText;
-
     while (true) {
       i = _skipJsonWhitespace(input, i);
       if (i >= input.length) {
@@ -437,8 +479,7 @@ class BackupEncryptionService {
       if (keyEnd < 0) {
         return null;
       }
-      // 键名带转义（`\u006friginalFormat`）或非 ASCII 时，按原始字节比不出与
-      // 标准解析相同的键，直接退回整段解析，别在这里猜。
+      // 键名带转义（`\u0063iphertext`）或非 ASCII 时按原始字节比不准，退回整段。
       for (var k = i + 1; k < keyEnd; k++) {
         if (input[k] == 0x5C || input[k] >= 0x80) {
           return null;
@@ -454,89 +495,19 @@ class BackupEncryptionService {
         return null;
       }
 
-      switch (key) {
-        case envelopeMarker:
-          final valueEnd = _skipJsonValue(input, i);
-          if (valueEnd < 0 || !_sliceEqualsAscii(input, i, valueEnd, 'true')) {
-            return null;
-          }
-          sawMarker = true;
-          i = valueEnd;
-        case 'version':
-          final slice = _readJsonString(input, i);
-          if (slice == null ||
-              !_sliceEqualsAscii(
-                input,
-                slice.start,
-                slice.end,
-                currentVersion,
-              )) {
-            return null;
-          }
-          sawVersion = true;
-          i = slice.end + 1;
-        case 'iterations':
-          final valueEnd = _skipJsonValue(input, i);
-          if (valueEnd < 0) {
-            return null;
-          }
-          final parsed = int.tryParse(
-            String.fromCharCodes(input, i, valueEnd),
-          );
-          if (parsed == null) {
-            return null;
-          }
-          iterations = parsed;
-          i = valueEnd;
-        case 'originalFormat':
-          final slice = _readJsonString(input, i);
-          if (slice == null) {
-            return null;
-          }
-          final format = _sliceToJsonString(input, slice);
-          if (format == null) {
-            return null;
-          }
-          originalFormat = format;
-          i = slice.end + 1;
-        case 'mac':
-          final slice = _readJsonString(input, i);
-          if (slice == null) {
-            return null;
-          }
-          final digest = _sliceToJsonString(input, slice);
-          if (digest == null) {
-            return null;
-          }
-          mac = digest;
-          i = slice.end + 1;
-        case 'salt':
-          final slice = _readJsonString(input, i);
-          if (slice == null) {
-            return null;
-          }
-          salt = slice;
-          i = slice.end + 1;
-        case 'iv':
-          final slice = _readJsonString(input, i);
-          if (slice == null) {
-            return null;
-          }
-          iv = slice;
-          i = slice.end + 1;
-        case 'ciphertext':
-          final slice = _readJsonString(input, i);
-          if (slice == null) {
-            return null;
-          }
-          cipherText = slice;
-          i = slice.end + 1;
-        default:
-          final valueEnd = _skipJsonValue(input, i);
-          if (valueEnd < 0) {
-            return null;
-          }
-          i = valueEnd;
+      if (key == 'ciphertext') {
+        final slice = _readJsonString(input, i);
+        if (slice == null) {
+          return null;
+        }
+        cipherText = slice;
+        i = slice.end + 1;
+      } else {
+        final valueEnd = _skipJsonValue(input, i);
+        if (valueEnd < 0) {
+          return null;
+        }
+        i = valueEnd;
       }
 
       i = _skipJsonWhitespace(input, i);
@@ -553,28 +524,7 @@ class BackupEncryptionService {
       }
       return null;
     }
-
-    // 顶层对象之后只允许空白；多出任何字节都交给整段解析去报错。
-    if (_skipJsonWhitespace(input, i) != input.length) {
-      return null;
-    }
-    if (!sawMarker ||
-        !sawVersion ||
-        salt == null ||
-        iv == null ||
-        cipherText == null ||
-        mac == null ||
-        mac.isEmpty) {
-      return null;
-    }
-    return _V2EnvelopeScan(
-      salt: salt,
-      iv: iv,
-      cipherText: cipherText,
-      mac: mac,
-      iterations: iterations,
-      originalFormat: originalFormat,
-    );
+    return cipherText;
   }
 
   /// 把 [slice] 指向的 base64 字节直接解成字节，中间不经过 `String`。
@@ -720,28 +670,6 @@ class BackupEncryptionService {
     return _ByteSlice(start + 1, end);
   }
 
-  /// 把 [slice] 里的 JSON 字符串内容按 UTF-8 解成 Dart 字符串。
-  ///
-  /// 返回 null 表示这段内容无法确认与整段 `jsonDecode` 等价，调用方必须退回
-  /// 标准解析路径：
-  /// - 含 `\` 转义（`\u4e2d`、`\"`、`\/` 之类），转义规则交给标准解析；
-  /// - 含未转义的控制字符，标准 JSON 里本就是语法错误，快路不该悄悄收下。
-  ///
-  /// 注意不能写成 `String.fromCharCodes`：那是把 UTF-8 字节逐个当字符，
-  /// `'笔记格式'` 会解成 `'ç¬\x94è®°æ ¼å¼'`。
-  static String? _sliceToJsonString(Uint8List input, _ByteSlice slice) {
-    for (var i = slice.start; i < slice.end; i++) {
-      final byte = input[i];
-      if (byte == 0x5C || byte < 0x20) {
-        return null;
-      }
-    }
-    return utf8.decode(
-      Uint8List.sublistView(input, slice.start, slice.end),
-      allowMalformed: true,
-    );
-  }
-
   /// 跳过一个 JSON 值，返回它之后的位置；结构坏了返回 -1。
   static int _skipJsonValue(Uint8List input, int start) {
     if (start >= input.length) {
@@ -792,23 +720,6 @@ class BackupEncryptionService {
       i++;
     }
     return i > start ? i : -1;
-  }
-
-  static bool _sliceEqualsAscii(
-    Uint8List input,
-    int start,
-    int end,
-    String text,
-  ) {
-    if (end - start != text.length) {
-      return false;
-    }
-    for (var i = 0; i < text.length; i++) {
-      if (input[start + i] != text.codeUnitAt(i)) {
-        return false;
-      }
-    }
-    return true;
   }
 
   Uint8List _secureRandomBytes(int length) {
@@ -1087,7 +998,7 @@ class _ByteSlice {
   final int end;
 }
 
-/// v2 信封单趟扫描的结果：大字段只留区间，小字段已经读成值。
+/// 快速路径的产物：小字段已由标准解析读成值，大密文只留字节区间。
 class _V2EnvelopeScan {
   const _V2EnvelopeScan({
     required this.salt,
@@ -1098,8 +1009,8 @@ class _V2EnvelopeScan {
     required this.originalFormat,
   });
 
-  final _ByteSlice salt;
-  final _ByteSlice iv;
+  final Uint8List salt;
+  final Uint8List iv;
   final _ByteSlice cipherText;
   final String mac;
   final int iterations;

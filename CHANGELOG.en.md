@@ -17,6 +17,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.149] - 2026-11-25
+
+### Improved
+
+- **Home feed**: note cards respond faster when you expand or collapse them.
+- **Note images**: scrolling stays smoother while long screenshots load.
+- **Local backups**: large backup files are more reliable to export and restore.
+- **Backup images**: synced images already downloaded to the device can be included in the backup.
+
+### Fixed
+
+Fixed known issues, improved stability and runtime efficiency.
+
 ## [1.1.143] - 2026-11-23
 
 ### Improved

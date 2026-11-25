@@ -84,6 +84,15 @@ class NoteCard extends StatefulWidget {
   State<NoteCard> createState() => _NoteCardState();
 }
 
+class _CardDoubleTapRecognizer extends DoubleTapGestureRecognizer {
+  late bool Function(Offset position) isOnExpansionButton;
+
+  // 让按钮的单击在抬手时完成，避免卡片双击编辑扣住这次手势约 300ms。
+  @override
+  bool isPointerAllowed(PointerDownEvent event) =>
+      !isOnExpansionButton(event.position) && super.isPointerAllowed(event);
+}
+
 class _NoteCardState extends State<NoteCard>
     with SingleTickerProviderStateMixin {
   // Feed cards collapse only the text body. Media is laid out separately.
@@ -92,6 +101,7 @@ class _NoteCardState extends State<NoteCard>
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   final ValueNotifier<bool> _expandedNotifier = ValueNotifier<bool>(false);
+  final GlobalKey _expansionButtonKey = GlobalKey();
   Note? _optimisticNote;
 
   /// 估算「全文」按钮是否必要，不再做 TextPainter 精确测量。
@@ -215,6 +225,7 @@ class _NoteCardState extends State<NoteCard>
                     ValueListenableBuilder<bool>(
                       valueListenable: _expandedNotifier,
                       builder: (context, isExpanded, _) => GestureDetector(
+                        key: _expansionButtonKey,
                         onTap: () {
                           // 🎯 切换展开/收起状态
                           _expandedNotifier.value = !_expandedNotifier.value;
@@ -930,7 +941,7 @@ class _NoteCardState extends State<NoteCard>
     required Color borderColor,
     required bool isDarkMode,
   }) {
-    return GestureDetector(
+    final body = GestureDetector(
       onTapDown: (_) => _controller.forward(),
       onTapUp: (_) => _controller.reverse(),
       onTapCancel: () => _controller.reverse(),
@@ -948,10 +959,6 @@ class _NoteCardState extends State<NoteCard>
         context.push('/note/${widget.id}');
       },
       onLongPress: _copyNoteContent,
-      onDoubleTap: () {
-        // 🎯 双击：直接编辑笔记
-        widget.onEdit();
-      },
       behavior: HitTestBehavior.translucent,
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -1029,6 +1036,27 @@ class _NoteCardState extends State<NoteCard>
         ),
       ),
     );
+    return RawGestureDetector(
+      gestures: {
+        _CardDoubleTapRecognizer:
+            GestureRecognizerFactoryWithHandlers<_CardDoubleTapRecognizer>(
+          _CardDoubleTapRecognizer.new,
+          (recognizer) {
+            recognizer
+              ..isOnExpansionButton = _isOnExpansionButton
+              ..onDoubleTap = () => widget.onEdit();
+          },
+        ),
+      },
+      child: body,
+    );
+  }
+
+  bool _isOnExpansionButton(Offset position) {
+    final box = _expansionButtonKey.currentContext?.findRenderObject();
+    return box is RenderBox &&
+        box.hasSize &&
+        (Offset.zero & box.size).contains(box.globalToLocal(position));
   }
 
   // 构建引用和被引用的小图标

@@ -134,7 +134,8 @@ https://testflight.apple.com/join/e1v9O7jC
           );
       expect(underlineSpans, isNotEmpty);
     });
-    testWidgets('expands and collapses the rendered body', (tester) async {
+    testWidgets('expands and collapses on the first frame after a tap',
+        (tester) async {
       final date = DateTime(2026);
       final note = Note(
         id: 'long-text',
@@ -142,20 +143,36 @@ https://testflight.apple.com/join/e1v9O7jC
         createdAt: date,
         updatedAt: date,
       );
+      var editCount = 0;
       await tester.pumpWidget(
         _wrap(
-          NoteCard(note: note, onEdit: () {}, onDelete: () {}, onPin: () {}),
+          NoteCard(
+            note: note,
+            onEdit: () => editCount++,
+            onDelete: () {},
+            onPin: () {},
+          ),
         ),
       );
       NotePreviewText preview() => tester.widget(find.byType(NotePreviewText));
 
       expect(preview().maxLines, 6);
       await tester.tap(find.text('展开'));
-      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
       expect(preview().maxLines, isNull);
       await tester.tap(find.text('收起'));
-      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
       expect(preview().maxLines, 6);
+      expect(editCount, 0);
+
+      final body = find.byType(NotePreviewText);
+      await tester.tap(body);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(body);
+      await tester.pump();
+      expect(editCount, 1);
+      // 释放双击识别器为第二次按下创建的最短间隔计时器。
+      await tester.pump(const Duration(milliseconds: 50));
     });
   });
 

@@ -6,6 +6,7 @@ import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inkpaper/models/note_model.dart';
 import 'package:inkpaper/services/backup_archive_service.dart';
+import 'package:inkpaper/utils/attachment_maintenance.dart';
 import 'package:inkpaper/utils/live_photo_utils.dart';
 
 /// 1×1 透明 PNG，够当作真实的图片字节用
@@ -87,6 +88,29 @@ void main() {
   }
 
   group('导出打包', () {
+    test('打包已有本地缓存的 Memos 附件，保留未缓存的引用', () async {
+      const cached = '/file/attachments/2023/cached.png';
+      const missing = '/file/attachments/2023/missing.png';
+      await writeImage(localFileNameForAttachment(cached));
+
+      final built = await service.buildArchive(
+        notes: [_note(id: 'remote', content: '![图]($cached) ![缺]($missing)')],
+        format: BackupContentFormat.json,
+        includeImages: true,
+      );
+
+      expect(built.imageCount, 1);
+      expect(built.missingImageCount, 1);
+      final restored = await service.decodeArchive(built.bytes);
+      expect(restored.restoredImageCount, 1);
+      expect(restored.entries.single.content, isNot(contains(cached)));
+      expect(restored.entries.single.content, contains(missing));
+      expect(
+        await File(restored.restoredLocalPaths.single).readAsBytes(),
+        _tinyPng,
+      );
+    });
+
     test('从磁盘恢复 ZIP 后可以读取正文和媒体，并释放备份文件', () async {
       final image = await writeImage('restore.png');
       final video = await writeVideo('restore.mp4');

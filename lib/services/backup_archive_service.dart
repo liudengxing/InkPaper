@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:inkpaper/models/note_model.dart';
+import 'package:inkpaper/utils/attachment_maintenance.dart';
 import 'package:inkpaper/utils/live_photo_utils.dart';
 import 'package:inkpaper/utils/media_paths.dart';
 import 'package:inkpaper/utils/thumb_cache.dart';
@@ -1196,8 +1197,8 @@ class BackupArchiveService {
 
   /// 把各种写法的图片 / 视频引用落到真实文件上。
   ///
-  /// 顺序：`file://` → 绝对路径 → 相对路径（按应用图片目录拼），
-  /// `content://`、`http(s)://` 这类拿不到字节的直接跳过。
+  /// 已下载的服务端附件按查看器的缓存命名规则找本地副本。
+  /// 其他引用依次尝试文件 URI、绝对路径和媒体目录内的相对路径。
   Future<File?> _resolveMediaFile(String path) async {
     Future<File?> exists(String candidate) async {
       if (candidate.isEmpty) {
@@ -1209,6 +1210,15 @@ class BackupArchiveService {
 
     if (path.startsWith('file://')) {
       return exists(Uri.tryParse(path)?.toFilePath() ?? '');
+    }
+    if (isRemoteAttachmentPath(path)) {
+      final imagesDir = await _imagesDirectoryProvider();
+      final cached = await exists(
+        '${imagesDir.path}/${localFileNameForAttachment(path)}',
+      );
+      if (cached != null) {
+        return cached;
+      }
     }
     if (path.startsWith('content://') ||
         path.startsWith('http://') ||

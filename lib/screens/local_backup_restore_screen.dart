@@ -1621,7 +1621,7 @@ class _LocalBackupRestoreScreenState extends State<LocalBackupRestoreScreen>
             '有 ${[
               if (missingImages > 0) '$missingImages 张图片',
               if (missingVideos > 0) '$missingVideos 段视频',
-            ].join('、')}本地已找不到，已跳过；重新登录服务器同步后会自动补回',
+            ].join('、')}没有可打包的本地文件，已跳过',
           if (skippedVideos > 0)
             '有 $skippedVideos 段视频超过备份包体积上限（单段 150MB / 合计 200MB）未打包，这类大文件建议用 WebDAV 备份',
         ];

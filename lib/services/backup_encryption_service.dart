@@ -437,6 +437,13 @@ class BackupEncryptionService {
       if (keyEnd < 0) {
         return null;
       }
+      // 键名带转义（`\u006friginalFormat`）或非 ASCII 时，按原始字节比不出与
+      // 标准解析相同的键，直接退回整段解析，别在这里猜。
+      for (var k = i + 1; k < keyEnd; k++) {
+        if (input[k] == 0x5C || input[k] >= 0x80) {
+          return null;
+        }
+      }
       final key = String.fromCharCodes(input, i + 1, keyEnd);
       i = _skipJsonWhitespace(input, keyEnd + 1);
       if (i >= input.length || input[i] != 0x3A) {
@@ -483,21 +490,25 @@ class BackupEncryptionService {
           i = valueEnd;
         case 'originalFormat':
           final slice = _readJsonString(input, i);
-          if (slice == null || _sliceContains(input, slice, 0x5C)) {
+          if (slice == null) {
             return null;
           }
-          originalFormat = String.fromCharCodes(
-            input,
-            slice.start,
-            slice.end,
-          );
+          final format = _sliceToJsonString(input, slice);
+          if (format == null) {
+            return null;
+          }
+          originalFormat = format;
           i = slice.end + 1;
         case 'mac':
           final slice = _readJsonString(input, i);
-          if (slice == null || _sliceContains(input, slice, 0x5C)) {
+          if (slice == null) {
             return null;
           }
-          mac = String.fromCharCodes(input, slice.start, slice.end);
+          final digest = _sliceToJsonString(input, slice);
+          if (digest == null) {
+            return null;
+          }
+          mac = digest;
           i = slice.end + 1;
         case 'salt':
           final slice = _readJsonString(input, i);
@@ -709,6 +720,28 @@ class BackupEncryptionService {
     return _ByteSlice(start + 1, end);
   }
 
+  /// 把 [slice] 里的 JSON 字符串内容按 UTF-8 解成 Dart 字符串。
+  ///
+  /// 返回 null 表示这段内容无法确认与整段 `jsonDecode` 等价，调用方必须退回
+  /// 标准解析路径：
+  /// - 含 `\` 转义（`\u4e2d`、`\"`、`\/` 之类），转义规则交给标准解析；
+  /// - 含未转义的控制字符，标准 JSON 里本就是语法错误，快路不该悄悄收下。
+  ///
+  /// 注意不能写成 `String.fromCharCodes`：那是把 UTF-8 字节逐个当字符，
+  /// `'笔记格式'` 会解成 `'ç¬\x94è®°æ ¼å¼'`。
+  static String? _sliceToJsonString(Uint8List input, _ByteSlice slice) {
+    for (var i = slice.start; i < slice.end; i++) {
+      final byte = input[i];
+      if (byte == 0x5C || byte < 0x20) {
+        return null;
+      }
+    }
+    return utf8.decode(
+      Uint8List.sublistView(input, slice.start, slice.end),
+      allowMalformed: true,
+    );
+  }
+
   /// 跳过一个 JSON 值，返回它之后的位置；结构坏了返回 -1。
   static int _skipJsonValue(Uint8List input, int start) {
     if (start >= input.length) {
@@ -776,15 +809,6 @@ class BackupEncryptionService {
       }
     }
     return true;
-  }
-
-  static bool _sliceContains(Uint8List input, _ByteSlice slice, int byte) {
-    for (var i = slice.start; i < slice.end; i++) {
-      if (input[i] == byte) {
-        return true;
-      }
-    }
-    return false;
   }
 
   Uint8List _secureRandomBytes(int length) {

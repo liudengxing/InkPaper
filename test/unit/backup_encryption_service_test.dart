@@ -650,4 +650,101 @@ void main() {
     expect(again.bytes, origin, reason: '未知顶层键要被跳过而不是当成字段错位');
     expect(again.originalFormat, 'ZIP');
   });
+
+  test('ENC-20 非 ASCII 的 originalFormat 往返后逐字符一致', () async {
+    // 真实备份导出会写 '笔记格式' 这类中文格式名。快速扫描曾经用
+    // String.fromCharCodes 把 UTF-8 字节当成字符，正文对、格式名乱码。
+    const password = 'p@ss-中文格式';
+    final origin = _bytes(8192, seed: 41);
+
+    for (final format in <String>['笔记格式', 'ZIP 备份（含附件）', 'emoji-📦']) {
+      final envelope = await service.encryptToBytes(
+        origin,
+        password,
+        originalFormat: format,
+        iterations: 10000,
+        salt: salt,
+        iv: iv,
+      );
+
+      BackupEncryptionService.debugResetFastPathHits();
+      final decoded = await service.decrypt(envelope, password);
+      expect(
+        BackupEncryptionService.debugFastPathHits,
+        1,
+        reason: '格式名含非 ASCII 不能把信封挤出快速路径',
+      );
+      expect(decoded.bytes, origin, reason: '正文要逐字节还原');
+      expect(
+        decoded.originalFormat,
+        format,
+        reason: 'originalFormat 必须按 UTF-8 解回来，不能把字节当字符',
+      );
+    }
+  });
+
+  test('ENC-21 快速路径与整段解析对非 ASCII 格式名给出同一结果', () async {
+    // 对照：强制整段 jsonDecode 得到基线答案，快速路径必须一致。
+    const password = 'p@ss-对照中文';
+    const format = '笔记格式';
+    final origin = _bytes(4096, seed: 43);
+    final envelope = await service.encryptToBytes(
+      origin,
+      password,
+      originalFormat: format,
+      iterations: 10000,
+      salt: salt,
+      iv: iv,
+    );
+
+    BackupEncryptionService.debugResetFastPathHits();
+    final fast = await service.decrypt(envelope, password);
+    expect(BackupEncryptionService.debugFastPathHits, 1, reason: '必须走快路');
+
+    // 基线：标准 UTF-8 JSON 解析能拿到的格式名。
+    final parsed = jsonDecode(utf8.decode(envelope)) as Map<String, dynamic>;
+    expect(parsed['originalFormat'], format, reason: '基线解析结果就是格式名本身');
+    expect(
+      fast.originalFormat,
+      parsed['originalFormat'],
+      reason: '快速路径的格式名要与标准解析完全一致',
+    );
+    expect(fast.bytes, origin);
+  });
+
+  test('ENC-22 格式名含转义时退回标准解析，结果仍与基线一致', () async {
+    // jsonEncode 会把引号与反斜杠写成 \" 与 \\。字节扫描不实现转义规则，
+    // 必须整段退回 jsonDecode，而不是自己猜一段半成品字符串。
+    const password = 'p@ss-转义格式';
+    final origin = _bytes(4096, seed: 47);
+
+    for (final format in <String>[
+      '带"引号"的格式',
+      r'反斜杠\格式',
+      r'混合"与\与笔记',
+    ]) {
+      final envelope = await service.encryptToBytes(
+        origin,
+        password,
+        originalFormat: format,
+        iterations: 10000,
+        salt: salt,
+        iv: iv,
+      );
+
+      BackupEncryptionService.debugResetFastPathHits();
+      final decoded = await service.decrypt(envelope, password);
+      expect(
+        BackupEncryptionService.debugFastPathHits,
+        0,
+        reason: '含转义的格式名要退回标准解析，不能走字节快路',
+      );
+      expect(decoded.bytes, origin, reason: '退回标准解析后正文仍要一致');
+      expect(
+        decoded.originalFormat,
+        format,
+        reason: '转义由标准解析处理，格式名要与写入时完全一致',
+      );
+    }
+  });
 }
